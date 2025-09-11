@@ -249,17 +249,11 @@ export default function Auth() {
                          } />
                        </SelectTrigger>
                        <SelectContent>
-                         {people.length === 0 ? (
-                           <SelectItem value="" disabled>
-                             Nenhuma pessoa encontrada
+                         {people.map((person) => (
+                           <SelectItem key={person.id} value={person.id}>
+                             {person.nome} ({person.email})
                            </SelectItem>
-                         ) : (
-                           people.map((person) => (
-                             <SelectItem key={person.id} value={person.id}>
-                               {person.nome} ({person.email})
-                             </SelectItem>
-                           ))
-                         )}
+                         ))}
                        </SelectContent>
                      </Select>
                    </div>
