@@ -14,6 +14,89 @@ export type Database = {
   }
   public: {
     Tables: {
+      approvals: {
+        Row: {
+          acao: string
+          approver_id: string
+          comentario: string | null
+          created_at: string
+          id: string
+          level: string
+          request_id: string
+        }
+        Insert: {
+          acao: string
+          approver_id: string
+          comentario?: string | null
+          created_at?: string
+          id?: string
+          level: string
+          request_id: string
+        }
+        Update: {
+          acao?: string
+          approver_id?: string
+          comentario?: string | null
+          created_at?: string
+          id?: string
+          level?: string
+          request_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "approvals_approver_id_fkey"
+            columns: ["approver_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "approvals_request_id_fkey"
+            columns: ["request_id"]
+            isOneToOne: false
+            referencedRelation: "requests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      audit_logs: {
+        Row: {
+          acao: string
+          actor_id: string | null
+          created_at: string
+          entidade: string
+          entidade_id: string
+          id: string
+          payload: Json | null
+        }
+        Insert: {
+          acao: string
+          actor_id?: string | null
+          created_at?: string
+          entidade: string
+          entidade_id: string
+          id?: string
+          payload?: Json | null
+        }
+        Update: {
+          acao?: string
+          actor_id?: string | null
+          created_at?: string
+          entidade?: string
+          entidade_id?: string
+          id?: string
+          payload?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audit_logs_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       people: {
         Row: {
           ativo: boolean | null
@@ -58,6 +141,91 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: []
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          id: string
+          person_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          person_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          person_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profiles_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: true
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      requests: {
+        Row: {
+          conflito_flag: boolean | null
+          conflito_refs: string | null
+          created_at: string
+          fim: string
+          id: string
+          inicio: string
+          justificativa: string | null
+          requester_id: string
+          status: string
+          tipo: string
+          tipo_ferias: string | null
+          updated_at: string
+        }
+        Insert: {
+          conflito_flag?: boolean | null
+          conflito_refs?: string | null
+          created_at?: string
+          fim: string
+          id?: string
+          inicio: string
+          justificativa?: string | null
+          requester_id: string
+          status?: string
+          tipo: string
+          tipo_ferias?: string | null
+          updated_at?: string
+        }
+        Update: {
+          conflito_flag?: boolean | null
+          conflito_refs?: string | null
+          created_at?: string
+          fim?: string
+          id?: string
+          inicio?: string
+          justificativa?: string | null
+          requester_id?: string
+          status?: string
+          tipo?: string
+          tipo_ferias?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "requests_requester_id_fkey"
+            columns: ["requester_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {

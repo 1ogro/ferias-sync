@@ -1,72 +1,100 @@
-import { Calendar, Bell, User, LogOut, Home, FileText, Inbox } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { currentUser } from "@/lib/mockData";
-import { useLocation } from "react-router-dom";
+import { Badge } from "@/components/ui/badge";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Calendar, Menu, Bell, User, Settings, LogOut, Shield } from "lucide-react";
+import { Link, useLocation } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
 
 export const Header = () => {
   const location = useLocation();
-  const initials = currentUser.nome
-    .split(" ")
-    .map(n => n[0])
-    .join("")
-    .toUpperCase();
+  const { person, signOut } = useAuth();
 
   const navigation = [
-    { name: "Dashboard", href: "/", icon: Home },
-    { name: "Nova Solicitação", href: "/new-request", icon: FileText },
-    { name: "Aprovações", href: "/inbox", icon: Inbox },
+    { name: "Dashboard", href: "/", icon: Calendar },
+    { name: "Nova Solicitação", href: "/new-request", icon: Menu },
+    { name: "Caixa de Entrada", href: "/inbox", icon: Bell, roles: ['GESTOR', 'DIRETOR', 'ADMIN'] },
+    { name: "Administração", href: "/admin", icon: Shield, roles: ['ADMIN'] },
   ];
 
+  const filteredNavigation = navigation.filter(item => 
+    !item.roles || item.roles.includes(person?.papel || '')
+  );
+
+  const getPapelColor = (papel: string) => {
+    switch (papel) {
+      case 'ADMIN': return 'bg-red-100 text-red-800';
+      case 'DIRETOR': return 'bg-purple-100 text-purple-800';
+      case 'GESTOR': return 'bg-blue-100 text-blue-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const handleSignOut = async () => {
+    await signOut();
+  };
+
   return (
-    <header className="border-b bg-card/50 backdrop-blur supports-[backdrop-filter]:bg-card/50">
-      <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-        <div className="flex items-center gap-6">
-          <div className="flex items-center gap-2">
-            <Calendar className="w-8 h-8 text-primary" />
-            <h1 className="text-xl font-semibold bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
-              Controle de Férias
-            </h1>
+    <header className="border-b border-border bg-card/50 backdrop-blur supports-[backdrop-filter]:bg-card/50">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex justify-between items-center py-4">
+          <div className="flex items-center gap-8">
+            <Link to="/" className="flex items-center gap-3">
+              <Calendar className="w-8 h-8 text-primary" />
+              <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent">
+                Férias UXTD
+              </h1>
+            </Link>
+            
+            <nav className="hidden md:flex space-x-1">
+              {filteredNavigation.map((item) => {
+                const isActive = location.pathname === item.href;
+                return (
+                  <Link
+                    key={item.name}
+                    to={item.href}
+                    className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                      isActive
+                        ? "bg-primary/10 text-primary"
+                        : "text-muted-foreground hover:text-foreground hover:bg-accent"
+                    }`}
+                  >
+                    <item.icon className="w-4 h-4" />
+                    {item.name}
+                  </Link>
+                );
+              })}
+            </nav>
           </div>
 
-          {/* Navigation */}
-          <nav className="hidden md:flex items-center space-x-1">
-            {navigation.map((item) => (
-              <Button
-                key={item.name}
-                variant={location.pathname === item.href ? "default" : "ghost"}
-                size="sm"
-                onClick={() => window.location.href = item.href}
-                className="flex items-center gap-2"
-              >
-                <item.icon className="w-4 h-4" />
-                {item.name}
-              </Button>
-            ))}
-          </nav>
-        </div>
-
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" className="relative">
-            <Bell className="w-5 h-5" />
-            <span className="absolute -top-1 -right-1 w-2 h-2 bg-status-pending rounded-full" />
-          </Button>
-          
-          <div className="flex items-center gap-3 px-3 py-2 rounded-lg border bg-muted/50">
-            <Avatar className="w-8 h-8">
-              <AvatarFallback className="bg-primary text-primary-foreground text-sm">
-                {initials}
-              </AvatarFallback>
-            </Avatar>
-            <div className="flex flex-col">
-              <span className="text-sm font-medium">{currentUser.nome}</span>
-              <span className="text-xs text-muted-foreground">{currentUser.cargo}</span>
-            </div>
+          <div className="flex items-center gap-4">
+            <Badge className={getPapelColor(person?.papel || '')}>
+              {person?.nome?.split(' ')[0] || 'Usuário'}
+            </Badge>
+            
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm">
+                  <User className="w-4 h-4" />
+                  <span className="sr-only">Menu do usuário</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem>
+                  <User className="mr-2 h-4 w-4" />
+                  <span>Perfil</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem>
+                  <Settings className="mr-2 h-4 w-4" />
+                  <span>Configurações</span>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleSignOut}>
+                  <LogOut className="mr-2 h-4 w-4" />
+                  <span>Sair</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
-
-          <Button variant="ghost" size="icon">
-            <LogOut className="w-5 h-5" />
-          </Button>
         </div>
       </div>
     </header>

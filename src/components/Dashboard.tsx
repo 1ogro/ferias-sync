@@ -1,11 +1,12 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { RequestCard } from "./RequestCard";
-import { mockRequests, currentUser } from "@/lib/mockData";
-import { Status, TipoAusencia } from "@/lib/types";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
+import { Status, TipoAusencia, Request } from "@/lib/types";
 import { 
   Calendar, 
   Plus, 
@@ -18,10 +19,55 @@ import {
 
 export const Dashboard = () => {
   const navigate = useNavigate();
+  const { person } = useAuth();
   const [selectedTab, setSelectedTab] = useState<"overview" | "requests">("overview");
-  
-  // Mock statistics
-  const userRequests = mockRequests.filter(req => req.requesterId === currentUser.id);
+  const [userRequests, setUserRequests] = useState<Request[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (person) {
+      fetchUserRequests();
+    }
+  }, [person]);
+
+  const fetchUserRequests = async () => {
+    if (!person) return;
+    
+    try {
+      const { data } = await supabase
+        .from('requests')
+        .select(`
+          *,
+          people!inner(*)
+        `)
+        .eq('requester_id', person.id)
+        .order('created_at', { ascending: false });
+
+      if (data) {
+        const formattedRequests: Request[] = data.map(req => ({
+          id: req.id,
+          requesterId: req.requester_id,
+          requester: req.people as any,
+          tipo: req.tipo as TipoAusencia,
+          inicio: new Date(req.inicio),
+          fim: new Date(req.fim),
+          tipoFerias: req.tipo_ferias,
+          status: req.status as Status,
+          justificativa: req.justificativa,
+          conflitoFlag: req.conflito_flag,
+          conflitoRefs: req.conflito_refs,
+          createdAt: new Date(req.created_at),
+          updatedAt: new Date(req.updated_at)
+        }));
+        setUserRequests(formattedRequests);
+      }
+    } catch (error) {
+      console.error('Error fetching requests:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const pendingRequests = userRequests.filter(req => 
     [Status.PENDENTE, Status.EM_ANALISE_GESTOR, Status.EM_ANALISE_DIRETOR].includes(req.status)
   );
@@ -67,7 +113,7 @@ export const Dashboard = () => {
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-2xl font-semibold mb-2">
-              Olá, {currentUser.nome.split(" ")[0]}! 👋
+              Olá, {person?.nome.split(" ")[0] || 'Usuário'}! 👋
             </h2>
             <p className="text-muted-foreground">
               Gerencie suas férias e days off de forma simples e eficiente.
@@ -133,14 +179,22 @@ export const Dashboard = () => {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              {userRequests.slice(0, 3).map((request) => (
-                <div key={request.id} onClick={() => window.location.href = `/requests/${request.id}`} className="cursor-pointer">
-                  <RequestCard 
-                    request={request} 
-                    showActions={false}
-                  />
-                </div>
-              ))}
+              {loading ? (
+                <p>Carregando...</p>
+              ) : userRequests.length > 0 ? (
+                userRequests.slice(0, 3).map((request) => (
+                  <div key={request.id} onClick={() => navigate(`/requests/${request.id}`)} className="cursor-pointer">
+                    <RequestCard 
+                      request={request} 
+                      showActions={false}
+                    />
+                  </div>
+                ))
+              ) : (
+                <p className="text-muted-foreground text-center py-4">
+                  Nenhuma solicitação encontrada.
+                </p>
+              )}
             </CardContent>
           </Card>
 
@@ -154,27 +208,35 @@ export const Dashboard = () => {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {approvedRequests.map((request) => (
-                  <div key={request.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                    <div className="flex items-center gap-3">
-                      <div className={`w-2 h-8 rounded-full ${
-                        request.tipo === TipoAusencia.FERIAS ? "bg-primary" : "bg-status-in-review"
-                      }`} />
-                      <div>
-                        <p className="font-medium">{request.tipo === TipoAusencia.FERIAS ? "Férias" : "Day Off"}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {request.inicio.toLocaleDateString("pt-BR")}
-                          {request.inicio.getTime() !== request.fim.getTime() && 
-                            ` - ${request.fim.toLocaleDateString("pt-BR")}`
-                          }
-                        </p>
+                {loading ? (
+                  <p>Carregando...</p>
+                ) : approvedRequests.length > 0 ? (
+                  approvedRequests.map((request) => (
+                    <div key={request.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-2 h-8 rounded-full ${
+                          request.tipo === TipoAusencia.FERIAS ? "bg-primary" : "bg-status-in-review"
+                        }`} />
+                        <div>
+                          <p className="font-medium">{request.tipo === TipoAusencia.FERIAS ? "Férias" : "Day Off"}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {request.inicio.toLocaleDateString("pt-BR")}
+                            {request.inicio.getTime() !== request.fim.getTime() && 
+                              ` - ${request.fim.toLocaleDateString("pt-BR")}`
+                            }
+                          </p>
+                        </div>
                       </div>
+                      <Badge variant="outline" className="bg-status-approved/10 text-status-approved">
+                        Aprovado
+                      </Badge>
                     </div>
-                    <Badge variant="outline" className="bg-status-approved/10 text-status-approved">
-                      Aprovado
-                    </Badge>
-                  </div>
-                ))}
+                  ))
+                ) : (
+                  <p className="text-muted-foreground text-center py-4">
+                    Nenhum período aprovado encontrado.
+                  </p>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -183,13 +245,15 @@ export const Dashboard = () => {
 
       {selectedTab === "requests" && (
         <div className="space-y-4">
-          {userRequests.length > 0 ? (
+          {loading ? (
+            <p>Carregando...</p>
+          ) : userRequests.length > 0 ? (
             userRequests.map((request) => (
               <RequestCard 
                 key={request.id} 
                 request={request}
-                onView={(req) => window.location.href = `/requests/${req.id}`}
-                onEdit={(req) => window.location.href = `/requests/${req.id}`}
+                onView={(req) => navigate(`/requests/${req.id}`)}
+                onEdit={(req) => navigate(`/requests/${req.id}`)}
               />
             ))
           ) : (

@@ -10,6 +10,9 @@ import { Badge } from "@/components/ui/badge";
 import { TipoAusencia } from "@/lib/types";
 import { Calendar, AlertTriangle, CheckCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
+import { useNavigate } from "react-router-dom";
 
 interface FormData {
   tipo: TipoAusencia | "";
@@ -20,6 +23,8 @@ interface FormData {
 
 export const NewRequestForm = () => {
   const { toast } = useToast();
+  const { person } = useAuth();
+  const navigate = useNavigate();
   const [formData, setFormData] = useState<FormData>({
     tipo: "",
     inicio: "",
@@ -29,16 +34,32 @@ export const NewRequestForm = () => {
   const [conflicts, setConflicts] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Mock conflict detection
-  const checkConflicts = () => {
-    if (formData.inicio && formData.fim) {
-      // Simulate conflict detection
-      const hasConflict = Math.random() > 0.7; // 30% chance of conflict
-      if (hasConflict) {
-        setConflicts(["João Silva - Tech Team (15/12 - 20/12)"]);
+  // Check for conflicts
+  const checkConflicts = async () => {
+    if (!formData.inicio || !formData.fim || !person) return;
+
+    try {
+      const { data } = await supabase
+        .from('requests')
+        .select(`
+          id,
+          requester_id,
+          inicio,
+          fim,
+          people!inner(nome, sub_time)
+        `)
+        .eq('people.sub_time', person.subTime)
+        .in('status', ['PENDENTE', 'EM_ANALISE_GESTOR', 'APROVADO_1NIVEL', 'EM_ANALISE_DIRETOR', 'APROVADO_FINAL'])
+        .or(`and(inicio.lte.${formData.fim},fim.gte.${formData.inicio})`);
+
+      if (data && data.length > 0) {
+        const conflictNames = data.map(req => `${req.people.nome} (${new Date(req.inicio).toLocaleDateString('pt-BR')} - ${new Date(req.fim).toLocaleDateString('pt-BR')})`);
+        setConflicts(conflictNames);
       } else {
         setConflicts([]);
       }
+    } catch (error) {
+      console.error('Error checking conflicts:', error);
     }
   };
 
@@ -63,18 +84,52 @@ export const NewRequestForm = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!person) return;
+    
     setIsSubmitting(true);
 
-    // Mock submission
-    setTimeout(() => {
+    try {
+      const { error } = await supabase
+        .from('requests')
+        .insert({
+          requester_id: person.id,
+          tipo: formData.tipo,
+          inicio: formData.inicio,
+          fim: formData.fim,
+          justificativa: formData.justificativa,
+          conflito_flag: conflicts.length > 0,
+          conflito_refs: conflicts.join('; '),
+          status: 'PENDENTE'
+        });
+
+      if (error) throw error;
+
+      // Create audit log
+      await supabase
+        .from('audit_logs')
+        .insert({
+          entidade: 'requests',
+          entidade_id: 'new_request',
+          acao: 'CREATE',
+          payload: { tipo: formData.tipo, inicio: formData.inicio, fim: formData.fim },
+          actor_id: person.id
+        });
+
       toast({
         title: "Solicitação enviada!",
         description: "Seu gestor receberá uma notificação para aprovação.",
       });
+      
+      navigate('/');
+    } catch (error: any) {
+      toast({
+        title: "Erro",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
       setIsSubmitting(false);
-      setFormData({ tipo: "", inicio: "", fim: "", justificativa: "" });
-      setConflicts([]);
-    }, 1500);
+    }
   };
 
   const isValid = formData.tipo && formData.inicio && formData.fim && formData.justificativa;
