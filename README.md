@@ -1,73 +1,135 @@
-# Welcome to your Lovable project
+# Sistema de Controle de Férias & Day Off
 
-## Project info
+Um sistema completo para gerenciamento de férias e days off de equipes, com fluxo de aprovação em 2 níveis e integração com Slack.
 
-**URL**: https://lovable.dev/projects/2478ad5c-3341-44b5-83be-98f9e3c1066c
+## ✨ Recursos Principais
 
-## How can I edit this code?
+- **Dashboard Intuitivo**: Visão geral de solicitações, estatísticas e próximos períodos
+- **Fluxo de Aprovação**: Sistema de 2 níveis (Gestor → Diretor)
+- **Detecção de Conflitos**: Identificação automática de sobreposições de ausências
+- **Notificações**: Integração com Slack para notificações em tempo real
+- **Relatórios**: Exportação de dados em CSV
+- **Sincronização**: Integração com Google Sheets para dados de colaboradores
 
-There are several ways of editing your application.
+## 🚀 Tecnologias
 
-**Use Lovable**
+- **Frontend**: React 18 + TypeScript + Vite
+- **UI**: Tailwind CSS + shadcn/ui
+- **Backend**: Supabase (PostgreSQL, Auth, Edge Functions)
+- **Integrações**: Slack API, Google Sheets API
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/2478ad5c-3341-44b5-83be-98f9e3c1066c) and start prompting.
+## 📱 Funcionalidades
 
-Changes made via Lovable will be committed automatically to this repo.
+### Para Colaboradores
+- ✅ Criar solicitações de férias e day off
+- ✅ Visualizar histórico e status de solicitações
+- ✅ Receber notificações de aprovação/reprovação
+- ✅ Ver calendário com períodos aprovados
 
-**Use your preferred IDE**
+### Para Gestores
+- ✅ Aprovar/reprovar solicitações da equipe
+- ✅ Dashboard de equipe com filtros
+- ✅ Exportação de relatórios em CSV
+- ✅ Notificações via Slack
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+### Para Diretores
+- ✅ Aprovação final de solicitações
+- ✅ Visão geral de toda a organização
+- ✅ Relatórios executivos
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+## 🛠️ Setup e Desenvolvimento
 
-Follow these steps:
+### Pré-requisitos
+- Node.js 18+
+- Conta Supabase (para backend)
+- Slack App (para notificações)
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+### Instalação
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+1. Clone o repositório:
+```bash
+git clone <repo-url>
+cd controle-ferias
+```
 
-# Step 3: Install the necessary dependencies.
-npm i
+2. Instale as dependências:
+```bash
+npm install
+```
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
+3. Configure o Supabase:
+   - Acesse o projeto no Lovable
+   - Clique no botão "Supabase" no canto superior direito
+   - Conecte sua conta Supabase
+   - Configure as tabelas necessárias (veja `database-schema.sql`)
+
+4. Configure as integrações:
+```bash
+# Variáveis de ambiente (configurar no Supabase Dashboard)
+SLACK_BOT_TOKEN=xoxb-your-token
+SLACK_SIGNING_SECRET=your-secret
+SHEETS_API_KEY=your-key
+```
+
+5. Execute o projeto:
+```bash
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+## 📊 Estrutura do Banco de Dados
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+### Tabelas Principais
+- `persons` - Colaboradores e hierarquia
+- `requests` - Solicitações de férias/day off
+- `approvals` - Histórico de aprovações
+- `audit_logs` - Log de auditoria
 
-**Use GitHub Codespaces**
+## 🔄 Fluxos de Trabalho
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+### Fluxo de Solicitação
+1. **Colaborador** cria solicitação → Status: `PENDENTE`
+2. **Sistema** verifica conflitos e notifica gestor
+3. **Gestor** aprova → Status: `APROVADO_1NIVEL`
+4. **Diretor** aprova → Status: `APROVADO_FINAL`
+5. **Sistema** marca como `REALIZADO` automaticamente
 
-## What technologies are used for this project?
+### Estados Possíveis
+- `PENDENTE` - Aguardando análise do gestor
+- `EM_ANALISE_GESTOR` - Em análise pelo gestor direto
+- `APROVADO_1NIVEL` - Aprovado pelo gestor, aguardando diretor
+- `EM_ANALISE_DIRETOR` - Em análise pela diretoria
+- `APROVADO_FINAL` - Aprovado e confirmado
+- `REPROVADO` - Rejeitado
+- `CANCELADO` - Cancelado pelo solicitante/gestor
+- `REALIZADO` - Período já ocorreu
 
-This project is built with:
+## 🔧 Integrações
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+### Slack
+- Notificações em tempo real
+- Botões interativos para aprovação
+- Lembretes automáticos
 
-## How can I deploy this project?
+### Google Sheets
+- Sincronização de dados de colaboradores
+- Webhook para atualizações em tempo real
+- Backup automático via polling
 
-Simply open [Lovable](https://lovable.dev/projects/2478ad5c-3341-44b5-83be-98f9e3c1066c) and click on Share -> Publish.
+## 📈 Próximos Passos
 
-## Can I connect a custom domain to my Lovable project?
+Após conectar ao Supabase, você poderá implementar:
 
-Yes, you can!
+1. **Autenticação**: Sistema de login/logout
+2. **Edge Functions**: APIs para Slack e Google Sheets
+3. **Jobs Automáticos**: Lembretes e atualizações de status
+4. **Relatórios Avançados**: Dashboard executivo
+5. **Mobile**: App nativo ou PWA
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+## 📄 Licença
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+Este projeto é privado e destinado ao uso interno da empresa.
+
+---
+
+**Status**: 🚧 Em desenvolvimento - Versão demo funcional
+**Última atualização**: Novembro 2024
