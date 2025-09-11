@@ -15,8 +15,11 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
   useEffect(() => {
     if (!loading && !user) {
       navigate('/auth');
+    } else if (!loading && user && person === null) {
+      // User is authenticated but has no profile - redirect to setup
+      navigate('/setup-profile');
     }
-  }, [user, loading, navigate]);
+  }, [user, person, loading, navigate]);
 
   if (loading || (user && !person)) {
     return (

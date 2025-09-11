@@ -11,6 +11,7 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signUp: (email: string, password: string, personId: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
+  createProfile: (personId: string) => Promise<{ error: any }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -23,20 +24,26 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const fetchPersonData = async (userId: string) => {
     try {
-      const { data: profile } = await supabase
+      const { data: profile, error } = await supabase
         .from('profiles')
         .select(`
           person_id,
           people!inner(*)
         `)
         .eq('user_id', userId)
-        .single();
+        .maybeSingle();
 
-      if (profile?.people) {
+      if (error) {
+        console.error('Error fetching profile:', error);
+        setPerson(null);
+      } else if (profile?.people) {
         setPerson(profile.people as Person);
+      } else {
+        setPerson(null);
       }
     } catch (error) {
       console.error('Error fetching person data:', error);
+      setPerson(null);
     } finally {
       setLoading(false);
     }
@@ -116,6 +123,33 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     setPerson(null);
   };
 
+  const createProfile = async (personId: string) => {
+    if (!user) {
+      return { error: 'User not authenticated' };
+    }
+
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .insert({
+          user_id: user.id,
+          person_id: personId
+        });
+
+      if (error) {
+        console.error('Error creating profile:', error);
+        return { error };
+      }
+
+      // Fetch person data after creating profile
+      await fetchPersonData(user.id);
+      return { error: null };
+    } catch (error) {
+      console.error('Error creating profile:', error);
+      return { error };
+    }
+  };
+
   const value = {
     user,
     session,
@@ -124,6 +158,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     signIn,
     signUp,
     signOut,
+    createProfile,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

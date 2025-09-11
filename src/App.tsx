@@ -11,6 +11,7 @@ import Inbox from "./pages/Inbox";
 import RequestDetail from "./pages/RequestDetail";
 import Auth from "./pages/Auth";
 import Admin from "./pages/Admin";
+import SetupProfile from "./pages/SetupProfile";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -24,6 +25,7 @@ const App = () => (
         <BrowserRouter>
           <Routes>
             <Route path="/auth" element={<Auth />} />
+            <Route path="/setup-profile" element={<SetupProfile />} />
             <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
             <Route path="/new-request" element={<ProtectedRoute><NewRequest /></ProtectedRoute>} />
             <Route path="/inbox" element={<ProtectedRoute><Inbox /></ProtectedRoute>} />
