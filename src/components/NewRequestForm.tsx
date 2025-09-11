@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,6 +33,7 @@ export const NewRequestForm = () => {
   });
   const [conflicts, setConflicts] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [dayOffAlreadyUsed, setDayOffAlreadyUsed] = useState(false);
 
   // Check for conflicts and day-off validations
   const checkConflicts = async () => {
@@ -64,6 +65,28 @@ export const NewRequestForm = () => {
     }
   };
 
+  // Check if day-off was already used this year
+  const checkDayOffUsage = async () => {
+    if (formData.tipo !== TipoAusencia.DAYOFF || !person) return;
+
+    try {
+      const currentYear = new Date().getFullYear();
+      const { data } = await supabase
+        .from('requests')
+        .select('id, inicio, status')
+        .eq('requester_id', person.id)
+        .eq('tipo', TipoAusencia.DAYOFF)
+        .in('status', ['APROVADO_FINAL', 'REALIZADO'])
+        .gte('inicio', `${currentYear}-01-01`)
+        .lte('inicio', `${currentYear}-12-31`);
+
+      return data && data.length > 0;
+    } catch (error) {
+      console.error('Error checking day-off usage:', error);
+      return false;
+    }
+  };
+
   // Validate day-off date
   const validateDayOff = () => {
     if (formData.tipo !== TipoAusencia.DAYOFF || !person?.data_nascimento || !formData.inicio) {
@@ -83,8 +106,6 @@ export const NewRequestForm = () => {
       };
     }
 
-    // Check if day-off already exists for this year
-    // This would require a separate check against existing requests
     return { isValid: true, message: "" };
   };
 
@@ -107,6 +128,10 @@ export const NewRequestForm = () => {
     
     if (field === "inicio" || field === "fim") {
       setTimeout(checkConflicts, 500); // Debounced conflict check
+    }
+    
+    if (field === "tipo" && value === TipoAusencia.DAYOFF) {
+      checkDayOffUsage().then(setDayOffAlreadyUsed);
     }
   };
 
@@ -172,7 +197,8 @@ export const NewRequestForm = () => {
   };
 
   const dayOffValidation = validateDayOff();
-  const isValid = formData.tipo && formData.inicio && formData.fim && formData.justificativa && dayOffValidation.isValid;
+  const isValid = formData.tipo && formData.inicio && formData.fim && formData.justificativa && 
+    dayOffValidation.isValid && !dayOffAlreadyUsed;
 
   return (
     <div className="max-w-2xl mx-auto">
@@ -234,7 +260,7 @@ export const NewRequestForm = () => {
               </div>
             </div>
 
-            {/* Day Off Validation Message */}
+            {/* Day Off Validation Messages */}
             {formData.tipo === TipoAusencia.DAYOFF && !person?.data_nascimento && (
               <Alert variant="destructive">
                 <AlertTriangle className="w-4 h-4" />
@@ -242,6 +268,17 @@ export const NewRequestForm = () => {
                   <strong>Atenção:</strong> Você precisa cadastrar sua data de nascimento no perfil para solicitar Day Off.
                   <br />
                   <small>Day Off só pode ser usado no dia do seu aniversário (1 dia por ano, não cumulativo).</small>
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {formData.tipo === TipoAusencia.DAYOFF && dayOffAlreadyUsed && (
+              <Alert variant="destructive">
+                <AlertTriangle className="w-4 h-4" />
+                <AlertDescription>
+                  <strong>Day-off já utilizado este ano!</strong> Você já usou seu day-off de {new Date().getFullYear()}.
+                  <br />
+                  <small>O day-off será resetado em 01/01/{new Date().getFullYear() + 1}.</small>
                 </AlertDescription>
               </Alert>
             )}

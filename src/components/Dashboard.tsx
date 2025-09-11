@@ -16,6 +16,7 @@ import {
   Users,
   CalendarDays
 } from "lucide-react";
+import React from "react";
 
 export const Dashboard = () => {
   const navigate = useNavigate();
@@ -75,6 +76,34 @@ export const Dashboard = () => {
     [Status.APROVADO_FINAL, Status.REALIZADO].includes(req.status)
   );
 
+  // Calculate day-offs with birthdate validation
+  const dayOffInfo = React.useMemo(() => {
+    if (!person?.data_nascimento) {
+      return {
+        available: 0,
+        canRequest: false,
+        message: "É necessário cadastrar sua data de nascimento no perfil, para poder solicitar um Day-off",
+        disabled: true
+      };
+    }
+
+    const currentYear = new Date().getFullYear();
+    const hasUsedThisYear = userRequests.some(request => 
+      request.tipo === TipoAusencia.DAYOFF &&
+      [Status.APROVADO_FINAL, Status.REALIZADO].includes(request.status) &&
+      request.inicio.getFullYear() === currentYear
+    );
+
+    return {
+      available: hasUsedThisYear ? 0 : 1,
+      canRequest: !hasUsedThisYear,
+      message: hasUsedThisYear 
+        ? `Day-off já utilizado este ano. Próximo reset: 01/01/${currentYear + 1}`
+        : "1 Day-off disponível para o seu aniversário",
+      disabled: false
+    };
+  }, [person, userRequests]);
+
   const stats = [
     {
       title: "Solicitações Pendentes", 
@@ -99,10 +128,12 @@ export const Dashboard = () => {
     },
     {
       title: "Days Off Disponíveis", 
-      value: 8,
+      value: dayOffInfo.disabled ? "—" : dayOffInfo.available,
       icon: Calendar,
-      color: "text-status-in-review",
-      bgColor: "bg-status-in-review/10"
+      color: dayOffInfo.disabled ? "text-muted-foreground" : "text-status-in-review",
+      bgColor: dayOffInfo.disabled ? "bg-muted/20" : "bg-status-in-review/10",
+      disabled: dayOffInfo.disabled,
+      message: dayOffInfo.message
     }
   ];
 
@@ -129,16 +160,31 @@ export const Dashboard = () => {
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {stats.map((stat, index) => (
-          <Card key={index} className="hover:shadow-md transition-shadow">
+          <Card key={index} className={`hover:shadow-md transition-shadow ${stat.disabled ? 'opacity-60' : ''}`}>
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
-                <div>
+                <div className="flex-1">
                   <p className="text-sm font-medium text-muted-foreground">
                     {stat.title}
                   </p>
-                  <p className="text-3xl font-bold mt-2">
-                    {stat.value}
-                  </p>
+                  {stat.disabled ? (
+                    <div className="mt-2">
+                      <p className="text-sm text-muted-foreground leading-relaxed">
+                        {stat.message}
+                      </p>
+                    </div>
+                  ) : (
+                    <>
+                      <p className="text-3xl font-bold mt-2">
+                        {stat.value}
+                      </p>
+                      {stat.message && stat.title === "Days Off Disponíveis" && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {stat.message}
+                        </p>
+                      )}
+                    </>
+                  )}
                 </div>
                 <div className={`p-3 rounded-full ${stat.bgColor}`}>
                   <stat.icon className={`w-6 h-6 ${stat.color}`} />
