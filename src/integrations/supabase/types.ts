@@ -106,6 +106,7 @@ export type Database = {
           gestor_direto_email: string | null
           gestor_id: string | null
           id: string
+          is_admin: boolean | null
           local: string | null
           nome: string
           papel: string | null
@@ -120,6 +121,7 @@ export type Database = {
           gestor_direto_email?: string | null
           gestor_id?: string | null
           id: string
+          is_admin?: boolean | null
           local?: string | null
           nome: string
           papel?: string | null
@@ -134,6 +136,7 @@ export type Database = {
           gestor_direto_email?: string | null
           gestor_id?: string | null
           id?: string
+          is_admin?: boolean | null
           local?: string | null
           nome?: string
           papel?: string | null

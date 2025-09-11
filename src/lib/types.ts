@@ -1,3 +1,10 @@
+export enum OrganizationalRole {
+  COLABORADOR = "COLABORADOR",
+  GESTOR = "GESTOR", 
+  DIRETOR = "DIRETOR"
+}
+
+// Mantemos Papel para compatibilidade temporária
 export enum Papel {
   COLABORADOR = "COLABORADOR",
   GESTOR = "GESTOR", 
@@ -28,7 +35,9 @@ export interface Person {
   cargo?: string;
   local?: string;
   subTime?: string;
-  papel: Papel;
+  papel: Papel; // Manter por compatibilidade
+  organizational_role?: OrganizationalRole | null;
+  is_admin: boolean;
   ativo: boolean;
   gestorId?: string;
   gestor?: Person;

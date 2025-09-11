@@ -9,6 +9,7 @@ export const mockUsers: Person[] = [
     local: "São Paulo",
     subTime: "Tech",
     papel: Papel.COLABORADOR,
+    is_admin: false,
     ativo: true,
     gestorId: "2"
   },
@@ -20,6 +21,7 @@ export const mockUsers: Person[] = [
     local: "São Paulo",
     subTime: "Tech",
     papel: Papel.GESTOR,
+    is_admin: false,
     ativo: true,
     gestorId: "3"
   },
@@ -31,6 +33,7 @@ export const mockUsers: Person[] = [
     local: "São Paulo",
     subTime: "Tech",
     papel: Papel.DIRETOR,
+    is_admin: false,
     ativo: true
   },
   {
@@ -41,6 +44,7 @@ export const mockUsers: Person[] = [
     local: "Rio de Janeiro",
     subTime: "Marketing",
     papel: Papel.COLABORADOR,
+    is_admin: false,
     ativo: true,
     gestorId: "5"
   },
@@ -52,6 +56,7 @@ export const mockUsers: Person[] = [
     local: "Rio de Janeiro",
     subTime: "Marketing",
     papel: Papel.GESTOR,
+    is_admin: false,
     ativo: true,
     gestorId: "3"
   }

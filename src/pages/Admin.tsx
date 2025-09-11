@@ -67,6 +67,7 @@ interface FormData {
   local: string;
   subTime: string;
   papel: Papel;
+  is_admin: boolean;
   ativo: boolean;
   gestorId: string;
 }
@@ -79,7 +80,7 @@ interface FilterState {
   cargo: string;
 }
 
-type SortField = 'nome' | 'email' | 'cargo' | 'local' | 'papel' | 'ativo';
+type SortField = 'nome' | 'email' | 'cargo' | 'local' | 'papel' | 'is_admin' | 'ativo';
 type SortDirection = 'asc' | 'desc';
 
 const Admin = () => {
@@ -93,17 +94,18 @@ const Admin = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   
-  const [formData, setFormData] = useState<FormData>({
-    id: '',
-    nome: '',
-    email: '',
-    cargo: '',
-    local: '',
-    subTime: '',
-    papel: Papel.COLABORADOR,
-    ativo: true,
-    gestorId: ''
-  });
+   const [formData, setFormData] = useState<FormData>({
+     id: '',
+     nome: '',
+     email: '',
+     cargo: '',
+     local: '',
+     subTime: '',
+     papel: Papel.COLABORADOR,
+     is_admin: false,
+     ativo: true,
+     gestorId: ''
+   });
 
   const [filters, setFilters] = useState<FilterState>({
     search: '',
@@ -254,17 +256,18 @@ const Admin = () => {
   };
 
   const handleEdit = (person: Person) => {
-    setFormData({
-      id: person.id,
-      nome: person.nome,
-      email: person.email,
-      cargo: person.cargo || '',
-      local: person.local || '',
-      subTime: person.subTime || '',
-      papel: person.papel,
-      ativo: person.ativo,
-      gestorId: person.gestorId || ''
-    });
+     setFormData({
+       id: person.id,
+       nome: person.nome,
+       email: person.email,
+       cargo: person.cargo || '',
+       local: person.local || '',
+       subTime: person.subTime || '',
+       papel: person.papel,
+       is_admin: person.is_admin,
+       ativo: person.ativo,
+       gestorId: person.gestorId || ''
+     });
     setIsEditing(true);
     setIsDialogOpen(true);
   };
@@ -296,17 +299,18 @@ const Admin = () => {
   };
 
   const resetForm = () => {
-    setFormData({
-      id: '',
-      nome: '',
-      email: '',
-      cargo: '',
-      local: '',
-      subTime: '',
-      papel: Papel.COLABORADOR,
-      ativo: true,
-      gestorId: ''
-    });
+     setFormData({
+       id: '',
+       nome: '',
+       email: '',
+       cargo: '',
+       local: '',
+       subTime: '',
+       papel: Papel.COLABORADOR,
+       is_admin: false,
+       ativo: true,
+       gestorId: ''
+     });
     setIsEditing(false);
     setIsDialogOpen(false);
   };
@@ -497,7 +501,7 @@ const Admin = () => {
                     <SelectValue placeholder="Filtrar por papel" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Todos os papéis</SelectItem>
+                    <SelectItem value="all">Todos os papéis</SelectItem>
                     {Object.values(Papel).map(papel => (
                       <SelectItem key={papel} value={papel}>{papel}</SelectItem>
                     ))}
@@ -509,7 +513,7 @@ const Admin = () => {
                     <SelectValue placeholder="Filtrar por status" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Todos os status</SelectItem>
+                    <SelectItem value="all">Todos os status</SelectItem>
                     <SelectItem value="true">Ativo</SelectItem>
                     <SelectItem value="false">Inativo</SelectItem>
                   </SelectContent>
@@ -543,33 +547,39 @@ const Admin = () => {
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
-                <TableRow>
-                  <SortableHeader field="nome">Nome</SortableHeader>
-                  <SortableHeader field="email">Email</SortableHeader>
-                  <SortableHeader field="cargo">Cargo</SortableHeader>
-                  <SortableHeader field="local">Local</SortableHeader>
-                  <SortableHeader field="papel">Papel</SortableHeader>
-                  <SortableHeader field="ativo">Status</SortableHeader>
-                  <TableHead>Ações</TableHead>
-                </TableRow>
+                 <TableRow>
+                   <SortableHeader field="nome">Nome</SortableHeader>
+                   <SortableHeader field="email">Email</SortableHeader>
+                   <SortableHeader field="cargo">Cargo</SortableHeader>
+                   <SortableHeader field="local">Local</SortableHeader>
+                   <SortableHeader field="papel">Papel</SortableHeader>
+                   <SortableHeader field="is_admin">Admin</SortableHeader>
+                   <SortableHeader field="ativo">Status</SortableHeader>
+                   <TableHead>Ações</TableHead>
+                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredAndSortedPeople.map((person) => (
-                  <TableRow key={person.id}>
-                    <TableCell className="font-medium">{person.nome}</TableCell>
-                    <TableCell>{person.email}</TableCell>
-                    <TableCell>{person.cargo || '-'}</TableCell>
-                    <TableCell>{person.local || '-'}</TableCell>
-                    <TableCell>
-                      <Badge className={getPapelColor(person.papel)}>
-                        {person.papel}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={person.ativo ? "default" : "secondary"}>
-                        {person.ativo ? "Ativo" : "Inativo"}
-                      </Badge>
-                    </TableCell>
+                 {filteredAndSortedPeople.map((person) => (
+                   <TableRow key={person.id}>
+                     <TableCell className="font-medium">{person.nome}</TableCell>
+                     <TableCell>{person.email}</TableCell>
+                     <TableCell>{person.cargo || '-'}</TableCell>
+                     <TableCell>{person.local || '-'}</TableCell>
+                     <TableCell>
+                       <Badge className={getPapelColor(person.papel)}>
+                         {person.papel}
+                       </Badge>
+                     </TableCell>
+                     <TableCell>
+                       <Badge variant={person.is_admin ? "default" : "secondary"}>
+                         {person.is_admin ? "Sim" : "Não"}
+                       </Badge>
+                     </TableCell>
+                     <TableCell>
+                       <Badge variant={person.ativo ? "default" : "secondary"}>
+                         {person.ativo ? "Ativo" : "Inativo"}
+                       </Badge>
+                     </TableCell>
                     <TableCell>
                       <div className="flex gap-2">
                         <Button
@@ -683,25 +693,41 @@ const Admin = () => {
                 />
               </div>
 
-              <div>
-                <Label htmlFor="papel">Papel *</Label>
-                <Select 
-                  value={formData.papel} 
-                  onValueChange={(value: Papel) => setFormData({ ...formData, papel: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Object.values(Papel).map(papel => (
-                      <SelectItem key={papel} value={papel}>{papel}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+               <div>
+                 <Label htmlFor="papel">Papel *</Label>
+                 <Select 
+                   value={formData.papel} 
+                   onValueChange={(value: Papel) => setFormData({ ...formData, papel: value })}
+                 >
+                   <SelectTrigger>
+                     <SelectValue />
+                   </SelectTrigger>
+                   <SelectContent>
+                     {Object.values(Papel).map(papel => (
+                       <SelectItem key={papel} value={papel}>{papel}</SelectItem>
+                     ))}
+                   </SelectContent>
+                 </Select>
+               </div>
 
-              <div>
-                <Label htmlFor="ativo">Status *</Label>
+               <div>
+                 <Label htmlFor="is_admin">Permissões de Admin</Label>
+                 <Select 
+                   value={formData.is_admin?.toString() || 'false'} 
+                   onValueChange={(value) => setFormData({ ...formData, is_admin: value === 'true' })}
+                 >
+                   <SelectTrigger>
+                     <SelectValue />
+                   </SelectTrigger>
+                   <SelectContent>
+                     <SelectItem value="false">Não</SelectItem>
+                     <SelectItem value="true">Sim</SelectItem>
+                   </SelectContent>
+                 </Select>
+               </div>
+
+               <div>
+                 <Label htmlFor="ativo">Status *</Label>
                 <Select 
                   value={formData.ativo.toString()} 
                   onValueChange={(value) => setFormData({ ...formData, ativo: value === 'true' })}
@@ -718,21 +744,21 @@ const Admin = () => {
 
               <div className="sm:col-span-2">
                 <Label htmlFor="gestorId">Gestor ID</Label>
-                <Select 
-                  value={formData.gestorId} 
-                  onValueChange={(value) => setFormData({ ...formData, gestorId: value })}
+                 <Select 
+                  value={formData.gestorId || "none"} 
+                  onValueChange={(value) => setFormData({ ...formData, gestorId: value === "none" ? "" : value })}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Selecionar gestor" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Nenhum gestor</SelectItem>
+                    <SelectItem value="none">Nenhum gestor</SelectItem>
                     {people
-                      .filter(p => p.papel === Papel.GESTOR || p.papel === Papel.DIRETOR || p.papel === Papel.ADMIN)
+                      .filter(p => p.papel === Papel.GESTOR || p.papel === Papel.DIRETOR || p.is_admin)
                       .filter(p => p.id !== formData.id)
                       .map(gestor => (
                         <SelectItem key={gestor.id} value={gestor.id}>
-                          {gestor.nome} ({gestor.papel})
+                          {gestor.nome} ({gestor.is_admin ? 'Admin' : gestor.papel})
                         </SelectItem>
                       ))}
                   </SelectContent>
