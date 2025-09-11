@@ -37,6 +37,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       }
     } catch (error) {
       console.error('Error fetching person data:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -53,9 +55,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           }, 0);
         } else {
           setPerson(null);
+          setLoading(false);
         }
-        
-        setLoading(false);
       }
     );
 
@@ -66,8 +67,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       
       if (session?.user) {
         fetchPersonData(session.user.id);
+      } else {
+        setLoading(false);
       }
-      setLoading(false);
     });
 
     return () => subscription.unsubscribe();

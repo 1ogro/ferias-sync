@@ -102,6 +102,7 @@ export default function Auth() {
           title: 'Login realizado com sucesso!',
           description: 'Redirecionando...',
         });
+        navigate('/');
       }
     } catch (error) {
       toast({

@@ -18,7 +18,7 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
     }
   }, [user, loading, navigate]);
 
-  if (loading) {
+  if (loading || (user && !person)) {
     return (
       <div className="min-h-screen bg-background">
         <div className="border-b">
@@ -48,7 +48,7 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
     );
   }
 
-  if (!user || !person) {
+  if (!user) {
     return null;
   }
 
