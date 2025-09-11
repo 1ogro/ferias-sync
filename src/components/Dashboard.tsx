@@ -17,6 +17,7 @@ import {
   CalendarDays
 } from "lucide-react";
 import React from "react";
+import { useBirthdayNotifications } from "@/hooks/useBirthdayNotifications";
 
 export const Dashboard = () => {
   const navigate = useNavigate();
@@ -24,6 +25,9 @@ export const Dashboard = () => {
   const [selectedTab, setSelectedTab] = useState<"overview" | "requests">("overview");
   const [userRequests, setUserRequests] = useState<Request[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // Initialize birthday notifications for managers
+  useBirthdayNotifications();
 
   useEffect(() => {
     if (person) {

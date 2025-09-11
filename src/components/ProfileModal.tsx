@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Calendar } from "@/components/ui/calendar";
+import { EnhancedCalendar } from "@/components/ui/enhanced-calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { CalendarIcon } from "lucide-react";
 import { format } from "date-fns";
@@ -13,6 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Person } from "@/lib/types";
+import { formatDateToBRString, parseBRStringToDate, applyDateMask, isValidDateString } from "@/lib/dateUtils";
 
 interface ProfileModalProps {
   open: boolean;
@@ -28,16 +29,41 @@ export const ProfileModal = ({ open, onOpenChange }: ProfileModalProps) => {
     email: "",
     data_nascimento: undefined as Date | undefined,
   });
+  const [birthdateInput, setBirthdateInput] = useState("");
 
   useEffect(() => {
     if (person && open) {
+      const birthDate = person.data_nascimento ? new Date(person.data_nascimento) : undefined;
       setFormData({
         nome: person.nome || "",
         email: person.email || "",
-        data_nascimento: person.data_nascimento ? new Date(person.data_nascimento) : undefined,
+        data_nascimento: birthDate,
       });
+      setBirthdateInput(formatDateToBRString(birthDate));
     }
   }, [person, open]);
+
+  // Handle text input changes with mask
+  const handleBirthdateInputChange = (value: string) => {
+    const maskedValue = applyDateMask(value);
+    setBirthdateInput(maskedValue);
+    
+    // Try to parse and update date if valid
+    if (maskedValue.length === 10) {
+      const parsed = parseBRStringToDate(maskedValue);
+      if (parsed) {
+        setFormData(prev => ({ ...prev, data_nascimento: parsed }));
+      }
+    } else {
+      setFormData(prev => ({ ...prev, data_nascimento: undefined }));
+    }
+  };
+
+  // Handle calendar selection
+  const handleCalendarSelect = (date: Date | undefined) => {
+    setFormData(prev => ({ ...prev, data_nascimento: date }));
+    setBirthdateInput(formatDateToBRString(date));
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -133,34 +159,45 @@ export const ProfileModal = ({ open, onOpenChange }: ProfileModalProps) => {
 
           <div className="space-y-2">
             <Label>Data de Nascimento</Label>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
+            <div className="flex gap-2">
+              <div className="flex-1">
+                <Input
+                  placeholder="DD/MM/AAAA"
+                  value={birthdateInput}
+                  onChange={(e) => handleBirthdateInputChange(e.target.value)}
+                  maxLength={10}
                   className={cn(
-                    "w-full justify-start text-left font-normal",
-                    !formData.data_nascimento && "text-muted-foreground"
+                    birthdateInput && !isValidDateString(birthdateInput) && "border-destructive"
                   )}
-                >
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {formData.data_nascimento ? (
-                    format(formData.data_nascimento, "dd 'de' MMMM 'de' yyyy", { locale: ptBR })
-                  ) : (
-                    <span>Selecione sua data de nascimento</span>
-                  )}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar
-                  mode="single"
-                  selected={formData.data_nascimento}
-                  onSelect={(date) => setFormData(prev => ({ ...prev, data_nascimento: date }))}
-                  disabled={(date) => date > new Date() || date < new Date("1930-01-01")}
-                  initialFocus
-                  className={cn("p-3 pointer-events-auto")}
                 />
-              </PopoverContent>
-            </Popover>
+                {birthdateInput && !isValidDateString(birthdateInput) && birthdateInput.length === 10 && (
+                  <p className="text-xs text-destructive mt-1">Data inválida</p>
+                )}
+              </div>
+              
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="shrink-0"
+                  >
+                    <CalendarIcon className="h-4 w-4" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="end">
+                  <EnhancedCalendar
+                    mode="single"
+                    selected={formData.data_nascimento}
+                    onSelect={handleCalendarSelect}
+                    disabled={(date) => date > new Date() || date < new Date("1930-01-01")}
+                    initialFocus
+                    className="pointer-events-auto"
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+            
             {formData.data_nascimento && (
               <p className="text-sm text-muted-foreground">
                 Seu day-off anual será em {getBirthdayThisYear() ? format(getBirthdayThisYear()!, "dd/MM") : 'N/A'} (dia do seu aniversário)
