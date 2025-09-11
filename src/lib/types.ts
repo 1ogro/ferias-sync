@@ -4,12 +4,11 @@ export enum OrganizationalRole {
   DIRETOR = "DIRETOR"
 }
 
-// Mantemos Papel para compatibilidade temporária
+// Papéis organizacionais para fluxo de aprovação
 export enum Papel {
   COLABORADOR = "COLABORADOR",
   GESTOR = "GESTOR", 
-  DIRETOR = "DIRETOR",
-  ADMIN = "ADMIN"
+  DIRETOR = "DIRETOR"
 }
 
 export enum TipoAusencia {
@@ -35,9 +34,9 @@ export interface Person {
   cargo?: string;
   local?: string;
   subTime?: string;
-  papel: Papel; // Manter por compatibilidade
+  papel: Papel; // Papel organizacional para fluxo de aprovação
   organizational_role?: OrganizationalRole | null;
-  is_admin: boolean;
+  is_admin: boolean; // Permissão administrativa
   ativo: boolean;
   gestorId?: string;
   gestor?: Person;

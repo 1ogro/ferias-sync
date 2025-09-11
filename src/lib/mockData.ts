@@ -33,7 +33,7 @@ export const mockUsers: Person[] = [
     local: "São Paulo",
     subTime: "Tech",
     papel: Papel.DIRETOR,
-    is_admin: false,
+    is_admin: true, // Admin para testar funcionalidades administrativas
     ativo: true
   },
   {

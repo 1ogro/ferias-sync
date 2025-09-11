@@ -168,7 +168,7 @@ const Admin = () => {
     fetchPeople();
   }, []);
 
-  if (!person || person.papel !== 'ADMIN') {
+  if (!person || !person.is_admin) {
     return <Navigate to="/" replace />;
   }
 
@@ -212,6 +212,7 @@ const Admin = () => {
         local: formData.local || null,
         sub_time: formData.subTime || null,
         papel: formData.papel,
+        is_admin: formData.is_admin,
         ativo: formData.ativo,
         gestor_id: formData.gestorId || null
       };
@@ -336,7 +337,6 @@ const Admin = () => {
 
   const getPapelColor = (papel: Papel) => {
     switch (papel) {
-      case Papel.ADMIN: return "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200";
       case Papel.DIRETOR: return "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200";
       case Papel.GESTOR: return "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200";
       case Papel.COLABORADOR: return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200";
@@ -753,14 +753,14 @@ const Admin = () => {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">Nenhum gestor</SelectItem>
-                    {people
-                      .filter(p => p.papel === Papel.GESTOR || p.papel === Papel.DIRETOR || p.is_admin)
-                      .filter(p => p.id !== formData.id)
-                      .map(gestor => (
-                        <SelectItem key={gestor.id} value={gestor.id}>
-                          {gestor.nome} ({gestor.is_admin ? 'Admin' : gestor.papel})
-                        </SelectItem>
-                      ))}
+                     {people
+                       .filter(p => p.papel === Papel.GESTOR || p.papel === Papel.DIRETOR)
+                       .filter(p => p.id !== formData.id)
+                       .map(gestor => (
+                         <SelectItem key={gestor.id} value={gestor.id}>
+                           {gestor.nome} ({gestor.papel})
+                         </SelectItem>
+                       ))}
                   </SelectContent>
                 </Select>
               </div>

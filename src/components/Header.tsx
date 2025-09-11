@@ -12,19 +12,20 @@ export const Header = () => {
   const navigation = [
     { name: "Dashboard", href: "/", icon: Calendar },
     { name: "Nova Solicitação", href: "/new-request", icon: Menu },
-    { name: "Caixa de Entrada", href: "/inbox", icon: Bell, roles: ['GESTOR', 'DIRETOR', 'ADMIN'] },
-    { name: "Administração", href: "/admin", icon: Shield, roles: ['ADMIN'] },
+    { name: "Caixa de Entrada", href: "/inbox", icon: Bell, roles: ['GESTOR', 'DIRETOR'] },
+    { name: "Administração", href: "/admin", icon: Shield, isAdmin: true },
   ];
 
-  const filteredNavigation = navigation.filter(item => 
-    !item.roles || item.roles.includes(person?.papel || '')
-  );
+  const filteredNavigation = navigation.filter(item => {
+    if (item.isAdmin) return person?.is_admin;
+    return !item.roles || item.roles.includes(person?.papel || '');
+  });
 
   const getPapelColor = (papel: string) => {
     switch (papel) {
-      case 'ADMIN': return 'bg-red-100 text-red-800';
       case 'DIRETOR': return 'bg-purple-100 text-purple-800';
       case 'GESTOR': return 'bg-blue-100 text-blue-800';
+      case 'COLABORADOR': return 'bg-green-100 text-green-800';
       default: return 'bg-gray-100 text-gray-800';
     }
   };
