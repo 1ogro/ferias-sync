@@ -5,7 +5,11 @@ import { Calendar, Menu, Bell, User, Settings, LogOut, Shield } from "lucide-rea
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 
-export const Header = () => {
+interface HeaderProps {
+  showNavigation?: boolean;
+}
+
+export const Header = ({ showNavigation = true }: HeaderProps) => {
   const location = useLocation();
   const { person, signOut } = useAuth();
 
@@ -46,25 +50,27 @@ export const Header = () => {
               </h1>
             </Link>
             
-            <nav className="hidden md:flex space-x-1">
-              {filteredNavigation.map((item) => {
-                const isActive = location.pathname === item.href;
-                return (
-                  <Link
-                    key={item.name}
-                    to={item.href}
-                    className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                      isActive
-                        ? "bg-primary/10 text-primary"
-                        : "text-muted-foreground hover:text-foreground hover:bg-accent"
-                    }`}
-                  >
-                    <item.icon className="w-4 h-4" />
-                    {item.name}
-                  </Link>
-                );
-              })}
-            </nav>
+            {showNavigation && (
+              <nav className="hidden md:flex space-x-1">
+                {filteredNavigation.map((item) => {
+                  const isActive = location.pathname === item.href;
+                  return (
+                    <Link
+                      key={item.name}
+                      to={item.href}
+                      className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                        isActive
+                          ? "bg-primary/10 text-primary"
+                          : "text-muted-foreground hover:text-foreground hover:bg-accent"
+                      }`}
+                    >
+                      <item.icon className="w-4 h-4" />
+                      {item.name}
+                    </Link>
+                  );
+                })}
+              </nav>
+            )}
           </div>
 
           <div className="flex items-center gap-4">

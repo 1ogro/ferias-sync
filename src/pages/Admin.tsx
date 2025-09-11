@@ -43,6 +43,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { Navigate } from "react-router-dom";
+import { Header } from "@/components/Header";
 import { 
   Plus, 
   Search, 
@@ -388,6 +389,12 @@ const Admin = () => {
     document.body.removeChild(link);
   };
 
+  // Helper function to check if user has approval role
+  const hasApprovalRole = (person: Person | null): boolean => {
+    if (!person) return false;
+    return ['COLABORADOR', 'GESTOR', 'DIRETOR'].includes(person.papel);
+  };
+
   if (loading) {
     return (
       <div className="container mx-auto p-6">
@@ -399,7 +406,9 @@ const Admin = () => {
   }
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
+    <div className="min-h-screen bg-background">
+      <Header showNavigation={hasApprovalRole(person)} />
+      <div className="container mx-auto p-6 space-y-6">
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -777,6 +786,7 @@ const Admin = () => {
           </form>
         </DialogContent>
       </Dialog>
+      </div>
     </div>
   );
 };
