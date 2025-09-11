@@ -49,17 +49,38 @@ export default function Auth() {
 
   const fetchPeople = async () => {
     try {
-      const { data } = await supabase
+      console.log('Fetching people from database...');
+      const { data, error } = await supabase
         .from('people')
         .select('id, nome, email')
         .eq('ativo', true)
         .order('nome');
       
-      if (data) {
+      console.log('Database response:', { data, error });
+      
+      if (error) {
+        console.error('Supabase error:', error);
+        toast({
+          title: 'Erro ao carregar dados',
+          description: 'Não foi possível carregar a lista de pessoas.',
+          variant: 'destructive',
+        });
+        return;
+      }
+      
+      if (data && data.length > 0) {
+        console.log('Setting people data:', data);
         setPeople(data);
+      } else {
+        console.log('No people data found');
       }
     } catch (error) {
       console.error('Error fetching people:', error);
+      toast({
+        title: 'Erro ao carregar dados',
+        description: 'Ocorreu um erro inesperado ao carregar a lista.',
+        variant: 'destructive',
+      });
     }
   };
 
@@ -213,24 +234,35 @@ export default function Auth() {
               </CardHeader>
               <CardContent>
                 <form onSubmit={handleSignup} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="signup-person">Selecione seu nome</Label>
-                    <Select 
-                      value={signupData.personId} 
-                      onValueChange={(value) => setSignupData(prev => ({ ...prev, personId: value }))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Escolha seu nome na lista" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {people.map((person) => (
-                          <SelectItem key={person.id} value={person.id}>
-                            {person.nome} ({person.email})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                   <div className="space-y-2">
+                     <Label htmlFor="signup-person">Selecione seu nome</Label>
+                     <Select 
+                       value={signupData.personId} 
+                       onValueChange={(value) => setSignupData(prev => ({ ...prev, personId: value }))}
+                       disabled={people.length === 0}
+                     >
+                       <SelectTrigger>
+                         <SelectValue placeholder={
+                           people.length === 0 
+                             ? "Carregando lista de pessoas..." 
+                             : "Escolha seu nome na lista"
+                         } />
+                       </SelectTrigger>
+                       <SelectContent>
+                         {people.length === 0 ? (
+                           <SelectItem value="" disabled>
+                             Nenhuma pessoa encontrada
+                           </SelectItem>
+                         ) : (
+                           people.map((person) => (
+                             <SelectItem key={person.id} value={person.id}>
+                               {person.nome} ({person.email})
+                             </SelectItem>
+                           ))
+                         )}
+                       </SelectContent>
+                     </Select>
+                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="signup-email">Email</Label>
                     <Input
