@@ -40,6 +40,7 @@ export interface Person {
   ativo: boolean;
   gestorId?: string;
   gestor?: Person;
+  data_nascimento?: string; // Data de nascimento para cálculo de day-off
 }
 
 export interface Request {

@@ -34,11 +34,12 @@ export const NewRequestForm = () => {
   const [conflicts, setConflicts] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Check for conflicts
+  // Check for conflicts and day-off validations
   const checkConflicts = async () => {
     if (!formData.inicio || !formData.fim || !person) return;
 
     try {
+      // Check for team conflicts
       const { data } = await supabase
         .from('requests')
         .select(`
@@ -63,8 +64,46 @@ export const NewRequestForm = () => {
     }
   };
 
+  // Validate day-off date
+  const validateDayOff = () => {
+    if (formData.tipo !== TipoAusencia.DAYOFF || !person?.data_nascimento || !formData.inicio) {
+      return { isValid: true, message: "" };
+    }
+
+    const selectedDate = new Date(formData.inicio);
+    const birthDate = new Date(person.data_nascimento);
+    const currentYear = selectedDate.getFullYear();
+    const birthdayThisYear = new Date(currentYear, birthDate.getMonth(), birthDate.getDate());
+
+    // Check if selected date matches birthday
+    if (selectedDate.getTime() !== birthdayThisYear.getTime()) {
+      return {
+        isValid: false,
+        message: `Day Off só pode ser solicitado no dia do seu aniversário (${birthdayThisYear.toLocaleDateString('pt-BR')})`
+      };
+    }
+
+    // Check if day-off already exists for this year
+    // This would require a separate check against existing requests
+    return { isValid: true, message: "" };
+  };
+
   const handleInputChange = (field: keyof FormData, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+    setFormData(prev => {
+      const newData = { ...prev, [field]: value };
+      
+      // Auto-set fim date for day-off to be the same as inicio
+      if (field === "inicio" && prev.tipo === TipoAusencia.DAYOFF) {
+        newData.fim = value;
+      }
+      
+      // Reset fim when tipo changes to day-off
+      if (field === "tipo" && value === TipoAusencia.DAYOFF) {
+        newData.fim = newData.inicio;
+      }
+      
+      return newData;
+    });
     
     if (field === "inicio" || field === "fim") {
       setTimeout(checkConflicts, 500); // Debounced conflict check
@@ -132,7 +171,8 @@ export const NewRequestForm = () => {
     }
   };
 
-  const isValid = formData.tipo && formData.inicio && formData.fim && formData.justificativa;
+  const dayOffValidation = validateDayOff();
+  const isValid = formData.tipo && formData.inicio && formData.fim && formData.justificativa && dayOffValidation.isValid;
 
   return (
     <div className="max-w-2xl mx-auto">
@@ -165,7 +205,14 @@ export const NewRequestForm = () => {
             {/* Date Range */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="inicio">Data de Início *</Label>
+                <Label htmlFor="inicio">
+                  Data de Início *
+                  {formData.tipo === TipoAusencia.DAYOFF && person?.data_nascimento && (
+                    <span className="text-sm text-muted-foreground ml-2">
+                      (Day Off: {new Date(new Date().getFullYear(), new Date(person.data_nascimento).getMonth(), new Date(person.data_nascimento).getDate()).toLocaleDateString('pt-BR')})
+                    </span>
+                  )}
+                </Label>
                 <Input
                   id="inicio"
                   type="date"
@@ -182,9 +229,32 @@ export const NewRequestForm = () => {
                   value={formData.fim}
                   onChange={(e) => handleInputChange("fim", e.target.value)}
                   min={formData.inicio || new Date().toISOString().split('T')[0]}
+                  disabled={formData.tipo === TipoAusencia.DAYOFF}
                 />
               </div>
             </div>
+
+            {/* Day Off Validation Message */}
+            {formData.tipo === TipoAusencia.DAYOFF && !person?.data_nascimento && (
+              <Alert variant="destructive">
+                <AlertTriangle className="w-4 h-4" />
+                <AlertDescription>
+                  <strong>Atenção:</strong> Você precisa cadastrar sua data de nascimento no perfil para solicitar Day Off.
+                  <br />
+                  <small>Day Off só pode ser usado no dia do seu aniversário (1 dia por ano, não cumulativo).</small>
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {formData.tipo === TipoAusencia.DAYOFF && formData.inicio && (() => {
+              const validation = validateDayOff();
+              return !validation.isValid ? (
+                <Alert variant="destructive">
+                  <AlertTriangle className="w-4 h-4" />
+                  <AlertDescription>{validation.message}</AlertDescription>
+                </Alert>
+              ) : null;
+            })()}
 
             {/* Duration Display */}
             {calculateDays() > 0 && (

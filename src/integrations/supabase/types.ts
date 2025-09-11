@@ -102,6 +102,7 @@ export type Database = {
           ativo: boolean | null
           cargo: string | null
           created_at: string | null
+          data_nascimento: string | null
           email: string
           gestor_direto_email: string | null
           gestor_id: string | null
@@ -117,6 +118,7 @@ export type Database = {
           ativo?: boolean | null
           cargo?: string | null
           created_at?: string | null
+          data_nascimento?: string | null
           email: string
           gestor_direto_email?: string | null
           gestor_id?: string | null
@@ -132,6 +134,7 @@ export type Database = {
           ativo?: boolean | null
           cargo?: string | null
           created_at?: string | null
+          data_nascimento?: string | null
           email?: string
           gestor_direto_email?: string | null
           gestor_id?: string | null
