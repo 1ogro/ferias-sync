@@ -1,58 +1,196 @@
-import { useState, useEffect } from 'react';
-import { Header } from '@/components/Header';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
-import { useAuth } from '@/hooks/useAuth';
-import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
-import { Papel, Person } from '@/lib/types';
-import { Users, UserPlus, Edit, Trash2, Shield } from 'lucide-react';
+import { useState, useEffect, useMemo } from "react";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
+import { Person, Papel } from "@/lib/types";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { 
+  Table, 
+  TableBody, 
+  TableCell, 
+  TableHead, 
+  TableHeader, 
+  TableRow 
+} from "@/components/ui/table";
+import { 
+  Select, 
+  SelectContent, 
+  SelectItem, 
+  SelectTrigger, 
+  SelectValue 
+} from "@/components/ui/select";
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogDescription, 
+  DialogFooter, 
+  DialogHeader, 
+  DialogTitle 
+} from "@/components/ui/dialog";
+import { 
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { useToast } from "@/hooks/use-toast";
+import { Navigate } from "react-router-dom";
+import { 
+  Plus, 
+  Search, 
+  Edit, 
+  Trash2, 
+  Filter, 
+  X, 
+  Download,
+  Upload,
+  Users,
+  UserCheck,
+  UserX,
+  ChevronUp,
+  ChevronDown
+} from "lucide-react";
 
-export default function Admin() {
+interface FormData {
+  id: string;
+  nome: string;
+  email: string;
+  cargo: string;
+  local: string;
+  subTime: string;
+  papel: Papel;
+  ativo: boolean;
+  gestorId: string;
+}
+
+interface FilterState {
+  search: string;
+  papel: string;
+  ativo: string;
+  local: string;
+  cargo: string;
+}
+
+type SortField = 'nome' | 'email' | 'cargo' | 'local' | 'papel' | 'ativo';
+type SortDirection = 'asc' | 'desc';
+
+const Admin = () => {
   const { person } = useAuth();
   const { toast } = useToast();
+  
   const [people, setPeople] = useState<Person[]>([]);
   const [loading, setLoading] = useState(true);
-  const [editingPerson, setEditingPerson] = useState<Person | null>(null);
-  const [formData, setFormData] = useState({
+  const [submitting, setSubmitting] = useState(false);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  
+  const [formData, setFormData] = useState<FormData>({
+    id: '',
     nome: '',
     email: '',
     cargo: '',
     local: '',
     subTime: '',
     papel: Papel.COLABORADOR,
-    gestorId: '',
-    ativo: true
+    ativo: true,
+    gestorId: ''
   });
 
+  const [filters, setFilters] = useState<FilterState>({
+    search: '',
+    papel: '',
+    ativo: '',
+    local: '',
+    cargo: ''
+  });
+
+  const [sortField, setSortField] = useState<SortField>('nome');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
+  const [showFilters, setShowFilters] = useState(false);
+
+  // Statistics
+  const stats = useMemo(() => {
+    const total = people.length;
+    const active = people.filter(p => p.ativo).length;
+    const inactive = total - active;
+    const byRole = Object.values(Papel).reduce((acc, role) => {
+      acc[role] = people.filter(p => p.papel === role).length;
+      return acc;
+    }, {} as Record<Papel, number>);
+
+    return { total, active, inactive, byRole };
+  }, [people]);
+
+  // Filtered and sorted data
+  const filteredAndSortedPeople = useMemo(() => {
+    let filtered = people.filter(person => {
+      const matchesSearch = !filters.search || 
+        person.nome.toLowerCase().includes(filters.search.toLowerCase()) ||
+        person.email.toLowerCase().includes(filters.search.toLowerCase());
+      
+      const matchesPapel = !filters.papel || person.papel === filters.papel;
+      const matchesAtivo = !filters.ativo || person.ativo.toString() === filters.ativo;
+      const matchesLocal = !filters.local || (person.local && person.local.toLowerCase().includes(filters.local.toLowerCase()));
+      const matchesCargo = !filters.cargo || (person.cargo && person.cargo.toLowerCase().includes(filters.cargo.toLowerCase()));
+
+      return matchesSearch && matchesPapel && matchesAtivo && matchesLocal && matchesCargo;
+    });
+
+    // Sort
+    filtered.sort((a, b) => {
+      let aValue = a[sortField] || '';
+      let bValue = b[sortField] || '';
+      
+      if (typeof aValue === 'boolean') {
+        aValue = aValue ? 'Ativo' : 'Inativo';
+        bValue = bValue ? 'Ativo' : 'Inativo';
+      }
+      
+      const comparison = aValue.toString().localeCompare(bValue.toString());
+      return sortDirection === 'asc' ? comparison : -comparison;
+    });
+
+    return filtered;
+  }, [people, filters, sortField, sortDirection]);
+
   useEffect(() => {
-    if (person?.papel !== 'ADMIN') {
-      window.location.href = '/';
-      return;
-    }
     fetchPeople();
-  }, [person]);
+  }, []);
+
+  if (!person || person.papel !== 'ADMIN') {
+    return <Navigate to="/" replace />;
+  }
 
   const fetchPeople = async () => {
     try {
-      const { data } = await supabase
+      setLoading(true);
+      const { data, error } = await supabase
         .from('people')
         .select('*')
-        .order('nome');
-      
-      if (data) {
-        setPeople(data as Person[]);
-      }
+        .order('nome', { ascending: true });
+
+      if (error) throw error;
+      setPeople((data || []).map(person => ({
+        ...person,
+        papel: person.papel as Papel,
+        gestorId: person.gestor_id,
+        subTime: person.sub_time
+      })));
     } catch (error) {
-      console.error('Error fetching people:', error);
+      console.error('Erro ao buscar pessoas:', error);
       toast({
-        title: 'Erro',
-        description: 'Erro ao carregar pessoas.',
-        variant: 'destructive',
+        title: "Erro",
+        description: "Erro ao carregar lista de pessoas",
+        variant: "destructive",
       });
     } finally {
       setLoading(false);
@@ -61,345 +199,560 @@ export default function Admin() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+    setSubmitting(true);
+
     try {
-      if (editingPerson) {
+      const data = {
+        id: formData.id,
+        nome: formData.nome,
+        email: formData.email,
+        cargo: formData.cargo || null,
+        local: formData.local || null,
+        sub_time: formData.subTime || null,
+        papel: formData.papel,
+        ativo: formData.ativo,
+        gestor_id: formData.gestorId || null
+      };
+
+      if (isEditing) {
         const { error } = await supabase
           .from('people')
-          .update({
-            nome: formData.nome,
-            email: formData.email,
-            cargo: formData.cargo,
-            local: formData.local,
-            sub_time: formData.subTime,
-            papel: formData.papel,
-            gestor_id: formData.gestorId || null,
-            ativo: formData.ativo
-          })
-          .eq('id', editingPerson.id);
+          .update(data)
+          .eq('id', formData.id);
 
         if (error) throw error;
         
         toast({
-          title: 'Sucesso',
-          description: 'Pessoa atualizada com sucesso.',
+          title: "Sucesso",
+          description: "Pessoa atualizada com sucesso!",
         });
       } else {
         const { error } = await supabase
           .from('people')
-          .insert({
-            id: `person_${Date.now()}`,
-            nome: formData.nome,
-            email: formData.email,
-            cargo: formData.cargo,
-            local: formData.local,
-            sub_time: formData.subTime,
-            papel: formData.papel,
-            gestor_id: formData.gestorId || null,
-            ativo: formData.ativo
-          });
+          .insert([data]);
 
         if (error) throw error;
         
         toast({
-          title: 'Sucesso',
-          description: 'Pessoa criada com sucesso.',
+          title: "Sucesso",
+          description: "Pessoa criada com sucesso!",
         });
       }
-      
+
       resetForm();
       fetchPeople();
     } catch (error: any) {
+      console.error('Erro ao salvar:', error);
       toast({
-        title: 'Erro',
-        description: error.message,
-        variant: 'destructive',
+        title: "Erro",
+        description: error.message || "Erro ao salvar pessoa",
+        variant: "destructive",
       });
+    } finally {
+      setSubmitting(false);
     }
   };
 
   const handleEdit = (person: Person) => {
-    setEditingPerson(person);
     setFormData({
+      id: person.id,
       nome: person.nome,
       email: person.email,
       cargo: person.cargo || '',
       local: person.local || '',
       subTime: person.subTime || '',
-      papel: person.papel as Papel,
-      gestorId: person.gestorId || '',
-      ativo: person.ativo
+      papel: person.papel,
+      ativo: person.ativo,
+      gestorId: person.gestorId || ''
     });
+    setIsEditing(true);
+    setIsDialogOpen(true);
   };
 
-  const handleDelete = async (personId: string) => {
-    if (!confirm('Tem certeza que deseja excluir esta pessoa?')) return;
-    
+  const handleDelete = async (id: string) => {
     try {
       const { error } = await supabase
         .from('people')
         .delete()
-        .eq('id', personId);
+        .eq('id', id);
 
       if (error) throw error;
-      
+
       toast({
-        title: 'Sucesso',
-        description: 'Pessoa excluída com sucesso.',
+        title: "Sucesso",
+        description: "Pessoa excluída com sucesso!",
       });
       
       fetchPeople();
     } catch (error: any) {
+      console.error('Erro ao excluir:', error);
       toast({
-        title: 'Erro',
-        description: error.message,
-        variant: 'destructive',
+        title: "Erro",
+        description: error.message || "Erro ao excluir pessoa",
+        variant: "destructive",
       });
     }
+    setDeleteId(null);
   };
 
   const resetForm = () => {
-    setEditingPerson(null);
     setFormData({
+      id: '',
       nome: '',
       email: '',
       cargo: '',
       local: '',
       subTime: '',
       papel: Papel.COLABORADOR,
-      gestorId: '',
-      ativo: true
+      ativo: true,
+      gestorId: ''
+    });
+    setIsEditing(false);
+    setIsDialogOpen(false);
+  };
+
+  const clearFilters = () => {
+    setFilters({
+      search: '',
+      papel: '',
+      ativo: '',
+      local: '',
+      cargo: ''
     });
   };
 
-  const getPapelColor = (papel: string) => {
-    switch (papel) {
-      case 'ADMIN': return 'bg-red-100 text-red-800';
-      case 'DIRETOR': return 'bg-purple-100 text-purple-800';
-      case 'GESTOR': return 'bg-blue-100 text-blue-800';
-      default: return 'bg-gray-100 text-gray-800';
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
     }
   };
 
-  if (person?.papel !== 'ADMIN') {
-    return null;
+  const getPapelColor = (papel: Papel) => {
+    switch (papel) {
+      case Papel.ADMIN: return "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200";
+      case Papel.DIRETOR: return "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200";
+      case Papel.GESTOR: return "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200";
+      case Papel.COLABORADOR: return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200";
+      default: return "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200";
+    }
+  };
+
+  const SortableHeader = ({ field, children }: { field: SortField; children: React.ReactNode }) => (
+    <TableHead 
+      className="cursor-pointer hover:bg-muted/50 select-none"
+      onClick={() => handleSort(field)}
+    >
+      <div className="flex items-center gap-1">
+        {children}
+        {sortField === field && (
+          sortDirection === 'asc' ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />
+        )}
+      </div>
+    </TableHead>
+  );
+
+  const exportToCSV = () => {
+    const headers = ['ID', 'Nome', 'Email', 'Cargo', 'Local', 'Sub Time', 'Papel', 'Ativo', 'Gestor ID'];
+    const csvContent = [
+      headers.join(','),
+      ...filteredAndSortedPeople.map(person => 
+        [
+          person.id,
+          `"${person.nome}"`,
+          person.email,
+          `"${person.cargo || ''}"`,
+          `"${person.local || ''}"`,
+          `"${person.subTime || ''}"`,
+          person.papel,
+          person.ativo,
+          person.gestorId || ''
+        ].join(',')
+      )
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `pessoas_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  if (loading) {
+    return (
+      <div className="container mx-auto p-6">
+        <div className="flex items-center justify-center h-64">
+          <div className="text-lg">Carregando...</div>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <Header />
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="flex items-center gap-3 mb-8">
-          <Shield className="w-8 h-8 text-primary" />
-          <h1 className="text-3xl font-bold">Administração</h1>
+    <div className="container mx-auto p-6 space-y-6">
+      {/* Header */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">Administração de Usuários</h1>
+          <p className="text-muted-foreground">Gerencie todos os usuários do sistema</p>
         </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Form */}
-          <div className="lg:col-span-1">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <UserPlus className="w-5 h-5" />
-                  {editingPerson ? 'Editar Pessoa' : 'Adicionar Pessoa'}
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <form onSubmit={handleSubmit} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="nome">Nome *</Label>
-                    <Input
-                      id="nome"
-                      value={formData.nome}
-                      onChange={(e) => setFormData(prev => ({ ...prev, nome: e.target.value }))}
-                      required
-                    />
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="email">Email *</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      value={formData.email}
-                      onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
-                      required
-                    />
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="cargo">Cargo</Label>
-                    <Input
-                      id="cargo"
-                      value={formData.cargo}
-                      onChange={(e) => setFormData(prev => ({ ...prev, cargo: e.target.value }))}
-                    />
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="local">Local</Label>
-                    <Input
-                      id="local"
-                      value={formData.local}
-                      onChange={(e) => setFormData(prev => ({ ...prev, local: e.target.value }))}
-                    />
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="subTime">Sub Time</Label>
-                    <Input
-                      id="subTime"
-                      value={formData.subTime}
-                      onChange={(e) => setFormData(prev => ({ ...prev, subTime: e.target.value }))}
-                    />
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="papel">Papel</Label>
-                    <Select 
-                      value={formData.papel} 
-                      onValueChange={(value) => setFormData(prev => ({ ...prev, papel: value as Papel }))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value={Papel.COLABORADOR}>Colaborador</SelectItem>
-                        <SelectItem value={Papel.GESTOR}>Gestor</SelectItem>
-                        <SelectItem value={Papel.DIRETOR}>Diretor</SelectItem>
-                        <SelectItem value={Papel.ADMIN}>Admin</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="gestor">Gestor Direto</Label>
-                    <Select 
-                      value={formData.gestorId} 
-                      onValueChange={(value) => setFormData(prev => ({ ...prev, gestorId: value }))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione um gestor" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="">Nenhum</SelectItem>
-                        {people
-                          .filter(p => p.papel === 'GESTOR' || p.papel === 'DIRETOR')
-                          .map(person => (
-                            <SelectItem key={person.id} value={person.id}>
-                              {person.nome}
-                            </SelectItem>
-                          ))
-                        }
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="ativo">Status</Label>
-                    <Select 
-                      value={formData.ativo ? 'true' : 'false'} 
-                      onValueChange={(value) => setFormData(prev => ({ ...prev, ativo: value === 'true' }))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="true">Ativo</SelectItem>
-                        <SelectItem value="false">Inativo</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  
-                  <div className="flex gap-2">
-                    <Button type="submit" className="flex-1">
-                      {editingPerson ? 'Atualizar' : 'Criar'}
-                    </Button>
-                    {editingPerson && (
-                      <Button type="button" variant="outline" onClick={resetForm}>
-                        Cancelar
-                      </Button>
-                    )}
-                  </div>
-                </form>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* People List */}
-          <div className="lg:col-span-2">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Users className="w-5 h-5" />
-                  Pessoas ({people.length})
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {loading ? (
-                    <p>Carregando...</p>
-                  ) : people.length === 0 ? (
-                    <p className="text-muted-foreground text-center py-8">
-                      Nenhuma pessoa cadastrada.
-                    </p>
-                  ) : (
-                    people.map((person) => (
-                      <div key={person.id} className="border rounded-lg p-4">
-                        <div className="flex items-center justify-between">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-2">
-                              <h3 className="font-semibold">{person.nome}</h3>
-                              <Badge className={getPapelColor(person.papel)}>
-                                {person.papel}
-                              </Badge>
-                              {!person.ativo && (
-                                <Badge variant="outline" className="text-red-600">
-                                  Inativo
-                                </Badge>
-                              )}
-                            </div>
-                            <p className="text-sm text-muted-foreground mb-1">
-                              {person.email}
-                            </p>
-                            {person.cargo && (
-                              <p className="text-sm text-muted-foreground">
-                                {person.cargo} {person.local && `• ${person.local}`}
-                              </p>
-                            )}
-                            {person.subTime && (
-                              <p className="text-sm text-muted-foreground">
-                                Sub Time: {person.subTime}
-                              </p>
-                            )}
-                          </div>
-                          <div className="flex gap-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleEdit(person)}
-                            >
-                              <Edit className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleDelete(person.id)}
-                              className="text-red-600 hover:text-red-700"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+        <div className="flex gap-2">
+          <Button onClick={exportToCSV} variant="outline" size="sm">
+            <Download className="h-4 w-4 mr-2" />
+            Exportar CSV
+          </Button>
+          <Button onClick={() => setIsDialogOpen(true)} size="sm">
+            <Plus className="h-4 w-4 mr-2" />
+            Novo Usuário
+          </Button>
         </div>
       </div>
+
+      {/* Statistics Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card>
+          <CardContent className="flex items-center p-6">
+            <Users className="h-8 w-8 text-blue-600" />
+            <div className="ml-4">
+              <p className="text-sm font-medium text-muted-foreground">Total</p>
+              <p className="text-2xl font-bold">{stats.total}</p>
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardContent className="flex items-center p-6">
+            <UserCheck className="h-8 w-8 text-green-600" />
+            <div className="ml-4">
+              <p className="text-sm font-medium text-muted-foreground">Ativos</p>
+              <p className="text-2xl font-bold">{stats.active}</p>
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardContent className="flex items-center p-6">
+            <UserX className="h-8 w-8 text-red-600" />
+            <div className="ml-4">
+              <p className="text-sm font-medium text-muted-foreground">Inativos</p>
+              <p className="text-2xl font-bold">{stats.inactive}</p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="flex items-center p-6">
+            <div className="grid grid-cols-2 gap-2 text-xs w-full">
+              {Object.entries(stats.byRole).map(([role, count]) => (
+                <div key={role} className="flex justify-between">
+                  <span className="text-muted-foreground">{role}:</span>
+                  <span className="font-semibold">{count}</span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Search and Filters */}
+      <Card>
+        <CardContent className="p-4">
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col sm:flex-row gap-4">
+              <div className="flex-1 relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+                <Input
+                  placeholder="Buscar por nome ou email..."
+                  value={filters.search}
+                  onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+                  className="pl-10"
+                />
+              </div>
+              <Button
+                variant="outline"
+                onClick={() => setShowFilters(!showFilters)}
+                className="w-full sm:w-auto"
+              >
+                <Filter className="h-4 w-4 mr-2" />
+                Filtros
+              </Button>
+              {(filters.search || filters.papel || filters.ativo || filters.local || filters.cargo) && (
+                <Button variant="outline" onClick={clearFilters} className="w-full sm:w-auto">
+                  <X className="h-4 w-4 mr-2" />
+                  Limpar
+                </Button>
+              )}
+            </div>
+
+            {showFilters && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-4 border-t">
+                <Select value={filters.papel} onValueChange={(value) => setFilters({ ...filters, papel: value })}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Filtrar por papel" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Todos os papéis</SelectItem>
+                    {Object.values(Papel).map(papel => (
+                      <SelectItem key={papel} value={papel}>{papel}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Select value={filters.ativo} onValueChange={(value) => setFilters({ ...filters, ativo: value })}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Filtrar por status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Todos os status</SelectItem>
+                    <SelectItem value="true">Ativo</SelectItem>
+                    <SelectItem value="false">Inativo</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                <Input
+                  placeholder="Filtrar por local"
+                  value={filters.local}
+                  onChange={(e) => setFilters({ ...filters, local: e.target.value })}
+                />
+
+                <Input
+                  placeholder="Filtrar por cargo"
+                  value={filters.cargo}
+                  onChange={(e) => setFilters({ ...filters, cargo: e.target.value })}
+                />
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Results count */}
+      <div className="text-sm text-muted-foreground">
+        Mostrando {filteredAndSortedPeople.length} de {people.length} usuários
+      </div>
+
+      {/* Data Table */}
+      <Card>
+        <CardContent className="p-0">
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <SortableHeader field="nome">Nome</SortableHeader>
+                  <SortableHeader field="email">Email</SortableHeader>
+                  <SortableHeader field="cargo">Cargo</SortableHeader>
+                  <SortableHeader field="local">Local</SortableHeader>
+                  <SortableHeader field="papel">Papel</SortableHeader>
+                  <SortableHeader field="ativo">Status</SortableHeader>
+                  <TableHead>Ações</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredAndSortedPeople.map((person) => (
+                  <TableRow key={person.id}>
+                    <TableCell className="font-medium">{person.nome}</TableCell>
+                    <TableCell>{person.email}</TableCell>
+                    <TableCell>{person.cargo || '-'}</TableCell>
+                    <TableCell>{person.local || '-'}</TableCell>
+                    <TableCell>
+                      <Badge className={getPapelColor(person.papel)}>
+                        {person.papel}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={person.ativo ? "default" : "secondary"}>
+                        {person.ativo ? "Ativo" : "Inativo"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleEdit(person)}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button variant="outline" size="sm">
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Tem certeza que deseja excluir {person.nome}? Esta ação não pode ser desfeita.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                              <AlertDialogAction onClick={() => handleDelete(person.id)}>
+                                Excluir
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Create/Edit Dialog */}
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>
+              {isEditing ? 'Editar Usuário' : 'Novo Usuário'}
+            </DialogTitle>
+            <DialogDescription>
+              {isEditing ? 'Edite as informações do usuário.' : 'Adicione um novo usuário ao sistema.'}
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="id">ID *</Label>
+                <Input
+                  id="id"
+                  value={formData.id}
+                  onChange={(e) => setFormData({ ...formData, id: e.target.value })}
+                  required
+                  disabled={isEditing}
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="nome">Nome *</Label>
+                <Input
+                  id="nome"
+                  value={formData.nome}
+                  onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
+                  required
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="email">Email *</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  required
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="cargo">Cargo</Label>
+                <Input
+                  id="cargo"
+                  value={formData.cargo}
+                  onChange={(e) => setFormData({ ...formData, cargo: e.target.value })}
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="local">Local</Label>
+                <Input
+                  id="local"
+                  value={formData.local}
+                  onChange={(e) => setFormData({ ...formData, local: e.target.value })}
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="subTime">Sub Time</Label>
+                <Input
+                  id="subTime"
+                  value={formData.subTime}
+                  onChange={(e) => setFormData({ ...formData, subTime: e.target.value })}
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="papel">Papel *</Label>
+                <Select 
+                  value={formData.papel} 
+                  onValueChange={(value: Papel) => setFormData({ ...formData, papel: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.values(Papel).map(papel => (
+                      <SelectItem key={papel} value={papel}>{papel}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label htmlFor="ativo">Status *</Label>
+                <Select 
+                  value={formData.ativo.toString()} 
+                  onValueChange={(value) => setFormData({ ...formData, ativo: value === 'true' })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="true">Ativo</SelectItem>
+                    <SelectItem value="false">Inativo</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="sm:col-span-2">
+                <Label htmlFor="gestorId">Gestor ID</Label>
+                <Select 
+                  value={formData.gestorId} 
+                  onValueChange={(value) => setFormData({ ...formData, gestorId: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecionar gestor" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Nenhum gestor</SelectItem>
+                    {people
+                      .filter(p => p.papel === Papel.GESTOR || p.papel === Papel.DIRETOR || p.papel === Papel.ADMIN)
+                      .filter(p => p.id !== formData.id)
+                      .map(gestor => (
+                        <SelectItem key={gestor.id} value={gestor.id}>
+                          {gestor.nome} ({gestor.papel})
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={resetForm}>
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={submitting}>
+                {submitting ? 'Salvando...' : (isEditing ? 'Atualizar' : 'Criar')}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
-}
+};
+
+export default Admin;
