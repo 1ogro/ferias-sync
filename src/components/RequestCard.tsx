@@ -30,14 +30,26 @@ export const RequestCard = ({
     return `${diffDays} dia${diffDays > 1 ? 's' : ''}`;
   };
 
+  // Check if request is retroactive (start date is in the past)
+  const isRetroactive = () => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return request.inicio < today;
+  };
+
   return (
     <Card className="hover:shadow-md transition-all duration-200 border-l-4 border-l-primary/30">
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between">
           <div className="space-y-2">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <Badge variant="secondary">{TIPO_LABELS[request.tipo]}</Badge>
               <StatusBadge status={request.status} />
+              {isRetroactive() && (
+                <Badge variant="outline" className="bg-muted text-muted-foreground border-muted-foreground/30">
+                  Retroativo
+                </Badge>
+              )}
               {request.conflitoFlag && (
                 <Badge variant="outline" className="bg-status-rejected/10 text-status-rejected border-status-rejected/20">
                   <AlertTriangle className="w-3 h-3 mr-1" />

@@ -81,6 +81,13 @@ export const Dashboard = () => {
     [Status.APROVADO_FINAL, Status.REALIZADO].includes(req.status)
   );
 
+  // Filter future approved requests for "Próximos Períodos"
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const futureApprovedRequests = approvedRequests.filter(req => 
+    req.inicio >= today
+  ).sort((a, b) => a.inicio.getTime() - b.inicio.getTime());
+
   // Calculate day-offs with birthdate validation
   const dayOffInfo = React.useMemo(() => {
     if (!person?.data_nascimento) {
@@ -260,15 +267,15 @@ export const Dashboard = () => {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Calendar className="w-5 h-5 text-primary" />
-                Próximos Períodos
+                Próximas Ausências Aprovadas
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
                 {loading ? (
                   <p>Carregando...</p>
-                ) : approvedRequests.length > 0 ? (
-                  approvedRequests.map((request) => (
+                ) : futureApprovedRequests.length > 0 ? (
+                  futureApprovedRequests.slice(0, 5).map((request) => (
                     <div key={request.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
                       <div className="flex items-center gap-3">
                         <div className={`w-2 h-8 rounded-full ${
@@ -291,7 +298,7 @@ export const Dashboard = () => {
                   ))
                 ) : (
                   <p className="text-muted-foreground text-center py-4">
-                    Nenhum período aprovado encontrado.
+                    Nenhuma ausência futura aprovada encontrada.
                   </p>
                 )}
               </div>
