@@ -202,15 +202,34 @@ const VacationManagement = () => {
   };
 
   const handleSaveContract = async () => {
-    if (!selectedPerson || !contractDate) return;
+    if (!selectedPerson) return;
+
+    const updateData: any = {};
+    const originalContractDate = selectedPerson.person.data_contrato || "";
+    const originalContractModel = selectedPerson.person.modelo_contrato || ModeloContrato.CLT;
+
+    // Check what fields have changed
+    if (contractDate !== originalContractDate) {
+      updateData.data_contrato = contractDate || null;
+    }
+
+    if (contractModel !== originalContractModel) {
+      updateData.modelo_contrato = contractModel;
+    }
+
+    // Only proceed if there are changes
+    if (Object.keys(updateData).length === 0) {
+      toast({
+        title: "Informação",
+        description: "Nenhuma alteração foi feita.",
+      });
+      return;
+    }
 
     try {
       const { error } = await supabase
         .from('people')
-        .update({ 
-          data_contrato: contractDate,
-          modelo_contrato: contractModel
-        })
+        .update(updateData)
         .eq('id', selectedPerson.person_id);
 
       if (error) throw error;
