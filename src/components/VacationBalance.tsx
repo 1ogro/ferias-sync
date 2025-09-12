@@ -4,6 +4,9 @@ import { Badge } from '@/components/ui/badge';
 import { Calendar, Clock, User } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { getVacationBalance, VacationBalance as VacationBalanceType } from '@/lib/vacationUtils';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import { cn } from '@/lib/utils';
 
 interface VacationBalanceProps {
   className?: string;
@@ -86,39 +89,44 @@ export function VacationBalance({ className }: VacationBalanceProps) {
   nextAnniversary.setFullYear(new Date().getFullYear() + 1);
 
   return (
-    <Card className={className}>
-      <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <Calendar className="w-4 h-4" />
-          Saldo de Férias {balance.year}
-        </CardTitle>
+    <Card className={cn("", className)}>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <CardTitle className="text-lg font-semibold">Saldo de Férias</CardTitle>
+        <Calendar className="h-5 w-5 text-muted-foreground" />
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="flex items-center justify-between">
-          <span className="text-sm text-muted-foreground">Saldo disponível:</span>
-          <Badge className={getBalanceColor(balance.balance_days)}>
-            {balance.balance_days} dias
-          </Badge>
+        <div className="grid grid-cols-3 gap-4">
+          <div className="text-center">
+            <div className="text-2xl font-bold text-primary">{balance.balance_days}</div>
+            <div className="text-xs text-muted-foreground">Disponível</div>
+          </div>
+          <div className="text-center">
+            <div className="text-2xl font-bold text-blue-600">{balance.accrued_days}</div>
+            <div className="text-xs text-muted-foreground">Acumulado</div>
+          </div>
+          <div className="text-center">
+            <div className="text-2xl font-bold text-orange-600">{balance.used_days}</div>
+            <div className="text-xs text-muted-foreground">Usado</div>
+          </div>
         </div>
         
-        <div className="grid grid-cols-2 gap-4 text-xs">
-          <div>
-            <p className="text-muted-foreground">Direito acumulado</p>
-            <p className="font-medium">{balance.accrued_days} dias</p>
+        <div className="border-t pt-3">
+          <div className="flex justify-between items-center">
+            <span className="text-sm text-muted-foreground">Status:</span>
+            <Badge 
+              className={getBalanceColor(balance.balance_days)}
+            >
+              {balance.balance_days > 15 ? 'Excelente' : balance.balance_days > 5 ? 'Bom' : 'Atenção'}
+            </Badge>
           </div>
-          <div>
-            <p className="text-muted-foreground">Já utilizados</p>
-            <p className="font-medium">{balance.used_days} dias</p>
-          </div>
-        </div>
-
-        <div className="pt-2 border-t">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <Clock className="w-3 h-3" />
-            <span>
-              Próximo acúmulo: {nextAnniversary.toLocaleDateString('pt-BR')}
-            </span>
-          </div>
+          {balance.contract_anniversary && (
+            <div className="flex justify-between items-center mt-2">
+              <span className="text-sm text-muted-foreground">Próximo acúmulo:</span>
+              <span className="font-medium text-sm">
+                {format(new Date(balance.contract_anniversary), "dd/MM/yyyy", { locale: ptBR })}
+              </span>
+            </div>
+          )}
         </div>
       </CardContent>
     </Card>

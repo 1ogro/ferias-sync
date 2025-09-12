@@ -749,7 +749,14 @@ const Admin = () => {
                   type="date"
                   value={formData.data_contrato}
                   onChange={(e) => setFormData({ ...formData, data_contrato: e.target.value })}
+                  disabled={!person?.is_admin}
+                  title={!person?.is_admin ? "Apenas administradores podem editar datas de contrato" : ""}
                 />
+                {!person?.is_admin && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Apenas administradores podem editar datas de contrato
+                  </p>
+                )}
               </div>
 
                <div>

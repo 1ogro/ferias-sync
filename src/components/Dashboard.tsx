@@ -155,47 +155,55 @@ export const Dashboard = () => {
         </div>
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {stats.map((stat, index) => (
-          <Card key={index} className={`hover:shadow-md transition-shadow ${stat.disabled ? 'opacity-60' : ''}`}>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-muted-foreground">
-                    {stat.title}
-                  </p>
-                  {stat.disabled ? (
-                    <div className="mt-2">
-                      <p className="text-sm text-muted-foreground leading-relaxed">
-                        {stat.message}
-                      </p>
-                    </div>
-                  ) : (
-                    <>
-                      <p className="text-3xl font-bold mt-2">
-                        {stat.value}
-                      </p>
-                      {stat.message && stat.title === "Days Off Disponíveis" && (
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {stat.message}
-                        </p>
-                      )}
-                    </>
-                  )}
-                </div>
-                <div className={`p-3 rounded-full ${stat.bgColor}`}>
-                  <stat.icon className={`w-6 h-6 ${stat.color}`} />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      {/* Stats Grid with 1-1-1-3 layout */}
+      <div className="grid grid-cols-12 gap-6 mb-8">
+        <Card className="col-span-12 sm:col-span-6 lg:col-span-2">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Solicitações Pendentes</CardTitle>
+            <Clock className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{pendingRequests.length}</div>
+            <p className="text-xs text-muted-foreground">aguardando aprovação</p>
+          </CardContent>
+        </Card>
 
-      {/* Vacation Balance */}
-      <div className="mb-6">
-        <VacationBalance />
+        <Card className="col-span-12 sm:col-span-6 lg:col-span-2">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Aprovadas este Ano</CardTitle>
+            <CheckCircle className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{approvedRequests.length}</div>
+            <p className="text-xs text-muted-foreground">em {new Date().getFullYear()}</p>
+          </CardContent>
+        </Card>
+
+        <Card className="col-span-12 sm:col-span-6 lg:col-span-2">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Days Off Disponíveis</CardTitle>
+            <Calendar className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            {dayOffInfo.disabled ? (
+              <div>
+                <div className="text-lg font-bold text-muted-foreground">—</div>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  {dayOffInfo.message}
+                </p>
+              </div>
+            ) : (
+              <div>
+                <div className="text-2xl font-bold">{dayOffInfo.available}</div>
+                <p className="text-xs text-muted-foreground">
+                  {dayOffInfo.message}
+                </p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <VacationBalance className="col-span-12 lg:col-span-6" />
       </div>
 
       {/* Tabs */}
