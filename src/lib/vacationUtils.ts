@@ -176,7 +176,7 @@ export async function getVacationBalance(
     // First check if there's a manual balance record
     const { data: manualBalance } = await supabase
       .from('vacation_balances')
-      .select('*')
+      .select('*, manual_justification, updated_by')
       .eq('person_id', personId)
       .eq('year', year)
       .maybeSingle();
@@ -192,6 +192,7 @@ export async function getVacationBalance(
         balance_days: manualBalance.balance_days,
         contract_anniversary: new Date(manualBalance.contract_anniversary),
         is_manual: true,
+        manual_justification: manualBalance.manual_justification,
         updated_by: manualBalance.updated_by,
         manual_updated_at: manualBalance.updated_at ? new Date(manualBalance.updated_at) : undefined
       };

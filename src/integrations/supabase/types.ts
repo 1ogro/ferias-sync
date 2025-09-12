@@ -243,8 +243,10 @@ export type Database = {
           contract_anniversary: string | null
           created_at: string
           id: string
+          manual_justification: string | null
           person_id: string
           updated_at: string
+          updated_by: string | null
           used_days: number
           year: number
         }
@@ -254,8 +256,10 @@ export type Database = {
           contract_anniversary?: string | null
           created_at?: string
           id?: string
+          manual_justification?: string | null
           person_id: string
           updated_at?: string
+          updated_by?: string | null
           used_days?: number
           year: number
         }
@@ -265,8 +269,10 @@ export type Database = {
           contract_anniversary?: string | null
           created_at?: string
           id?: string
+          manual_justification?: string | null
           person_id?: string
           updated_at?: string
+          updated_by?: string | null
           used_days?: number
           year?: number
         }
