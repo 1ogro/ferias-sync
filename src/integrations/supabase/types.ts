@@ -188,9 +188,9 @@ export type Database = {
           conflito_flag: boolean | null
           conflito_refs: string | null
           created_at: string
-          fim: string
+          fim: string | null
           id: string
-          inicio: string
+          inicio: string | null
           justificativa: string | null
           requester_id: string
           status: string
@@ -202,9 +202,9 @@ export type Database = {
           conflito_flag?: boolean | null
           conflito_refs?: string | null
           created_at?: string
-          fim: string
+          fim?: string | null
           id?: string
-          inicio: string
+          inicio?: string | null
           justificativa?: string | null
           requester_id: string
           status?: string
@@ -216,9 +216,9 @@ export type Database = {
           conflito_flag?: boolean | null
           conflito_refs?: string | null
           created_at?: string
-          fim?: string
+          fim?: string | null
           id?: string
-          inicio?: string
+          inicio?: string | null
           justificativa?: string | null
           requester_id?: string
           status?: string
