@@ -81,10 +81,14 @@ export const getActiveMedicalLeaves = async (teamId?: string): Promise<MedicalLe
       .from('medical_leaves')
       .select(`
         *,
-        person:people(*)
+        person:people!fk_medical_leaves_person(*)
       `)
       .eq('status', 'ATIVA')
       .gte('end_date', new Date().toISOString().split('T')[0]);
+
+    if (teamId) {
+      query = query.eq('people!fk_medical_leaves_person.sub_time', teamId);
+    }
 
     const { data, error } = await query;
 
@@ -106,11 +110,11 @@ export const getMedicalLeaveConflicts = async (
       .from('medical_leaves')
       .select(`
         *,
-        person:people(*)
+        person:people!fk_medical_leaves_person(sub_time)
       `)
       .eq('status', 'ATIVA')
       .eq('affects_team_capacity', true)
-      .or(`person.sub_time.eq.${teamId}`)
+      .eq('people!fk_medical_leaves_person.sub_time', teamId)
       .lte('start_date', endDate.toISOString().split('T')[0])
       .gte('end_date', startDate.toISOString().split('T')[0]);
 
@@ -175,11 +179,11 @@ export const createTeamCapacityAlert = async (
     const { data: existingLeaves, error: leavesError } = await supabase
       .from('medical_leaves')
       .select(`
-        person:people!inner(sub_time)
+        person:people!fk_medical_leaves_person!inner(sub_time)
       `)
       .eq('status', 'ATIVA')
       .eq('affects_team_capacity', true)
-      .eq('people.sub_time', person.sub_time)
+      .eq('people!fk_medical_leaves_person.sub_time', person.sub_time)
       .lte('start_date', endDate.toISOString().split('T')[0])
       .gte('end_date', startDate.toISOString().split('T')[0]);
 
