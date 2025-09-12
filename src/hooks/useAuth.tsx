@@ -12,6 +12,7 @@ interface AuthContextType {
   contractDateChecked: boolean;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signUp: (email: string, password: string, personId: string) => Promise<{ error: any }>;
+  signInWithFigma: () => Promise<{ error: any }>;
   signOut: () => Promise<void>;
   createProfile: (personId: string) => Promise<{ error: any }>;
   fetchPersonData: () => Promise<void>;
@@ -175,6 +176,19 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     return { error };
   };
 
+  const signInWithFigma = async () => {
+    const redirectUrl = `${window.location.origin}/`;
+    
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'figma',
+      options: {
+        redirectTo: redirectUrl
+      }
+    });
+
+    return { error };
+  };
+
   const signOut = async () => {
     await supabase.auth.signOut();
     setPerson(null);
@@ -218,6 +232,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     contractDateChecked,
     signIn,
     signUp,
+    signInWithFigma,
     signOut,
     createProfile,
     fetchPersonData,

@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { LogIn, UserPlus, Calendar } from 'lucide-react';
+import { LogIn, UserPlus, Calendar, Figma } from 'lucide-react';
 
 interface PersonOption {
   id: string;
@@ -20,7 +20,7 @@ interface PersonOption {
 
 export default function Auth() {
   const navigate = useNavigate();
-  const { signIn, signUp, user } = useAuth();
+  const { signIn, signUp, signInWithFigma, user } = useAuth();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [people, setPeople] = useState<PersonOption[]>([]);
@@ -161,6 +161,29 @@ export default function Auth() {
     }
   };
 
+  const handleFigmaLogin = async () => {
+    setLoading(true);
+    try {
+      const { error } = await signInWithFigma();
+      
+      if (error) {
+        toast({
+          title: 'Erro no login com Figma',
+          description: error.message,
+          variant: 'destructive',
+        });
+      }
+    } catch (error) {
+      toast({
+        title: 'Erro no login com Figma',
+        description: 'Ocorreu um erro inesperado.',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary/5 to-primary/10 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
@@ -222,6 +245,28 @@ export default function Auth() {
                   </div>
                   <Button type="submit" className="w-full" disabled={loading}>
                     {loading ? 'Entrando...' : 'Entrar'}
+                  </Button>
+                  
+                  <div className="relative my-4">
+                    <div className="absolute inset-0 flex items-center">
+                      <span className="w-full border-t" />
+                    </div>
+                    <div className="relative flex justify-center text-xs uppercase">
+                      <span className="bg-background px-2 text-muted-foreground">
+                        Ou continue com
+                      </span>
+                    </div>
+                  </div>
+                  
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    className="w-full" 
+                    onClick={handleFigmaLogin}
+                    disabled={loading}
+                  >
+                    <Figma className="w-4 h-4 mr-2" />
+                    Entrar com Figma
                   </Button>
                 </form>
               </CardContent>
@@ -296,6 +341,28 @@ export default function Auth() {
                   </div>
                   <Button type="submit" className="w-full" disabled={loading}>
                     {loading ? 'Criando conta...' : 'Criar conta'}
+                  </Button>
+                  
+                  <div className="relative my-4">
+                    <div className="absolute inset-0 flex items-center">
+                      <span className="w-full border-t" />
+                    </div>
+                    <div className="relative flex justify-center text-xs uppercase">
+                      <span className="bg-background px-2 text-muted-foreground">
+                        Ou continue com
+                      </span>
+                    </div>
+                  </div>
+                  
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    className="w-full" 
+                    onClick={handleFigmaLogin}
+                    disabled={loading}
+                  >
+                    <Figma className="w-4 h-4 mr-2" />
+                    Cadastrar com Figma
                   </Button>
                 </form>
               </CardContent>
