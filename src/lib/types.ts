@@ -13,7 +13,8 @@ export enum Papel {
 
 export enum TipoAusencia {
   DAYOFF = "DAYOFF",
-  FERIAS = "FERIAS"
+  FERIAS = "FERIAS",
+  LICENCA_MEDICA = "LICENCA_MEDICA"
 }
 
 export enum Status {
@@ -77,5 +78,46 @@ export const STATUS_LABELS = {
 
 export const TIPO_LABELS = {
   [TipoAusencia.DAYOFF]: "Day Off",
-  [TipoAusencia.FERIAS]: "Férias"
+  [TipoAusencia.FERIAS]: "Férias",
+  [TipoAusencia.LICENCA_MEDICA]: "Licença Médica"
 };
+
+// Medical Leave interfaces
+export interface MedicalLeave {
+  id: string;
+  person_id: string;
+  person?: Person;
+  start_date: Date;
+  end_date: Date;
+  status: string;
+  created_by: string;
+  justification?: string;
+  affects_team_capacity: boolean;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface TeamCapacityAlert {
+  id: string;
+  team_id: string;
+  period_start: Date;
+  period_end: Date;
+  medical_leave_person_id: string;
+  affected_people_count: number;
+  alert_status: string;
+  director_notified_at?: Date;
+  created_at: Date;
+}
+
+export interface SpecialApproval {
+  id: string;
+  request_id: string;
+  medical_leave_id: string;
+  manager_id: string;
+  director_id?: string;
+  manager_approval_date: Date;
+  director_notification_date?: Date;
+  justification: string;
+  approved_despite_medical_leave: boolean;
+  created_at: Date;
+}

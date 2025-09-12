@@ -1,5 +1,6 @@
 import { Request, Person, Status, TipoAusencia } from "./types";
 import { supabase } from "@/integrations/supabase/client";
+import { getMedicalLeaveConflicts } from "./medicalLeaveUtils";
 
 export interface VacationBalance {
   id?: string;
@@ -80,6 +81,18 @@ export async function checkVacationConflicts(
   const conflicts: VacationConflict[] = [];
   
   try {
+    // Check for medical leave conflicts first
+    if (requesterSubTime) {
+      const medicalLeaves = await getMedicalLeaveConflicts(requesterSubTime, startDate, endDate);
+      
+      if (medicalLeaves.length > 0) {
+        conflicts.push({
+          conflicted_requests: [],
+          conflict_type: 'sub_time',
+          message: `Período bloqueado devido a licença médica ativa no time ${requesterSubTime}. ${medicalLeaves.length} pessoa(s) em licença médica. Aprovação especial do gestor necessária.`
+        });
+      }
+    }
     // Check for sub_time conflicts (same sub_time members)
     if (requesterSubTime) {
       const { data: subTimeConflicts } = await supabase

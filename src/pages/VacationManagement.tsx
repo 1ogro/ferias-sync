@@ -4,6 +4,10 @@ import { getAllVacationBalances, saveManualVacationBalance, deleteManualVacation
 import { supabase } from "@/integrations/supabase/client";
 import { Navigate } from "react-router-dom";
 import { Header } from "@/components/Header";
+import { MedicalLeaveForm } from "@/components/MedicalLeaveForm";
+import { MedicalLeaveList } from "@/components/MedicalLeaveList";
+import { TeamCapacityDashboard } from "@/components/TeamCapacityDashboard";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

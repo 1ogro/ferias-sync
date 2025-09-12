@@ -97,6 +97,45 @@ export type Database = {
           },
         ]
       }
+      medical_leaves: {
+        Row: {
+          affects_team_capacity: boolean
+          created_at: string
+          created_by: string
+          end_date: string
+          id: string
+          justification: string | null
+          person_id: string
+          start_date: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          affects_team_capacity?: boolean
+          created_at?: string
+          created_by: string
+          end_date: string
+          id?: string
+          justification?: string | null
+          person_id: string
+          start_date: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          affects_team_capacity?: boolean
+          created_at?: string
+          created_by?: string
+          end_date?: string
+          id?: string
+          justification?: string | null
+          person_id?: string
+          start_date?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       people: {
         Row: {
           ativo: boolean | null
@@ -236,6 +275,81 @@ export type Database = {
           },
         ]
       }
+      special_approvals: {
+        Row: {
+          approved_despite_medical_leave: boolean
+          created_at: string
+          director_id: string | null
+          director_notification_date: string | null
+          id: string
+          justification: string
+          manager_approval_date: string
+          manager_id: string
+          medical_leave_id: string
+          request_id: string
+        }
+        Insert: {
+          approved_despite_medical_leave?: boolean
+          created_at?: string
+          director_id?: string | null
+          director_notification_date?: string | null
+          id?: string
+          justification: string
+          manager_approval_date?: string
+          manager_id: string
+          medical_leave_id: string
+          request_id: string
+        }
+        Update: {
+          approved_despite_medical_leave?: boolean
+          created_at?: string
+          director_id?: string | null
+          director_notification_date?: string | null
+          id?: string
+          justification?: string
+          manager_approval_date?: string
+          manager_id?: string
+          medical_leave_id?: string
+          request_id?: string
+        }
+        Relationships: []
+      }
+      team_capacity_alerts: {
+        Row: {
+          affected_people_count: number
+          alert_status: string
+          created_at: string
+          director_notified_at: string | null
+          id: string
+          medical_leave_person_id: string
+          period_end: string
+          period_start: string
+          team_id: string
+        }
+        Insert: {
+          affected_people_count?: number
+          alert_status?: string
+          created_at?: string
+          director_notified_at?: string | null
+          id?: string
+          medical_leave_person_id: string
+          period_end: string
+          period_start: string
+          team_id: string
+        }
+        Update: {
+          affected_people_count?: number
+          alert_status?: string
+          created_at?: string
+          director_notified_at?: string | null
+          id?: string
+          medical_leave_person_id?: string
+          period_end?: string
+          period_start?: string
+          team_id?: string
+        }
+        Relationships: []
+      }
       vacation_balances: {
         Row: {
           accrued_days: number
@@ -299,6 +413,7 @@ export type Database = {
         | "CANCELADO"
         | "REALIZADO"
         | "EM_ANDAMENTO"
+      TipoAusencia: "DAYOFF" | "FERIAS" | "LICENCA_MEDICA"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -437,6 +552,7 @@ export const Constants = {
         "REALIZADO",
         "EM_ANDAMENTO",
       ],
+      TipoAusencia: ["DAYOFF", "FERIAS", "LICENCA_MEDICA"],
     },
   },
 } as const
