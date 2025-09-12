@@ -452,6 +452,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_active_people_for_signup: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          email: string
+          id: string
+          nome: string
+        }[]
+      }
       is_current_user_admin: {
         Args: Record<PropertyKey, never>
         Returns: boolean

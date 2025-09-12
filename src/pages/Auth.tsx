@@ -51,10 +51,7 @@ export default function Auth() {
     try {
       console.log('Fetching people from database...');
       const { data, error } = await supabase
-        .from('people')
-        .select('id, nome, email')
-        .eq('ativo', true)
-        .order('nome');
+        .rpc('get_active_people_for_signup');
       
       console.log('Database response:', { data, error });
       
