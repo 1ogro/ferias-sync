@@ -274,3 +274,59 @@ export async function validateVacationRequest(
     };
   }
 }
+
+/**
+ * Get vacation balances for all active people (for directors/admins)
+ */
+export async function getAllVacationBalances(
+  year: number = new Date().getFullYear()
+): Promise<Array<VacationBalance & { person: { id: string; nome: string; email: string; cargo?: string; sub_time?: string; data_contrato?: string } }>> {
+  try {
+    // Get all active people
+    const { data: peopleData } = await supabase
+      .from('people')
+      .select('id, nome, email, cargo, sub_time, data_contrato')
+      .eq('ativo', true)
+      .order('nome');
+
+    if (!peopleData) return [];
+
+    const results = [];
+
+    for (const person of peopleData) {
+      if (!person.data_contrato) {
+        // Include people without contract date but with zero balance
+        results.push({
+          person_id: person.id,
+          year,
+          accrued_days: 0,
+          used_days: 0,
+          balance_days: 0,
+          contract_anniversary: new Date(),
+          person: person
+        });
+        continue;
+      }
+
+      // Get all requests for this person
+      const { data: requestsData } = await supabase
+        .from('requests')
+        .select('*')
+        .eq('requester_id', person.id);
+
+      const requests = requestsData?.map(mapRequestFromDB) || [];
+      const balance = calculateVacationBalance(person.data_contrato, requests, year);
+      balance.person_id = person.id;
+
+      results.push({
+        ...balance,
+        person: person
+      });
+    }
+
+    return results;
+  } catch (error) {
+    console.error('Error getting all vacation balances:', error);
+    return [];
+  }
+}

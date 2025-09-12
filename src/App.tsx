@@ -12,6 +12,7 @@ import Inbox from "./pages/Inbox";
 import RequestDetail from "./pages/RequestDetail";
 import Auth from "./pages/Auth";
 import Admin from "./pages/Admin";
+import VacationManagement from "./pages/VacationManagement";
 import SetupProfile from "./pages/SetupProfile";
 import NotFound from "./pages/NotFound";
 
@@ -33,6 +34,7 @@ const App = () => (
             <Route path="/inbox" element={<ProtectedRoute><Inbox /></ProtectedRoute>} />
             <Route path="/requests/:id" element={<ProtectedRoute><RequestDetail /></ProtectedRoute>} />
             <Route path="/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>} />
+            <Route path="/vacation-management" element={<ProtectedRoute><VacationManagement /></ProtectedRoute>} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

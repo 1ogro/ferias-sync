@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { RequestCard } from "./RequestCard";
 import { VacationBalance } from "./VacationBalance";
+import { VacationSummaryCard } from "./VacationSummaryCard";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Status, TipoAusencia, Request } from "@/lib/types";
@@ -252,6 +253,11 @@ export const Dashboard = () => {
         </Card>
 
         <VacationBalance className="col-span-12 lg:col-span-6" />
+        
+        {/* Vacation Management Card - Only for Directors and Admins */}
+        {(person?.papel === 'DIRETOR' || person?.is_admin) && (
+          <VacationSummaryCard className="col-span-12 lg:col-span-6" />
+        )}
       </div>
 
       {/* Tabs */}
