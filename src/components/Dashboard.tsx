@@ -8,6 +8,8 @@ import { VacationBalance } from "./VacationBalance";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Status, TipoAusencia, Request } from "@/lib/types";
+import { useToast } from "@/hooks/use-toast";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { 
   Calendar, 
   Plus, 
@@ -23,9 +25,12 @@ import { useBirthdayNotifications } from "@/hooks/useBirthdayNotifications";
 export const Dashboard = () => {
   const navigate = useNavigate();
   const { person } = useAuth();
+  const { toast } = useToast();
   const [selectedTab, setSelectedTab] = useState<"overview" | "requests">("overview");
   const [userRequests, setUserRequests] = useState<Request[]>([]);
   const [loading, setLoading] = useState(true);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [requestToDelete, setRequestToDelete] = useState<Request | null>(null);
   
   // Initialize birthday notifications for managers
   useBirthdayNotifications();
@@ -115,6 +120,42 @@ export const Dashboard = () => {
       disabled: false
     };
   }, [person, userRequests]);
+
+  const handleDeleteRequest = (request: Request) => {
+    setRequestToDelete(request);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDeleteRequest = async () => {
+    if (!requestToDelete) return;
+
+    try {
+      const { error } = await supabase
+        .from('requests')
+        .delete()
+        .eq('id', requestToDelete.id);
+
+      if (error) throw error;
+
+      // Remove from local state
+      setUserRequests(prev => prev.filter(r => r.id !== requestToDelete.id));
+      
+      toast({
+        title: "Sucesso",
+        description: "Rascunho excluído com sucesso!",
+      });
+    } catch (error) {
+      console.error('Error deleting request:', error);
+      toast({
+        title: "Erro",
+        description: "Erro ao excluir rascunho. Tente novamente.",
+        variant: "destructive",
+      });
+    } finally {
+      setDeleteDialogOpen(false);
+      setRequestToDelete(null);
+    }
+  };
 
   const stats = [
     {
@@ -313,12 +354,13 @@ export const Dashboard = () => {
             <p>Carregando...</p>
           ) : userRequests.length > 0 ? (
             userRequests.map((request) => (
-              <RequestCard 
-                key={request.id} 
-                request={request}
-                onView={(req) => navigate(`/requests/${req.id}`)}
-                onEdit={(req) => navigate(`/requests/${req.id}/edit`)}
-              />
+               <RequestCard 
+                 key={request.id} 
+                 request={request}
+                 onView={(req) => navigate(`/requests/${req.id}`)}
+                 onEdit={(req) => navigate(`/requests/${req.id}/edit`)}
+                 onDelete={handleDeleteRequest}
+               />
             ))
           ) : (
             <Card className="p-8 text-center">
@@ -335,6 +377,23 @@ export const Dashboard = () => {
           )}
         </div>
       )}
+
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir este rascunho? Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDeleteRequest} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

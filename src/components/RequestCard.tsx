@@ -1,9 +1,9 @@
-import { Request, TIPO_LABELS } from "@/lib/types";
+import { Request, TIPO_LABELS, Status } from "@/lib/types";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "./StatusBadge";
-import { Calendar, AlertTriangle, Edit, Eye } from "lucide-react";
+import { Calendar, AlertTriangle, Edit, Eye, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -11,6 +11,7 @@ interface RequestCardProps {
   request: Request;
   onEdit?: (request: Request) => void;
   onView?: (request: Request) => void;
+  onDelete?: (request: Request) => void;
   showActions?: boolean;
 }
 
@@ -18,13 +19,16 @@ export const RequestCard = ({
   request, 
   onEdit, 
   onView,
+  onDelete,
   showActions = true 
 }: RequestCardProps) => {
-  const formatDate = (date: Date) => {
+  const formatDate = (date: Date | null) => {
+    if (!date) return "Não definida";
     return format(date, "dd/MM/yyyy", { locale: ptBR });
   };
 
   const getDuration = () => {
+    if (!request.inicio || !request.fim) return "Não definido";
     const diffTime = Math.abs(request.fim.getTime() - request.inicio.getTime());
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
     return `${diffDays} dia${diffDays > 1 ? 's' : ''}`;
@@ -32,6 +36,7 @@ export const RequestCard = ({
 
   // Check if request is retroactive (start date is in the past)
   const isRetroactive = () => {
+    if (!request.inicio) return false;
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     return request.inicio < today;
@@ -77,6 +82,16 @@ export const RequestCard = ({
               >
                 <Edit className="w-4 h-4" />
               </Button>
+              {request.status === Status.RASCUNHO && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => onDelete?.(request)}
+                  className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              )}
             </div>
           )}
         </div>
@@ -87,7 +102,7 @@ export const RequestCard = ({
             <Calendar className="w-4 h-4" />
             <span>
               {formatDate(request.inicio)} 
-              {request.inicio.getTime() !== request.fim.getTime() && 
+              {request.inicio && request.fim && request.inicio.getTime() !== request.fim.getTime() && 
                 ` - ${formatDate(request.fim)}`
               }
             </span>
