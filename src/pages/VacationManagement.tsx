@@ -110,7 +110,6 @@ const VacationManagement = () => {
   const filteredData = useMemo(() => {
     return vacationData.filter(item =>
       item.person.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.person.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (item.person.cargo && item.person.cargo.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (item.person.sub_time && item.person.sub_time.toLowerCase().includes(searchTerm.toLowerCase()))
     );
@@ -254,13 +253,12 @@ const VacationManagement = () => {
   };
 
   const exportToCSV = () => {
-    const headers = ['Nome', 'Email', 'Cargo', 'Sub Time', 'Data Contrato', 'Dias Acumulados', 'Dias Usados', 'Saldo'];
+    const headers = ['Nome', 'Cargo', 'Time', 'Data Contrato', 'Dias Acumulados', 'Dias Usados', 'Saldo'];
     const csvContent = [
       headers.join(','),
       ...filteredData.map(item =>
         [
           `"${item.person.nome}"`,
-          item.person.email,
           `"${item.person.cargo || ''}"`,
           `"${item.person.sub_time || ''}"`,
           item.person.data_contrato || '',
@@ -373,7 +371,7 @@ const VacationManagement = () => {
               <div className="flex-1 relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
                 <Input
-                  placeholder="Buscar por nome, email, cargo ou time..."
+                  placeholder="Buscar por nome, cargo ou time..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10"
@@ -411,36 +409,34 @@ const VacationManagement = () => {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Nome</TableHead>
-                      <TableHead>Email</TableHead>
-                      <TableHead>Cargo</TableHead>
-                      <TableHead>Time</TableHead>
-                      <TableHead>Data Contrato</TableHead>
-                      <TableHead className="text-center">Acumulados</TableHead>
-                      <TableHead className="text-center">Usados</TableHead>
-                      <TableHead className="text-center">Saldo</TableHead>
-                      <TableHead>Tipo</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Ações</TableHead>
+                      <TableHead className="min-w-[160px]">Nome</TableHead>
+                      <TableHead className="min-w-[120px]">Cargo</TableHead>
+                      <TableHead className="min-w-[100px]">Time</TableHead>
+                      <TableHead className="min-w-[110px]">Data Contrato</TableHead>
+                      <TableHead className="text-center min-w-[90px]">Acumulados</TableHead>
+                      <TableHead className="text-center min-w-[80px]">Usados</TableHead>
+                      <TableHead className="text-center min-w-[80px]">Saldo</TableHead>
+                      <TableHead className="min-w-[100px]">Tipo</TableHead>
+                      <TableHead className="min-w-[110px]">Status</TableHead>
+                      <TableHead className="min-w-[120px] sticky right-0 bg-background">Ações</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {filteredData.map((item) => (
                       <TableRow key={item.person.id}>
-                        <TableCell className="font-medium">{item.person.nome}</TableCell>
-                        <TableCell>{item.person.email}</TableCell>
-                        <TableCell>{item.person.cargo || "—"}</TableCell>
-                        <TableCell>{item.person.sub_time || "—"}</TableCell>
-                        <TableCell>
+                        <TableCell className="font-medium p-3">{item.person.nome}</TableCell>
+                        <TableCell className="p-3">{item.person.cargo || "—"}</TableCell>
+                        <TableCell className="p-3">{item.person.sub_time || "—"}</TableCell>
+                        <TableCell className="p-3">
                           {item.person.data_contrato 
                             ? new Date(item.person.data_contrato).toLocaleDateString("pt-BR")
                             : "—"
                           }
                         </TableCell>
-                        <TableCell className="text-center">{item.accrued_days}</TableCell>
-                        <TableCell className="text-center">{item.used_days}</TableCell>
-                        <TableCell className="text-center font-bold">{item.balance_days}</TableCell>
-                        <TableCell>
+                        <TableCell className="text-center p-3">{item.accrued_days}</TableCell>
+                        <TableCell className="text-center p-3">{item.used_days}</TableCell>
+                        <TableCell className="text-center font-bold p-3">{item.balance_days}</TableCell>
+                        <TableCell className="p-3">
                           <Badge 
                             variant={item.is_manual ? "default" : "outline"}
                             className={item.is_manual ? "bg-blue-100 text-blue-800" : "bg-gray-100 text-gray-800"}
@@ -451,7 +447,7 @@ const VacationManagement = () => {
                             </div>
                           </Badge>
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="p-3">
                           <Badge 
                             variant="outline" 
                             className={getBalanceColor(item.balance_days, !!item.person.data_contrato)}
@@ -464,13 +460,14 @@ const VacationManagement = () => {
                             </div>
                           </Badge>
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="sticky right-0 bg-background p-3">
                           <div className="flex gap-1">
                             <Button
                               variant="ghost"
                               size="sm"
                               onClick={() => handleEditContract(item)}
                               title="Editar data de contrato"
+                              className="h-8 w-8 p-0"
                             >
                               <Edit className="h-4 w-4" />
                             </Button>
@@ -479,6 +476,7 @@ const VacationManagement = () => {
                               size="sm"
                               onClick={() => handleEditBalance(item)}
                               title="Editar saldo de férias"
+                              className="h-8 w-8 p-0"
                             >
                               <Settings className="h-4 w-4" />
                             </Button>
@@ -488,6 +486,7 @@ const VacationManagement = () => {
                                 size="sm"
                                 onClick={() => handleRestoreAutomatic(item)}
                                 title="Restaurar cálculo automático"
+                                className="h-8 w-8 p-0"
                               >
                                 <RotateCcw className="h-4 w-4" />
                               </Button>
