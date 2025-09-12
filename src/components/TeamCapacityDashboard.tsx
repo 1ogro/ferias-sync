@@ -5,6 +5,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertTriangle, Users, Calendar, TrendingDown } from "lucide-react";
 import { getTeamCapacityAlerts, getSpecialApprovals } from "@/lib/medicalLeaveUtils";
 import { TeamCapacityAlert, SpecialApproval } from "@/lib/types";
+import { useAuth } from "@/hooks/useAuth";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -12,15 +13,24 @@ export const TeamCapacityDashboard = () => {
   const [alerts, setAlerts] = useState<TeamCapacityAlert[]>([]);
   const [specialApprovals, setSpecialApprovals] = useState<SpecialApproval[]>([]);
   const [loading, setLoading] = useState(false);
+  const { user, loading: authLoading } = useAuth();
 
   const loadDashboardData = async () => {
+    if (!user || authLoading) {
+      console.log('User not authenticated or still loading, skipping dashboard load');
+      return;
+    }
+
     setLoading(true);
     try {
+      console.log('Loading dashboard data for user:', user.id);
       const [alertsData, approvalsData] = await Promise.all([
         getTeamCapacityAlerts(),
         getSpecialApprovals()
       ]);
       
+      console.log('Alerts loaded:', alertsData);
+      console.log('Special approvals loaded:', approvalsData);
       setAlerts(alertsData);
       setSpecialApprovals(approvalsData.slice(0, 10)); // Show last 10 approvals
     } catch (error) {
@@ -31,8 +41,10 @@ export const TeamCapacityDashboard = () => {
   };
 
   useEffect(() => {
-    loadDashboardData();
-  }, []);
+    if (user && !authLoading) {
+      loadDashboardData();
+    }
+  }, [user, authLoading]);
 
   const getCriticalAlerts = () => {
     return alerts.filter(alert => alert.affected_people_count >= 2);

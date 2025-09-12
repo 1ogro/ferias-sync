@@ -9,6 +9,7 @@ import { ptBR } from "date-fns/locale";
 import { getActiveMedicalLeaves, endMedicalLeave } from "@/lib/medicalLeaveUtils";
 import { MedicalLeave } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -29,13 +30,22 @@ export const MedicalLeaveList = ({ onRefresh }: MedicalLeaveListProps) => {
   const [medicalLeaves, setMedicalLeaves] = useState<MedicalLeave[]>([]);
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
+  const { user, loading: authLoading } = useAuth();
 
   const loadMedicalLeaves = async () => {
+    if (!user || authLoading) {
+      console.log('User not authenticated or still loading, skipping medical leaves load');
+      return;
+    }
+
     setLoading(true);
     try {
+      console.log('Loading medical leaves for user:', user.id);
       const leaves = await getActiveMedicalLeaves();
+      console.log('Medical leaves loaded:', leaves);
       setMedicalLeaves(leaves);
     } catch (error) {
+      console.error('Error loading medical leaves:', error);
       toast({
         title: "Erro",
         description: "Erro ao carregar licenças médicas.",
@@ -47,8 +57,10 @@ export const MedicalLeaveList = ({ onRefresh }: MedicalLeaveListProps) => {
   };
 
   useEffect(() => {
-    loadMedicalLeaves();
-  }, []);
+    if (user && !authLoading) {
+      loadMedicalLeaves();
+    }
+  }, [user, authLoading]);
 
   const handleEndLeave = async (leaveId: string) => {
     try {

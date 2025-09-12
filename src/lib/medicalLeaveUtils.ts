@@ -1,6 +1,15 @@
 import { supabase } from "@/integrations/supabase/client";
 import { MedicalLeave, TeamCapacityAlert, SpecialApproval } from "./types";
 
+// Helper function to check if user is authenticated
+const checkAuth = async () => {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) {
+    throw new Error('Usuário não autenticado');
+  }
+  return session;
+};
+
 // Helper function to map database results to proper types
 const mapMedicalLeave = (dbLeave: any): MedicalLeave => ({
   ...dbLeave,
@@ -35,6 +44,7 @@ export const createMedicalLeave = async (
   affectsTeamCapacity: boolean = true
 ): Promise<{ success: boolean; data?: MedicalLeave; error?: string }> => {
   try {
+    await checkAuth();
     const { data, error } = await supabase
       .from('medical_leaves')
       .insert({
@@ -65,6 +75,8 @@ export const createMedicalLeave = async (
 
 export const getActiveMedicalLeaves = async (teamId?: string): Promise<MedicalLeave[]> => {
   try {
+    await checkAuth();
+    console.log('Fetching active medical leaves...');
     let query = supabase
       .from('medical_leaves')
       .select(`
@@ -148,6 +160,7 @@ export const createTeamCapacityAlert = async (
   medicalLeaveId: string
 ): Promise<{ success: boolean; error?: string }> => {
   try {
+    await checkAuth();
     // Get person's team
     const { data: person, error: personError } = await supabase
       .from('people')
@@ -195,6 +208,8 @@ export const createTeamCapacityAlert = async (
 
 export const getTeamCapacityAlerts = async (teamId?: string): Promise<TeamCapacityAlert[]> => {
   try {
+    await checkAuth();
+    console.log('Fetching team capacity alerts...');
     let query = supabase
       .from('team_capacity_alerts')
       .select('*')
@@ -223,6 +238,7 @@ export const createSpecialApproval = async (
   justification: string
 ): Promise<{ success: boolean; data?: SpecialApproval; error?: string }> => {
   try {
+    await checkAuth();
     const { data, error } = await supabase
       .from('special_approvals')
       .insert({
@@ -245,6 +261,8 @@ export const createSpecialApproval = async (
 
 export const getSpecialApprovals = async (directorId?: string): Promise<SpecialApproval[]> => {
   try {
+    await checkAuth();
+    console.log('Fetching special approvals...');
     const { data, error } = await supabase
       .from('special_approvals')
       .select(`
@@ -268,6 +286,7 @@ export const notifyDirectorOfApproval = async (
   directorId: string
 ): Promise<{ success: boolean; error?: string }> => {
   try {
+    await checkAuth();
     const { error } = await supabase
       .from('special_approvals')
       .update({
