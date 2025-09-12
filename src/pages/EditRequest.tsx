@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
+import { parseDateSafely } from "@/lib/dateUtils";
 import { TipoAusencia, Status } from "@/lib/types";
 import { Calendar, AlertTriangle, CheckCircle, ArrowLeft, Edit } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -146,7 +147,7 @@ const EditRequest = () => {
         .neq('id', id); // Exclude current request
 
       if (data && data.length > 0) {
-        const conflictNames = data.map(req => `${req.people.nome} (${new Date(req.inicio).toLocaleDateString('pt-BR')} - ${new Date(req.fim).toLocaleDateString('pt-BR')})`);
+        const conflictNames = data.map(req => `${req.people.nome} (${parseDateSafely(req.inicio).toLocaleDateString('pt-BR')} - ${parseDateSafely(req.fim).toLocaleDateString('pt-BR')})`);
         setConflicts(conflictNames);
       } else {
         setConflicts([]);

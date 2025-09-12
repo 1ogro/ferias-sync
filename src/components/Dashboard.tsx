@@ -8,6 +8,7 @@ import { VacationBalance } from "./VacationBalance";
 import { VacationSummaryCard } from "./VacationSummaryCard";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { parseDateSafely } from "@/lib/dateUtils";
 import { Status, TipoAusencia, Request } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -61,8 +62,8 @@ export const Dashboard = () => {
           requesterId: req.requester_id,
           requester: req.people as any,
           tipo: req.tipo as TipoAusencia,
-          inicio: req.inicio ? new Date(req.inicio) : null,
-          fim: req.fim ? new Date(req.fim) : null,
+          inicio: req.inicio ? parseDateSafely(req.inicio) : null,
+          fim: req.fim ? parseDateSafely(req.fim) : null,
           tipoFerias: req.tipo_ferias,
           status: req.status as Status,
           justificativa: req.justificativa,

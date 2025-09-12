@@ -60,6 +60,17 @@ export function isBirthdayToday(birthDate: string | Date): boolean {
 }
 
 /**
+ * Safely parses a date string in YYYY-MM-DD format to local timezone
+ * This prevents timezone conversion issues that cause date shifts
+ */
+export function parseDateSafely(dateString: string): Date {
+  if (!dateString) throw new Error('Date string is required');
+  
+  const [year, month, day] = dateString.split('-').map(Number);
+  return new Date(year, month - 1, day); // month is 0-indexed
+}
+
+/**
  * Gets month names in Portuguese
  */
 export const MONTH_NAMES = [

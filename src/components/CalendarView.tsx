@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { mockRequests } from "@/lib/mockData";
 import { Status, TipoAusencia } from "@/lib/types";
+import { parseDateSafely } from "@/lib/dateUtils";
 import { Calendar, ChevronLeft, ChevronRight } from "lucide-react";
 import { useState } from "react";
 
@@ -35,8 +36,8 @@ export const CalendarView = () => {
 
   const getRequestsForDate = (date: Date) => {
     return approvedRequests.filter(req => {
-      const requestStart = new Date(req.inicio);
-      const requestEnd = new Date(req.fim);
+      const requestStart = req.inicio;
+      const requestEnd = req.fim;
       return date >= requestStart && date <= requestEnd;
     });
   };

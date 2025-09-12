@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { TipoAusencia } from "@/lib/types";
+import { parseDateSafely } from "@/lib/dateUtils";
 import { Calendar, AlertTriangle, CheckCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
@@ -93,7 +94,7 @@ export const NewRequestForm = () => {
         .or(`and(inicio.lte.${formData.fim},fim.gte.${formData.inicio})`);
 
       if (data && data.length > 0) {
-        const conflictNames = data.map(req => `${req.people.nome} (${new Date(req.inicio).toLocaleDateString('pt-BR')} - ${new Date(req.fim).toLocaleDateString('pt-BR')})`);
+        const conflictNames = data.map(req => `${req.people.nome} (${parseDateSafely(req.inicio).toLocaleDateString('pt-BR')} - ${parseDateSafely(req.fim).toLocaleDateString('pt-BR')})`);
         setConflicts(conflictNames);
       } else {
         setConflicts([]);
