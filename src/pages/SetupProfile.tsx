@@ -24,8 +24,11 @@ export default function SetupProfile() {
   const [fetchingPeople, setFetchingPeople] = useState(true);
 
   useEffect(() => {
-    fetchPeople();
-  }, []);
+    // Only fetch people after profile check is complete
+    if (profileChecked && !authLoading && user && !person) {
+      fetchPeople();
+    }
+  }, [profileChecked, authLoading, user, person]);
 
   useEffect(() => {
     // Redirect if user already has a profile
@@ -36,18 +39,36 @@ export default function SetupProfile() {
   }, [user, person, authLoading, profileChecked, navigate]);
 
   const fetchPeople = async () => {
+    console.log('Fetching people for signup...');
+    setFetchingPeople(true);
     try {
       const { data, error } = await supabase
         .rpc('get_active_people_for_signup');
 
-      if (error) throw error;
-      setPeople(data || []);
+      console.log('RPC result:', { data, error });
+
+      if (error) {
+        console.error('RPC error:', error);
+        throw error;
+      }
+
+      const peopleData = data || [];
+      console.log('People data loaded:', peopleData.length, 'people');
+      setPeople(peopleData);
+
+      if (peopleData.length === 0) {
+        toast({
+          variant: 'destructive',
+          title: 'Nenhuma pessoa encontrada',
+          description: 'Não há pessoas ativas disponíveis para vinculação.',
+        });
+      }
     } catch (error) {
       console.error('Error fetching people:', error);
       toast({
         variant: 'destructive',
         title: 'Erro ao carregar pessoas',
-        description: 'Não foi possível carregar a lista de pessoas.',
+        description: `Não foi possível carregar a lista de pessoas: ${error instanceof Error ? error.message : 'Erro desconhecido'}`,
       });
     } finally {
       setFetchingPeople(false);
@@ -142,11 +163,17 @@ export default function SetupProfile() {
                 <SelectValue placeholder={fetchingPeople ? "Carregando..." : "Selecione uma pessoa"} />
               </SelectTrigger>
               <SelectContent>
-                {people.map((person) => (
-                  <SelectItem key={person.id} value={person.id}>
-                    {person.nome} ({person.email})
+                {people.length === 0 && !fetchingPeople ? (
+                  <SelectItem value="no-people" disabled>
+                    Nenhuma pessoa ativa encontrada
                   </SelectItem>
-                ))}
+                ) : (
+                  people.map((person) => (
+                    <SelectItem key={person.id} value={person.id}>
+                      {person.nome} ({person.email})
+                    </SelectItem>
+                  ))
+                )}
               </SelectContent>
             </Select>
           </div>
