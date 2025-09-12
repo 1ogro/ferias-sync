@@ -46,6 +46,39 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
     }
   }, [loading, profileChecked, contractDateChecked]);
 
+  // Debug current auth state to help diagnose loading loops
+  useEffect(() => {
+    console.debug('ProtectedRoute state', {
+      loading,
+      profileChecked,
+      contractDateChecked,
+      hasUser: !!user,
+      hasPerson: !!person,
+      hasContract: !!person?.data_contrato,
+      showFallback,
+    });
+  }, [loading, profileChecked, contractDateChecked, user, person, showFallback]);
+
+  // Auto-redirect as a fail-safe when fallback is shown
+  useEffect(() => {
+    if (!showFallback) return;
+
+    if (!user) {
+      console.warn('Auth taking too long or missing session; redirecting to /auth');
+      navigate('/auth');
+      return;
+    }
+    if (user && person === null) {
+      console.warn('Profile missing after timeout; redirecting to /setup-profile');
+      navigate('/setup-profile');
+      return;
+    }
+    if (user && person && !person.data_contrato) {
+      console.warn('Contract date missing after timeout; redirecting to /setup-contract');
+      navigate('/setup-contract');
+    }
+  }, [showFallback, user, person, navigate]);
+
   if (loading || !profileChecked || !contractDateChecked) {
     if (showFallback) {
       return (
