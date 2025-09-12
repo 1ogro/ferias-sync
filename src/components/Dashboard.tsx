@@ -252,11 +252,11 @@ export const Dashboard = () => {
           </CardContent>
         </Card>
 
-        <VacationBalance className="col-span-12 lg:col-span-6" />
+        <VacationBalance className="col-span-12 lg:col-span-3" />
         
         {/* Vacation Management Card - Only for Directors and Admins */}
         {(person?.papel === 'DIRETOR' || person?.is_admin) && (
-          <VacationSummaryCard className="col-span-12 lg:col-span-6" />
+          <VacationSummaryCard className="col-span-12 lg:col-span-3" />
         )}
       </div>
 
