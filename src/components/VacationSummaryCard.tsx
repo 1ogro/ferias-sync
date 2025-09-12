@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { getAllVacationBalances } from "@/lib/vacationUtils";
+import { supabase } from "@/integrations/supabase/client";
 import { 
   Calendar, 
   Users, 
@@ -32,20 +32,26 @@ export const VacationSummaryCard = ({ className }: VacationSummaryProps) => {
 
   const fetchSummaryData = async () => {
     try {
-      const data = await getAllVacationBalances();
-      const total = data.length;
-      const withoutContract = data.filter(item => !item.person.data_contrato).length;
-      const accumulatedVacations = data.filter(item => item.balance_days > 30).length;
-      const totalBalance = data.reduce((sum, item) => sum + item.balance_days, 0);
-      const averageBalance = total > 0 ? Math.round(totalBalance / total) : 0;
+      const { data, error } = await supabase.rpc('get_vacation_summary');
+      
+      if (error) {
+        console.error('Error fetching vacation summary:', error);
+        setStats(prev => ({ ...prev, loading: false }));
+        return;
+      }
 
-      setStats({
-        total,
-        withoutContract,
-        accumulatedVacations,
-        averageBalance,
-        loading: false
-      });
+      const summary = data?.[0];
+      if (summary) {
+        setStats({
+          total: summary.total_people,
+          withoutContract: summary.without_contract,
+          accumulatedVacations: summary.accumulated_vacations,
+          averageBalance: summary.average_balance,
+          loading: false
+        });
+      } else {
+        setStats(prev => ({ ...prev, loading: false }));
+      }
     } catch (error) {
       console.error('Error fetching vacation summary:', error);
       setStats(prev => ({ ...prev, loading: false }));

@@ -475,6 +475,15 @@ export type Database = {
           nome: string
         }[]
       }
+      get_vacation_summary: {
+        Args: { p_year?: number }
+        Returns: {
+          accumulated_vacations: number
+          average_balance: number
+          total_people: number
+          without_contract: number
+        }[]
+      }
       is_current_user_admin: {
         Args: Record<PropertyKey, never>
         Returns: boolean

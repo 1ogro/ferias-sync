@@ -1,7 +1,9 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 import { Calendar } from 'lucide-react';
 
 interface ProtectedRouteProps {
@@ -11,6 +13,7 @@ interface ProtectedRouteProps {
 export default function ProtectedRoute({ children }: ProtectedRouteProps) {
   const { user, person, loading, profileChecked, contractDateChecked } = useAuth();
   const navigate = useNavigate();
+  const [showFallback, setShowFallback] = useState(false);
 
   useEffect(() => {
     // Only act when loading is complete and profile has been checked
@@ -30,7 +33,50 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
     }
   }, [user, person, loading, profileChecked, contractDateChecked, navigate]);
 
+  // Show fallback after 5 seconds of loading
+  useEffect(() => {
+    if (loading || !profileChecked || !contractDateChecked) {
+      const timer = setTimeout(() => {
+        setShowFallback(true);
+      }, 5000);
+      
+      return () => clearTimeout(timer);
+    } else {
+      setShowFallback(false);
+    }
+  }, [loading, profileChecked, contractDateChecked]);
+
   if (loading || !profileChecked || !contractDateChecked) {
+    if (showFallback) {
+      return (
+        <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/30 flex items-center justify-center">
+          <Card className="max-w-md w-full mx-4">
+            <CardContent className="pt-6 text-center space-y-4">
+              <h2 className="text-lg font-semibold">Parece estar demorando...</h2>
+              <p className="text-muted-foreground">
+                O carregamento está levando mais tempo que o esperado.
+              </p>
+              <div className="space-y-2">
+                <Button 
+                  onClick={() => navigate('/auth')} 
+                  className="w-full"
+                >
+                  Ir para Login
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={() => window.location.reload()} 
+                  className="w-full"
+                >
+                  Tentar Novamente
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      );
+    }
+
     return (
       <div className="min-h-screen bg-background">
         <div className="border-b">
