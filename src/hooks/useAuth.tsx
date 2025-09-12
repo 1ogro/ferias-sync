@@ -8,6 +8,7 @@ interface AuthContextType {
   session: Session | null;
   person: Person | null;
   loading: boolean;
+  profileChecked: boolean;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signUp: (email: string, password: string, personId: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
@@ -21,9 +22,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [person, setPerson] = useState<Person | null>(null);
   const [loading, setLoading] = useState(true);
+  const [profileChecked, setProfileChecked] = useState(false);
 
   const fetchPersonData = async (userId: string) => {
     try {
+      console.log('Fetching person data for user:', userId);
+      
       const { data: profile, error } = await supabase
         .from('profiles')
         .select(`
@@ -37,14 +41,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         console.error('Error fetching profile:', error);
         setPerson(null);
       } else if (profile?.people) {
+        console.log('Profile found:', profile.people);
         setPerson(profile.people as Person);
       } else {
+        console.log('No profile found for user');
         setPerson(null);
       }
     } catch (error) {
       console.error('Error fetching person data:', error);
       setPerson(null);
     } finally {
+      setProfileChecked(true);
       setLoading(false);
     }
   };
@@ -62,6 +69,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           }, 0);
         } else {
           setPerson(null);
+          setProfileChecked(true);
           setLoading(false);
         }
       }
@@ -75,6 +83,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       if (session?.user) {
         fetchPersonData(session.user.id);
       } else {
+        setProfileChecked(true);
         setLoading(false);
       }
     });
@@ -121,6 +130,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const signOut = async () => {
     await supabase.auth.signOut();
     setPerson(null);
+    setProfileChecked(false);
   };
 
   const createProfile = async (personId: string) => {
@@ -155,6 +165,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     session,
     person,
     loading,
+    profileChecked,
     signIn,
     signUp,
     signOut,

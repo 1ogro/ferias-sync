@@ -16,16 +16,24 @@ interface PersonOption {
 }
 
 export default function SetupProfile() {
-  const { user, createProfile } = useAuth();
+  const { user, person, loading: authLoading, profileChecked, createProfile } = useAuth();
   const navigate = useNavigate();
   const [people, setPeople] = useState<PersonOption[]>([]);
   const [selectedPersonId, setSelectedPersonId] = useState<string>('');
-  const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [fetchingPeople, setFetchingPeople] = useState(true);
 
   useEffect(() => {
     fetchPeople();
   }, []);
+
+  useEffect(() => {
+    // Redirect if user already has a profile
+    if (!authLoading && profileChecked && user && person) {
+      console.log('User already has profile, redirecting to dashboard');
+      navigate('/');
+    }
+  }, [user, person, authLoading, profileChecked, navigate]);
 
   const fetchPeople = async () => {
     try {
@@ -59,7 +67,7 @@ export default function SetupProfile() {
       return;
     }
 
-    setLoading(true);
+    setSubmitting(true);
     try {
       const { error } = await createProfile(selectedPersonId);
       
@@ -81,13 +89,27 @@ export default function SetupProfile() {
         description: 'Não foi possível criar o perfil. Tente novamente.',
       });
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
   };
 
   if (!user) {
     navigate('/auth');
     return null;
+  }
+
+  // Show loading while checking profile
+  if (authLoading || !profileChecked) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/30 flex items-center justify-center p-4">
+        <Card className="w-full max-w-md">
+          <CardContent className="p-6 text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+            <p className="mt-4 text-sm text-muted-foreground">Verificando perfil...</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
   }
 
   return (
@@ -135,9 +157,9 @@ export default function SetupProfile() {
           <Button 
             onClick={handleSubmit} 
             className="w-full" 
-            disabled={loading || !selectedPersonId || fetchingPeople}
+            disabled={submitting || !selectedPersonId || fetchingPeople}
           >
-            {loading ? 'Criando perfil...' : 'Confirmar e Continuar'}
+            {submitting ? 'Criando perfil...' : 'Confirmar e Continuar'}
           </Button>
         </CardContent>
       </Card>

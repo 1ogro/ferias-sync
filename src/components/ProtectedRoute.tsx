@@ -9,19 +9,24 @@ interface ProtectedRouteProps {
 }
 
 export default function ProtectedRoute({ children }: ProtectedRouteProps) {
-  const { user, person, loading } = useAuth();
+  const { user, person, loading, profileChecked } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (!loading && !user) {
-      navigate('/auth');
-    } else if (!loading && user && person === null) {
-      // User is authenticated but has no profile - redirect to setup
-      navigate('/setup-profile');
+    // Only act when loading is complete and profile has been checked
+    if (!loading && profileChecked) {
+      if (!user) {
+        console.log('No user, redirecting to auth');
+        navigate('/auth');
+      } else if (user && person === null) {
+        // User is authenticated but has no profile - redirect to setup
+        console.log('User authenticated but no profile, redirecting to setup');
+        navigate('/setup-profile');
+      }
     }
-  }, [user, person, loading, navigate]);
+  }, [user, person, loading, profileChecked, navigate]);
 
-  if (loading || (user && !person)) {
+  if (loading || !profileChecked) {
     return (
       <div className="min-h-screen bg-background">
         <div className="border-b">
