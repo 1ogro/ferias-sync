@@ -239,13 +239,17 @@ export type Database = {
       }
       requests: {
         Row: {
+          admin_observations: string | null
           conflito_flag: boolean | null
           conflito_refs: string | null
           created_at: string
           fim: string | null
           id: string
           inicio: string | null
+          is_historical: boolean
           justificativa: string | null
+          original_channel: string | null
+          original_created_at: string | null
           requester_id: string
           status: string
           tipo: string
@@ -253,13 +257,17 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          admin_observations?: string | null
           conflito_flag?: boolean | null
           conflito_refs?: string | null
           created_at?: string
           fim?: string | null
           id?: string
           inicio?: string | null
+          is_historical?: boolean
           justificativa?: string | null
+          original_channel?: string | null
+          original_created_at?: string | null
           requester_id: string
           status?: string
           tipo: string
@@ -267,13 +275,17 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          admin_observations?: string | null
           conflito_flag?: boolean | null
           conflito_refs?: string | null
           created_at?: string
           fim?: string | null
           id?: string
           inicio?: string | null
+          is_historical?: boolean
           justificativa?: string | null
+          original_channel?: string | null
+          original_created_at?: string | null
           requester_id?: string
           status?: string
           tipo?: string
@@ -463,6 +475,17 @@ export type Database = {
       is_current_user_admin: {
         Args: Record<PropertyKey, never>
         Returns: boolean
+      }
+      recalculate_vacation_balance: {
+        Args: { p_person_id: string; p_year?: number }
+        Returns: {
+          accrued_days: number
+          balance_days: number
+          contract_anniversary: string
+          person_id: string
+          used_days: number
+          year: number
+        }[]
       }
     }
     Enums: {

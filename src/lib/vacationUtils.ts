@@ -45,13 +45,18 @@ export function calculateVacationBalance(
   // 30 days per year worked
   const accruedDays = Math.max(0, yearsWorked * 30);
   
-  // Calculate used days from all REALIZADO vacation requests (including retroactive)
+  // Calculate used days from REALIZADO requests and APROVADO_FINAL requests with end date in the past
+  const currentDate = new Date();
+  currentDate.setHours(0, 0, 0, 0);
+  
   const usedDays = requests
     .filter(request => 
       request.tipo === TipoAusencia.FERIAS &&
-      request.status === Status.REALIZADO
+      (request.status === Status.REALIZADO || 
+       (request.status === Status.APROVADO_FINAL && request.fim && request.fim < currentDate))
     )
     .reduce((total, request) => {
+      if (!request.inicio || !request.fim) return total;
       const days = Math.ceil((request.fim.getTime() - request.inicio.getTime()) / (1000 * 60 * 60 * 24)) + 1;
       return total + days;
     }, 0);
@@ -174,7 +179,11 @@ function mapRequestFromDB(dbRequest: any): Request {
     conflitoFlag: dbRequest.conflito_flag,
     conflitoRefs: dbRequest.conflito_refs,
     createdAt: new Date(dbRequest.created_at),
-    updatedAt: new Date(dbRequest.updated_at)
+    updatedAt: new Date(dbRequest.updated_at),
+    isHistorical: dbRequest.is_historical || false,
+    originalCreatedAt: dbRequest.original_created_at ? new Date(dbRequest.original_created_at) : undefined,
+    originalChannel: dbRequest.original_channel,
+    adminObservations: dbRequest.admin_observations
   };
 }
 
@@ -443,5 +452,55 @@ export async function getAllVacationBalances(
   } catch (error) {
     console.error('Error getting all vacation balances:', error);
     return [];
+  }
+}
+
+/**
+ * Recalculate and update manual vacation balance using database function
+ */
+export async function recalculateVacationBalance(
+  personId: string,
+  year: number,
+  justification: string,
+  updatedBy: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    // Call the database function to get calculated values
+    const { data: calculatedData, error: calcError } = await supabase
+      .rpc('recalculate_vacation_balance', {
+        p_person_id: personId,
+        p_year: year
+      });
+
+    if (calcError || !calculatedData?.[0]) {
+      console.error('Error calculating balance:', calcError);
+      return { success: false, error: 'Erro ao calcular saldo automaticamente' };
+    }
+
+    const calculated = calculatedData[0];
+
+    // Update or insert the manual balance record
+    const { error } = await supabase
+      .from('vacation_balances')
+      .upsert({
+        person_id: personId,
+        year: year,
+        accrued_days: calculated.accrued_days,
+        used_days: calculated.used_days,
+        balance_days: calculated.balance_days,
+        contract_anniversary: calculated.contract_anniversary,
+        manual_justification: justification,
+        updated_by: updatedBy
+      });
+
+    if (error) {
+      console.error('Error updating manual balance:', error);
+      return { success: false, error: error.message };
+    }
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error in recalculateVacationBalance:', error);
+    return { success: false, error: 'Erro interno' };
   }
 }

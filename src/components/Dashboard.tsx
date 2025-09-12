@@ -69,7 +69,11 @@ export const Dashboard = () => {
           conflitoFlag: req.conflito_flag,
           conflitoRefs: req.conflito_refs,
           createdAt: new Date(req.created_at),
-          updatedAt: new Date(req.updated_at)
+          updatedAt: new Date(req.updated_at),
+          isHistorical: req.is_historical || false,
+          originalCreatedAt: req.original_created_at ? new Date(req.original_created_at) : undefined,
+          originalChannel: req.original_channel,
+          adminObservations: req.admin_observations
         }));
         setUserRequests(formattedRequests);
       }
@@ -83,9 +87,14 @@ export const Dashboard = () => {
   const pendingRequests = userRequests.filter(req => 
     [Status.PENDENTE, Status.EM_ANALISE_GESTOR, Status.EM_ANALISE_DIRETOR].includes(req.status)
   );
-  const approvedRequests = userRequests.filter(req => 
-    [Status.APROVADO_FINAL, Status.REALIZADO].includes(req.status)
-  );
+  const approvedRequests = userRequests.filter(req => {
+    if (![Status.APROVADO_FINAL, Status.REALIZADO].includes(req.status)) return false;
+    
+    // For current year filtering, use the start date year for approved requests
+    const currentYear = new Date().getFullYear();
+    const requestYear = req.inicio ? req.inicio.getFullYear() : req.createdAt.getFullYear();
+    return requestYear === currentYear;
+  });
 
   // Filter future approved requests for "Próximos Períodos"
   const today = new Date();

@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertTriangle, Users, Calendar, TrendingDown } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 import { getTeamCapacityAlerts, getSpecialApprovals } from "@/lib/medicalLeaveUtils";
 import { TeamCapacityAlert, SpecialApproval } from "@/lib/types";
 import { useAuth } from "@/hooks/useAuth";
@@ -13,6 +14,7 @@ export const TeamCapacityDashboard = () => {
   const [alerts, setAlerts] = useState<TeamCapacityAlert[]>([]);
   const [specialApprovals, setSpecialApprovals] = useState<SpecialApproval[]>([]);
   const [loading, setLoading] = useState(false);
+  const [historicalCount, setHistoricalCount] = useState(0);
   const { user, loading: authLoading } = useAuth();
 
   const loadDashboardData = async () => {
@@ -29,10 +31,20 @@ export const TeamCapacityDashboard = () => {
         getSpecialApprovals()
       ]);
       
-      console.log('Alerts loaded:', alertsData);
-      console.log('Special approvals loaded:', approvalsData);
+      const currentYear = new Date().getFullYear();
+      
+      // Add historical requests count to dashboard
+      const { data: historicalRequests } = await supabase
+        .from('requests')
+        .select('id')
+        .eq('is_historical', true)
+        .gte('created_at', new Date(new Date().setDate(new Date().getDate() - 30)).toISOString());
+      
+      const historicalCount = historicalRequests?.length || 0;
+      
       setAlerts(alertsData);
-      setSpecialApprovals(approvalsData.slice(0, 10)); // Show last 10 approvals
+      setSpecialApprovals(approvalsData.slice(0, 10));
+      setHistoricalCount(historicalCount);
     } catch (error) {
       console.error('Error loading dashboard data:', error);
     } finally {
@@ -112,6 +124,19 @@ export const TeamCapacityDashboard = () => {
             <div className="text-2xl font-bold">{recentApprovals.length}</div>
             <p className="text-xs text-muted-foreground">
               Últimos 7 dias
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Solicitações Históricas</CardTitle>
+            <Calendar className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{historicalCount}</div>
+            <p className="text-xs text-muted-foreground">
+              Últimos 30 dias
             </p>
           </CardContent>
         </Card>

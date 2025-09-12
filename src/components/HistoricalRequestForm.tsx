@@ -1,20 +1,20 @@
-import { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { TipoAusencia, Status } from "@/lib/types";
-import { Calendar, AlertTriangle, History } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { CalendarIcon } from "lucide-react";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 
 interface FormData {
   requesterId: string;
-  tipo: TipoAusencia | "";
+  tipo: string;
   inicio: string;
   fim: string;
   justificativa: string;
@@ -24,20 +24,25 @@ interface FormData {
   finalStatus: Status;
 }
 
-const HISTORICAL_STATUSES = [
-  { value: Status.APROVADO_FINAL, label: "Aprovado Final" },
-  { value: Status.REALIZADO, label: "Realizado" },
-  { value: Status.REPROVADO, label: "Reprovado" },
-  { value: Status.CANCELADO, label: "Cancelado" }
+import { Status, TipoAusencia } from "@/lib/types";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import { cn } from "@/lib/utils";
+
+const VACATION_TYPES = [
+  { value: "ferias-anuais", label: "Férias Anuais" },
+  { value: "ferias-coletivas", label: "Férias Coletivas" },
+  { value: "ferias-vendidas", label: "Férias Vendidas" },
+  { value: "abono-ferias", label: "Abono de Férias" }
 ];
 
 const ORIGINAL_CHANNELS = [
-  "E-mail",
-  "WhatsApp",
-  "Presencial",
-  "Telefone",
-  "Sistema Antigo",
-  "Outro"
+  { value: "email", label: "E-mail" },
+  { value: "telefone", label: "Telefone" },
+  { value: "presencial", label: "Presencial" },
+  { value: "whatsapp", label: "WhatsApp" },
+  { value: "teams", label: "Microsoft Teams" },
+  { value: "outro", label: "Outro" }
 ];
 
 interface SimplePerson {
@@ -68,12 +73,15 @@ export const HistoricalRequestForm = ({ onSuccess }: HistoricalRequestFormProps)
     finalStatus: Status.APROVADO_FINAL
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [startDate, setStartDate] = useState<Date>();
+  const [endDate, setEndDate] = useState<Date>();
+  const [originalDate, setOriginalDate] = useState<Date>();
 
   useEffect(() => {
-    fetchActivePeople();
+    fetchPeople();
   }, []);
 
-  const fetchActivePeople = async () => {
+  const fetchPeople = async () => {
     try {
       const { data, error } = await supabase
         .from('people')
@@ -86,29 +94,11 @@ export const HistoricalRequestForm = ({ onSuccess }: HistoricalRequestFormProps)
     } catch (error) {
       console.error('Error fetching people:', error);
       toast({
-        variant: 'destructive',
-        title: 'Erro ao carregar pessoas',
-        description: 'Não foi possível carregar a lista de funcionários.',
+        variant: "destructive",
+        title: "Erro",
+        description: "Erro ao buscar colaboradores."
       });
     }
-  };
-
-  const handleInputChange = (field: keyof FormData, value: string) => {
-    setFormData(prev => {
-      const newData = { ...prev, [field]: value };
-      
-      // Auto-set fim date for day-off to be the same as inicio
-      if (field === "inicio" && prev.tipo === TipoAusencia.DAYOFF) {
-        newData.fim = value;
-      }
-      
-      // Reset fim when tipo changes to day-off
-      if (field === "tipo" && value === TipoAusencia.DAYOFF) {
-        newData.fim = newData.inicio;
-      }
-      
-      return newData;
-    });
   };
 
   const calculateDays = () => {
@@ -136,7 +126,7 @@ export const HistoricalRequestForm = ({ onSuccess }: HistoricalRequestFormProps)
     setIsSubmitting(true);
 
     try {
-      // Create the historical request
+      // Create the historical request with new columns
       const { data: newRequest, error } = await supabase
         .from('requests')
         .insert({
@@ -148,8 +138,10 @@ export const HistoricalRequestForm = ({ onSuccess }: HistoricalRequestFormProps)
           conflito_flag: false,
           conflito_refs: null,
           status: formData.finalStatus,
-          created_at: formData.originalDate,
-          updated_at: new Date().toISOString()
+          is_historical: true,
+          original_created_at: formData.originalDate,
+          original_channel: formData.originalChannel,
+          admin_observations: formData.adminObservations
         })
         .select()
         .single();
@@ -158,40 +150,40 @@ export const HistoricalRequestForm = ({ onSuccess }: HistoricalRequestFormProps)
 
       // Create approval record if the request was approved
       if (formData.finalStatus === Status.APROVADO_FINAL || formData.finalStatus === Status.REALIZADO) {
-        await supabase
-          .from('approvals')
-          .insert({
-            request_id: newRequest.id,
-            approver_id: person.id,
-            acao: 'APROVADO',
-            level: 'CADASTRO_HISTORICO',
-            comentario: `Cadastro histórico - Canal original: ${formData.originalChannel}. ${formData.adminObservations}`
-          });
+        try {
+          await supabase
+            .from('approvals')
+            .insert({
+              request_id: newRequest.id,
+              approver_id: person.id,
+              level: 'DIRETOR',
+              acao: 'APROVAR',
+              comentario: `Aprovação histórica - Canal: ${formData.originalChannel}. ${formData.adminObservations || ''}`
+            });
+        } catch (approvalError) {
+          // Log approval error but don't fail the whole operation
+          console.warn('Failed to create approval record:', approvalError);
+        }
       }
 
-      // Create comprehensive audit log
+      // Log the historical creation in audit logs
       await supabase
         .from('audit_logs')
         .insert({
           entidade: 'requests',
           entidade_id: newRequest.id,
           acao: 'HISTORICAL_CREATE',
+          actor_id: person.id,
           payload: {
-            tipo: formData.tipo,
-            inicio: formData.inicio,
-            fim: formData.fim,
-            original_date: formData.originalDate,
-            original_channel: formData.originalChannel,
-            final_status: formData.finalStatus,
-            created_by_director: person.id,
-            requester_id: formData.requesterId,
-            is_historical: true
-          },
-          actor_id: person.id
+            originalDate: formData.originalDate,
+            originalChannel: formData.originalChannel,
+            adminObservations: formData.adminObservations,
+            finalStatus: formData.finalStatus
+          }
         });
 
       toast({
-        title: "Solicitação histórica cadastrada!",
+        title: "Sucesso",
         description: `Solicitação de ${people.find(p => p.id === formData.requesterId)?.nome} foi registrada no sistema.`,
       });
       
@@ -207,243 +199,258 @@ export const HistoricalRequestForm = ({ onSuccess }: HistoricalRequestFormProps)
         adminObservations: "",
         finalStatus: Status.APROVADO_FINAL
       });
+      setStartDate(undefined);
+      setEndDate(undefined);
+      setOriginalDate(undefined);
       
       onSuccess?.();
     } catch (error: any) {
       console.error('Error creating historical request:', error);
       toast({
-        title: "Erro",
-        description: error.message || "Erro ao cadastrar solicitação histórica",
         variant: "destructive",
+        title: "Erro",
+        description: error?.message || "Erro ao registrar solicitação histórica."
       });
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const selectedPerson = people.find(p => p.id === formData.requesterId);
-  const isFormValid = formData.requesterId && formData.tipo && formData.inicio && 
-    formData.fim && formData.justificativa && formData.originalDate && 
-    formData.originalChannel && formData.adminObservations;
-
   return (
-    <div className="max-w-4xl mx-auto">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <History className="w-5 h-5 text-primary" />
-            Cadastro de Solicitação Histórica
-          </CardTitle>
-          <p className="text-sm text-muted-foreground">
-            Registre solicitações feitas antes da implementação do sistema atual
-          </p>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Requester Selection */}
+    <Card className="w-full max-w-4xl mx-auto">
+      <CardHeader>
+        <CardTitle>Regularização de Solicitação Histórica</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="requesterId">Solicitante *</Label>
+              <Label htmlFor="requester">Colaborador *</Label>
               <Select 
                 value={formData.requesterId} 
-                onValueChange={(value) => handleInputChange("requesterId", value)}
+                onValueChange={(value) => setFormData({ ...formData, requesterId: value })}
+                required
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Selecione o funcionário" />
+                  <SelectValue placeholder="Selecione o colaborador" />
                 </SelectTrigger>
                 <SelectContent>
                   {people.map((person) => (
                     <SelectItem key={person.id} value={person.id}>
-                      {person.nome} - {person.cargo || 'N/A'} ({person.email})
+                      {person.nome} - {person.cargo || 'Sem cargo'}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              {selectedPerson && (
-                <div className="text-sm text-muted-foreground">
-                  Sub-time: {selectedPerson.sub_time || 'N/A'}
-                </div>
-              )}
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Left Column */}
-              <div className="space-y-6">
-                {/* Type Selection */}
-                <div className="space-y-2">
-                  <Label htmlFor="tipo">Tipo de Ausência *</Label>
-                  <Select 
-                    value={formData.tipo} 
-                    onValueChange={(value) => handleInputChange("tipo", value)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione o tipo" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={TipoAusencia.FERIAS}>Férias</SelectItem>
-                      <SelectItem value={TipoAusencia.DAYOFF}>Day Off</SelectItem>
-                      <SelectItem value={TipoAusencia.LICENCA_MEDICA}>Licença Médica</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Date Range */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="inicio">Data de Início *</Label>
-                    <Input
-                      id="inicio"
-                      type="date"
-                      value={formData.inicio}
-                      onChange={(e) => handleInputChange("inicio", e.target.value)}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="fim">Data de Fim *</Label>
-                    <Input
-                      id="fim"
-                      type="date"
-                      value={formData.fim}
-                      onChange={(e) => handleInputChange("fim", e.target.value)}
-                      min={formData.inicio}
-                      disabled={formData.tipo === TipoAusencia.DAYOFF}
-                    />
-                  </div>
-                </div>
-
-                {/* Duration Display */}
-                {calculateDays() > 0 && (
-                  <Alert>
-                    <Calendar className="w-4 h-4" />
-                    <AlertDescription>
-                      <strong>Duração:</strong> {calculateDays()} dia{calculateDays() > 1 ? 's' : ''}
-                    </AlertDescription>
-                  </Alert>
-                )}
-
-                {/* Final Status */}
-                <div className="space-y-2">
-                  <Label htmlFor="finalStatus">Status Final *</Label>
-                  <Select 
-                    value={formData.finalStatus} 
-                    onValueChange={(value) => handleInputChange("finalStatus", value as Status)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione o status final" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {HISTORICAL_STATUSES.map((status) => (
-                        <SelectItem key={status.value} value={status.value}>
-                          {status.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              {/* Right Column */}
-              <div className="space-y-6">
-                {/* Original Creation Date */}
-                <div className="space-y-2">
-                  <Label htmlFor="originalDate">Data Original da Solicitação *</Label>
-                  <Input
-                    id="originalDate"
-                    type="datetime-local"
-                    value={formData.originalDate}
-                    onChange={(e) => handleInputChange("originalDate", e.target.value)}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Quando a solicitação foi originalmente feita
-                  </p>
-                </div>
-
-                {/* Original Channel */}
-                <div className="space-y-2">
-                  <Label htmlFor="originalChannel">Canal Original *</Label>
-                  <Select 
-                    value={formData.originalChannel} 
-                    onValueChange={(value) => handleInputChange("originalChannel", value)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Por qual meio foi solicitado?" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {ORIGINAL_CHANNELS.map((channel) => (
-                        <SelectItem key={channel} value={channel}>
-                          {channel}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Justification */}
-                <div className="space-y-2">
-                  <Label htmlFor="justificativa">Justificativa Original *</Label>
-                  <Textarea
-                    id="justificativa"
-                    value={formData.justificativa}
-                    onChange={(e) => handleInputChange("justificativa", e.target.value)}
-                    placeholder="Justificativa original da solicitação..."
-                    rows={3}
-                  />
-                </div>
-
-                {/* Admin Observations */}
-                <div className="space-y-2">
-                  <Label htmlFor="adminObservations">Observações Administrativas *</Label>
-                  <Textarea
-                    id="adminObservations"
-                    value={formData.adminObservations}
-                    onChange={(e) => handleInputChange("adminObservations", e.target.value)}
-                    placeholder="Contexto adicional, aprovações verbais, documentos relacionados..."
-                    rows={3}
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Warning Alert */}
-            <Alert>
-              <AlertTriangle className="w-4 h-4" />
-              <AlertDescription>
-                <strong>Atenção:</strong> Este cadastro será registrado no sistema de auditoria como uma entrada histórica.
-                Certifique-se de que todas as informações estão corretas antes de prosseguir.
-              </AlertDescription>
-            </Alert>
-
-            {/* Action Buttons */}
-            <div className="flex justify-end gap-3">
-              <Button 
-                type="button" 
-                variant="outline" 
-                onClick={() => {
-                  // Reset form instead of navigating
-                  setFormData({
-                    requesterId: "",
-                    tipo: "",
-                    inicio: "",
-                    fim: "",
-                    justificativa: "",
-                    originalDate: "",
-                    originalChannel: "",
-                    adminObservations: "",
-                    finalStatus: Status.APROVADO_FINAL
-                  });
-                }}
+            <div className="space-y-2">
+              <Label htmlFor="tipo">Tipo de Ausência *</Label>
+              <Select 
+                value={formData.tipo} 
+                onValueChange={(value) => setFormData({ ...formData, tipo: value })}
+                required
               >
-                Limpar Formulário
-              </Button>
-              <Button 
-                type="submit" 
-                disabled={!isFormValid || isSubmitting}
-              >
-                {isSubmitting ? "Cadastrando..." : "Cadastrar Solicitação Histórica"}
-              </Button>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione o tipo" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={TipoAusencia.FERIAS}>Férias</SelectItem>
+                  <SelectItem value={TipoAusencia.DAYOFF}>Day Off</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-          </form>
-        </CardContent>
-      </Card>
-    </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="inicio">Data de Início *</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "w-full justify-start text-left font-normal",
+                      !startDate && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {startDate ? format(startDate, "dd/MM/yyyy", { locale: ptBR }) : "Selecione a data"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0">
+                  <Calendar
+                    mode="single"
+                    selected={startDate}
+                    onSelect={(date) => {
+                      setStartDate(date);
+                      setFormData({ ...formData, inicio: date ? date.toISOString().split('T')[0] : '' });
+                    }}
+                    locale={ptBR}
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="fim">Data de Fim *</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "w-full justify-start text-left font-normal",
+                      !endDate && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {endDate ? format(endDate, "dd/MM/yyyy", { locale: ptBR }) : "Selecione a data"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0">
+                  <Calendar
+                    mode="single"
+                    selected={endDate}
+                    onSelect={(date) => {
+                      setEndDate(date);
+                      setFormData({ ...formData, fim: date ? date.toISOString().split('T')[0] : '' });
+                    }}
+                    locale={ptBR}
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+          </div>
+
+          {formData.inicio && formData.fim && (
+            <div className="text-sm text-muted-foreground">
+              Duração: {calculateDays()} dias
+            </div>
+          )}
+
+          <div className="space-y-2">
+            <Label htmlFor="justificativa">Justificativa</Label>
+            <Textarea
+              id="justificativa"
+              placeholder="Motivo da ausência (opcional)"
+              value={formData.justificativa}
+              onChange={(e) => setFormData({ ...formData, justificativa: e.target.value })}
+            />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="originalChannel">Canal Original *</Label>
+              <Select 
+                value={formData.originalChannel} 
+                onValueChange={(value) => setFormData({ ...formData, originalChannel: value })}
+                required
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Como foi solicitado?" />
+                </SelectTrigger>
+                <SelectContent>
+                  {ORIGINAL_CHANNELS.map((channel) => (
+                    <SelectItem key={channel.value} value={channel.value}>
+                      {channel.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="originalDate">Data Original da Solicitação *</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "w-full justify-start text-left font-normal",
+                      !originalDate && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {originalDate ? format(originalDate, "dd/MM/yyyy", { locale: ptBR }) : "Quando foi solicitado?"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0">
+                  <Calendar
+                    mode="single"
+                    selected={originalDate}
+                    onSelect={(date) => {
+                      setOriginalDate(date);
+                      setFormData({ ...formData, originalDate: date ? date.toISOString() : '' });
+                    }}
+                    locale={ptBR}
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="adminObservations">Observações Administrativas</Label>
+            <Textarea
+              id="adminObservations"
+              placeholder="Observações sobre o processo de regularização (opcional)"
+              value={formData.adminObservations}
+              onChange={(e) => setFormData({ ...formData, adminObservations: e.target.value })}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="finalStatus">Status Final *</Label>
+            <Select 
+              value={formData.finalStatus} 
+              onValueChange={(value) => setFormData({ ...formData, finalStatus: value as Status })}
+              required
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Status da regularização" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={Status.APROVADO_FINAL}>Aprovado Final</SelectItem>
+                <SelectItem value={Status.REALIZADO}>Realizado</SelectItem>
+                <SelectItem value={Status.REPROVADO}>Reprovado</SelectItem>
+                <SelectItem value={Status.CANCELADO}>Cancelado</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex gap-4 pt-4">
+            <Button 
+              type="button" 
+              variant="outline" 
+              onClick={() => {
+                // Reset form instead of navigating
+                setFormData({
+                  requesterId: "",
+                  tipo: "",
+                  inicio: "",
+                  fim: "",
+                  justificativa: "",
+                  originalDate: "",
+                  originalChannel: "",
+                  adminObservations: "",
+                  finalStatus: Status.APROVADO_FINAL
+                });
+                setStartDate(undefined);
+                setEndDate(undefined);
+                setOriginalDate(undefined);
+              }}
+            >
+              Limpar Formulário
+            </Button>
+            <Button 
+              type="submit" 
+              disabled={isSubmitting || !formData.requesterId || !formData.tipo || !formData.inicio || !formData.fim || !formData.originalChannel || !formData.originalDate}
+            >
+              {isSubmitting ? "Registrando..." : "Registrar Solicitação"}
+            </Button>
+          </div>
+        </form>
+      </CardContent>
+    </Card>
   );
 };

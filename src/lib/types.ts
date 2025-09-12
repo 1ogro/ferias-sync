@@ -61,6 +61,10 @@ export interface Request {
   conflitoRefs?: string;
   createdAt: Date;
   updatedAt: Date;
+  isHistorical?: boolean;
+  originalCreatedAt?: Date;
+  originalChannel?: string;
+  adminObservations?: string;
 }
 
 export const STATUS_LABELS = {

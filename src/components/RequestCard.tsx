@@ -50,6 +50,11 @@ export const RequestCard = ({
             <div className="flex items-center gap-2 flex-wrap">
               <Badge variant="secondary">{TIPO_LABELS[request.tipo]}</Badge>
               <StatusBadge status={request.status} />
+              {request.isHistorical && (
+                <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                  Histórica
+                </Badge>
+              )}
               {isRetroactive() && (
                 <Badge variant="outline" className="bg-muted text-muted-foreground border-muted-foreground/30">
                   Retroativo

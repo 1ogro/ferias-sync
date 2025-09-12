@@ -7,6 +7,7 @@ import { Person } from "@/lib/types";
 import { Header } from "@/components/Header";
 import { MedicalLeaveForm } from "@/components/MedicalLeaveForm";
 import { MedicalLeaveList } from "@/components/MedicalLeaveList";
+import { VacationBalanceRecalculate } from "@/components/VacationBalanceRecalculate";
 import { TeamCapacityDashboard } from "@/components/TeamCapacityDashboard";
 import { HistoricalRequestForm } from "@/components/HistoricalRequestForm";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -510,6 +511,12 @@ const VacationManagement = () => {
                                     <RotateCcw className="h-3 w-3" />
                                   </Button>
                                 )}
+                                <VacationBalanceRecalculate
+                                  personId={item.person_id}
+                                  personName={item.person.nome}
+                                  year={selectedYear}
+                                  onSuccess={fetchVacationData}
+                                />
                               </div>
                             </TableCell>
                           </TableRow>
