@@ -415,12 +415,12 @@ export async function validateVacationRequest(
  */
 export async function getAllVacationBalances(
   year: number = new Date().getFullYear()
-): Promise<Array<VacationBalance & { person: { id: string; nome: string; email: string; cargo?: string; sub_time?: string; data_contrato?: string } }>> {
+): Promise<Array<VacationBalance & { person: { id: string; nome: string; email: string; cargo?: string; sub_time?: string; data_contrato?: string; modelo_contrato?: string } }>> {
   try {
     // Get all active people
     const { data: peopleData } = await supabase
       .from('people')
-      .select('id, nome, email, cargo, sub_time, data_contrato')
+      .select('id, nome, email, cargo, sub_time, data_contrato, modelo_contrato')
       .eq('ativo', true)
       .order('nome');
 
