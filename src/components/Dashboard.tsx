@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { RequestCard } from "./RequestCard";
+import { VacationBalance } from "./VacationBalance";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Status, TipoAusencia, Request } from "@/lib/types";
@@ -124,13 +125,6 @@ export const Dashboard = () => {
       bgColor: "bg-status-approved/10"
     },
     {
-      title: "Dias de Férias Restantes",
-      value: 23,
-      icon: CalendarDays,
-      color: "text-primary",
-      bgColor: "bg-primary/10"
-    },
-    {
       title: "Days Off Disponíveis", 
       value: dayOffInfo.disabled ? "—" : dayOffInfo.available,
       icon: Calendar,
@@ -197,6 +191,11 @@ export const Dashboard = () => {
             </CardContent>
           </Card>
         ))}
+      </div>
+
+      {/* Vacation Balance */}
+      <div className="mb-6">
+        <VacationBalance />
       </div>
 
       {/* Tabs */}

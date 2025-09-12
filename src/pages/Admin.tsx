@@ -78,6 +78,7 @@ interface FormData {
   is_admin: boolean;
   ativo: boolean;
   gestorId: string;
+  data_contrato: string;
 }
 
 interface FilterState {
@@ -112,7 +113,8 @@ const Admin = () => {
      papel: Papel.COLABORADOR,
      is_admin: false,
      ativo: true,
-     gestorId: ''
+     gestorId: '',
+     data_contrato: ''
    });
 
   const [filters, setFilters] = useState<FilterState>({
@@ -222,7 +224,8 @@ const Admin = () => {
         papel: formData.papel,
         is_admin: formData.is_admin,
         ativo: formData.ativo,
-        gestor_id: formData.gestorId || null
+        gestor_id: formData.gestorId || null,
+        data_contrato: formData.data_contrato || null
       };
 
       if (isEditing) {
@@ -275,7 +278,8 @@ const Admin = () => {
        papel: person.papel,
        is_admin: person.is_admin,
        ativo: person.ativo,
-       gestorId: person.gestorId || ''
+       gestorId: person.gestorId || '',
+       data_contrato: person.data_contrato || ''
      });
     setIsEditing(true);
     setIsDialogOpen(true);
@@ -308,18 +312,19 @@ const Admin = () => {
   };
 
   const resetForm = () => {
-     setFormData({
-       id: '',
-       nome: '',
-       email: '',
-       cargo: '',
-       local: '',
-       subTime: '',
-       papel: Papel.COLABORADOR,
-       is_admin: false,
-       ativo: true,
-       gestorId: ''
-     });
+    setFormData({
+      id: '',
+      nome: '',
+      email: '',
+      cargo: '',
+      local: '',
+      subTime: '',
+      papel: Papel.COLABORADOR,
+      is_admin: false,
+      ativo: true,
+      gestorId: '',
+      data_contrato: ''
+    });
     setIsEditing(false);
     setIsDialogOpen(false);
   };
@@ -734,6 +739,16 @@ const Admin = () => {
                   id="subTime"
                   value={formData.subTime}
                   onChange={(e) => setFormData({ ...formData, subTime: e.target.value })}
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="data_contrato">Data de Contrato</Label>
+                <Input
+                  id="data_contrato"
+                  type="date"
+                  value={formData.data_contrato}
+                  onChange={(e) => setFormData({ ...formData, data_contrato: e.target.value })}
                 />
               </div>
 

@@ -13,6 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
+import { validateVacationRequest, VacationConflict } from "@/lib/vacationUtils";
 
 interface FormData {
   tipo: TipoAusencia | "";
@@ -34,13 +35,49 @@ export const NewRequestForm = () => {
   const [conflicts, setConflicts] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [dayOffAlreadyUsed, setDayOffAlreadyUsed] = useState(false);
+  const [vacationConflicts, setVacationConflicts] = useState<VacationConflict[]>([]);
+  const [vacationValidation, setVacationValidation] = useState<{
+    valid: boolean;
+    message: string;
+    availableBalance?: number;
+  }>({ valid: true, message: "" });
 
   // Check for conflicts and day-off validations
   const checkConflicts = async () => {
     if (!formData.inicio || !formData.fim || !person) return;
 
     try {
-      // Check for team conflicts
+      // For vacation requests, use the new validation system
+      if (formData.tipo === TipoAusencia.FERIAS) {
+        const startDate = new Date(formData.inicio);
+        const endDate = new Date(formData.fim);
+        const requestedDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+        
+        const validation = await validateVacationRequest(
+          person.id,
+          startDate,
+          endDate,
+          requestedDays
+        );
+        
+        setVacationValidation({
+          valid: validation.valid,
+          message: validation.message,
+          availableBalance: validation.balance?.balance_days
+        });
+        
+        if (validation.conflicts) {
+          setVacationConflicts(validation.conflicts);
+        } else {
+          setVacationConflicts([]);
+        }
+        
+        // Clear old conflicts for vacation requests
+        setConflicts([]);
+        return;
+      }
+
+      // Legacy conflict checking for day-off requests
       const { data } = await supabase
         .from('requests')
         .select(`
@@ -60,6 +97,10 @@ export const NewRequestForm = () => {
       } else {
         setConflicts([]);
       }
+      
+      // Clear vacation-specific validation for day-off
+      setVacationConflicts([]);
+      setVacationValidation({ valid: true, message: "" });
     } catch (error) {
       console.error('Error checking conflicts:', error);
     }
@@ -197,8 +238,9 @@ export const NewRequestForm = () => {
   };
 
   const dayOffValidation = validateDayOff();
-  const isValid = formData.tipo && formData.inicio && formData.fim && formData.justificativa && 
-    dayOffValidation.isValid && !dayOffAlreadyUsed;
+  const isFormValid = formData.tipo && formData.inicio && formData.fim && formData.justificativa &&
+    dayOffValidation.isValid && !dayOffAlreadyUsed &&
+    (formData.tipo === TipoAusencia.DAYOFF || vacationValidation.valid);
 
   return (
     <div className="max-w-2xl mx-auto">
@@ -293,17 +335,59 @@ export const NewRequestForm = () => {
               ) : null;
             })()}
 
+            {/* Vacation Balance Display */}
+            {formData.tipo === TipoAusencia.FERIAS && vacationValidation.availableBalance !== undefined && (
+              <Alert className={vacationValidation.valid ? "" : "border-destructive"}>
+                <CheckCircle className="w-4 h-4" />
+                <AlertDescription>
+                  <strong>Saldo disponível:</strong> {vacationValidation.availableBalance} dias
+                  {calculateDays() > 0 && (
+                    <span className="ml-2">
+                      | <strong>Solicitando:</strong> {calculateDays()} dia{calculateDays() > 1 ? 's' : ''}
+                    </span>
+                  )}
+                </AlertDescription>
+              </Alert>
+            )}
+
             {/* Duration Display */}
-            {calculateDays() > 0 && (
+            {calculateDays() > 0 && formData.tipo === TipoAusencia.DAYOFF && (
               <Alert>
                 <CheckCircle className="w-4 h-4" />
                 <AlertDescription>
                   <strong>Duração:</strong> {calculateDays()} dia{calculateDays() > 1 ? 's' : ''}
-                  {formData.tipo === TipoAusencia.FERIAS && calculateDays() > 30 && (
-                    <Badge variant="outline" className="ml-2 bg-status-rejected/10 text-status-rejected">
-                      Período superior a 30 dias
-                    </Badge>
-                  )}
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {/* Vacation Validation Messages */}
+            {formData.tipo === TipoAusencia.FERIAS && !vacationValidation.valid && (
+              <Alert variant="destructive">
+                <AlertTriangle className="w-4 h-4" />
+                <AlertDescription>
+                  <strong>Erro na solicitação de férias:</strong> {vacationValidation.message}
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {/* Vacation Conflicts */}
+            {vacationConflicts.length > 0 && (
+              <Alert variant="destructive">
+                <AlertTriangle className="w-4 h-4" />
+                <AlertDescription>
+                  <strong>Conflitos detectados:</strong>
+                  {vacationConflicts.map((conflict, index) => (
+                    <div key={index} className="mt-2">
+                      <p className="font-medium">{conflict.message}</p>
+                      <ul className="mt-1 text-sm">
+                        {conflict.conflicted_requests.map((req, reqIndex) => (
+                          <li key={reqIndex}>
+                            • {req.requester.nome} ({req.inicio.toLocaleDateString('pt-BR')} - {req.fim.toLocaleDateString('pt-BR')})
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
                 </AlertDescription>
               </Alert>
             )}
@@ -344,7 +428,7 @@ export const NewRequestForm = () => {
             <div className="flex gap-3 pt-4">
               <Button 
                 type="submit" 
-                disabled={!isValid || isSubmitting}
+                disabled={!isFormValid || isSubmitting}
                 className="flex-1"
               >
                 {isSubmitting ? "Enviando..." : "Enviar Solicitação"}

@@ -24,7 +24,8 @@ export enum Status {
   APROVADO_FINAL = "APROVADO_FINAL",
   REPROVADO = "REPROVADO",
   CANCELADO = "CANCELADO",
-  REALIZADO = "REALIZADO"
+  REALIZADO = "REALIZADO",
+  EM_ANDAMENTO = "EM_ANDAMENTO"
 }
 
 export interface Person {
@@ -41,6 +42,7 @@ export interface Person {
   gestorId?: string;
   gestor?: Person;
   data_nascimento?: string; // Data de nascimento para cálculo de day-off
+  data_contrato?: string; // Data de contrato para cálculo de férias
 }
 
 export interface Request {
@@ -67,7 +69,8 @@ export const STATUS_LABELS = {
   [Status.APROVADO_FINAL]: "Aprovado Final",
   [Status.REPROVADO]: "Reprovado",
   [Status.CANCELADO]: "Cancelado",
-  [Status.REALIZADO]: "Realizado"
+  [Status.REALIZADO]: "Realizado",
+  [Status.EM_ANDAMENTO]: "Em Andamento"
 };
 
 export const TIPO_LABELS = {
