@@ -179,6 +179,12 @@ export default function Auth() {
           </p>
         </div>
 
+        <Alert className="mb-4">
+          <AlertDescription>
+            <strong>Primeira vez?</strong> Crie uma conta selecionando seu nome da lista e definindo uma senha.
+          </AlertDescription>
+        </Alert>
+
         <Tabs defaultValue="login" className="w-full">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="login">Entrar</TabsTrigger>
@@ -299,12 +305,6 @@ export default function Auth() {
             </Card>
           </TabsContent>
         </Tabs>
-
-        <Alert className="mt-4">
-          <AlertDescription>
-            <strong>Primeira vez?</strong> Crie uma conta selecionando seu nome da lista e definindo uma senha.
-          </AlertDescription>
-        </Alert>
       </div>
     </div>
   );
