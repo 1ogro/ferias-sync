@@ -38,10 +38,7 @@ export default function SetupProfile() {
   const fetchPeople = async () => {
     try {
       const { data, error } = await supabase
-        .from('people')
-        .select('id, nome, email')
-        .eq('ativo', true)
-        .order('nome');
+        .rpc('get_active_people_for_signup');
 
       if (error) throw error;
       setPeople(data || []);
