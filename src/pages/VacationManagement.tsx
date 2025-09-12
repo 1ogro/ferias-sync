@@ -3,7 +3,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { getAllVacationBalances, saveManualVacationBalance, deleteManualVacationBalance, recalculateVacationBalance } from "@/lib/vacationUtils";
 import { supabase } from "@/integrations/supabase/client";
 import { Navigate } from "react-router-dom";
-import { Person } from "@/lib/types";
+import { Person, ModeloContrato, MODELO_CONTRATO_LABELS } from "@/lib/types";
 import { Header } from "@/components/Header";
 import { MedicalLeaveForm } from "@/components/MedicalLeaveForm";
 import { MedicalLeaveList } from "@/components/MedicalLeaveList";
@@ -87,6 +87,7 @@ const VacationManagement = () => {
   const [balanceDialogOpen, setBalanceDialogOpen] = useState(false);
   const [selectedPerson, setSelectedPerson] = useState<VacationData | null>(null);
   const [contractDate, setContractDate] = useState("");
+  const [contractModel, setContractModel] = useState<ModeloContrato>(ModeloContrato.CLT);
   const [manualAccruedDays, setManualAccruedDays] = useState("");
   const [manualUsedDays, setManualUsedDays] = useState("");
   const [manualJustification, setManualJustification] = useState("");
@@ -166,6 +167,7 @@ const VacationManagement = () => {
   const handleEditContract = (item: VacationData) => {
     setSelectedPerson(item);
     setContractDate(item.person.data_contrato || "");
+    setContractModel(item.person.modelo_contrato as ModeloContrato || ModeloContrato.CLT);
     setEditDialogOpen(true);
   };
 
@@ -205,14 +207,17 @@ const VacationManagement = () => {
     try {
       const { error } = await supabase
         .from('people')
-        .update({ data_contrato: contractDate })
+        .update({ 
+          data_contrato: contractDate,
+          modelo_contrato: contractModel
+        })
         .eq('id', selectedPerson.person_id);
 
       if (error) throw error;
 
       toast({
         title: "Sucesso",
-        description: "Data de contrato atualizada com sucesso.",
+        description: "Dados de contrato atualizados com sucesso.",
       });
       
       setEditDialogOpen(false);
@@ -220,7 +225,7 @@ const VacationManagement = () => {
     } catch (error: any) {
       toast({
         title: "Erro",
-        description: error.message || "Erro ao atualizar data de contrato.",
+        description: error.message || "Erro ao atualizar dados de contrato.",
         variant: "destructive",
       });
     }
@@ -657,9 +662,9 @@ const VacationManagement = () => {
         <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Editar Data de Contrato</DialogTitle>
+              <DialogTitle>Editar Dados de Contrato</DialogTitle>
               <DialogDescription>
-                Atualize a data de contrato para: <strong>{selectedPerson?.person.nome}</strong>
+                Atualize os dados de contrato para: <strong>{selectedPerson?.person.nome}</strong>
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
@@ -673,6 +678,23 @@ const VacationManagement = () => {
                   value={contractDate}
                   onChange={(e) => setContractDate(e.target.value)}
                 />
+              </div>
+              <div>
+                <label htmlFor="contract-model" className="block text-sm font-medium mb-2">
+                  Modelo de Contrato
+                </label>
+                <Select value={contractModel} onValueChange={(value) => setContractModel(value as ModeloContrato)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.values(ModeloContrato).map((modelo) => (
+                      <SelectItem key={modelo} value={modelo}>
+                        {MODELO_CONTRATO_LABELS[modelo]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
             <DialogFooter>
