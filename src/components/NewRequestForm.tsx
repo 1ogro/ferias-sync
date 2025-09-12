@@ -34,6 +34,7 @@ export const NewRequestForm = () => {
   });
   const [conflicts, setConflicts] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSavingDraft, setIsSavingDraft] = useState(false);
   const [dayOffAlreadyUsed, setDayOffAlreadyUsed] = useState(false);
   const [vacationConflicts, setVacationConflicts] = useState<VacationConflict[]>([]);
   const [vacationValidation, setVacationValidation] = useState<{
@@ -258,6 +259,64 @@ export const NewRequestForm = () => {
     }
   };
 
+  const handleSaveDraft = async () => {
+    if (!person || !formData.tipo) {
+      toast({
+        title: "Erro",
+        description: "Tipo de ausência é obrigatório para salvar rascunho.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    setIsSavingDraft(true);
+
+    try {
+      const { data: newDraft, error } = await supabase
+        .from('requests')
+        .insert({
+          requester_id: person.id,
+          tipo: formData.tipo,
+          inicio: formData.inicio || null,
+          fim: formData.fim || null,
+          justificativa: formData.justificativa || '',
+          conflito_flag: false,
+          conflito_refs: null,
+          status: 'RASCUNHO'
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Create audit log
+      await supabase
+        .from('audit_logs')
+        .insert({
+          entidade: 'requests',
+          entidade_id: newDraft?.id || 'draft',
+          acao: 'SAVE_DRAFT',
+          payload: { tipo: formData.tipo, is_draft: true },
+          actor_id: person.id
+        });
+
+      toast({
+        title: "Rascunho salvo!",
+        description: "Sua solicitação foi salva como rascunho.",
+      });
+      
+      navigate('/');
+    } catch (error: any) {
+      toast({
+        title: "Erro",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsSavingDraft(false);
+    }
+  };
+
   const dayOffValidation = validateDayOff();
   const isFormValid = formData.tipo && formData.inicio && formData.fim && formData.justificativa &&
     dayOffValidation.isValid && !dayOffAlreadyUsed &&
@@ -454,8 +513,13 @@ export const NewRequestForm = () => {
               >
                 {isSubmitting ? "Enviando..." : "Enviar Solicitação"}
               </Button>
-              <Button type="button" variant="outline">
-                Salvar Rascunho
+              <Button 
+                type="button" 
+                variant="outline"
+                onClick={handleSaveDraft}
+                disabled={!formData.tipo || isSavingDraft}
+              >
+                {isSavingDraft ? "Salvando..." : "Salvar Rascunho"}
               </Button>
             </div>
           </form>

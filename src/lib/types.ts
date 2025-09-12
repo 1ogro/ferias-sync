@@ -25,7 +25,8 @@ export enum Status {
   REPROVADO = "REPROVADO",
   CANCELADO = "CANCELADO",
   REALIZADO = "REALIZADO",
-  EM_ANDAMENTO = "EM_ANDAMENTO"
+  EM_ANDAMENTO = "EM_ANDAMENTO",
+  RASCUNHO = "RASCUNHO"
 }
 
 export interface Person {
@@ -70,7 +71,8 @@ export const STATUS_LABELS = {
   [Status.REPROVADO]: "Reprovado",
   [Status.CANCELADO]: "Cancelado",
   [Status.REALIZADO]: "Realizado",
-  [Status.EM_ANDAMENTO]: "Em Andamento"
+  [Status.EM_ANDAMENTO]: "Em Andamento",
+  [Status.RASCUNHO]: "Rascunho"
 };
 
 export const TIPO_LABELS = {
