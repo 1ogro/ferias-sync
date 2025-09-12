@@ -4,22 +4,25 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Calendar, AlertTriangle } from "lucide-react";
+import { ModeloContrato, MODELO_CONTRATO_LABELS } from "@/lib/types";
 
 const ContractDateSetup = () => {
   const { toast } = useToast();
   const { person, fetchPersonData } = useAuth();
   const [contractDate, setContractDate] = useState("");
+  const [modeloContrato, setModeloContrato] = useState<ModeloContrato>(ModeloContrato.CLT);
   const [loading, setLoading] = useState(false);
 
   const handleSaveContractDate = async () => {
     if (!contractDate) {
       toast({
         title: "Erro",
-        description: "Por favor, selecione a data de contrato.",
+        description: "Por favor, preencha todos os campos obrigatórios.",
         variant: "destructive",
       });
       return;
@@ -38,23 +41,26 @@ const ContractDateSetup = () => {
     try {
       const { error } = await supabase
         .from('people')
-        .update({ data_contrato: contractDate })
+        .update({ 
+          data_contrato: contractDate,
+          modelo_contrato: modeloContrato
+        })
         .eq('id', person.id);
 
       if (error) throw error;
 
       toast({
         title: "Sucesso",
-        description: "Data de contrato registrada com sucesso!",
+        description: "Dados contratuais salvos com sucesso!",
       });
 
       // Refresh person data to update the contract date
       await fetchPersonData();
     } catch (error: any) {
-      console.error("Error saving contract date:", error);
+      console.error("Error saving contract data:", error);
       toast({
         title: "Erro",
-        description: error.message || "Erro ao salvar data de contrato.",
+        description: error.message || "Erro ao salvar dados contratuais.",
         variant: "destructive",
       });
     } finally {
@@ -70,9 +76,9 @@ const ContractDateSetup = () => {
             <Calendar className="h-6 w-6 text-primary" />
           </div>
           <div>
-            <CardTitle className="text-2xl">Configuração Obrigatória</CardTitle>
+            <CardTitle className="text-2xl">Configuração de Contrato</CardTitle>
             <p className="text-muted-foreground mt-2">
-              Para calcular corretamente seus saldos de férias, precisamos da sua data de contrato
+              Para calcular corretamente seus saldos de férias, precisamos de alguns dados contratuais.
             </p>
           </div>
         </CardHeader>
@@ -82,25 +88,43 @@ const ContractDateSetup = () => {
             <AlertDescription>
               <strong>Olá, {person?.nome}!</strong>
               <br />
-              Esta informação é necessária para acessar o sistema e calcular automaticamente seus direitos trabalhistas.
+              Estas informações são obrigatórias para o funcionamento correto do sistema de gestão de férias.
             </AlertDescription>
           </Alert>
 
-          <div className="space-y-2">
-            <Label htmlFor="contract-date">
-              Data de Contrato *
-            </Label>
-            <Input
-              id="contract-date"
-              type="date"
-              value={contractDate}
-              onChange={(e) => setContractDate(e.target.value)}
-              disabled={loading}
-              max={new Date().toISOString().split('T')[0]} // Can't be future date
-            />
-            <p className="text-sm text-muted-foreground">
-              Selecione a data de início do seu contrato de trabalho
-            </p>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="contract-date">
+                Data de Início do Contrato *
+              </Label>
+              <Input
+                id="contract-date"
+                type="date"
+                value={contractDate}
+                onChange={(e) => setContractDate(e.target.value)}
+                disabled={loading}
+                max={new Date().toISOString().split('T')[0]} // Can't be future date
+              />
+              <p className="text-sm text-muted-foreground">
+                Selecione a data de início do seu contrato de trabalho
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="modeloContrato">Modelo de Contrato *</Label>
+              <Select value={modeloContrato} onValueChange={(value: ModeloContrato) => setModeloContrato(value)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione o modelo de contrato" />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(MODELO_CONTRATO_LABELS).map(([key, label]) => (
+                    <SelectItem key={key} value={key}>
+                      {label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           <Button
@@ -116,7 +140,7 @@ const ContractDateSetup = () => {
           </Button>
 
           <div className="text-xs text-muted-foreground text-center bg-muted/50 p-3 rounded">
-            <strong>Privacidade:</strong> Esta informação é usada apenas para cálculos internos de RH e é tratada com total confidencialidade.
+            <strong>Privacidade:</strong> Seus dados contratuais serão usados apenas para cálculos internos de RH e são tratados com total confidencialidade.
           </div>
         </CardContent>
       </Card>

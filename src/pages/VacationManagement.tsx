@@ -72,6 +72,7 @@ interface VacationData {
     cargo?: string;
     sub_time?: string;
     data_contrato?: string;
+    modelo_contrato?: string;
   };
 }
 
@@ -128,7 +129,8 @@ const VacationManagement = () => {
           ativo: p.ativo,
           gestorId: p.gestor_id,
           data_nascimento: p.data_nascimento,
-          data_contrato: p.data_contrato
+          data_contrato: p.data_contrato,
+          modelo_contrato: p.modelo_contrato as any
         }));
         setAllPeople(mappedPeople);
       }
@@ -156,8 +158,7 @@ const VacationManagement = () => {
     return {
       total: vacationData.length,
       withoutContract: vacationData.filter(item => !item.person.data_contrato).length,
-      lowBalance: vacationData.filter(item => item.balance_days < 10).length,
-      highBalance: vacationData.filter(item => item.balance_days > 20).length,
+      accumulatedVacations: vacationData.filter(item => item.balance_days > 30).length,
       manualBalances: vacationData.filter(item => item.is_manual).length,
     };
   }, [vacationData]);
@@ -413,7 +414,7 @@ const VacationManagement = () => {
           {/* Vacation Management Tab */}
           <TabsContent value="vacation" className="space-y-6">
             {/* Statistics */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <Card>
                 <CardContent className="flex items-center p-6">
                   <Users className="h-8 w-8 text-primary" />
@@ -436,20 +437,10 @@ const VacationManagement = () => {
 
               <Card>
                 <CardContent className="flex items-center p-6">
-                  <AlertTriangle className="h-8 w-8 text-yellow-600" />
+                  <CalendarDays className="h-8 w-8 text-amber-600" />
                   <div className="ml-4">
-                    <p className="text-sm font-medium text-muted-foreground">Saldo Baixo (&lt;10)</p>
-                    <p className="text-2xl font-bold">{stats.lowBalance}</p>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardContent className="flex items-center p-6">
-                  <CalendarDays className="h-8 w-8 text-blue-600" />
-                  <div className="ml-4">
-                    <p className="text-sm font-medium text-muted-foreground">Saldo Alto (&gt;20)</p>
-                    <p className="text-2xl font-bold">{stats.highBalance}</p>
+                    <p className="text-sm font-medium text-muted-foreground">Férias Acumuladas (&gt;30)</p>
+                    <p className="text-2xl font-bold">{stats.accumulatedVacations}</p>
                   </div>
                 </CardContent>
               </Card>
@@ -518,78 +509,98 @@ const VacationManagement = () => {
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead className="min-w-[200px]">Nome</TableHead>
-                          <TableHead className="min-w-[150px]">Cargo</TableHead>
-                          <TableHead className="min-w-[120px]">Time</TableHead>
-                          <TableHead className="min-w-[120px]">Data Contrato</TableHead>
-                          <TableHead className="min-w-[100px] text-center">Adquiridos</TableHead>
-                          <TableHead className="min-w-[80px] text-center">Usados</TableHead>
-                          <TableHead className="min-w-[80px] text-center">Saldo</TableHead>
-                          <TableHead className="min-w-[100px] text-center">Status</TableHead>
-                          <TableHead className="min-w-[140px] sticky right-0 bg-background text-center">Ações</TableHead>
+                           <TableHead className="min-w-[200px]">Nome</TableHead>
+                           <TableHead className="min-w-[150px]">Modelo Contrato</TableHead>
+                           <TableHead className="min-w-[120px]">Time</TableHead>
+                           <TableHead className="min-w-[120px]">Data Contrato</TableHead>
+                           <TableHead className="min-w-[100px] text-center">Adquiridos</TableHead>
+                           <TableHead className="min-w-[80px] text-center">Usados</TableHead>
+                           <TableHead className="min-w-[80px] text-center">Saldo</TableHead>
+                           <TableHead className="min-w-[100px] text-center">Status</TableHead>
+                           <TableHead className="min-w-[140px] sticky right-0 bg-background text-center">Ações</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {filteredData.map((item) => (
-                          <TableRow key={`${item.person_id}-${item.year}`}>
-                            <TableCell className="font-medium">{item.person.nome}</TableCell>
-                            <TableCell>{item.person.cargo || "N/A"}</TableCell>
-                            <TableCell>{item.person.sub_time || "N/A"}</TableCell>
-                            <TableCell>
-                              {item.person.data_contrato ? (
-                                format(new Date(item.person.data_contrato), "dd/MM/yyyy")
-                              ) : (
-                                <span className="text-red-600 text-sm">Não definida</span>
-                              )}
-                            </TableCell>
-                            <TableCell className="text-center">{item.accrued_days}</TableCell>
-                            <TableCell className="text-center">{item.used_days}</TableCell>
-                            <TableCell className="text-center">
-                              <Badge className={getBalanceColor(item.balance_days, !!item.person.data_contrato)}>
-                                {getBalanceIcon(item.balance_days, !!item.person.data_contrato)}
-                                <span className="ml-1">{item.balance_days}</span>
-                              </Badge>
-                            </TableCell>
-                            <TableCell className="text-center">
-                              {item.is_manual ? (
-                                <Badge variant="secondary" className="text-xs">
-                                  Manual
-                                </Badge>
-                              ) : (
-                                <Badge variant="outline" className="text-xs">
-                                  Auto
-                                </Badge>
-                              )}
-                            </TableCell>
-                            <TableCell className="sticky right-0 bg-background">
-                              <div className="flex gap-1 justify-center">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleEditContract(item)}
-                                >
-                                  <Edit className="h-3 w-3" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleEditBalance(item)}
-                                >
-                                  <CalendarDays className="h-3 w-3" />
-                                </Button>
-                                {item.is_manual && (
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => handleRestoreAutomatic(item.person_id)}
-                                  >
-                                    <RotateCcw className="h-3 w-3" />
-                                  </Button>
-                                )}
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        ))}
+                         {filteredData.map((item) => {
+                           const isPJWithAccumulatedVacations = item.person.modelo_contrato === 'PJ' && item.balance_days > 30;
+                           
+                           return (
+                             <TableRow 
+                               key={`${item.person_id}-${item.year}`}
+                               className={isPJWithAccumulatedVacations ? "bg-amber-50 border-l-4 border-l-amber-400" : ""}
+                             >
+                               <TableCell className="font-medium">
+                                 <div className="flex items-center space-x-2">
+                                   {item.person.nome}
+                                   {isPJWithAccumulatedVacations && (
+                                     <Badge variant="outline" className="text-amber-600 border-amber-400 bg-amber-50 text-xs">
+                                       PJ - Férias Acumuladas
+                                     </Badge>
+                                   )}
+                                 </div>
+                               </TableCell>
+                               <TableCell>
+                                 <Badge variant={item.person.modelo_contrato === 'PJ' ? 'secondary' : 'default'}>
+                                   {item.person.modelo_contrato || "CLT"}
+                                 </Badge>
+                               </TableCell>
+                               <TableCell>{item.person.sub_time || "N/A"}</TableCell>
+                               <TableCell>
+                                 {item.person.data_contrato ? (
+                                   format(new Date(item.person.data_contrato), "dd/MM/yyyy")
+                                 ) : (
+                                   <span className="text-red-600 text-sm">Não definida</span>
+                                 )}
+                               </TableCell>
+                               <TableCell className="text-center">{item.accrued_days}</TableCell>
+                               <TableCell className="text-center">{item.used_days}</TableCell>
+                               <TableCell className="text-center">
+                                 <Badge className={getBalanceColor(item.balance_days, !!item.person.data_contrato)}>
+                                   {getBalanceIcon(item.balance_days, !!item.person.data_contrato)}
+                                   <span className="ml-1">{item.balance_days}</span>
+                                 </Badge>
+                               </TableCell>
+                               <TableCell className="text-center">
+                                 {item.is_manual ? (
+                                   <Badge variant="secondary" className="text-xs">
+                                     Manual
+                                   </Badge>
+                                 ) : (
+                                   <Badge variant="outline" className="text-xs">
+                                     Auto
+                                   </Badge>
+                                 )}
+                               </TableCell>
+                               <TableCell className="sticky right-0 bg-background">
+                                 <div className="flex gap-1 justify-center">
+                                   <Button
+                                     variant="ghost"
+                                     size="sm"
+                                     onClick={() => handleEditContract(item)}
+                                   >
+                                     <Edit className="h-3 w-3" />
+                                   </Button>
+                                   <Button
+                                     variant="ghost"
+                                     size="sm"
+                                     onClick={() => handleEditBalance(item)}
+                                   >
+                                     <CalendarDays className="h-3 w-3" />
+                                   </Button>
+                                   {item.is_manual && (
+                                     <Button
+                                       variant="ghost"
+                                       size="sm"
+                                       onClick={() => handleRestoreAutomatic(item.person_id)}
+                                     >
+                                       <RotateCcw className="h-3 w-3" />
+                                     </Button>
+                                   )}
+                                 </div>
+                               </TableCell>
+                             </TableRow>
+                           );
+                         })}
                       </TableBody>
                     </Table>
                   </div>

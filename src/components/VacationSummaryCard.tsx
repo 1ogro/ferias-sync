@@ -21,7 +21,7 @@ export const VacationSummaryCard = ({ className }: VacationSummaryProps) => {
   const [stats, setStats] = useState({
     total: 0,
     withoutContract: 0,
-    lowBalance: 0,
+    accumulatedVacations: 0,
     averageBalance: 0,
     loading: true
   });
@@ -35,14 +35,14 @@ export const VacationSummaryCard = ({ className }: VacationSummaryProps) => {
       const data = await getAllVacationBalances();
       const total = data.length;
       const withoutContract = data.filter(item => !item.person.data_contrato).length;
-      const lowBalance = data.filter(item => item.balance_days < 10 && item.person.data_contrato).length;
+      const accumulatedVacations = data.filter(item => item.balance_days > 30).length;
       const totalBalance = data.reduce((sum, item) => sum + item.balance_days, 0);
       const averageBalance = total > 0 ? Math.round(totalBalance / total) : 0;
 
       setStats({
         total,
         withoutContract,
-        lowBalance,
+        accumulatedVacations,
         averageBalance,
         loading: false
       });
@@ -87,7 +87,7 @@ export const VacationSummaryCard = ({ className }: VacationSummaryProps) => {
           </div>
         </div>
 
-        {(stats.withoutContract > 0 || stats.lowBalance > 0) && (
+        {(stats.withoutContract > 0 || stats.accumulatedVacations > 0) && (
           <div className="space-y-2">
             {stats.withoutContract > 0 && (
               <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
@@ -95,10 +95,10 @@ export const VacationSummaryCard = ({ className }: VacationSummaryProps) => {
                 {stats.withoutContract} sem data de contrato
               </Badge>
             )}
-            {stats.lowBalance > 0 && (
-              <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">
-                <AlertTriangle className="h-3 w-3 mr-1" />
-                {stats.lowBalance} com saldo baixo
+            {stats.accumulatedVacations > 0 && (
+              <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
+                <TrendingUp className="h-3 w-3 mr-1" />
+                {stats.accumulatedVacations} com férias acumuladas
               </Badge>
             )}
           </div>

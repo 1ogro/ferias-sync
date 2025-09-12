@@ -196,7 +196,8 @@ const Admin = () => {
         ...person,
         papel: person.papel as Papel,
         gestorId: person.gestor_id,
-        subTime: person.sub_time
+        subTime: person.sub_time,
+        modelo_contrato: person.modelo_contrato as any
       })));
     } catch (error) {
       console.error('Erro ao buscar pessoas:', error);

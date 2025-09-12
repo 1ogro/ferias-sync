@@ -164,6 +164,7 @@ export type Database = {
           id: string
           is_admin: boolean | null
           local: string | null
+          modelo_contrato: string | null
           nome: string
           papel: string | null
           sub_time: string | null
@@ -181,6 +182,7 @@ export type Database = {
           id: string
           is_admin?: boolean | null
           local?: string | null
+          modelo_contrato?: string | null
           nome: string
           papel?: string | null
           sub_time?: string | null
@@ -198,6 +200,7 @@ export type Database = {
           id?: string
           is_admin?: boolean | null
           local?: string | null
+          modelo_contrato?: string | null
           nome?: string
           papel?: string | null
           sub_time?: string | null

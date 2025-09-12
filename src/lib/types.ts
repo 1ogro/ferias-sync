@@ -11,6 +11,11 @@ export enum Papel {
   DIRETOR = "DIRETOR"
 }
 
+export enum ModeloContrato {
+  PJ = "PJ",
+  CLT = "CLT"
+}
+
 export enum TipoAusencia {
   DAYOFF = "DAYOFF",
   FERIAS = "FERIAS",
@@ -45,6 +50,7 @@ export interface Person {
   gestor?: Person;
   data_nascimento?: string; // Data de nascimento para cálculo de day-off
   data_contrato?: string; // Data de contrato para cálculo de férias
+  modelo_contrato?: ModeloContrato; // Modelo de contrato: PJ ou CLT
 }
 
 export interface Request {
@@ -84,6 +90,11 @@ export const TIPO_LABELS = {
   [TipoAusencia.DAYOFF]: "Day Off",
   [TipoAusencia.FERIAS]: "Férias",
   [TipoAusencia.LICENCA_MEDICA]: "Licença Médica"
+};
+
+export const MODELO_CONTRATO_LABELS = {
+  [ModeloContrato.PJ]: "Pessoa Jurídica",
+  [ModeloContrato.CLT]: "CLT"
 };
 
 // Medical Leave interfaces
