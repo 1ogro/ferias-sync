@@ -11,7 +11,6 @@ import { Calendar, AlertTriangle, History } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { useNavigate } from "react-router-dom";
 
 interface FormData {
   requesterId: string;
@@ -49,10 +48,13 @@ interface SimplePerson {
   sub_time: string | null;
 }
 
-export const HistoricalRequestForm = () => {
+interface HistoricalRequestFormProps {
+  onSuccess?: () => void;
+}
+
+export const HistoricalRequestForm = ({ onSuccess }: HistoricalRequestFormProps) => {
   const { toast } = useToast();
   const { person } = useAuth();
-  const navigate = useNavigate();
   const [people, setPeople] = useState<SimplePerson[]>([]);
   const [formData, setFormData] = useState<FormData>({
     requesterId: "",
@@ -193,7 +195,20 @@ export const HistoricalRequestForm = () => {
         description: `Solicitação de ${people.find(p => p.id === formData.requesterId)?.nome} foi registrada no sistema.`,
       });
       
-      navigate('/admin');
+      // Reset form
+      setFormData({
+        requesterId: "",
+        tipo: "",
+        inicio: "",
+        fim: "",
+        justificativa: "",
+        originalDate: "",
+        originalChannel: "",
+        adminObservations: "",
+        finalStatus: Status.APROVADO_FINAL
+      });
+      
+      onSuccess?.();
     } catch (error: any) {
       console.error('Error creating historical request:', error);
       toast({
@@ -402,9 +417,22 @@ export const HistoricalRequestForm = () => {
               <Button 
                 type="button" 
                 variant="outline" 
-                onClick={() => navigate('/admin')}
+                onClick={() => {
+                  // Reset form instead of navigating
+                  setFormData({
+                    requesterId: "",
+                    tipo: "",
+                    inicio: "",
+                    fim: "",
+                    justificativa: "",
+                    originalDate: "",
+                    originalChannel: "",
+                    adminObservations: "",
+                    finalStatus: Status.APROVADO_FINAL
+                  });
+                }}
               >
-                Cancelar
+                Limpar Formulário
               </Button>
               <Button 
                 type="submit" 

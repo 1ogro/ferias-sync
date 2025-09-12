@@ -8,6 +8,7 @@ import { Header } from "@/components/Header";
 import { MedicalLeaveForm } from "@/components/MedicalLeaveForm";
 import { MedicalLeaveList } from "@/components/MedicalLeaveList";
 import { TeamCapacityDashboard } from "@/components/TeamCapacityDashboard";
+import { HistoricalRequestForm } from "@/components/HistoricalRequestForm";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -47,6 +48,7 @@ import {
   CheckCircle,
   Search,
   Filter,
+  History,
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -326,10 +328,14 @@ const VacationManagement = () => {
         </div>
 
         <Tabs defaultValue="vacation" className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="vacation">Saldos de Férias</TabsTrigger>
             <TabsTrigger value="medical">Licenças Médicas</TabsTrigger>
             <TabsTrigger value="dashboard">Dashboard Executivo</TabsTrigger>
+            <TabsTrigger value="historical" className="flex items-center gap-2">
+              <History className="w-4 h-4" />
+              Regularização
+            </TabsTrigger>
           </TabsList>
 
           {/* Vacation Management Tab */}
@@ -544,6 +550,19 @@ const VacationManagement = () => {
           {/* Executive Dashboard Tab */}
           <TabsContent value="dashboard">
             <TeamCapacityDashboard />
+          </TabsContent>
+
+          {/* Historical Requests Tab */}
+          <TabsContent value="historical" className="space-y-6">
+            <div className="bg-card rounded-lg p-6 shadow-sm">
+              <div className="mb-6">
+                <h3 className="text-lg font-semibold text-foreground">Regularização Histórica</h3>
+                <p className="text-sm text-muted-foreground">
+                  Registre solicitações históricas que foram processadas por outros canais
+                </p>
+              </div>
+              <HistoricalRequestForm onSuccess={() => {}} />
+            </div>
           </TabsContent>
         </Tabs>
 
