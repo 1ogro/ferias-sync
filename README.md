@@ -110,10 +110,15 @@ npm run dev
 - Botões interativos para aprovação
 - Lembretes automáticos
 
-### Google Sheets
-- Sincronização de dados de colaboradores
-- Webhook para atualizações em tempo real
-- Backup automático via polling
+### Autenticação com Figma OAuth
+Provedor de autenticação OAuth 2.0 para gerenciar o acesso de usuários à aplicação.
+
+- Início do Login: Usuário clica em "Entrar com Figma"
+- Redirecionamento: Aplicação redireciona para a página de autorização do Figma
+- Autorização: Usuário concede permissões solicitadas
+- Callback: Figma redireciona de volta para a aplicação com código de autorização
+- Token Exchange: Aplicação troca código por access token
+- Autenticação: Usuário é autenticado e tem acesso à aplicação
 
 ## 📈 Próximos Passos
 
