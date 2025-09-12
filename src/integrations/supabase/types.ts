@@ -134,7 +134,22 @@ export type Database = {
           status?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "fk_medical_leaves_created_by"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_medical_leaves_person"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       people: {
         Row: {
@@ -312,7 +327,36 @@ export type Database = {
           medical_leave_id?: string
           request_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "fk_special_approvals_director"
+            columns: ["director_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_special_approvals_manager"
+            columns: ["manager_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_special_approvals_medical_leave"
+            columns: ["medical_leave_id"]
+            isOneToOne: false
+            referencedRelation: "medical_leaves"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_special_approvals_request"
+            columns: ["request_id"]
+            isOneToOne: false
+            referencedRelation: "requests"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       team_capacity_alerts: {
         Row: {
@@ -321,6 +365,7 @@ export type Database = {
           created_at: string
           director_notified_at: string | null
           id: string
+          medical_leave_id: string | null
           medical_leave_person_id: string
           period_end: string
           period_start: string
@@ -332,6 +377,7 @@ export type Database = {
           created_at?: string
           director_notified_at?: string | null
           id?: string
+          medical_leave_id?: string | null
           medical_leave_person_id: string
           period_end: string
           period_start: string
@@ -343,12 +389,21 @@ export type Database = {
           created_at?: string
           director_notified_at?: string | null
           id?: string
+          medical_leave_id?: string | null
           medical_leave_person_id?: string
           period_end?: string
           period_start?: string
           team_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "fk_team_capacity_alerts_medical_leave"
+            columns: ["medical_leave_id"]
+            isOneToOne: false
+            referencedRelation: "medical_leaves"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       vacation_balances: {
         Row: {

@@ -143,7 +143,7 @@ export const endMedicalLeave = async (
     await supabase
       .from('team_capacity_alerts')
       .update({ alert_status: 'RESOLVED' })
-      .eq('medical_leave_person_id', leaveId);
+      .eq('medical_leave_id', leaveId);
 
     return { success: true };
   } catch (error: any) {
@@ -193,7 +193,8 @@ export const createTeamCapacityAlert = async (
         team_id: person.sub_time,
         period_start: startDate.toISOString().split('T')[0],
         period_end: endDate.toISOString().split('T')[0],
-        medical_leave_person_id: medicalLeaveId,
+        medical_leave_id: medicalLeaveId,
+        medical_leave_person_id: personId,
         affected_people_count: affectedCount,
         alert_status: 'ACTIVE'
       });
@@ -265,12 +266,7 @@ export const getSpecialApprovals = async (directorId?: string): Promise<SpecialA
     console.log('Fetching special approvals...');
     const { data, error } = await supabase
       .from('special_approvals')
-      .select(`
-        *,
-        request:requests(*),
-        medical_leave:medical_leaves(*),
-        manager:people!manager_id(*)
-      `)
+      .select('*')
       .order('created_at', { ascending: false });
 
     if (error) throw error;
