@@ -10,10 +10,12 @@ import { Status, TIPO_LABELS, Request, TipoAusencia, Person, Papel, Organization
 import { ArrowLeft, Calendar, User, Clock, AlertTriangle, Edit, Trash2 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 const RequestDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [comment, setComment] = useState("");
   const [request, setRequest] = useState<Request | null>(null);
   const [loading, setLoading] = useState(true);
@@ -65,8 +67,8 @@ const RequestDetail = () => {
               data_contrato: requestData.requester.data_contrato
             },
             tipo: requestData.tipo as TipoAusencia,
-            inicio: new Date(requestData.inicio),
-            fim: new Date(requestData.fim),
+          inicio: requestData.inicio ? new Date(requestData.inicio) : null,
+          fim: requestData.fim ? new Date(requestData.fim) : null,
             tipoFerias: requestData.tipo_ferias,
             status: requestData.status as Status,
             justificativa: requestData.justificativa,
@@ -107,16 +109,28 @@ const RequestDetail = () => {
         return;
       }
       
-      // Build timeline events
-      const events = [
-        {
+      // Build timeline events - show actual status
+      const events = [];
+      
+      // For drafts, show draft status
+      if (requestData.status === 'RASCUNHO') {
+        events.push({
+          id: "creation",
+          status: Status.RASCUNHO,
+          actor: requestData.requester.nome,
+          date: requestData.createdAt,
+          comment: "Rascunho salvo"
+        });
+      } else {
+        // For non-drafts, show creation as PENDENTE
+        events.push({
           id: "creation",
           status: Status.PENDENTE,
           actor: requestData.requester.nome,
           date: requestData.createdAt,
           comment: "Solicitação criada"
-        }
-      ];
+        });
+      }
       
       // Add approval events
       if (approvals) {
@@ -181,7 +195,8 @@ const RequestDetail = () => {
   }
 
 
-  const formatDate = (date: Date) => {
+  const formatDate = (date: Date | null) => {
+    if (!date) return "Data não definida";
     return date.toLocaleDateString("pt-BR", {
       weekday: "long",
       day: "2-digit", 
@@ -191,13 +206,68 @@ const RequestDetail = () => {
   };
 
   const getDuration = () => {
+    if (!request.inicio || !request.fim) return "Não definido";
     const diffTime = Math.abs(request.fim.getTime() - request.inicio.getTime());
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
     return `${diffDays} dia${diffDays > 1 ? 's' : ''}`;
   };
 
-  const canEdit = [Status.PENDENTE, Status.EM_ANALISE_GESTOR].includes(request.status);
+  const canEdit = ![Status.REALIZADO].includes(request.status);
   const canCancel = ![Status.REALIZADO, Status.CANCELADO, Status.REPROVADO].includes(request.status);
+  const canDelete = request.status === Status.RASCUNHO;
+
+  const handleCancel = async () => {
+    if (!confirm("Tem certeza que deseja cancelar esta solicitação?")) return;
+
+    try {
+      const { error } = await supabase
+        .from('requests')
+        .update({ status: 'CANCELADO' })
+        .eq('id', id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Solicitação cancelada",
+        description: "A solicitação foi cancelada com sucesso.",
+      });
+
+      // Reload the page to reflect changes
+      window.location.reload();
+    } catch (error: any) {
+      toast({
+        title: "Erro",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!confirm("Tem certeza que deseja excluir este rascunho? Esta ação não pode ser desfeita.")) return;
+
+    try {
+      const { error } = await supabase
+        .from('requests')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Rascunho excluído",
+        description: "O rascunho foi excluído com sucesso.",
+      });
+
+      navigate('/');
+    } catch (error: any) {
+      toast({
+        title: "Erro",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/30">
@@ -234,12 +304,31 @@ const RequestDetail = () => {
                   </div>
                   {canEdit && (
                     <div className="flex gap-2">
-                      <Button variant="outline" size="sm">
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => navigate(`/requests/${request.id}/edit`)}
+                      >
                         <Edit className="w-4 h-4 mr-1" />
                         Editar
                       </Button>
-                      {canCancel && (
-                        <Button variant="outline" size="sm" className="text-status-rejected border-status-rejected">
+                      {canDelete ? (
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          className="text-status-rejected border-status-rejected"
+                          onClick={handleDelete}
+                        >
+                          <Trash2 className="w-4 h-4 mr-1" />
+                          Excluir
+                        </Button>
+                      ) : canCancel && (
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          className="text-status-rejected border-status-rejected"
+                          onClick={handleCancel}
+                        >
                           <Trash2 className="w-4 h-4 mr-1" />
                           Cancelar
                         </Button>
@@ -254,7 +343,7 @@ const RequestDetail = () => {
                     <h4 className="font-medium">Período Solicitado</h4>
                     <div className="p-3 bg-muted/50 rounded-lg">
                       <p className="font-medium">{formatDate(request.inicio)}</p>
-                      {request.inicio.getTime() !== request.fim.getTime() && (
+                      {request.inicio && request.fim && request.inicio.getTime() !== request.fim.getTime() && (
                         <>
                           <p className="text-sm text-muted-foreground">até</p>
                           <p className="font-medium">{formatDate(request.fim)}</p>

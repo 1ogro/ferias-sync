@@ -27,6 +27,8 @@ export const RequestTimeline = ({ events }: RequestTimelineProps) => {
       case Status.REPROVADO:
       case Status.CANCELADO:
         return <XCircle className="w-4 h-4 text-status-rejected" />;
+      case Status.RASCUNHO:
+        return <User className="w-4 h-4 text-muted-foreground" />;
       default:
         return <User className="w-4 h-4" />;
     }

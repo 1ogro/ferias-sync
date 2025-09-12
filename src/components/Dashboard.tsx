@@ -55,8 +55,8 @@ export const Dashboard = () => {
           requesterId: req.requester_id,
           requester: req.people as any,
           tipo: req.tipo as TipoAusencia,
-          inicio: new Date(req.inicio),
-          fim: new Date(req.fim),
+          inicio: req.inicio ? new Date(req.inicio) : null,
+          fim: req.fim ? new Date(req.fim) : null,
           tipoFerias: req.tipo_ferias,
           status: req.status as Status,
           justificativa: req.justificativa,
@@ -85,8 +85,8 @@ export const Dashboard = () => {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const futureApprovedRequests = approvedRequests.filter(req => 
-    req.inicio >= today
-  ).sort((a, b) => a.inicio.getTime() - b.inicio.getTime());
+    req.inicio && req.inicio >= today
+  ).sort((a, b) => (a.inicio?.getTime() || 0) - (b.inicio?.getTime() || 0));
 
   // Calculate day-offs with birthdate validation
   const dayOffInfo = React.useMemo(() => {
@@ -103,7 +103,7 @@ export const Dashboard = () => {
     const hasUsedThisYear = userRequests.some(request => 
       request.tipo === TipoAusencia.DAYOFF &&
       [Status.APROVADO_FINAL, Status.REALIZADO].includes(request.status) &&
-      request.inicio.getFullYear() === currentYear
+      request.inicio && request.inicio.getFullYear() === currentYear
     );
 
     return {
@@ -284,8 +284,8 @@ export const Dashboard = () => {
                         <div>
                           <p className="font-medium">{request.tipo === TipoAusencia.FERIAS ? "Férias" : "Day Off"}</p>
                           <p className="text-sm text-muted-foreground">
-                            {request.inicio.toLocaleDateString("pt-BR")}
-                            {request.inicio.getTime() !== request.fim.getTime() && 
+                            {request.inicio ? request.inicio.toLocaleDateString("pt-BR") : "Data não definida"}
+                            {request.inicio && request.fim && request.inicio.getTime() !== request.fim.getTime() && 
                               ` - ${request.fim.toLocaleDateString("pt-BR")}`
                             }
                           </p>
@@ -317,7 +317,7 @@ export const Dashboard = () => {
                 key={request.id} 
                 request={request}
                 onView={(req) => navigate(`/requests/${req.id}`)}
-                onEdit={(req) => navigate(`/requests/${req.id}`)}
+                onEdit={(req) => navigate(`/requests/${req.id}/edit`)}
               />
             ))
           ) : (

@@ -7,6 +7,7 @@ import { AuthProvider } from "@/hooks/useAuth";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import Index from "./pages/Index";
 import NewRequest from "./pages/NewRequest";
+import EditRequest from "./pages/EditRequest";
 import Inbox from "./pages/Inbox";
 import RequestDetail from "./pages/RequestDetail";
 import Auth from "./pages/Auth";
@@ -28,6 +29,7 @@ const App = () => (
             <Route path="/setup-profile" element={<SetupProfile />} />
             <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
             <Route path="/new-request" element={<ProtectedRoute><NewRequest /></ProtectedRoute>} />
+            <Route path="/requests/:id/edit" element={<ProtectedRoute><EditRequest /></ProtectedRoute>} />
             <Route path="/inbox" element={<ProtectedRoute><Inbox /></ProtectedRoute>} />
             <Route path="/requests/:id" element={<ProtectedRoute><RequestDetail /></ProtectedRoute>} />
             <Route path="/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>} />

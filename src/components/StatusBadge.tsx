@@ -22,6 +22,8 @@ export const StatusBadge = ({ status, className }: StatusBadgeProps) => {
       case Status.REPROVADO:
       case Status.CANCELADO:
         return "bg-status-rejected/10 text-status-rejected border-status-rejected/20";
+      case Status.RASCUNHO:
+        return "bg-muted text-muted-foreground border-muted/40";
       default:
         return "bg-muted text-muted-foreground border-muted";
     }

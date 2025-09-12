@@ -51,8 +51,8 @@ export interface Request {
   requesterId: string;
   requester: Person;
   tipo: TipoAusencia;
-  inicio: Date;
-  fim: Date;
+  inicio: Date | null;
+  fim: Date | null;
   tipoFerias?: string;
   status: Status;
   justificativa?: string;
