@@ -1,4 +1,4 @@
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { Header } from "@/components/Header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -13,9 +13,17 @@ import { supabase } from "@/integrations/supabase/client";
 
 const RequestDetail = () => {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [comment, setComment] = useState("");
   const [request, setRequest] = useState<Request | null>(null);
   const [loading, setLoading] = useState(true);
+  const [timelineEvents, setTimelineEvents] = useState<Array<{
+    id: string;
+    status: Status;
+    actor: string;
+    date: Date;
+    comment?: string;
+  }>>([]);
   
   // Fetch request data from Supabase
   useEffect(() => {
@@ -68,6 +76,9 @@ const RequestDetail = () => {
             updatedAt: new Date(requestData.updated_at)
           };
           setRequest(mappedRequest);
+          
+          // Fetch timeline events
+          await fetchTimelineEvents(requestData.id, mappedRequest);
         }
       } catch (error) {
         console.error('Error fetching request:', error);
@@ -78,6 +89,66 @@ const RequestDetail = () => {
     
     fetchRequest();
   }, [id]);
+  
+  // Fetch timeline events from approvals table
+  const fetchTimelineEvents = async (requestId: string, requestData: Request) => {
+    try {
+      const { data: approvals, error } = await supabase
+        .from('approvals')
+        .select(`
+          *,
+          approver:people!approvals_approver_id_fkey(nome)
+        `)
+        .eq('request_id', requestId)
+        .order('created_at', { ascending: true });
+      
+      if (error) {
+        console.error('Error fetching approvals:', error);
+        return;
+      }
+      
+      // Build timeline events
+      const events = [
+        {
+          id: "creation",
+          status: Status.PENDENTE,
+          actor: requestData.requester.nome,
+          date: requestData.createdAt,
+          comment: "Solicitação criada"
+        }
+      ];
+      
+      // Add approval events
+      if (approvals) {
+        approvals.forEach((approval, index) => {
+          let eventStatus: Status;
+          if (approval.acao === 'APROVADO') {
+            eventStatus = approval.level === 'AUTO_APROVACAO' ? Status.APROVADO_FINAL : 
+                         approval.level === 'GESTOR' ? Status.APROVADO_1NIVEL : Status.APROVADO_FINAL;
+          } else if (approval.acao === 'REPROVADO') {
+            eventStatus = Status.REPROVADO;
+          } else {
+            eventStatus = Status.EM_ANALISE_GESTOR;
+          }
+          
+          events.push({
+            id: approval.id,
+            status: eventStatus,
+            actor: approval.approver?.nome || 'Sistema',
+            date: new Date(approval.created_at),
+            comment: approval.comentario || 
+                    (approval.level === 'AUTO_APROVACAO' ? 'Auto-aprovação (Diretor)' : 
+                     approval.acao === 'APROVADO' ? 'Solicitação aprovada' : 
+                     approval.acao === 'REPROVADO' ? 'Solicitação reprovada' : 'Em análise')
+          });
+        });
+      }
+      
+      setTimelineEvents(events);
+    } catch (error) {
+      console.error('Error fetching timeline:', error);
+    }
+  };
   
   if (loading) {
     return (
@@ -99,7 +170,7 @@ const RequestDetail = () => {
         <main className="container mx-auto px-4 py-8">
           <div className="text-center">
             <h2 className="text-2xl font-bold mb-4">Solicitação não encontrada</h2>
-            <Button onClick={() => window.history.back()}>
+            <Button onClick={() => navigate(-1)}>
               <ArrowLeft className="w-4 h-4 mr-2" />
               Voltar
             </Button>
@@ -109,23 +180,6 @@ const RequestDetail = () => {
     );
   }
 
-  // Mock timeline events
-  const timelineEvents = [
-    {
-      id: "1",
-      status: Status.PENDENTE,
-      actor: request.requester.nome,
-      date: request.createdAt,
-      comment: "Solicitação criada"
-    },
-    {
-      id: "2", 
-      status: Status.EM_ANALISE_GESTOR,
-      actor: "Carlos Santos",
-      date: new Date(request.createdAt.getTime() + 24 * 60 * 60 * 1000),
-      comment: "Em análise pelo gestor direto"
-    }
-  ];
 
   const formatDate = (date: Date) => {
     return date.toLocaleDateString("pt-BR", {
@@ -150,7 +204,7 @@ const RequestDetail = () => {
       <Header />
       <main className="container mx-auto px-4 py-8">
         <div className="mb-6">
-          <Button variant="ghost" onClick={() => window.history.back()}>
+          <Button variant="ghost" onClick={() => navigate(-1)}>
             <ArrowLeft className="w-4 h-4 mr-2" />
             Voltar
           </Button>
@@ -215,6 +269,10 @@ const RequestDetail = () => {
                   <div className="space-y-2">
                     <h4 className="font-medium">Informações</h4>
                     <div className="p-3 bg-muted/50 rounded-lg space-y-2">
+                      <div className="flex items-center gap-2">
+                        <User className="w-4 h-4 text-muted-foreground" />
+                        <span className="text-sm">{request.requester.nome}</span>
+                      </div>
                       <div className="flex items-center gap-2">
                         <User className="w-4 h-4 text-muted-foreground" />
                         <span className="text-sm">{request.requester.cargo}</span>

@@ -194,7 +194,11 @@ export const NewRequestForm = () => {
     setIsSubmitting(true);
 
     try {
-      const { error } = await supabase
+      // Auto-approve for directors
+      const isDirector = person.papel === 'DIRETOR';
+      const initialStatus = isDirector ? 'APROVADO_FINAL' : 'PENDENTE';
+
+      const { data: newRequest, error } = await supabase
         .from('requests')
         .insert({
           requester_id: person.id,
@@ -204,8 +208,25 @@ export const NewRequestForm = () => {
           justificativa: formData.justificativa,
           conflito_flag: conflicts.length > 0,
           conflito_refs: conflicts.join('; '),
-          status: 'PENDENTE'
-        });
+          status: initialStatus
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Create auto-approval record for directors
+      if (isDirector && newRequest) {
+        await supabase
+          .from('approvals')
+          .insert({
+            request_id: newRequest.id,
+            approver_id: person.id,
+            acao: 'APROVADO',
+            level: 'AUTO_APROVACAO',
+            comentario: 'Auto-aprovação para cargo de Diretor'
+          });
+      }
 
       if (error) throw error;
 
@@ -214,15 +235,15 @@ export const NewRequestForm = () => {
         .from('audit_logs')
         .insert({
           entidade: 'requests',
-          entidade_id: 'new_request',
+          entidade_id: newRequest?.id || 'new_request',
           acao: 'CREATE',
-          payload: { tipo: formData.tipo, inicio: formData.inicio, fim: formData.fim },
+          payload: { tipo: formData.tipo, inicio: formData.inicio, fim: formData.fim, auto_approved: isDirector },
           actor_id: person.id
         });
 
       toast({
-        title: "Solicitação enviada!",
-        description: "Seu gestor receberá uma notificação para aprovação.",
+        title: isDirector ? "Solicitação aprovada automaticamente!" : "Solicitação enviada!",
+        description: isDirector ? "Sua solicitação foi aprovada automaticamente devido ao seu cargo." : "Seu gestor receberá uma notificação para aprovação.",
       });
       
       navigate('/');
