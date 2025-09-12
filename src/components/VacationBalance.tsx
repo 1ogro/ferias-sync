@@ -112,6 +112,15 @@ export function VacationBalance({ className }: VacationBalanceProps) {
         
         <div className="border-t pt-3">
           <div className="flex justify-between items-center">
+            <span className="text-sm text-muted-foreground">Tipo:</span>
+            <Badge 
+              variant={balance.is_manual ? "default" : "outline"}
+              className={balance.is_manual ? "bg-blue-100 text-blue-800" : "bg-gray-100 text-gray-800"}
+            >
+              {balance.is_manual ? 'Manual' : 'Automático'}
+            </Badge>
+          </div>
+          <div className="flex justify-between items-center mt-2">
             <span className="text-sm text-muted-foreground">Status:</span>
             <Badge 
               className={getBalanceColor(balance.balance_days)}

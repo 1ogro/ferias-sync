@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useAuth } from "@/hooks/useAuth";
-import { getAllVacationBalances } from "@/lib/vacationUtils";
+import { getAllVacationBalances, saveManualVacationBalance, deleteManualVacationBalance } from "@/lib/vacationUtils";
 import { supabase } from "@/integrations/supabase/client";
 import { Navigate } from "react-router-dom";
 import { Header } from "@/components/Header";
@@ -39,7 +39,10 @@ import {
   Users,
   AlertTriangle,
   CalendarDays,
-  CheckCircle
+  CheckCircle,
+  Settings,
+  RotateCcw,
+  Zap
 } from "lucide-react";
 
 interface VacationData {
@@ -49,6 +52,10 @@ interface VacationData {
   used_days: number;
   balance_days: number;
   contract_anniversary: Date;
+  is_manual?: boolean;
+  manual_justification?: string;
+  updated_by?: string;
+  manual_updated_at?: Date;
   person: {
     id: string;
     nome: string;
@@ -67,8 +74,12 @@ const VacationManagement = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [balanceDialogOpen, setBalanceDialogOpen] = useState(false);
   const [selectedPerson, setSelectedPerson] = useState<VacationData | null>(null);
   const [contractDate, setContractDate] = useState("");
+  const [manualAccruedDays, setManualAccruedDays] = useState("");
+  const [manualUsedDays, setManualUsedDays] = useState("");
+  const [manualJustification, setManualJustification] = useState("");
 
   // Check if user is authorized (DIRETOR or ADMIN)
   if (!person || (person.papel !== 'DIRETOR' && !person.is_admin)) {
@@ -127,6 +138,39 @@ const VacationManagement = () => {
     setEditDialogOpen(true);
   };
 
+  const handleEditBalance = (item: VacationData) => {
+    setSelectedPerson(item);
+    setManualAccruedDays(item.accrued_days.toString());
+    setManualUsedDays(item.used_days.toString());
+    setManualJustification(item.manual_justification || "");
+    setBalanceDialogOpen(true);
+  };
+
+  const handleRestoreAutomatic = async (item: VacationData) => {
+    if (!person?.id) return;
+
+    try {
+      const result = await deleteManualVacationBalance(item.person_id, selectedYear);
+      
+      if (result.success) {
+        toast({
+          title: "Sucesso",
+          description: "Saldo restaurado para cálculo automático!",
+        });
+        fetchVacationData();
+      } else {
+        throw new Error(result.error);
+      }
+    } catch (error) {
+      console.error('Error restoring automatic balance:', error);
+      toast({
+        title: "Erro",
+        description: "Erro ao restaurar saldo automático",
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleSaveContract = async () => {
     if (!selectedPerson || !contractDate) return;
 
@@ -152,6 +196,58 @@ const VacationManagement = () => {
       toast({
         title: "Erro",
         description: "Erro ao atualizar data de contrato",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleSaveManualBalance = async () => {
+    if (!selectedPerson || !person?.id || !manualAccruedDays || !manualUsedDays || !manualJustification) {
+      toast({
+        title: "Erro",
+        description: "Todos os campos são obrigatórios",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const accruedDays = parseInt(manualAccruedDays);
+      const usedDays = parseInt(manualUsedDays);
+
+      if (isNaN(accruedDays) || isNaN(usedDays) || accruedDays < 0 || usedDays < 0) {
+        throw new Error("Valores devem ser números positivos");
+      }
+
+      const result = await saveManualVacationBalance(
+        selectedPerson.person_id,
+        selectedYear,
+        accruedDays,
+        usedDays,
+        manualJustification,
+        person.id
+      );
+
+      if (result.success) {
+        toast({
+          title: "Sucesso",
+          description: "Saldo manual salvo com sucesso!",
+        });
+
+        setBalanceDialogOpen(false);
+        setSelectedPerson(null);
+        setManualAccruedDays("");
+        setManualUsedDays("");
+        setManualJustification("");
+        fetchVacationData();
+      } else {
+        throw new Error(result.error);
+      }
+    } catch (error) {
+      console.error('Error saving manual balance:', error);
+      toast({
+        title: "Erro",
+        description: "Erro ao salvar saldo manual",
         variant: "destructive",
       });
     }
@@ -323,6 +419,7 @@ const VacationManagement = () => {
                       <TableHead className="text-center">Acumulados</TableHead>
                       <TableHead className="text-center">Usados</TableHead>
                       <TableHead className="text-center">Saldo</TableHead>
+                      <TableHead>Tipo</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Ações</TableHead>
                     </TableRow>
@@ -345,6 +442,17 @@ const VacationManagement = () => {
                         <TableCell className="text-center font-bold">{item.balance_days}</TableCell>
                         <TableCell>
                           <Badge 
+                            variant={item.is_manual ? "default" : "outline"}
+                            className={item.is_manual ? "bg-blue-100 text-blue-800" : "bg-gray-100 text-gray-800"}
+                          >
+                            <div className="flex items-center gap-1">
+                              {item.is_manual ? <Settings className="h-3 w-3" /> : <Zap className="h-3 w-3" />}
+                              {item.is_manual ? "Manual" : "Automático"}
+                            </div>
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge 
                             variant="outline" 
                             className={getBalanceColor(item.balance_days, !!item.person.data_contrato)}
                           >
@@ -357,13 +465,34 @@ const VacationManagement = () => {
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleEditContract(item)}
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
+                          <div className="flex gap-1">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleEditContract(item)}
+                              title="Editar data de contrato"
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleEditBalance(item)}
+                              title="Editar saldo de férias"
+                            >
+                              <Settings className="h-4 w-4" />
+                            </Button>
+                            {item.is_manual && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleRestoreAutomatic(item)}
+                                title="Restaurar cálculo automático"
+                              >
+                                <RotateCcw className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -399,6 +528,77 @@ const VacationManagement = () => {
               </Button>
               <Button onClick={handleSaveContract}>
                 Salvar
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Edit Balance Dialog */}
+        <Dialog open={balanceDialogOpen} onOpenChange={setBalanceDialogOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Editar Saldo de Férias</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Editando saldo de: <strong>{selectedPerson?.person.nome}</strong>
+                </p>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium">Dias Acumulados</label>
+                  <Input
+                    type="number"
+                    min="0"
+                    value={manualAccruedDays}
+                    onChange={(e) => setManualAccruedDays(e.target.value)}
+                    placeholder="0"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Dias Usados</label>
+                  <Input
+                    type="number"
+                    min="0"
+                    value={manualUsedDays}
+                    onChange={(e) => setManualUsedDays(e.target.value)}
+                    placeholder="0"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium">Saldo Resultante</label>
+                <div className="p-3 bg-muted rounded-md">
+                  <span className="text-lg font-bold">
+                    {Math.max(0, (parseInt(manualAccruedDays) || 0) - (parseInt(manualUsedDays) || 0))} dias
+                  </span>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium">Justificativa *</label>
+                <textarea
+                  className="w-full p-3 border rounded-md resize-none"
+                  rows={3}
+                  value={manualJustification}
+                  onChange={(e) => setManualJustification(e.target.value)}
+                  placeholder="Descreva o motivo da alteração manual..."
+                />
+              </div>
+
+              <div className="text-xs text-muted-foreground bg-yellow-50 p-2 rounded">
+                <strong>Atenção:</strong> Esta ação sobrescreverá o cálculo automático. O saldo será marcado como "Manual" até ser restaurado.
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setBalanceDialogOpen(false)}>
+                Cancelar
+              </Button>
+              <Button onClick={handleSaveManualBalance}>
+                Salvar Saldo Manual
               </Button>
             </DialogFooter>
           </DialogContent>

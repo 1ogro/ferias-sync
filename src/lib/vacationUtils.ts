@@ -9,6 +9,10 @@ export interface VacationBalance {
   used_days: number;
   balance_days: number;
   contract_anniversary: Date;
+  is_manual?: boolean;
+  manual_justification?: string;
+  updated_by?: string;
+  manual_updated_at?: Date;
 }
 
 export interface VacationConflict {
@@ -162,14 +166,38 @@ function mapRequestFromDB(dbRequest: any): Request {
 }
 
 /**
- * Get vacation balance for a person and year
+ * Get vacation balance for a person and year (hybrid: manual override or calculated)
  */
 export async function getVacationBalance(
   personId: string,
   year: number = new Date().getFullYear()
 ): Promise<VacationBalance | null> {
   try {
-    // Always calculate live from person data and requests to include retroactive requests
+    // First check if there's a manual balance record
+    const { data: manualBalance } = await supabase
+      .from('vacation_balances')
+      .select('*')
+      .eq('person_id', personId)
+      .eq('year', year)
+      .maybeSingle();
+
+    if (manualBalance) {
+      // Return manual balance with flag
+      return {
+        id: manualBalance.id,
+        person_id: manualBalance.person_id,
+        year: manualBalance.year,
+        accrued_days: manualBalance.accrued_days,
+        used_days: manualBalance.used_days,
+        balance_days: manualBalance.balance_days,
+        contract_anniversary: new Date(manualBalance.contract_anniversary),
+        is_manual: true,
+        updated_by: manualBalance.updated_by,
+        manual_updated_at: manualBalance.updated_at ? new Date(manualBalance.updated_at) : undefined
+      };
+    }
+
+    // Fallback to automatic calculation
     const { data: personData } = await supabase
       .from('people')
       .select('*')
@@ -188,11 +216,91 @@ export async function getVacationBalance(
     const requests = requestsData?.map(mapRequestFromDB) || [];
     const balance = calculateVacationBalance(personData.data_contrato, requests, year);
     balance.person_id = personId;
+    balance.is_manual = false;
     
     return balance;
   } catch (error) {
     console.error('Error getting vacation balance:', error);
     return null;
+  }
+}
+
+/**
+ * Save manual vacation balance
+ */
+export async function saveManualVacationBalance(
+  personId: string,
+  year: number,
+  accruedDays: number,
+  usedDays: number,
+  justification: string,
+  updatedBy: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const balanceDays = Math.max(0, accruedDays - usedDays);
+
+    // Get contract anniversary for this person
+    const { data: personData } = await supabase
+      .from('people')
+      .select('data_contrato')
+      .eq('id', personId)
+      .single();
+
+    if (!personData?.data_contrato) {
+      return { success: false, error: 'Data de contrato não encontrada' };
+    }
+
+    const contractAnniversary = new Date(year, new Date(personData.data_contrato).getMonth(), new Date(personData.data_contrato).getDate());
+
+    // Insert or update manual balance
+    const { error } = await supabase
+      .from('vacation_balances')
+      .upsert({
+        person_id: personId,
+        year,
+        accrued_days: accruedDays,
+        used_days: usedDays,
+        balance_days: balanceDays,
+        contract_anniversary: contractAnniversary.toISOString().split('T')[0],
+        manual_justification: justification,
+        updated_by: updatedBy
+      });
+
+    if (error) {
+      console.error('Error saving manual balance:', error);
+      return { success: false, error: error.message };
+    }
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error in saveManualVacationBalance:', error);
+    return { success: false, error: 'Erro interno' };
+  }
+}
+
+/**
+ * Delete manual vacation balance (restore to automatic)
+ */
+export async function deleteManualVacationBalance(
+  personId: string,
+  year: number
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { error } = await supabase
+      .from('vacation_balances')
+      .delete()
+      .eq('person_id', personId)
+      .eq('year', year);
+
+    if (error) {
+      console.error('Error deleting manual balance:', error);
+      return { success: false, error: error.message };
+    }
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error in deleteManualVacationBalance:', error);
+    return { success: false, error: 'Erro interno' };
   }
 }
 
@@ -294,7 +402,15 @@ export async function getAllVacationBalances(
     const results = [];
 
     for (const person of peopleData) {
-      if (!person.data_contrato) {
+      // Use the hybrid function to get balance (manual or calculated)
+      const balance = await getVacationBalance(person.id, year);
+      
+      if (balance) {
+        results.push({
+          ...balance,
+          person: person
+        });
+      } else {
         // Include people without contract date but with zero balance
         results.push({
           person_id: person.id,
@@ -303,25 +419,10 @@ export async function getAllVacationBalances(
           used_days: 0,
           balance_days: 0,
           contract_anniversary: new Date(),
+          is_manual: false,
           person: person
         });
-        continue;
       }
-
-      // Get all requests for this person
-      const { data: requestsData } = await supabase
-        .from('requests')
-        .select('*')
-        .eq('requester_id', person.id);
-
-      const requests = requestsData?.map(mapRequestFromDB) || [];
-      const balance = calculateVacationBalance(person.data_contrato, requests, year);
-      balance.person_id = person.id;
-
-      results.push({
-        ...balance,
-        person: person
-      });
     }
 
     return results;
