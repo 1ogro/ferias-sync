@@ -102,6 +102,7 @@ export type Database = {
           ativo: boolean | null
           cargo: string | null
           created_at: string | null
+          data_contrato: string | null
           data_nascimento: string | null
           email: string
           gestor_direto_email: string | null
@@ -118,6 +119,7 @@ export type Database = {
           ativo?: boolean | null
           cargo?: string | null
           created_at?: string | null
+          data_contrato?: string | null
           data_nascimento?: string | null
           email: string
           gestor_direto_email?: string | null
@@ -134,6 +136,7 @@ export type Database = {
           ativo?: boolean | null
           cargo?: string | null
           created_at?: string | null
+          data_contrato?: string | null
           data_nascimento?: string | null
           email?: string
           gestor_direto_email?: string | null
@@ -233,6 +236,42 @@ export type Database = {
           },
         ]
       }
+      vacation_balances: {
+        Row: {
+          accrued_days: number
+          balance_days: number
+          contract_anniversary: string | null
+          created_at: string
+          id: string
+          person_id: string
+          updated_at: string
+          used_days: number
+          year: number
+        }
+        Insert: {
+          accrued_days?: number
+          balance_days?: number
+          contract_anniversary?: string | null
+          created_at?: string
+          id?: string
+          person_id: string
+          updated_at?: string
+          used_days?: number
+          year: number
+        }
+        Update: {
+          accrued_days?: number
+          balance_days?: number
+          contract_anniversary?: string | null
+          created_at?: string
+          id?: string
+          person_id?: string
+          updated_at?: string
+          used_days?: number
+          year?: number
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -244,7 +283,16 @@ export type Database = {
       }
     }
     Enums: {
-      [_ in never]: never
+      status:
+        | "PENDENTE"
+        | "EM_ANALISE_GESTOR"
+        | "APROVADO_1NIVEL"
+        | "EM_ANALISE_DIRETOR"
+        | "APROVADO_FINAL"
+        | "REPROVADO"
+        | "CANCELADO"
+        | "REALIZADO"
+        | "EM_ANDAMENTO"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -371,6 +419,18 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      status: [
+        "PENDENTE",
+        "EM_ANALISE_GESTOR",
+        "APROVADO_1NIVEL",
+        "EM_ANALISE_DIRETOR",
+        "APROVADO_FINAL",
+        "REPROVADO",
+        "CANCELADO",
+        "REALIZADO",
+        "EM_ANDAMENTO",
+      ],
+    },
   },
 } as const
