@@ -20,6 +20,7 @@ const Inbox = lazy(() => import("./pages/Inbox"));
 const RequestDetail = lazy(() => import("./pages/RequestDetail"));
 const Admin = lazy(() => import("./pages/Admin"));
 const VacationManagement = lazy(() => import("./pages/VacationManagement"));
+const HistoricalRequests = lazy(() => import("./pages/HistoricalRequests"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient();
@@ -97,6 +98,13 @@ const App = () => (
               <ProtectedRoute>
                 <Suspense fallback={<PageLoader />}>
                   <VacationManagement />
+                </Suspense>
+              </ProtectedRoute>
+            } />
+            <Route path="/admin/historical-requests" element={
+              <ProtectedRoute>
+                <Suspense fallback={<PageLoader />}>
+                  <HistoricalRequests />
                 </Suspense>
               </ProtectedRoute>
             } />

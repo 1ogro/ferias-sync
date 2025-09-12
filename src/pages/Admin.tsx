@@ -64,7 +64,8 @@ import {
   UserCheck,
   UserX,
   ChevronUp,
-  ChevronDown
+  ChevronDown,
+  History
 } from "lucide-react";
 
 interface FormData {
@@ -431,6 +432,14 @@ const Admin = () => {
           <Button onClick={exportToCSV} variant="outline" size="sm">
             <Download className="h-4 w-4 mr-2" />
             Exportar CSV
+          </Button>
+          <Button 
+            onClick={() => window.location.href = '/admin/historical-requests'} 
+            variant="outline" 
+            size="sm"
+          >
+            <History className="h-4 w-4 mr-2" />
+            Cadastro Histórico
           </Button>
           <Button onClick={() => setIsDialogOpen(true)} size="sm">
             <Plus className="h-4 w-4 mr-2" />
