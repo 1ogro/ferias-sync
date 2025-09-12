@@ -7,6 +7,7 @@ import { AuthProvider } from "@/hooks/useAuth";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { SettingsProvider } from "@/hooks/useSettings";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { Suspense, lazy } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -54,16 +55,17 @@ const PageLoader = () => (
 );
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <ThemeProvider
-      attribute="class"
-      defaultTheme="system"
-      enableSystem
-      disableTransitionOnChange
-    >
-      <SettingsProvider>
-        <TooltipProvider>
-          <AuthProvider>
+  <ErrorBoundary>
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider
+        attribute="class"
+        defaultTheme="system"
+        enableSystem
+        disableTransitionOnChange
+      >
+        <SettingsProvider>
+          <TooltipProvider>
+            <AuthProvider>
             <Toaster />
             <Sonner />
             <BrowserRouter>
@@ -136,11 +138,12 @@ const App = () => (
             } />
             </Routes>
           </BrowserRouter>
-        </AuthProvider>
-      </TooltipProvider>
-      </SettingsProvider>
-    </ThemeProvider>
-  </QueryClientProvider>
+          </AuthProvider>
+        </TooltipProvider>
+        </SettingsProvider>
+      </ThemeProvider>
+    </QueryClientProvider>
+  </ErrorBoundary>
 );
 
 export default App;

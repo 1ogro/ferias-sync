@@ -64,16 +64,19 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   useEffect(() => {
+    let mounted = true;
+    let timeoutId: NodeJS.Timeout;
+    
     // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        if (!mounted) return;
+        
         setSession(session);
         setUser(session?.user ?? null);
         
         if (session?.user) {
-          setTimeout(() => {
-            fetchPersonData(session.user.id);
-          }, 0);
+          fetchPersonData(session.user.id);
         } else {
           setPerson(null);
           setProfileChecked(true);
@@ -82,20 +85,58 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       }
     );
 
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      
-      if (session?.user) {
-        fetchPersonData(session.user.id);
-      } else {
-        setProfileChecked(true);
-        setLoading(false);
+    // Get initial session with timeout
+    const initializeAuth = async () => {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        if (!mounted) return;
+        
+        if (error) {
+          console.error('Auth initialization error:', error);
+          setLoading(false);
+          setProfileChecked(true);
+          setContractDateChecked(true);
+          return;
+        }
+        
+        setSession(session);
+        setUser(session?.user ?? null);
+        
+        if (session?.user) {
+          await fetchPersonData(session.user.id);
+        } else {
+          setLoading(false);
+          setProfileChecked(true);
+          setContractDateChecked(true);
+        }
+      } catch (error) {
+        console.error('Failed to initialize auth:', error);
+        if (mounted) {
+          setLoading(false);
+          setProfileChecked(true);
+          setContractDateChecked(true);
+        }
       }
-    });
+    };
 
-    return () => subscription.unsubscribe();
+    // Set timeout for auth initialization
+    timeoutId = setTimeout(() => {
+      if (mounted && loading) {
+        console.warn('Auth initialization timeout');
+        setLoading(false);
+        setProfileChecked(true);
+        setContractDateChecked(true);
+      }
+    }, 10000); // 10 second timeout
+
+    initializeAuth();
+
+    return () => {
+      mounted = false;
+      if (timeoutId) clearTimeout(timeoutId);
+      subscription.unsubscribe();
+    };
   }, []);
 
   const signIn = async (email: string, password: string) => {
