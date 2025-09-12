@@ -44,3 +44,33 @@ export function getDayOffResetDate(): Date {
   const nextYear = new Date().getFullYear() + 1;
   return new Date(nextYear, 0, 1); // 01/01 of next year
 }
+
+// Permission validation functions
+export function canEditUser(currentUser: Person | null, targetUser: Person): boolean {
+  if (!currentUser) return false;
+  
+  // Only directors can edit other directors
+  if (targetUser.papel === "DIRETOR") {
+    return currentUser.papel === "DIRETOR";
+  }
+  
+  // Admins can edit non-directors
+  return currentUser.is_admin;
+}
+
+export function canPromoteToDirector(currentUser: Person | null): boolean {
+  if (!currentUser) return false;
+  return currentUser.papel === "DIRETOR";
+}
+
+export function canEditAdminPermission(currentUser: Person | null, targetUser: Person): boolean {
+  if (!currentUser) return false;
+  
+  // Only directors can change admin permissions of directors
+  if (targetUser.papel === "DIRETOR") {
+    return currentUser.papel === "DIRETOR";
+  }
+  
+  // Admins can change admin permissions of non-directors
+  return currentUser.is_admin;
+}

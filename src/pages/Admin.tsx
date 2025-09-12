@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Person, Papel } from "@/lib/types";
+import { cn, canEditUser, canPromoteToDirector, canEditAdminPermission } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -41,6 +42,12 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { 
+  Tooltip,
+  TooltipContent, 
+  TooltipProvider,
+  TooltipTrigger 
+} from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
 import { Navigate } from "react-router-dom";
 import { Header } from "@/components/Header";
@@ -568,61 +575,89 @@ const Admin = () => {
                  </TableRow>
               </TableHeader>
               <TableBody>
-                 {filteredAndSortedPeople.map((person) => (
-                   <TableRow key={person.id}>
-                     <TableCell className="font-medium">{person.nome}</TableCell>
-                     <TableCell>{person.email}</TableCell>
-                     <TableCell>{person.cargo || '-'}</TableCell>
-                     <TableCell>{person.local || '-'}</TableCell>
+                 {filteredAndSortedPeople.map((targetPerson) => (
+                   <TableRow key={targetPerson.id}>
+                     <TableCell className="font-medium">{targetPerson.nome}</TableCell>
+                     <TableCell>{targetPerson.email}</TableCell>
+                     <TableCell>{targetPerson.cargo || '-'}</TableCell>
+                     <TableCell>{targetPerson.local || '-'}</TableCell>
                      <TableCell>
-                       <Badge className={getPapelColor(person.papel)}>
-                         {person.papel}
+                       <Badge className={getPapelColor(targetPerson.papel)}>
+                         {targetPerson.papel}
                        </Badge>
                      </TableCell>
                      <TableCell>
-                       <Badge variant={person.is_admin ? "default" : "secondary"}>
-                         {person.is_admin ? "Sim" : "Não"}
+                       <Badge variant={targetPerson.is_admin ? "default" : "secondary"}>
+                         {targetPerson.is_admin ? "Sim" : "Não"}
                        </Badge>
                      </TableCell>
                      <TableCell>
-                       <Badge variant={person.ativo ? "default" : "secondary"}>
-                         {person.ativo ? "Ativo" : "Inativo"}
+                       <Badge variant={targetPerson.ativo ? "default" : "secondary"}>
+                         {targetPerson.ativo ? "Ativo" : "Inativo"}
                        </Badge>
                      </TableCell>
-                    <TableCell>
-                      <div className="flex gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleEdit(person)}
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button variant="outline" size="sm">
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                Tem certeza que deseja excluir {person.nome}? Esta ação não pode ser desfeita.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                              <AlertDialogAction onClick={() => handleDelete(person.id)}>
-                                Excluir
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                     <TableCell>
+                       <div className="flex gap-2">
+                         <TooltipProvider>
+                           <Tooltip>
+                             <TooltipTrigger asChild>
+                               <Button
+                                 variant="outline"
+                                 size="sm"
+                                 onClick={() => handleEdit(targetPerson)}
+                                 disabled={!canEditUser(person, targetPerson)}
+                               >
+                                 <Edit className="h-4 w-4" />
+                               </Button>
+                             </TooltipTrigger>
+                             {!canEditUser(person, targetPerson) && (
+                               <TooltipContent>
+                                 <p>Apenas DIRETOREs podem editar outros DIRETOREs</p>
+                               </TooltipContent>
+                             )}
+                           </Tooltip>
+                         </TooltipProvider>
+                         
+                         <AlertDialog>
+                           <TooltipProvider>
+                             <Tooltip>
+                               <TooltipTrigger asChild>
+                                 <AlertDialogTrigger asChild>
+                                   <Button 
+                                     variant="outline" 
+                                     size="sm"
+                                     disabled={!canEditUser(person, targetPerson)}
+                                   >
+                                     <Trash2 className="h-4 w-4" />
+                                   </Button>
+                                 </AlertDialogTrigger>
+                               </TooltipTrigger>
+                               {!canEditUser(person, targetPerson) && (
+                                 <TooltipContent>
+                                   <p>Apenas DIRETOREs podem excluir outros DIRETOREs</p>
+                                 </TooltipContent>
+                               )}
+                             </Tooltip>
+                           </TooltipProvider>
+                           <AlertDialogContent>
+                             <AlertDialogHeader>
+                               <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
+                               <AlertDialogDescription>
+                                 Tem certeza que deseja excluir {targetPerson.nome}? Esta ação não pode ser desfeita.
+                               </AlertDialogDescription>
+                             </AlertDialogHeader>
+                             <AlertDialogFooter>
+                               <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                               <AlertDialogAction onClick={() => handleDelete(targetPerson.id)}>
+                                 Excluir
+                               </AlertDialogAction>
+                             </AlertDialogFooter>
+                           </AlertDialogContent>
+                         </AlertDialog>
+                       </div>
+                     </TableCell>
+                   </TableRow>
+                 ))}
               </TableBody>
             </Table>
           </div>
@@ -713,7 +748,13 @@ const Admin = () => {
                    </SelectTrigger>
                    <SelectContent>
                      {Object.values(Papel).map(papel => (
-                       <SelectItem key={papel} value={papel}>{papel}</SelectItem>
+                       <SelectItem 
+                         key={papel} 
+                         value={papel}
+                         disabled={papel === "DIRETOR" && !canPromoteToDirector(person)}
+                       >
+                         {papel}
+                       </SelectItem>
                      ))}
                    </SelectContent>
                  </Select>
@@ -724,6 +765,7 @@ const Admin = () => {
                  <Select 
                    value={formData.is_admin?.toString() || 'false'} 
                    onValueChange={(value) => setFormData({ ...formData, is_admin: value === 'true' })}
+                   disabled={isEditing && !canEditAdminPermission(person, people.find(p => p.id === formData.id) || { papel: formData.papel, id: formData.id } as Person)}
                  >
                    <SelectTrigger>
                      <SelectValue />
