@@ -40,12 +40,11 @@ export function calculateVacationBalance(
   // 30 days per year worked
   const accruedDays = Math.max(0, yearsWorked * 30);
   
-  // Calculate used days from approved/completed vacation requests in the target year
+  // Calculate used days from all REALIZADO vacation requests (including retroactive)
   const usedDays = requests
     .filter(request => 
       request.tipo === TipoAusencia.FERIAS &&
-      [Status.APROVADO_FINAL, Status.REALIZADO, Status.EM_ANDAMENTO].includes(request.status) &&
-      request.inicio.getFullYear() === targetYear
+      request.status === Status.REALIZADO
     )
     .reduce((total, request) => {
       const days = Math.ceil((request.fim.getTime() - request.inicio.getTime()) / (1000 * 60 * 60 * 24)) + 1;
@@ -170,27 +169,7 @@ export async function getVacationBalance(
   year: number = new Date().getFullYear()
 ): Promise<VacationBalance | null> {
   try {
-    // First try to get from vacation_balances table
-    const { data: balanceData } = await supabase
-      .from('vacation_balances')
-      .select('*')
-      .eq('person_id', personId)
-      .eq('year', year)
-      .maybeSingle();
-    
-    if (balanceData) {
-      return {
-        id: balanceData.id,
-        person_id: balanceData.person_id,
-        year: balanceData.year,
-        accrued_days: balanceData.accrued_days,
-        used_days: balanceData.used_days,
-        balance_days: balanceData.balance_days,
-        contract_anniversary: new Date(balanceData.contract_anniversary)
-      };
-    }
-    
-    // If not found, calculate it from person data and requests
+    // Always calculate live from person data and requests to include retroactive requests
     const { data: personData } = await supabase
       .from('people')
       .select('*')

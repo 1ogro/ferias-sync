@@ -6,17 +6,91 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { StatusBadge } from "@/components/StatusBadge";
 import { RequestTimeline } from "@/components/RequestTimeline";
-import { mockRequests, mockUsers } from "@/lib/mockData";
-import { Status, TIPO_LABELS } from "@/lib/types";
+import { Status, TIPO_LABELS, Request, TipoAusencia, Person, Papel, OrganizationalRole } from "@/lib/types";
 import { ArrowLeft, Calendar, User, Clock, AlertTriangle, Edit, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
 
 const RequestDetail = () => {
   const { id } = useParams();
   const [comment, setComment] = useState("");
+  const [request, setRequest] = useState<Request | null>(null);
+  const [loading, setLoading] = useState(true);
   
-  // Mock request data
-  const request = mockRequests.find(req => req.id === id);
+  // Fetch request data from Supabase
+  useEffect(() => {
+    const fetchRequest = async () => {
+      if (!id) return;
+      
+      try {
+        const { data: requestData, error } = await supabase
+          .from('requests')
+          .select(`
+            *,
+            requester:people!requests_requester_id_fkey(*)
+          `)
+          .eq('id', id)
+          .maybeSingle();
+        
+        if (error) {
+          console.error('Error fetching request:', error);
+          return;
+        }
+        
+        if (requestData) {
+          const mappedRequest: Request = {
+            id: requestData.id,
+            requesterId: requestData.requester_id,
+            requester: {
+              id: requestData.requester.id,
+              nome: requestData.requester.nome,
+              email: requestData.requester.email,
+              cargo: requestData.requester.cargo,
+              local: requestData.requester.local,
+              subTime: requestData.requester.sub_time,
+              papel: requestData.requester.papel as Papel,
+              organizational_role: null,
+              is_admin: requestData.requester.is_admin,
+              ativo: requestData.requester.ativo,
+              gestorId: requestData.requester.gestor_id,
+              data_nascimento: requestData.requester.data_nascimento,
+              data_contrato: requestData.requester.data_contrato
+            },
+            tipo: requestData.tipo as TipoAusencia,
+            inicio: new Date(requestData.inicio),
+            fim: new Date(requestData.fim),
+            tipoFerias: requestData.tipo_ferias,
+            status: requestData.status as Status,
+            justificativa: requestData.justificativa,
+            conflitoFlag: requestData.conflito_flag,
+            conflitoRefs: requestData.conflito_refs,
+            createdAt: new Date(requestData.created_at),
+            updatedAt: new Date(requestData.updated_at)
+          };
+          setRequest(mappedRequest);
+        }
+      } catch (error) {
+        console.error('Error fetching request:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchRequest();
+  }, [id]);
+  
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/30">
+        <Header />
+        <main className="container mx-auto px-4 py-8">
+          <div className="text-center">
+            <h2 className="text-2xl font-bold mb-4">Carregando...</h2>
+          </div>
+        </main>
+      </div>
+    );
+  }
   
   if (!request) {
     return (
