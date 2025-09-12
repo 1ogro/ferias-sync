@@ -32,29 +32,45 @@ export const VacationSummaryCard = ({ className }: VacationSummaryProps) => {
 
   const fetchSummaryData = async () => {
     try {
+      console.log('Fetching vacation summary data...');
       const { data, error } = await supabase.rpc('get_vacation_summary');
       
       if (error) {
-        console.error('Error fetching vacation summary:', error);
+        console.error('RPC Error fetching vacation summary:', error);
         setStats(prev => ({ ...prev, loading: false }));
         return;
       }
 
+      console.log('Vacation summary response:', data);
       const summary = data?.[0];
       if (summary) {
+        console.log('Setting vacation summary stats:', summary);
         setStats({
-          total: summary.total_people,
-          withoutContract: summary.without_contract,
-          accumulatedVacations: summary.accumulated_vacations,
-          averageBalance: summary.average_balance,
+          total: summary.total_people || 0,
+          withoutContract: summary.without_contract || 0,
+          accumulatedVacations: summary.accumulated_vacations || 0,
+          averageBalance: Math.round(Number(summary.average_balance) || 0),
           loading: false
         });
       } else {
-        setStats(prev => ({ ...prev, loading: false }));
+        console.log('No vacation summary data returned');
+        setStats({
+          total: 0,
+          withoutContract: 0,
+          accumulatedVacations: 0,
+          averageBalance: 0,
+          loading: false
+        });
       }
     } catch (error) {
-      console.error('Error fetching vacation summary:', error);
-      setStats(prev => ({ ...prev, loading: false }));
+      console.error('Unexpected error fetching vacation summary:', error);
+      setStats({
+        total: 0,
+        withoutContract: 0,
+        accumulatedVacations: 0,
+        averageBalance: 0,
+        loading: false
+      });
     }
   };
 
