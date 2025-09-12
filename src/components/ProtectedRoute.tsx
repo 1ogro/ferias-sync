@@ -9,12 +9,12 @@ interface ProtectedRouteProps {
 }
 
 export default function ProtectedRoute({ children }: ProtectedRouteProps) {
-  const { user, person, loading, profileChecked } = useAuth();
+  const { user, person, loading, profileChecked, contractDateChecked } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
     // Only act when loading is complete and profile has been checked
-    if (!loading && profileChecked) {
+    if (!loading && profileChecked && contractDateChecked) {
       if (!user) {
         console.log('No user, redirecting to auth');
         navigate('/auth');
@@ -22,11 +22,15 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
         // User is authenticated but has no profile - redirect to setup
         console.log('User authenticated but no profile, redirecting to setup');
         navigate('/setup-profile');
+      } else if (user && person && !person.data_contrato) {
+        // User has profile but no contract date - redirect to contract setup
+        console.log('User has profile but no contract date, redirecting to contract setup');
+        navigate('/setup-contract');
       }
     }
-  }, [user, person, loading, profileChecked, navigate]);
+  }, [user, person, loading, profileChecked, contractDateChecked, navigate]);
 
-  if (loading || !profileChecked) {
+  if (loading || !profileChecked || !contractDateChecked) {
     return (
       <div className="min-h-screen bg-background">
         <div className="border-b">

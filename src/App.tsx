@@ -8,6 +8,8 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 import { Suspense, lazy } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 
+import ContractDateSetup from "./components/ContractDateSetup";
+
 // Critical pages loaded immediately
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
@@ -58,6 +60,7 @@ const App = () => (
           <Routes>
             <Route path="/auth" element={<Auth />} />
             <Route path="/setup-profile" element={<SetupProfile />} />
+            <Route path="/setup-contract" element={<ContractDateSetup />} />
             <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
             <Route path="/new-request" element={
               <ProtectedRoute>

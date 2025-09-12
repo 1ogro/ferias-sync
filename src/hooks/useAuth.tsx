@@ -9,10 +9,12 @@ interface AuthContextType {
   person: Person | null;
   loading: boolean;
   profileChecked: boolean;
+  contractDateChecked: boolean;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signUp: (email: string, password: string, personId: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
   createProfile: (personId: string) => Promise<{ error: any }>;
+  fetchPersonData: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -23,10 +25,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [person, setPerson] = useState<Person | null>(null);
   const [loading, setLoading] = useState(true);
   const [profileChecked, setProfileChecked] = useState(false);
+  const [contractDateChecked, setContractDateChecked] = useState(false);
 
-  const fetchPersonData = async (userId: string) => {
+  const fetchPersonData = async (userId?: string) => {
+    const userIdToUse = userId || user?.id;
+    if (!userIdToUse) return;
+    
     try {
-      console.log('Fetching person data for user:', userId);
+      console.log('Fetching person data for user:', userIdToUse);
       
       const { data: profile, error } = await supabase
         .from('profiles')
@@ -34,7 +40,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           person_id,
           people!inner(*)
         `)
-        .eq('user_id', userId)
+        .eq('user_id', userIdToUse)
         .maybeSingle();
 
       if (error) {
@@ -52,6 +58,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setPerson(null);
     } finally {
       setProfileChecked(true);
+      setContractDateChecked(true);
       setLoading(false);
     }
   };
@@ -131,6 +138,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     await supabase.auth.signOut();
     setPerson(null);
     setProfileChecked(false);
+    setContractDateChecked(false);
   };
 
   const createProfile = async (personId: string) => {
@@ -166,10 +174,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     person,
     loading,
     profileChecked,
+    contractDateChecked,
     signIn,
     signUp,
     signOut,
     createProfile,
+    fetchPersonData,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

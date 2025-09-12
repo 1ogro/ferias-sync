@@ -1,13 +1,13 @@
 import { useState, useEffect, useMemo } from "react";
 import { useAuth } from "@/hooks/useAuth";
-import { getAllVacationBalances, saveManualVacationBalance, deleteManualVacationBalance } from "@/lib/vacationUtils";
+import { getAllVacationBalances, saveManualVacationBalance, deleteManualVacationBalance, recalculateVacationBalance } from "@/lib/vacationUtils";
 import { supabase } from "@/integrations/supabase/client";
 import { Navigate } from "react-router-dom";
 import { Person } from "@/lib/types";
 import { Header } from "@/components/Header";
 import { MedicalLeaveForm } from "@/components/MedicalLeaveForm";
 import { MedicalLeaveList } from "@/components/MedicalLeaveList";
-import { VacationBalanceRecalculate } from "@/components/VacationBalanceRecalculate";
+
 import { TeamCapacityDashboard } from "@/components/TeamCapacityDashboard";
 import { HistoricalRequestForm } from "@/components/HistoricalRequestForm";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -50,6 +50,8 @@ import {
   Search,
   Filter,
   History,
+  Calculator,
+  Loader2,
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -89,6 +91,10 @@ const VacationManagement = () => {
   const [manualJustification, setManualJustification] = useState("");
   const [showMedicalLeaveForm, setShowMedicalLeaveForm] = useState(false);
   const [allPeople, setAllPeople] = useState<Person[]>([]);
+  const [massRecalculateOpen, setMassRecalculateOpen] = useState(false);
+  const [massRecalculateJustification, setMassRecalculateJustification] = useState("");
+  const [massRecalculateLoading, setMassRecalculateLoading] = useState(false);
+  const [massRecalculateProgress, setMassRecalculateProgress] = useState(0);
 
   // Check if user is authorized (DIRETOR or ADMIN)
   if (!person || (person.papel !== 'DIRETOR' && !person.is_admin)) {
@@ -274,6 +280,71 @@ const VacationManagement = () => {
     }
   };
 
+  const handleMassRecalculate = async () => {
+    if (!massRecalculateJustification.trim()) {
+      toast({
+        title: "Erro",
+        description: "Justificativa é obrigatória para recálculo em massa.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setMassRecalculateLoading(true);
+    setMassRecalculateProgress(0);
+    
+    const itemsToProcess = filteredData.length;
+    let processed = 0;
+    let successful = 0;
+    let failed = 0;
+
+    try {
+      for (const item of filteredData) {
+        try {
+          const result = await recalculateVacationBalance(
+            item.person_id,
+            selectedYear,
+            massRecalculateJustification.trim(),
+            person.id
+          );
+
+          if (result.success) {
+            successful++;
+          } else {
+            failed++;
+            console.error(`Erro ao recalcular ${item.person.nome}:`, result.error);
+          }
+        } catch (error) {
+          failed++;
+          console.error(`Erro ao recalcular ${item.person.nome}:`, error);
+        }
+        
+        processed++;
+        setMassRecalculateProgress(Math.round((processed / itemsToProcess) * 100));
+      }
+
+      toast({
+        title: "Recálculo Concluído",
+        description: `${successful} saldo(s) recalculado(s) com sucesso. ${failed > 0 ? `${failed} erro(s).` : ''}`,
+        variant: successful > 0 ? "default" : "destructive",
+      });
+
+      setMassRecalculateOpen(false);
+      setMassRecalculateJustification("");
+      fetchVacationData();
+    } catch (error) {
+      console.error("Erro no recálculo em massa:", error);
+      toast({
+        title: "Erro",
+        description: "Erro interno no recálculo em massa.",
+        variant: "destructive",
+      });
+    } finally {
+      setMassRecalculateLoading(false);
+      setMassRecalculateProgress(0);
+    }
+  };
+
   const exportToCSV = () => {
     const csvContent = [
       ['Nome', 'Cargo', 'Time', 'Data Contrato', 'Dias Adquiridos', 'Dias Usados', 'Saldo', 'Status'],
@@ -399,6 +470,10 @@ const VacationManagement = () => {
               <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle>Gerenciamento de Saldos de Férias</CardTitle>
                 <div className="flex gap-2">
+                  <Button variant="outline" onClick={() => setMassRecalculateOpen(true)}>
+                    <Calculator className="h-4 w-4 mr-2" />
+                    Recalcular Saldos
+                  </Button>
                   <Button variant="outline" onClick={exportToCSV}>
                     <Download className="h-4 w-4 mr-2" />
                     Exportar CSV
@@ -511,12 +586,6 @@ const VacationManagement = () => {
                                     <RotateCcw className="h-3 w-3" />
                                   </Button>
                                 )}
-                                <VacationBalanceRecalculate
-                                  personId={item.person_id}
-                                  personName={item.person.nome}
-                                  year={selectedYear}
-                                  onSuccess={fetchVacationData}
-                                />
                               </div>
                             </TableCell>
                           </TableRow>
@@ -667,6 +736,85 @@ const VacationManagement = () => {
               </Button>
               <Button onClick={handleSaveManualBalance}>
                 Salvar Saldo Manual
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Mass Recalculate Dialog */}
+        <Dialog open={massRecalculateOpen} onOpenChange={setMassRecalculateOpen}>
+          <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle>Recalcular Saldos em Massa</DialogTitle>
+              <DialogDescription>
+                Recalcular automaticamente os saldos de férias para todos os {filteredData.length} colaborador(es) exibido(s) na lista atual.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="text-sm text-muted-foreground bg-blue-50 p-3 rounded">
+                <strong>Atenção:</strong> Esta operação irá:
+                <ul className="list-disc ml-4 mt-2">
+                  <li>Recalcular baseado na data de contrato e solicitações aprovadas</li>
+                  <li>Sobrescrever saldos manuais existentes</li>
+                  <li>Aplicar a mesma justificativa para todos os registros</li>
+                </ul>
+              </div>
+              
+              <div>
+                <label htmlFor="mass-justification" className="block text-sm font-medium mb-2">
+                  Justificativa para Recálculo <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  id="mass-justification"
+                  className="w-full p-3 border rounded-md resize-none"
+                  rows={3}
+                  value={massRecalculateJustification}
+                  onChange={(e) => setMassRecalculateJustification(e.target.value)}
+                  placeholder="Ex: Recálculo em massa após inclusão de solicitações históricas..."
+                  disabled={massRecalculateLoading}
+                />
+              </div>
+
+              {massRecalculateLoading && (
+                <div className="space-y-2">
+                  <div className="text-sm text-muted-foreground">
+                    Progresso: {massRecalculateProgress}%
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div 
+                      className="bg-primary h-2 rounded-full transition-all duration-300"
+                      style={{ width: `${massRecalculateProgress}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setMassRecalculateOpen(false);
+                  setMassRecalculateJustification("");
+                }}
+                disabled={massRecalculateLoading}
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={handleMassRecalculate}
+                disabled={massRecalculateLoading || !massRecalculateJustification.trim()}
+              >
+                {massRecalculateLoading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Recalculando...
+                  </>
+                ) : (
+                  <>
+                    <Calculator className="w-4 h-4 mr-2" />
+                    Recalcular {filteredData.length} Saldo(s)
+                  </>
+                )}
               </Button>
             </DialogFooter>
           </DialogContent>

@@ -269,11 +269,15 @@ export async function saveManualVacationBalance(
       .eq('id', personId)
       .single();
 
-    if (!personData?.data_contrato) {
-      return { success: false, error: 'Data de contrato não encontrada' };
+    let contractAnniversary: Date;
+    
+    if (personData?.data_contrato) {
+      // Use actual contract date
+      contractAnniversary = new Date(year, new Date(personData.data_contrato).getMonth(), new Date(personData.data_contrato).getDate());
+    } else {
+      // Use default date (January 1st of the year) for users without contract date
+      contractAnniversary = new Date(year, 0, 1);
     }
-
-    const contractAnniversary = new Date(year, new Date(personData.data_contrato).getMonth(), new Date(personData.data_contrato).getDate());
 
     // Insert or update manual balance
     const { error } = await supabase
