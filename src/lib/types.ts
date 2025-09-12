@@ -100,11 +100,11 @@ export interface MedicalLeave {
 export interface TeamCapacityAlert {
   id: string;
   team_id: string;
+  medical_leave_person_id: string;
+  medical_leave_id: string;
+  affected_people_count: number;
   period_start: Date;
   period_end: Date;
-  medical_leave_id?: string;
-  medical_leave_person_id: string;
-  affected_people_count: number;
   alert_status: string;
   director_notified_at?: Date;
   created_at: Date;
