@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
+import { useSettings } from "@/hooks/useSettings";
 import { supabase } from "@/integrations/supabase/client";
 import { Person, Papel } from "@/lib/types";
 import { isBirthdayToday } from "@/lib/dateUtils";
@@ -9,11 +10,17 @@ import { Cake } from "lucide-react";
 export const useBirthdayNotifications = () => {
   const { toast } = useToast();
   const { person } = useAuth();
+  const { settings } = useSettings();
   const [hasCheckedToday, setHasCheckedToday] = useState(false);
 
   useEffect(() => {
     // Only check for managers and directors
     if (!person || ![Papel.GESTOR, Papel.DIRETOR].includes(person.papel)) {
+      return;
+    }
+
+    // Check if birthday notifications are enabled in settings
+    if (!settings.birthdayNotifications) {
       return;
     }
 
@@ -27,7 +34,7 @@ export const useBirthdayNotifications = () => {
     }
 
     checkTeamBirthdays();
-  }, [person]);
+  }, [person, settings.birthdayNotifications]);
 
   const checkTeamBirthdays = async () => {
     if (!person) return;

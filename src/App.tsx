@@ -4,6 +4,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
+import { ThemeProvider } from "@/components/ThemeProvider";
+import { SettingsProvider } from "@/hooks/useSettings";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { Suspense, lazy } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -23,6 +25,7 @@ const RequestDetail = lazy(() => import("./pages/RequestDetail"));
 const Admin = lazy(() => import("./pages/Admin"));
 const VacationManagement = lazy(() => import("./pages/VacationManagement"));
 const HistoricalRequests = lazy(() => import("./pages/HistoricalRequests"));
+const Settings = lazy(() => import("./pages/Settings"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient();
@@ -52,11 +55,18 @@ const PageLoader = () => (
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <AuthProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
+    <ThemeProvider
+      attribute="class"
+      defaultTheme="system"
+      enableSystem
+      disableTransitionOnChange
+    >
+      <SettingsProvider>
+        <TooltipProvider>
+          <AuthProvider>
+            <Toaster />
+            <Sonner />
+            <BrowserRouter>
           <Routes>
             <Route path="/auth" element={<Auth />} />
             <Route path="/setup-profile" element={<SetupProfile />} />
@@ -111,16 +121,25 @@ const App = () => (
                 </Suspense>
               </ProtectedRoute>
             } />
+            <Route path="/settings" element={
+              <ProtectedRoute>
+                <Suspense fallback={<PageLoader />}>
+                  <Settings />
+                </Suspense>
+              </ProtectedRoute>
+            } />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={
               <Suspense fallback={<PageLoader />}>
                 <NotFound />
               </Suspense>
             } />
-          </Routes>
-        </BrowserRouter>
-      </AuthProvider>
-    </TooltipProvider>
+            </Routes>
+          </BrowserRouter>
+        </AuthProvider>
+      </TooltipProvider>
+      </SettingsProvider>
+    </ThemeProvider>
   </QueryClientProvider>
 );
 
