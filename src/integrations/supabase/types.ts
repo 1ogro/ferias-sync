@@ -499,6 +499,10 @@ export type Database = {
           year: number
         }[]
       }
+      set_contract_data_for_current_user: {
+        Args: { p_date: string; p_model: string }
+        Returns: undefined
+      }
     }
     Enums: {
       status:

@@ -28,24 +28,12 @@ const ContractDateSetup = () => {
       return;
     }
 
-    if (!person) {
-      toast({
-        title: "Erro",
-        description: "Dados do usuário não encontrados.",
-        variant: "destructive",
-      });
-      return;
-    }
-
     setLoading(true);
     try {
-      const { error } = await supabase
-        .from('people')
-        .update({ 
-          data_contrato: contractDate,
-          modelo_contrato: modeloContrato
-        })
-        .eq('id', person.id);
+      const { error } = await supabase.rpc('set_contract_data_for_current_user', {
+        p_date: contractDate,
+        p_model: modeloContrato
+      });
 
       if (error) throw error;
 
@@ -56,6 +44,9 @@ const ContractDateSetup = () => {
 
       // Refresh person data to update the contract date
       await fetchPersonData();
+      
+      // Navigate to home page after successful save
+      window.location.href = '/';
     } catch (error: any) {
       console.error("Error saving contract data:", error);
       toast({
