@@ -72,34 +72,13 @@ export const ProfileModal = ({ open, onOpenChange }: ProfileModalProps) => {
     setIsSubmitting(true);
 
     try {
-      const { error } = await supabase
-        .from('people')
-        .update({
-          nome: formData.nome,
-          email: formData.email,
-          data_nascimento: formData.data_nascimento?.toISOString().split('T')[0],
-        })
-        .eq('id', person.id);
+      const { error } = await supabase.rpc('update_profile_for_current_user', {
+        p_nome: formData.nome,
+        p_email: formData.email,
+        p_data_nascimento: formData.data_nascimento?.toISOString().split('T')[0] || null,
+      });
 
       if (error) throw error;
-
-      // Create audit log
-      await supabase
-        .from('audit_logs')
-        .insert({
-          entidade: 'people',
-          entidade_id: person.id,
-          acao: 'UPDATE_PROFILE',
-          payload: {
-            updated_fields: ['nome', 'email', 'data_nascimento'],
-            new_values: {
-              nome: formData.nome,
-              email: formData.email,
-              data_nascimento: formData.data_nascimento?.toISOString().split('T')[0] || null
-            }
-          },
-          actor_id: person.id
-        });
 
       toast({
         title: "Perfil atualizado!",

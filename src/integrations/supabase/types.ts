@@ -503,6 +503,10 @@ export type Database = {
         Args: { p_date: string; p_model: string }
         Returns: undefined
       }
+      update_profile_for_current_user: {
+        Args: { p_data_nascimento: string; p_email: string; p_nome: string }
+        Returns: undefined
+      }
     }
     Enums: {
       status:
