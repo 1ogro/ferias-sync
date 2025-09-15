@@ -31,12 +31,32 @@ export function calculateAvailableDayOffs(person: Person | null, requests: Reque
   const currentYear = new Date().getFullYear();
   const hasUsedThisYear = hasUsedDayOffThisYear(requests, currentYear);
 
+  if (hasUsedThisYear) {
+    return {
+      available: 0,
+      canRequest: false,
+      message: `Day-off já utilizado este ano. Próximo reset: 01/01/${currentYear + 1}`
+    };
+  }
+
+  // Check if currently within eligibility period (from birthday to day before next birthday)
+  const birth = new Date(person.data_nascimento);
+  const birthdayThisYear = new Date(currentYear, birth.getMonth(), birth.getDate());
+  const today = new Date();
+  
+  if (today < birthdayThisYear) {
+    const birthdayStr = birthdayThisYear.toLocaleDateString('pt-BR');
+    return {
+      available: 1,
+      canRequest: false,
+      message: `Day-off disponível a partir do seu aniversário (${birthdayStr})`
+    };
+  }
+
   return {
-    available: hasUsedThisYear ? 0 : 1,
-    canRequest: !hasUsedThisYear,
-    message: hasUsedThisYear 
-      ? `Day-off já utilizado este ano. Próximo reset: 01/01/${currentYear + 1}`
-      : "1 Day-off disponível para o seu aniversário"
+    available: 1,
+    canRequest: true,
+    message: "1 Day-off disponível até a véspera do seu próximo aniversário"
   };
 }
 

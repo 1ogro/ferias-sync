@@ -13,7 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Person } from "@/lib/types";
-import { formatDateToBRString, parseBRStringToDate, applyDateMask, isValidDateString } from "@/lib/dateUtils";
+import { formatDateToBRString, parseBRStringToDate, applyDateMask, isValidDateString, formatDateToYYYYMMDD } from "@/lib/dateUtils";
 
 interface ProfileModalProps {
   open: boolean;
@@ -75,7 +75,7 @@ export const ProfileModal = ({ open, onOpenChange }: ProfileModalProps) => {
       const { error } = await supabase.rpc('update_profile_for_current_user', {
         p_nome: formData.nome,
         p_email: formData.email,
-        p_data_nascimento: formData.data_nascimento?.toISOString().split('T')[0] || null,
+        p_data_nascimento: formData.data_nascimento ? formatDateToYYYYMMDD(formData.data_nascimento) : null,
       });
 
       if (error) throw error;
@@ -179,7 +179,7 @@ export const ProfileModal = ({ open, onOpenChange }: ProfileModalProps) => {
             
             {formData.data_nascimento && (
               <p className="text-sm text-muted-foreground">
-                Seu day-off anual será em {getBirthdayThisYear() ? format(getBirthdayThisYear()!, "dd/MM") : 'N/A'} (dia do seu aniversário)
+                Você pode solicitar day-off a qualquer momento após seu aniversário ({getBirthdayThisYear() ? format(getBirthdayThisYear()!, "dd/MM") : 'N/A'})
               </p>
             )}
           </div>

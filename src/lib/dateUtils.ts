@@ -71,6 +71,67 @@ export function parseDateSafely(dateString: string): Date {
 }
 
 /**
+ * Formats a Date to YYYY-MM-DD string without timezone conversion issues
+ */
+export function formatDateToYYYYMMDD(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+/**
+ * Checks if the current date is within the day-off eligibility period
+ * (from birthday of current year until the day before birthday of next year)
+ */
+export function isWithinDayOffPeriod(birthDate: string | Date): boolean {
+  const today = new Date();
+  const birth = typeof birthDate === 'string' ? new Date(birthDate) : birthDate;
+  
+  const currentYear = today.getFullYear();
+  const nextYear = currentYear + 1;
+  
+  // Birthday this year
+  const birthdayThisYear = new Date(currentYear, birth.getMonth(), birth.getDate());
+  // Birthday next year
+  const birthdayNextYear = new Date(nextYear, birth.getMonth(), birth.getDate());
+  // Day before birthday next year
+  const dayBeforeBirthdayNextYear = new Date(birthdayNextYear);
+  dayBeforeBirthdayNextYear.setDate(dayBeforeBirthdayNextYear.getDate() - 1);
+  
+  // Check if today is within the eligibility period
+  return today >= birthdayThisYear && today <= dayBeforeBirthdayNextYear;
+}
+
+/**
+ * Gets the day-off eligibility period for a given birth date
+ */
+export function getDayOffEligibilityPeriod(birthDate: string | Date): {
+  start: Date;
+  end: Date;
+  isCurrentlyEligible: boolean;
+} {
+  const birth = typeof birthDate === 'string' ? new Date(birthDate) : birthDate;
+  const today = new Date();
+  const currentYear = today.getFullYear();
+  const nextYear = currentYear + 1;
+  
+  // Birthday this year
+  const birthdayThisYear = new Date(currentYear, birth.getMonth(), birth.getDate());
+  // Birthday next year
+  const birthdayNextYear = new Date(nextYear, birth.getMonth(), birth.getDate());
+  // Day before birthday next year
+  const dayBeforeBirthdayNextYear = new Date(birthdayNextYear);
+  dayBeforeBirthdayNextYear.setDate(dayBeforeBirthdayNextYear.getDate() - 1);
+  
+  return {
+    start: birthdayThisYear,
+    end: dayBeforeBirthdayNextYear,
+    isCurrentlyEligible: today >= birthdayThisYear && today <= dayBeforeBirthdayNextYear
+  };
+}
+
+/**
  * Gets month names in Portuguese
  */
 export const MONTH_NAMES = [

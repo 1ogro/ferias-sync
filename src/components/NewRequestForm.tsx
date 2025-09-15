@@ -130,25 +130,29 @@ export const NewRequestForm = () => {
     }
   };
 
-  // Validate day-off date
+  // Validate Day Off eligibility period
   const validateDayOff = () => {
     if (formData.tipo !== TipoAusencia.DAYOFF || !person?.data_nascimento || !formData.inicio) {
       return { isValid: true, message: "" };
     }
 
-    const selectedDate = new Date(formData.inicio);
-    const birthDate = new Date(person.data_nascimento);
-    const currentYear = selectedDate.getFullYear();
-    const birthdayThisYear = new Date(currentYear, birthDate.getMonth(), birthDate.getDate());
-
-    // Check if selected date matches birthday
-    if (selectedDate.getTime() !== birthdayThisYear.getTime()) {
+    const birth = new Date(person.data_nascimento);
+    const today = new Date();
+    const currentYear = today.getFullYear();
+    
+    // Birthday this year
+    const birthdayThisYear = new Date(currentYear, birth.getMonth(), birth.getDate());
+    
+    // Check if we're before the birthday this year
+    if (today < birthdayThisYear) {
+      const birthdayStr = birthdayThisYear.toLocaleDateString('pt-BR');
       return {
         isValid: false,
-        message: `Day Off só pode ser solicitado no dia do seu aniversário (${birthdayThisYear.toLocaleDateString('pt-BR')})`
+        message: `Day-off só pode ser solicitado a partir do seu aniversário (${birthdayStr})`
       };
     }
 
+    // We're in the eligibility period - day-off can be requested for any date
     return { isValid: true, message: "" };
   };
 
@@ -358,7 +362,7 @@ export const NewRequestForm = () => {
                   Data de Início *
                   {formData.tipo === TipoAusencia.DAYOFF && person?.data_nascimento && (
                     <span className="text-sm text-muted-foreground ml-2">
-                      (Day Off: {new Date(new Date().getFullYear(), new Date(person.data_nascimento).getMonth(), new Date(person.data_nascimento).getDate()).toLocaleDateString('pt-BR')})
+                      (Day Off disponível a partir de {new Date(new Date().getFullYear(), new Date(person.data_nascimento).getMonth(), new Date(person.data_nascimento).getDate()).toLocaleDateString('pt-BR')})
                     </span>
                   )}
                 </Label>
@@ -390,7 +394,7 @@ export const NewRequestForm = () => {
                 <AlertDescription>
                   <strong>Atenção:</strong> Você precisa cadastrar sua data de nascimento no perfil para solicitar Day Off.
                   <br />
-                  <small>Day Off só pode ser usado no dia do seu aniversário (1 dia por ano, não cumulativo).</small>
+                  <small>Day Off pode ser solicitado a qualquer momento após o seu aniversário (até a véspera do próximo aniversário).</small>
                 </AlertDescription>
               </Alert>
             )}
