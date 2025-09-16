@@ -58,7 +58,9 @@ export function calculateVacationBalance(
     .reduce((total, request) => {
       if (!request.inicio || !request.fim) return total;
       const days = Math.ceil((request.fim.getTime() - request.inicio.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-      return total + days;
+      // Include abono days in the calculation - these count as "used" vacation days
+      const abonoDays = (request as any).dias_abono || 0;
+      return total + days + abonoDays;
     }, 0);
   
   const balanceDays = Math.max(0, accruedDays - usedDays);

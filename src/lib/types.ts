@@ -13,7 +13,9 @@ export enum Papel {
 
 export enum ModeloContrato {
   PJ = "PJ",
-  CLT = "CLT"
+  CLT = "CLT",
+  CLT_ABONO_LIVRE = "CLT_ABONO_LIVRE",
+  CLT_ABONO_FIXO = "CLT_ABONO_FIXO"
 }
 
 export enum TipoAusencia {
@@ -71,6 +73,7 @@ export interface Request {
   originalCreatedAt?: Date;
   originalChannel?: string;
   adminObservations?: string;
+  dias_abono?: number; // Number of vacation days sold (abono)
 }
 
 export const STATUS_LABELS = {
@@ -94,7 +97,9 @@ export const TIPO_LABELS = {
 
 export const MODELO_CONTRATO_LABELS = {
   [ModeloContrato.PJ]: "Pessoa Jurídica",
-  [ModeloContrato.CLT]: "CLT"
+  [ModeloContrato.CLT]: "CLT",
+  [ModeloContrato.CLT_ABONO_LIVRE]: "CLT com Abono Livre",
+  [ModeloContrato.CLT_ABONO_FIXO]: "CLT com Abono Fixo"
 };
 
 // Medical Leave interfaces

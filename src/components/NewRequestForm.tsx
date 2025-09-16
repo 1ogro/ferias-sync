@@ -7,9 +7,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { TipoAusencia } from "@/lib/types";
+import { TipoAusencia, ModeloContrato } from "@/lib/types";
 import { parseDateSafely } from "@/lib/dateUtils";
-import { Calendar, AlertTriangle, CheckCircle } from "lucide-react";
+import { Calendar, AlertTriangle, CheckCircle, DollarSign } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -21,6 +21,7 @@ interface FormData {
   inicio: string;
   fim: string;
   justificativa: string;
+  dias_abono: number;
 }
 
 export const NewRequestForm = () => {
@@ -31,7 +32,8 @@ export const NewRequestForm = () => {
     tipo: "",
     inicio: "",
     fim: "", 
-    justificativa: ""
+    justificativa: "",
+    dias_abono: 0
   });
   const [conflicts, setConflicts] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -44,6 +46,30 @@ export const NewRequestForm = () => {
     availableBalance?: number;
   }>({ valid: true, message: "" });
 
+  // Helper function to check if user can use abonos
+  const canUseAbonos = () => {
+    if (!person?.modelo_contrato) return false;
+    return person.modelo_contrato === ModeloContrato.CLT || 
+           person.modelo_contrato === ModeloContrato.CLT_ABONO_LIVRE ||
+           person.modelo_contrato === ModeloContrato.CLT_ABONO_FIXO;
+  };
+
+  // Helper function to get abono constraints
+  const getAbonoConstraints = () => {
+    if (!person?.modelo_contrato) return { min: 0, max: 0, fixedOptions: [] };
+    
+    switch (person.modelo_contrato) {
+      case ModeloContrato.CLT_ABONO_LIVRE:
+        return { min: 0, max: 10, fixedOptions: [] };
+      case ModeloContrato.CLT_ABONO_FIXO:
+        return { min: 0, max: 10, fixedOptions: [0, 10] };
+      case ModeloContrato.CLT:
+        return { min: 0, max: 10, fixedOptions: [] }; // Default behavior
+      default:
+        return { min: 0, max: 0, fixedOptions: [] };
+    }
+  };
+
   // Check for conflicts and day-off validations
   const checkConflicts = async () => {
     if (!formData.inicio || !formData.fim || !person) return;
@@ -54,6 +80,17 @@ export const NewRequestForm = () => {
         const startDate = new Date(formData.inicio);
         const endDate = new Date(formData.fim);
         const requestedDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+        
+        // Validate minimum vacation days (10 consecutive days minimum after abono)
+        const vacationDays = requestedDays - formData.dias_abono;
+        if (vacationDays < 10) {
+          setVacationValidation({
+            valid: false,
+            message: `Após o abono, você deve ter no mínimo 10 dias consecutivos de férias. Atual: ${vacationDays} dias.`
+          });
+          setVacationConflicts([]);
+          return;
+        }
         
         const validation = await validateVacationRequest(
           person.id,
@@ -156,18 +193,24 @@ export const NewRequestForm = () => {
     return { isValid: true, message: "" };
   };
 
-  const handleInputChange = (field: keyof FormData, value: string) => {
+  const handleInputChange = (field: keyof FormData, value: string | number) => {
     setFormData(prev => {
       const newData = { ...prev, [field]: value };
       
       // Auto-set fim date for day-off to be the same as inicio
       if (field === "inicio" && prev.tipo === TipoAusencia.DAYOFF) {
-        newData.fim = value;
+        newData.fim = value as string;
       }
       
       // Reset fim when tipo changes to day-off
       if (field === "tipo" && value === TipoAusencia.DAYOFF) {
         newData.fim = newData.inicio;
+        newData.dias_abono = 0; // Reset abono for day-off
+      }
+      
+      // Reset abono when changing from vacation to other types
+      if (field === "tipo" && value !== TipoAusencia.FERIAS) {
+        newData.dias_abono = 0;
       }
       
       return newData;
@@ -214,7 +257,8 @@ export const NewRequestForm = () => {
           justificativa: formData.justificativa,
           conflito_flag: conflicts.length > 0,
           conflito_refs: conflicts.join('; '),
-          status: initialStatus
+          status: initialStatus,
+          dias_abono: formData.dias_abono
         })
         .select()
         .single();
@@ -287,7 +331,8 @@ export const NewRequestForm = () => {
           justificativa: formData.justificativa || '',
           conflito_flag: false,
           conflito_refs: null,
-          status: 'RASCUNHO'
+          status: 'RASCUNHO',
+          dias_abono: formData.dias_abono
         })
         .select()
         .single();
@@ -387,6 +432,80 @@ export const NewRequestForm = () => {
               </div>
             </div>
 
+            {/* Abono Section - Only for vacation requests with CLT contracts */}
+            {formData.tipo === TipoAusencia.FERIAS && canUseAbonos() && (
+              <div className="space-y-4 p-4 bg-muted/30 rounded-lg border">
+                <div className="flex items-center gap-2 mb-2">
+                  <DollarSign className="w-4 h-4 text-primary" />
+                  <Label className="text-base font-medium">Abono de Férias (Venda de Dias)</Label>
+                  <Badge variant="outline" className="text-xs">
+                    {person?.modelo_contrato === ModeloContrato.CLT_ABONO_FIXO ? "0 ou 10 dias" : "0-10 dias"}
+                  </Badge>
+                </div>
+                
+                {(() => {
+                  const constraints = getAbonoConstraints();
+                  if (constraints.fixedOptions.length > 0) {
+                    // Fixed options (CLT_ABONO_FIXO)
+                    return (
+                      <Select 
+                        value={formData.dias_abono.toString()} 
+                        onValueChange={(value) => handleInputChange("dias_abono", parseInt(value))}
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Selecione os dias de abono" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {constraints.fixedOptions.map(option => (
+                            <SelectItem key={option} value={option.toString()}>
+                              {option === 0 ? "Não vender dias" : `Vender ${option} dias`}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    );
+                  } else {
+                    // Free range (CLT_ABONO_LIVRE or CLT)
+                    return (
+                      <div className="space-y-2">
+                        <Label htmlFor="dias_abono">
+                          Dias a vender (0-{constraints.max})
+                        </Label>
+                        <Input
+                          id="dias_abono"
+                          type="number"
+                          min={constraints.min}
+                          max={constraints.max}
+                          value={formData.dias_abono}
+                          onChange={(e) => handleInputChange("dias_abono", parseInt(e.target.value) || 0)}
+                          placeholder="0"
+                        />
+                      </div>
+                    );
+                  }
+                })()}
+                
+                {formData.dias_abono > 0 && (
+                  <Alert>
+                    <CheckCircle className="w-4 h-4" />
+                    <AlertDescription>
+                      <strong>Abono:</strong> {formData.dias_abono} dia{formData.dias_abono > 1 ? 's' : ''} será{formData.dias_abono > 1 ? 'ão' : ''} vendido{formData.dias_abono > 1 ? 's' : ''}
+                      {calculateDays() > 0 && (
+                        <span className="ml-2">
+                          | <strong>Férias:</strong> {calculateDays() - formData.dias_abono} dia{(calculateDays() - formData.dias_abono) > 1 ? 's' : ''}
+                        </span>
+                      )}
+                    </AlertDescription>
+                  </Alert>
+                )}
+                
+                <p className="text-xs text-muted-foreground">
+                  O abono permite "vender" dias de férias de volta para a empresa. 
+                  Férias mínimas exigidas por lei: 10 dias corridos.
+                </p>
+              </div>
+            )}
+
             {/* Day Off Validation Messages */}
             {formData.tipo === TipoAusencia.DAYOFF && !person?.data_nascimento && (
               <Alert variant="destructive">
@@ -428,7 +547,10 @@ export const NewRequestForm = () => {
                   <strong>Saldo disponível:</strong> {vacationValidation.availableBalance} dias
                   {calculateDays() > 0 && (
                     <span className="ml-2">
-                      | <strong>Solicitando:</strong> {calculateDays()} dia{calculateDays() > 1 ? 's' : ''}
+                      | <strong>Total solicitado:</strong> {calculateDays()} dia{calculateDays() > 1 ? 's' : ''}
+                      {formData.dias_abono > 0 && (
+                        <span> (Férias: {calculateDays() - formData.dias_abono} + Abono: {formData.dias_abono})</span>
+                      )}
                     </span>
                   )}
                 </AlertDescription>

@@ -1,9 +1,9 @@
-import { Request, TIPO_LABELS, Status } from "@/lib/types";
+import { Request, TIPO_LABELS, Status, TipoAusencia } from "@/lib/types";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "./StatusBadge";
-import { Calendar, AlertTriangle, Edit, Eye, Trash2 } from "lucide-react";
+import { Calendar, AlertTriangle, Edit, Eye, Trash2, DollarSign } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -31,6 +31,13 @@ export const RequestCard = ({
     if (!request.inicio || !request.fim) return "Não definido";
     const diffTime = Math.abs(request.fim.getTime() - request.inicio.getTime());
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+    const abonoDays = request.dias_abono || 0;
+    
+    if (request.tipo === TipoAusencia.FERIAS && abonoDays > 0) {
+      const vacationDays = diffDays - abonoDays;
+      return `${diffDays} dia${diffDays > 1 ? 's' : ''} (${vacationDays} férias + ${abonoDays} abono)`;
+    }
+    
     return `${diffDays} dia${diffDays > 1 ? 's' : ''}`;
   };
 
@@ -53,6 +60,12 @@ export const RequestCard = ({
               {request.isHistorical && (
                 <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
                   Histórica
+                </Badge>
+              )}
+              {request.tipo === TipoAusencia.FERIAS && request.dias_abono && request.dias_abono > 0 && (
+                <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 flex items-center gap-1">
+                  <DollarSign className="w-3 h-3" />
+                  Abono {request.dias_abono} dia{request.dias_abono > 1 ? 's' : ''}
                 </Badge>
               )}
               {isRetroactive() && (

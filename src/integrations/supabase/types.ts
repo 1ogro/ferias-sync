@@ -246,6 +246,7 @@ export type Database = {
           conflito_flag: boolean | null
           conflito_refs: string | null
           created_at: string
+          dias_abono: number | null
           fim: string | null
           id: string
           inicio: string | null
@@ -264,6 +265,7 @@ export type Database = {
           conflito_flag?: boolean | null
           conflito_refs?: string | null
           created_at?: string
+          dias_abono?: number | null
           fim?: string | null
           id?: string
           inicio?: string | null
@@ -282,6 +284,7 @@ export type Database = {
           conflito_flag?: boolean | null
           conflito_refs?: string | null
           created_at?: string
+          dias_abono?: number | null
           fim?: string | null
           id?: string
           inicio?: string | null
