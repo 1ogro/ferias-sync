@@ -97,6 +97,7 @@ const VacationManagement = () => {
   const [massRecalculateJustification, setMassRecalculateJustification] = useState("");
   const [massRecalculateLoading, setMassRecalculateLoading] = useState(false);
   const [massRecalculateProgress, setMassRecalculateProgress] = useState(0);
+  const [contractTypeFilter, setContractTypeFilter] = useState<string>("all");
 
   // Check if user is authorized (DIRETOR or ADMIN)
   if (!person || (person.papel !== 'DIRETOR' && !person.is_admin)) {
@@ -148,19 +149,32 @@ const VacationManagement = () => {
   };
 
   const filteredData = useMemo(() => {
-    return vacationData.filter(item =>
-      item.person.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (item.person.cargo && item.person.cargo.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (item.person.sub_time && item.person.sub_time.toLowerCase().includes(searchTerm.toLowerCase()))
-    );
-  }, [vacationData, searchTerm]);
+    return vacationData.filter(item => {
+      const matchesSearch = item.person.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (item.person.cargo && item.person.cargo.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (item.person.sub_time && item.person.sub_time.toLowerCase().includes(searchTerm.toLowerCase()));
+      
+      const matchesContractType = contractTypeFilter === "all" || 
+        item.person.modelo_contrato === contractTypeFilter ||
+        (!item.person.modelo_contrato && contractTypeFilter === "CLT");
+      
+      return matchesSearch && matchesContractType;
+    });
+  }, [vacationData, searchTerm, contractTypeFilter]);
 
   const stats = useMemo(() => {
+    const contractTypeCounts = vacationData.reduce((acc, item) => {
+      const contractType = item.person.modelo_contrato || 'CLT';
+      acc[contractType] = (acc[contractType] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+
     return {
       total: vacationData.length,
       withoutContract: vacationData.filter(item => !item.person.data_contrato).length,
       accumulatedVacations: vacationData.filter(item => item.balance_days > 30).length,
       manualBalances: vacationData.filter(item => item.is_manual).length,
+      contractTypeCounts,
     };
   }, [vacationData]);
 
@@ -412,6 +426,24 @@ const VacationManagement = () => {
     return <CheckCircle className="h-4 w-4" />;
   };
 
+  const getContractBadgeVariant = (contractType?: string) => {
+    switch (contractType) {
+      case 'PJ': return 'secondary';
+      case 'CLT_ABONO_LIVRE': return 'default';
+      case 'CLT_ABONO_FIXO': return 'outline';
+      default: return 'default';
+    }
+  };
+
+  const getAbonoInfo = (contractType?: string) => {
+    switch (contractType) {
+      case 'PJ': return 'Não aplicável';
+      case 'CLT_ABONO_LIVRE': return '1-10 dias';
+      case 'CLT_ABONO_FIXO': return '0 ou 10 dias';
+      default: return 'Padrão CLT';
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/30">
       <Header />
@@ -438,7 +470,7 @@ const VacationManagement = () => {
           {/* Vacation Management Tab */}
           <TabsContent value="vacation" className="space-y-6">
             {/* Statistics */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
               <Card>
                 <CardContent className="flex items-center p-6">
                   <Users className="h-8 w-8 text-primary" />
@@ -478,6 +510,26 @@ const VacationManagement = () => {
                   </div>
                 </CardContent>
               </Card>
+
+              <Card>
+                <CardContent className="flex items-center p-6">
+                  <Users className="h-8 w-8 text-green-600" />
+                  <div className="ml-4">
+                    <p className="text-sm font-medium text-muted-foreground">CLT Abono Livre</p>
+                    <p className="text-2xl font-bold">{stats.contractTypeCounts['CLT_ABONO_LIVRE'] || 0}</p>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardContent className="flex items-center p-6">
+                  <Users className="h-8 w-8 text-orange-600" />
+                  <div className="ml-4">
+                    <p className="text-sm font-medium text-muted-foreground">CLT Abono Fixo</p>
+                    <p className="text-2xl font-bold">{stats.contractTypeCounts['CLT_ABONO_FIXO'] || 0}</p>
+                  </div>
+                </CardContent>
+              </Card>
             </div>
 
             {/* Controls */}
@@ -510,6 +562,19 @@ const VacationManagement = () => {
                   
                   <div className="flex items-center gap-2">
                     <Filter className="h-4 w-4 text-muted-foreground" />
+                    <Select value={contractTypeFilter} onValueChange={setContractTypeFilter}>
+                      <SelectTrigger className="w-48">
+                        <SelectValue placeholder="Filtrar por contrato" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todos os Contratos</SelectItem>
+                        {Object.values(ModeloContrato).map((tipo) => (
+                          <SelectItem key={tipo} value={tipo}>
+                            {MODELO_CONTRATO_LABELS[tipo]}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                     <Select value={selectedYear.toString()} onValueChange={(value) => setSelectedYear(parseInt(value))}>
                       <SelectTrigger className="w-32">
                         <SelectValue />
@@ -531,19 +596,20 @@ const VacationManagement = () => {
                 ) : (
                   <div className="overflow-x-auto">
                     <Table>
-                      <TableHeader>
-                        <TableRow>
-                           <TableHead className="min-w-[200px]">Nome</TableHead>
-                           <TableHead className="min-w-[150px]">Modelo Contrato</TableHead>
-                           <TableHead className="min-w-[120px]">Time</TableHead>
-                           <TableHead className="min-w-[120px]">Data Contrato</TableHead>
-                           <TableHead className="min-w-[100px] text-center">Adquiridos</TableHead>
-                           <TableHead className="min-w-[80px] text-center">Usados</TableHead>
-                           <TableHead className="min-w-[80px] text-center">Saldo</TableHead>
-                           <TableHead className="min-w-[100px] text-center">Status</TableHead>
-                           <TableHead className="min-w-[140px] sticky right-0 bg-background text-center">Ações</TableHead>
-                        </TableRow>
-                      </TableHeader>
+                       <TableHeader>
+                         <TableRow>
+                            <TableHead className="min-w-[200px]">Nome</TableHead>
+                            <TableHead className="min-w-[150px]">Modelo Contrato</TableHead>
+                            <TableHead className="min-w-[130px]">Tipo de Abono</TableHead>
+                            <TableHead className="min-w-[120px]">Time</TableHead>
+                            <TableHead className="min-w-[120px]">Data Contrato</TableHead>
+                            <TableHead className="min-w-[100px] text-center">Adquiridos</TableHead>
+                            <TableHead className="min-w-[80px] text-center">Usados</TableHead>
+                            <TableHead className="min-w-[80px] text-center">Saldo</TableHead>
+                            <TableHead className="min-w-[100px] text-center">Status</TableHead>
+                            <TableHead className="min-w-[140px] sticky right-0 bg-background text-center">Ações</TableHead>
+                         </TableRow>
+                       </TableHeader>
                       <TableBody>
                          {filteredData.map((item) => {
                            const isPJWithAccumulatedVacations = item.person.modelo_contrato === 'PJ' && item.balance_days > 30;
@@ -563,12 +629,17 @@ const VacationManagement = () => {
                                    )}
                                  </div>
                                </TableCell>
-                               <TableCell>
-                                 <Badge variant={item.person.modelo_contrato === 'PJ' ? 'secondary' : 'default'}>
-                                   {item.person.modelo_contrato || "CLT"}
-                                 </Badge>
-                               </TableCell>
-                               <TableCell>{item.person.sub_time || "N/A"}</TableCell>
+                                <TableCell>
+                                  <Badge variant={getContractBadgeVariant(item.person.modelo_contrato)}>
+                                    {MODELO_CONTRATO_LABELS[item.person.modelo_contrato as ModeloContrato] || MODELO_CONTRATO_LABELS[ModeloContrato.CLT]}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell>
+                                  <span className="text-sm text-muted-foreground">
+                                    {getAbonoInfo(item.person.modelo_contrato)}
+                                  </span>
+                                </TableCell>
+                                <TableCell>{item.person.sub_time || "N/A"}</TableCell>
                                <TableCell>
                                  {item.person.data_contrato ? (
                                    format(new Date(item.person.data_contrato), "dd/MM/yyyy")
@@ -698,23 +769,34 @@ const VacationManagement = () => {
                   onChange={(e) => setContractDate(e.target.value)}
                 />
               </div>
-              <div>
-                <label htmlFor="contract-model" className="block text-sm font-medium mb-2">
-                  Modelo de Contrato
-                </label>
-                <Select value={contractModel} onValueChange={(value) => setContractModel(value as ModeloContrato)}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Object.values(ModeloContrato).map((modelo) => (
-                      <SelectItem key={modelo} value={modelo}>
-                        {MODELO_CONTRATO_LABELS[modelo]}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+               <div>
+                 <label htmlFor="contract-model" className="block text-sm font-medium mb-2">
+                   Modelo de Contrato
+                 </label>
+                 <Select value={contractModel} onValueChange={(value) => setContractModel(value as ModeloContrato)}>
+                   <SelectTrigger>
+                     <SelectValue />
+                   </SelectTrigger>
+                   <SelectContent>
+                     {Object.values(ModeloContrato).map((modelo) => (
+                       <SelectItem key={modelo} value={modelo}>
+                         <div className="flex flex-col">
+                           <span>{MODELO_CONTRATO_LABELS[modelo]}</span>
+                           <span className="text-xs text-muted-foreground">
+                             Abono: {getAbonoInfo(modelo)}
+                           </span>
+                         </div>
+                       </SelectItem>
+                     ))}
+                   </SelectContent>
+                 </Select>
+                 <div className="text-xs text-muted-foreground mt-1">
+                   {contractModel === 'CLT_ABONO_LIVRE' && "Permite venda de 1 a 10 dias de férias"}
+                   {contractModel === 'CLT_ABONO_FIXO' && "Permite venda de 0 ou 10 dias (valor fixo)"}
+                   {contractModel === 'PJ' && "Pessoa Jurídica não tem direito a abono de férias"}
+                   {contractModel === 'CLT' && "CLT padrão sem abono de férias"}
+                 </div>
+               </div>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
