@@ -81,15 +81,37 @@ export const NewRequestForm = () => {
         const endDate = new Date(formData.fim);
         const requestedDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
         
-        // Validate minimum vacation days (10 consecutive days minimum after abono)
-        const vacationDays = requestedDays - formData.dias_abono;
-        if (vacationDays < 10) {
-          setVacationValidation({
-            valid: false,
-            message: `Após o abono, você deve ter no mínimo 10 dias consecutivos de férias. Atual: ${vacationDays} dias.`
-          });
-          setVacationConflicts([]);
-          return;
+        // Validate abono limits
+        if (formData.dias_abono > 0) {
+          const abonoConstraints = getAbonoConstraints();
+          
+          if (formData.dias_abono > abonoConstraints.max) {
+            setVacationValidation({
+              valid: false,
+              message: `O abono não pode exceder ${abonoConstraints.max} dias.`
+            });
+            setVacationConflicts([]);
+            return;
+          }
+          
+          if (formData.dias_abono > requestedDays) {
+            setVacationValidation({
+              valid: false,
+              message: `O abono não pode ser maior que o período total de férias solicitado.`
+            });
+            setVacationConflicts([]);
+            return;
+          }
+          
+          // For fixed abono contracts, validate specific options
+          if (abonoConstraints.fixedOptions.length > 0 && !abonoConstraints.fixedOptions.includes(formData.dias_abono)) {
+            setVacationValidation({
+              valid: false,
+              message: `Para seu tipo de contrato, o abono deve ser ${abonoConstraints.fixedOptions.join(' ou ')} dias.`
+            });
+            setVacationConflicts([]);
+            return;
+          }
         }
         
         const validation = await validateVacationRequest(
