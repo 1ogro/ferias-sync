@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { RequestCard } from "@/components/RequestCard";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { Request, Status } from "@/lib/types";
+import { Request, Status, TipoAusencia } from "@/lib/types";
 import { Inbox as InboxIcon, CheckCircle, XCircle, MessageCircle, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -51,7 +51,28 @@ const Inbox = () => {
         return;
       }
 
-      setPendingRequests(data || []);
+      // Transform the data to match Request type
+      const transformedData = (data || []).map(item => ({
+        id: item.id,
+        requesterId: item.requester_id,
+        tipo: item.tipo as TipoAusencia,
+        inicio: item.inicio ? new Date(item.inicio) : null,
+        fim: item.fim ? new Date(item.fim) : null,
+        justificativa: item.justificativa,
+        status: item.status as Status,
+        diasAbono: item.dias_abono,
+        createdAt: new Date(item.created_at),
+        updatedAt: new Date(item.updated_at),
+        conflitoFlag: item.conflito_flag,
+        requester: {
+          ...item.requester,
+          papel: item.requester.papel as any,
+          is_admin: false,
+          ativo: true
+        }
+      }));
+
+      setPendingRequests(transformedData);
     } catch (error) {
       console.error('Error:', error);
       toast({

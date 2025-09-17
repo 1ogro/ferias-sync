@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { TipoAusencia, ModeloContrato } from "@/lib/types";
+import { TipoAusencia, ModeloContrato, Status } from "@/lib/types";
 import { parseDateSafely } from "@/lib/dateUtils";
 import { Calendar, AlertTriangle, CheckCircle, DollarSign } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -265,9 +265,28 @@ export const NewRequestForm = () => {
     setIsSubmitting(true);
 
     try {
+      // Insert the new request with proper status transition
+      let initialStatus = Status.PENDENTE;
+      
       // Auto-approve for directors
-      const isDirector = person.papel === 'DIRETOR';
-      const initialStatus = isDirector ? 'APROVADO_FINAL' : 'PENDENTE';
+      if (person.papel === 'DIRETOR' || person.is_admin) {
+        initialStatus = Status.APROVADO_FINAL;
+      } else {
+        // Find the user's manager to determine next status
+        const { data: managerData } = await supabase
+          .from('people')
+          .select('papel')
+          .eq('id', person.gestorId || '')
+          .maybeSingle();
+        
+        // If manager is a director, go straight to director analysis
+        if (managerData?.papel === 'DIRETOR') {
+          initialStatus = Status.EM_ANALISE_DIRETOR;
+        } else {
+          // Otherwise, go to manager analysis first
+          initialStatus = Status.EM_ANALISE_GESTOR;
+        }
+      }
 
       const { data: newRequest, error } = await supabase
         .from('requests')
@@ -278,9 +297,9 @@ export const NewRequestForm = () => {
           fim: formData.fim,
           justificativa: formData.justificativa,
           conflito_flag: conflicts.length > 0,
-          conflito_refs: conflicts.join('; '),
+          conflito_refs: conflicts.length > 0 ? conflicts.join(',') : null,
+          dias_abono: formData.dias_abono,
           status: initialStatus,
-          dias_abono: formData.dias_abono
         })
         .select()
         .single();
@@ -288,6 +307,7 @@ export const NewRequestForm = () => {
       if (error) throw error;
 
       // Create auto-approval record for directors
+      const isDirector = person.papel === 'DIRETOR' || person.is_admin;
       if (isDirector && newRequest) {
         await supabase
           .from('approvals')
