@@ -107,18 +107,18 @@ const Inbox = () => {
         // If current user is director or request is already at director level, approve final
         if (person.papel === 'DIRETOR' || person.is_admin || request.status === Status.EM_ANALISE_DIRETOR) {
           newStatus = Status.APROVADO_FINAL;
-          approvalAction = 'APPROVE_FINAL';
+          approvalAction = 'APROVAR';
         } else {
           // Manager approval - move to director analysis
-          newStatus = Status.EM_ANALISE_DIRETOR;
-          approvalAction = 'APPROVE_MANAGER';
+          newStatus = Status.EM_ANALISE_DIRETOR;  
+          approvalAction = 'APROVAR';
         }
       } else if (action === 'reject') {
         newStatus = Status.REPROVADO;
-        approvalAction = 'REJECT';
+        approvalAction = 'REPROVAR';
       } else {
         newStatus = Status.INFORMACOES_ADICIONAIS;
-        approvalAction = 'REQUEST_INFO';
+        approvalAction = 'PEDIR_INFO';
       }
 
       // Update request status
@@ -136,7 +136,7 @@ const Inbox = () => {
           request_id: requestId,
           approver_id: person.id,
           acao: approvalAction,
-          level: person.papel === 'DIRETOR' || person.is_admin ? 'DIRECTOR' : 'MANAGER',
+          level: person.papel === 'DIRETOR' || person.is_admin ? 'DIRETOR_2' : 'GESTOR_1',
           comentario: null
         });
 

@@ -87,7 +87,8 @@ export const STATUS_LABELS = {
   [Status.CANCELADO]: "Cancelado",
   [Status.REALIZADO]: "Realizado",
   [Status.EM_ANDAMENTO]: "Em Andamento",
-  [Status.RASCUNHO]: "Rascunho"
+  [Status.RASCUNHO]: "Rascunho",
+  [Status.INFORMACOES_ADICIONAIS]: "Informações Adicionais"
 };
 
 export const TIPO_LABELS = {

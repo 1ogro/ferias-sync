@@ -19,7 +19,8 @@ import {
   CheckCircle, 
   AlertCircle, 
   Users,
-  CalendarDays
+  CalendarDays,
+  Inbox
 } from "lucide-react";
 import React from "react";
 import { useBirthdayNotifications } from "@/hooks/useBirthdayNotifications";
@@ -30,7 +31,9 @@ export const Dashboard = () => {
   const { toast } = useToast();
   const [selectedTab, setSelectedTab] = useState<"overview" | "requests">("overview");
   const [userRequests, setUserRequests] = useState<Request[]>([]);
+  const [pendingApprovals, setPendingApprovals] = useState<Request[]>([]);
   const [loading, setLoading] = useState(true);
+  const [approvalsLoading, setApprovalsLoading] = useState(true);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [requestToDelete, setRequestToDelete] = useState<Request | null>(null);
   
@@ -40,6 +43,9 @@ export const Dashboard = () => {
   useEffect(() => {
     if (person) {
       fetchUserRequests();
+      if (person.papel === 'GESTOR' || person.papel === 'DIRETOR' || person.is_admin) {
+        fetchPendingApprovals();
+      }
     }
   }, [person]);
 
@@ -85,7 +91,65 @@ export const Dashboard = () => {
     }
   };
 
-  const pendingRequests = userRequests.filter(req => 
+  const fetchPendingApprovals = async () => {
+    if (!person) return;
+
+    try {
+      let query = supabase
+        .from('requests')
+        .select(`
+          *,
+          requester:people!inner(id, nome, email, papel, gestor_id)
+        `);
+
+      // Directors see all requests needing director approval
+      if (person.papel === 'DIRETOR' || person.is_admin) {
+        query = query.in('status', [Status.EM_ANALISE_DIRETOR, Status.EM_ANALISE_GESTOR]);
+      } 
+      // Managers see requests from their direct reports
+      else {
+        query = query
+          .eq('status', Status.EM_ANALISE_GESTOR)
+          .eq('requester.gestor_id', person.id);
+      }
+
+      const { data, error } = await query.order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching pending approvals:', error);
+        return;
+      }
+
+      // Transform the data to match Request type
+      const transformedData = (data || []).map(item => ({
+        id: item.id,
+        requesterId: item.requester_id,
+        tipo: item.tipo as TipoAusencia,
+        inicio: item.inicio ? new Date(item.inicio) : null,
+        fim: item.fim ? new Date(item.fim) : null,
+        justificativa: item.justificativa,
+        status: item.status as Status,
+        diasAbono: item.dias_abono,
+        createdAt: new Date(item.created_at),
+        updatedAt: new Date(item.updated_at),
+        conflitoFlag: item.conflito_flag,
+        requester: {
+          ...item.requester,
+          papel: item.requester.papel as any,
+          is_admin: false,
+          ativo: true
+        }
+      }));
+
+      setPendingApprovals(transformedData);
+    } catch (error) {
+      console.error('Error:', error);
+    } finally {
+      setApprovalsLoading(false);
+    }
+  };
+
+  const pendingRequests = userRequests.filter(req =>
     [Status.PENDENTE, Status.EM_ANALISE_GESTOR, Status.EM_ANALISE_DIRETOR].includes(req.status)
   );
   const approvedRequests = userRequests.filter(req => {
@@ -167,6 +231,8 @@ export const Dashboard = () => {
       setRequestToDelete(null);
     }
   };
+
+  const isManagerOrDirector = person?.papel === 'GESTOR' || person?.papel === 'DIRETOR' || person?.is_admin;
 
   const stats = [
     {
@@ -263,6 +329,32 @@ export const Dashboard = () => {
         </Card>
 
         <VacationBalance className="col-span-12 lg:col-span-3" />
+
+        {/* Pending Approvals Card - Only for Managers and Directors */}
+        {isManagerOrDirector && (
+          <Card className="col-span-12 lg:col-span-3">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Aguardando Aprovação</CardTitle>
+              <Inbox className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{approvalsLoading ? "..." : pendingApprovals.length}</div>
+              <p className="text-xs text-muted-foreground">
+                {pendingApprovals.length === 1 ? "solicitação pendente" : "solicitações pendentes"}
+              </p>
+              {pendingApprovals.length > 0 && (
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="mt-2 w-full"
+                  onClick={() => navigate('/inbox')}
+                >
+                  Ver Inbox
+                </Button>
+              )}
+            </CardContent>
+          </Card>
+        )}
         
         {/* Vacation Management Card - Only for Directors and Admins */}
         {(person?.papel === 'DIRETOR' || person?.is_admin) && (
