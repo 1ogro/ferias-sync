@@ -280,9 +280,9 @@ export const Dashboard = () => {
         </div>
       </div>
 
-      {/* Stats Grid with 1-1-1-3 layout */}
-      <div className="grid grid-cols-12 gap-6 mb-8">
-        <Card className="col-span-12 sm:col-span-6 lg:col-span-2">
+      {/* Stats Grid - Primeira Linha: 3 Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+        <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Solicitações Pendentes</CardTitle>
             <Clock className="h-4 w-4 text-muted-foreground" />
@@ -293,7 +293,7 @@ export const Dashboard = () => {
           </CardContent>
         </Card>
 
-        <Card className="col-span-12 sm:col-span-6 lg:col-span-2">
+        <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Aprovadas este Ano</CardTitle>
             <CheckCircle className="h-4 w-4 text-muted-foreground" />
@@ -304,7 +304,7 @@ export const Dashboard = () => {
           </CardContent>
         </Card>
 
-        <Card className="col-span-12 sm:col-span-6 lg:col-span-2">
+        <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Days Off Disponíveis</CardTitle>
             <Calendar className="h-4 w-4 text-muted-foreground" />
@@ -327,12 +327,15 @@ export const Dashboard = () => {
             )}
           </CardContent>
         </Card>
+      </div>
 
-        <VacationBalance className="col-span-12 lg:col-span-3" />
+      {/* Segunda Linha: 3 Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <VacationBalance />
 
         {/* Pending Approvals Card - Only for Managers and Directors */}
-        {isManagerOrDirector && (
-          <Card className="col-span-12 lg:col-span-3">
+        {isManagerOrDirector ? (
+          <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Aguardando Aprovação</CardTitle>
               <Inbox className="h-4 w-4 text-muted-foreground" />
@@ -354,11 +357,33 @@ export const Dashboard = () => {
               )}
             </CardContent>
           </Card>
+        ) : (
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Equipe</CardTitle>
+              <Users className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">—</div>
+              <p className="text-xs text-muted-foreground">informações da equipe</p>
+            </CardContent>
+          </Card>
         )}
         
-        {/* Vacation Management Card - Only for Directors and Admins */}
-        {(person?.papel === 'DIRETOR' || person?.is_admin) && (
-          <VacationSummaryCard className="col-span-12 lg:col-span-3" />
+        {/* Vacation Management Card - Only for Directors and Admins, or placeholder */}
+        {(person?.papel === 'DIRETOR' || person?.is_admin) ? (
+          <VacationSummaryCard />
+        ) : (
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Estatísticas</CardTitle>
+              <CalendarDays className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">—</div>
+              <p className="text-xs text-muted-foreground">dados estatísticos</p>
+            </CardContent>
+          </Card>
         )}
       </div>
 
