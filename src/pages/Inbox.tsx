@@ -18,28 +18,24 @@ const Inbox = () => {
   const [processingId, setProcessingId] = useState<string | null>(null);
 
   const fetchPendingRequests = async () => {
-    if (!person) return;
+    if (!person) {
+      console.log('No person found, skipping fetch');
+      return;
+    }
+
+    console.log('Fetching pending requests for:', person.nome, 'Role:', person.papel);
+    setLoading(true);
 
     try {
-      let query = supabase
+      // First, get all pending requests with requester info
+      const baseQuery = supabase
         .from('requests')
         .select(`
           *,
           requester:people!inner(id, nome, email, papel, gestor_id)
         `);
 
-      // Directors see all requests needing director approval
-      if (person.papel === 'DIRETOR' || person.is_admin) {
-        query = query.in('status', [Status.EM_ANALISE_DIRETOR, Status.EM_ANALISE_GESTOR]);
-      } 
-      // Managers see requests from their direct reports
-      else {
-        query = query
-          .eq('status', Status.EM_ANALISE_GESTOR)
-          .eq('requester.gestor_id', person.id);
-      }
-
-      const { data, error } = await query.order('created_at', { ascending: false });
+      let { data, error } = await baseQuery.order('created_at', { ascending: false });
 
       if (error) {
         console.error('Error fetching requests:', error);
@@ -51,30 +47,55 @@ const Inbox = () => {
         return;
       }
 
-      // Transform the data to match Request type
-      const transformedData = (data || []).map(item => ({
-        id: item.id,
-        requesterId: item.requester_id,
-        tipo: item.tipo as TipoAusencia,
-        inicio: item.inicio ? new Date(item.inicio) : null,
-        fim: item.fim ? new Date(item.fim) : null,
-        justificativa: item.justificativa,
-        status: item.status as Status,
-        diasAbono: item.dias_abono,
-        createdAt: new Date(item.created_at),
-        updatedAt: new Date(item.updated_at),
-        conflitoFlag: item.conflito_flag,
-        requester: {
-          ...item.requester,
-          papel: item.requester.papel as any,
-          is_admin: false,
-          ativo: true
-        }
-      }));
+      console.log('Raw data received:', data?.length || 0, 'requests');
 
+      // Filter data based on user role and status
+      let filteredData = data || [];
+
+      if (person.papel === 'DIRETOR' || person.is_admin) {
+        // Directors see all requests needing director approval
+        filteredData = filteredData.filter(item => 
+          [Status.EM_ANALISE_DIRETOR, Status.EM_ANALISE_GESTOR].includes(item.status as Status)
+        );
+        console.log('Director view: filtered to', filteredData.length, 'requests');
+      } else {
+        // Managers see requests from their direct reports that need manager approval
+        filteredData = filteredData.filter(item => 
+          item.status === Status.EM_ANALISE_GESTOR && 
+          item.requester.gestor_id === person.id
+        );
+        console.log('Manager view: filtered to', filteredData.length, 'requests for gestor_id:', person.id);
+      }
+
+      // Transform the data to match Request type
+      const transformedData = filteredData.map(item => {
+        console.log('Transforming request:', item.id, 'from:', item.requester.nome, 'status:', item.status);
+        return {
+          id: item.id,
+          requesterId: item.requester_id,
+          tipo: item.tipo as TipoAusencia,
+          inicio: item.inicio ? new Date(item.inicio) : null,
+          fim: item.fim ? new Date(item.fim) : null,
+          justificativa: item.justificativa,
+          status: item.status as Status,
+          diasAbono: item.dias_abono,
+          createdAt: new Date(item.created_at),
+          updatedAt: new Date(item.updated_at),
+          conflitoFlag: item.conflito_flag,
+          requester: {
+            ...item.requester,
+            papel: item.requester.papel as any,
+            is_admin: false,
+            ativo: true
+          }
+        };
+      });
+
+      console.log('Final transformed data:', transformedData.length, 'requests');
       setPendingRequests(transformedData);
+
     } catch (error) {
-      console.error('Error:', error);
+      console.error('Unexpected error fetching requests:', error);
       toast({
         title: "Erro",
         description: "Erro inesperado ao carregar solicitações",
@@ -85,20 +106,61 @@ const Inbox = () => {
     }
   };
 
+  // Add refresh functionality after component mounts
   useEffect(() => {
-    if (person) {
-      fetchPendingRequests();
-    }
+    const handleVisibilityChange = () => {
+      if (!document.hidden && person) {
+        console.log('Page became visible, refreshing inbox data');
+        fetchPendingRequests();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [person]);
 
   const handleApproval = async (requestId: string, action: 'approve' | 'reject' | 'ask_info') => {
-    if (!person || processingId) return;
+    if (!person || processingId) {
+      console.log('Approval blocked - no person or already processing');
+      return;
+    }
 
+    console.log('Processing approval:', { requestId, action, userRole: person.papel, userId: person.id });
     setProcessingId(requestId);
 
     try {
       const request = pendingRequests.find(r => r.id === requestId);
-      if (!request) return;
+      if (!request) {
+        console.error('Request not found in local state:', requestId);
+        toast({
+          title: "Erro",
+          description: "Solicitação não encontrada",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      console.log('Processing request:', {
+        id: request.id,
+        currentStatus: request.status,
+        requester: request.requester?.nome
+      });
+
+      // Validate permissions
+      const canApprove = (
+        (person.papel === 'DIRETOR' || person.is_admin) ||
+        (person.papel === 'GESTOR' && request.requester && 'gestor_id' in request.requester && (request.requester as any).gestor_id === person.id)
+      );
+
+      if (!canApprove) {
+        console.error('User lacks permission to approve this request');
+        toast({
+          title: "Erro",
+          description: "Você não tem permissão para aprovar esta solicitação",
+          variant: "destructive",
+        });
+        return;
+      }
 
       let newStatus: Status;
       let approvalAction: string;
@@ -121,13 +183,20 @@ const Inbox = () => {
         approvalAction = 'PEDIR_INFO';
       }
 
+      console.log('Status transition:', request.status, '->', newStatus);
+
       // Update request status
       const { error: updateError } = await supabase
         .from('requests')
         .update({ status: newStatus })
         .eq('id', requestId);
 
-      if (updateError) throw updateError;
+      if (updateError) {
+        console.error('Error updating request status:', updateError);
+        throw updateError;
+      }
+
+      console.log('Request status updated successfully');
 
       // Record approval action
       const { error: approvalError } = await supabase
@@ -140,10 +209,15 @@ const Inbox = () => {
           comentario: null
         });
 
-      if (approvalError) throw approvalError;
+      if (approvalError) {
+        console.error('Error recording approval:', approvalError);
+        throw approvalError;
+      }
+
+      console.log('Approval recorded successfully');
 
       // Create audit log
-      await supabase
+      const { error: auditError } = await supabase
         .from('audit_logs')
         .insert({
           entidade: 'requests',
@@ -153,19 +227,30 @@ const Inbox = () => {
           payload: { old_status: request.status, new_status: newStatus }
         });
 
+      if (auditError) {
+        console.warn('Error creating audit log (non-critical):', auditError);
+      }
+
       toast({
         title: "Sucesso",
         description: `Solicitação ${action === 'approve' ? 'aprovada' : action === 'reject' ? 'reprovada' : 'marcada para informações adicionais'} com sucesso`,
       });
 
-      // Refresh the list
-      fetchPendingRequests();
+      console.log('Approval process completed successfully');
+
+      // Refresh the list to show updated data
+      await fetchPendingRequests();
+
+      // Trigger a custom event to update other components
+      window.dispatchEvent(new CustomEvent('requestStatusUpdated', { 
+        detail: { requestId, newStatus, action } 
+      }));
 
     } catch (error) {
       console.error('Error processing approval:', error);
       toast({
         title: "Erro",
-        description: "Não foi possível processar a aprovação",
+        description: `Não foi possível processar a aprovação: ${error.message || 'Erro desconhecido'}`,
         variant: "destructive",
       });
     } finally {

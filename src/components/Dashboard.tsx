@@ -49,6 +49,22 @@ export const Dashboard = () => {
     }
   }, [person]);
 
+  // Listen for request status updates from other components (like Inbox)
+  useEffect(() => {
+    const handleRequestUpdate = () => {
+      console.log('Request status updated, refreshing dashboard data');
+      if (person) {
+        fetchUserRequests();
+        if (person.papel === 'GESTOR' || person.papel === 'DIRETOR' || person.is_admin) {
+          fetchPendingApprovals();
+        }
+      }
+    };
+
+    window.addEventListener('requestStatusUpdated', handleRequestUpdate);
+    return () => window.removeEventListener('requestStatusUpdated', handleRequestUpdate);
+  }, [person]);
+
   const fetchUserRequests = async () => {
     if (!person) return;
     
@@ -95,33 +111,38 @@ export const Dashboard = () => {
     if (!person) return;
 
     try {
-      let query = supabase
+      // First get all requests with requester info
+      let { data: requestsData, error: requestsError } = await supabase
         .from('requests')
         .select(`
           *,
           requester:people!inner(id, nome, email, papel, gestor_id)
-        `);
+        `)
+        .order('created_at', { ascending: false });
 
-      // Directors see all requests needing director approval
-      if (person.papel === 'DIRETOR' || person.is_admin) {
-        query = query.in('status', [Status.EM_ANALISE_DIRETOR, Status.EM_ANALISE_GESTOR]);
-      } 
-      // Managers see requests from their direct reports
-      else {
-        query = query
-          .eq('status', Status.EM_ANALISE_GESTOR)
-          .eq('requester.gestor_id', person.id);
-      }
-
-      const { data, error } = await query.order('created_at', { ascending: false });
-
-      if (error) {
-        console.error('Error fetching pending approvals:', error);
+      if (requestsError) {
+        console.error('Error fetching pending approvals:', requestsError);
         return;
       }
 
+      // Filter based on role
+      let filteredData = requestsData || [];
+
+      if (person.papel === 'DIRETOR' || person.is_admin) {
+        // Directors see all requests needing director approval
+        filteredData = filteredData.filter(item => 
+          [Status.EM_ANALISE_DIRETOR, Status.EM_ANALISE_GESTOR].includes(item.status as Status)
+        );
+      } else {
+        // Managers see requests from their direct reports
+        filteredData = filteredData.filter(item => 
+          item.status === Status.EM_ANALISE_GESTOR && 
+          item.requester.gestor_id === person.id
+        );
+      }
+
       // Transform the data to match Request type
-      const transformedData = (data || []).map(item => ({
+      const transformedData = filteredData.map(item => ({
         id: item.id,
         requesterId: item.requester_id,
         tipo: item.tipo as TipoAusencia,
