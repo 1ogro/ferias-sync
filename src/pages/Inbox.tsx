@@ -106,6 +106,17 @@ const Inbox = () => {
     }
   };
 
+  // Fetch requests when component mounts or person changes
+  useEffect(() => {
+    if (person) {
+      console.log('Person available, fetching pending requests');
+      fetchPendingRequests();
+    } else {
+      console.log('No person found, setting loading to false');
+      setLoading(false);
+    }
+  }, [person]);
+
   // Add refresh functionality after component mounts
   useEffect(() => {
     const handleVisibilityChange = () => {
