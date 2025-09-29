@@ -9,6 +9,7 @@ import { MedicalLeaveForm } from "@/components/MedicalLeaveForm";
 import { MedicalLeaveList } from "@/components/MedicalLeaveList";
 
 import { TeamCapacityDashboard } from "@/components/TeamCapacityDashboard";
+import { ApprovedVacationsExecutiveView } from "@/components/ApprovedVacationsExecutiveView";
 import { HistoricalRequestForm } from "@/components/HistoricalRequestForm";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -730,8 +731,21 @@ const VacationManagement = () => {
           </TabsContent>
 
           {/* Executive Dashboard Tab */}
-          <TabsContent value="dashboard">
-            <TeamCapacityDashboard />
+          <TabsContent value="dashboard" className="space-y-6">
+            <Tabs defaultValue="capacity" className="w-full">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="capacity">Capacidade de Times</TabsTrigger>
+                <TabsTrigger value="vacations">Férias Aprovadas</TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="capacity" className="mt-6">
+                <TeamCapacityDashboard />
+              </TabsContent>
+              
+              <TabsContent value="vacations" className="mt-6">
+                <ApprovedVacationsExecutiveView />
+              </TabsContent>
+            </Tabs>
           </TabsContent>
 
           {/* Historical Requests Tab */}
