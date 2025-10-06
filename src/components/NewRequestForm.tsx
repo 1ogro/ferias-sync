@@ -333,6 +333,33 @@ export const NewRequestForm = () => {
           actor_id: person.id
         });
 
+      // Send email notification to manager (if not auto-approved)
+      if (!isDirector && person.gestorId) {
+        try {
+          const { data: managerData } = await supabase
+            .from('people')
+            .select('email')
+            .eq('id', person.gestorId)
+            .single();
+
+          if (managerData?.email) {
+            await supabase.functions.invoke('send-notification-email', {
+              body: {
+                type: 'NEW_REQUEST',
+                to: managerData.email,
+                requesterName: person.nome,
+                requestType: formData.tipo,
+                startDate: new Date(formData.inicio).toLocaleDateString('pt-BR'),
+                endDate: new Date(formData.fim).toLocaleDateString('pt-BR'),
+              }
+            });
+          }
+        } catch (emailError) {
+          console.error('Error sending email notification:', emailError);
+          // Don't block the flow if email fails
+        }
+      }
+
       toast({
         title: isDirector ? "Solicitação aprovada automaticamente!" : "Solicitação enviada!",
         description: isDirector ? "Sua solicitação foi aprovada automaticamente devido ao seu cargo." : "Seu gestor receberá uma notificação para aprovação.",

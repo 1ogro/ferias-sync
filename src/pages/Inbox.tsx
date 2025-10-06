@@ -242,6 +242,44 @@ const Inbox = () => {
         console.warn('Error creating audit log (non-critical):', auditError);
       }
 
+      // Send email notification to requester
+      try {
+        const { data: requesterData } = await supabase
+          .from('people')
+          .select('email')
+          .eq('id', request.requesterId)
+          .single();
+
+        if (requesterData?.email) {
+          let notificationType: 'APPROVAL_MANAGER' | 'APPROVAL_FINAL' | 'REJECTION' | 'REQUEST_INFO';
+          
+          if (action === 'reject') {
+            notificationType = 'REJECTION';
+          } else if (action === 'ask_info') {
+            notificationType = 'REQUEST_INFO';
+          } else if (newStatus === Status.APROVADO_FINAL) {
+            notificationType = 'APPROVAL_FINAL';
+          } else {
+            notificationType = 'APPROVAL_MANAGER';
+          }
+
+          await supabase.functions.invoke('send-notification-email', {
+            body: {
+              type: notificationType,
+              to: requesterData.email,
+              requesterName: request.requester?.nome || '',
+              requestType: request.tipo,
+              startDate: request.inicio ? new Date(request.inicio).toLocaleDateString('pt-BR') : undefined,
+              endDate: request.fim ? new Date(request.fim).toLocaleDateString('pt-BR') : undefined,
+              approverName: person.nome,
+            }
+          });
+        }
+      } catch (emailError) {
+        console.error('Error sending email notification:', emailError);
+        // Don't block the flow if email fails
+      }
+
       toast({
         title: "Sucesso",
         description: `Solicitação ${action === 'approve' ? 'aprovada' : action === 'reject' ? 'reprovada' : 'marcada para informações adicionais'} com sucesso`,
