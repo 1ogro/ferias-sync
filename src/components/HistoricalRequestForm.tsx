@@ -5,12 +5,16 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { CalendarIcon } from "lucide-react";
+import { CalendarIcon, Baby } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { validateMaternityLeave, calculateMaternityEndDate, calculateExpectedDeliveryDate } from "@/lib/maternityLeaveUtils";
+import { MaternityLeaveValidation } from "@/lib/types";
 
 interface FormData {
   requesterId: string;
@@ -22,6 +26,9 @@ interface FormData {
   originalChannel: string;
   adminObservations: string;
   finalStatus: Status;
+  data_prevista_parto?: string;
+  is_contract_exception?: boolean;
+  contract_exception_justification?: string;
 }
 
 import { Status, TipoAusencia } from "@/lib/types";
@@ -76,10 +83,52 @@ export const HistoricalRequestForm = ({ onSuccess }: HistoricalRequestFormProps)
   const [startDate, setStartDate] = useState<Date>();
   const [endDate, setEndDate] = useState<Date>();
   const [originalDate, setOriginalDate] = useState<Date>();
+  const [maternityValidation, setMaternityValidation] = useState<MaternityLeaveValidation | null>(null);
+  const [expectedDeliveryDate, setExpectedDeliveryDate] = useState<Date>();
 
   useEffect(() => {
     fetchPeople();
   }, []);
+
+  // Validar licença maternidade quando tipo, início ou data prevista mudam
+  useEffect(() => {
+    if (
+      formData.tipo === TipoAusencia.LICENCA_MATERNIDADE &&
+      formData.requesterId &&
+      formData.inicio
+    ) {
+      validateMaternityLeave(formData.requesterId, new Date(formData.inicio))
+        .then(validation => {
+          setMaternityValidation(validation);
+          
+          if (validation.valid && validation.total_days) {
+            // Auto-calcular data fim
+            const endDate = calculateMaternityEndDate(
+              new Date(formData.inicio),
+              validation.total_days
+            );
+            setEndDate(endDate);
+            setFormData(prev => ({
+              ...prev,
+              fim: endDate.toISOString().split('T')[0]
+            }));
+
+            // Calcular data prevista do parto se não foi informada
+            if (!formData.data_prevista_parto) {
+              const expectedDelivery = calculateExpectedDeliveryDate(new Date(formData.inicio));
+              setExpectedDeliveryDate(expectedDelivery);
+              setFormData(prev => ({
+                ...prev,
+                data_prevista_parto: expectedDelivery.toISOString().split('T')[0]
+              }));
+            }
+          }
+        })
+        .catch(error => {
+          console.error('Validation error:', error);
+        });
+    }
+  }, [formData.tipo, formData.requesterId, formData.inicio]);
 
   const fetchPeople = async () => {
     try {
@@ -141,7 +190,13 @@ export const HistoricalRequestForm = ({ onSuccess }: HistoricalRequestFormProps)
           is_historical: true,
           original_created_at: formData.originalDate,
           original_channel: formData.originalChannel,
-          admin_observations: formData.adminObservations
+          admin_observations: formData.adminObservations,
+          // Campos específicos de licença maternidade
+          ...(formData.tipo === TipoAusencia.LICENCA_MATERNIDADE && {
+            data_prevista_parto: formData.data_prevista_parto,
+            is_contract_exception: formData.is_contract_exception || false,
+            contract_exception_justification: formData.contract_exception_justification
+          })
         })
         .select()
         .single();
@@ -197,11 +252,16 @@ export const HistoricalRequestForm = ({ onSuccess }: HistoricalRequestFormProps)
         originalDate: "",
         originalChannel: "",
         adminObservations: "",
-        finalStatus: Status.APROVADO_FINAL
+        finalStatus: Status.APROVADO_FINAL,
+        data_prevista_parto: undefined,
+        is_contract_exception: false,
+        contract_exception_justification: undefined
       });
       setStartDate(undefined);
       setEndDate(undefined);
       setOriginalDate(undefined);
+      setExpectedDeliveryDate(undefined);
+      setMaternityValidation(null);
       
       onSuccess?.();
     } catch (error: any) {
@@ -257,6 +317,7 @@ export const HistoricalRequestForm = ({ onSuccess }: HistoricalRequestFormProps)
                 <SelectContent>
                   <SelectItem value={TipoAusencia.FERIAS}>Férias</SelectItem>
                   <SelectItem value={TipoAusencia.DAYOFF}>Day Off</SelectItem>
+                  <SelectItem value={TipoAusencia.LICENCA_MATERNIDADE}>Licença Maternidade</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -326,6 +387,84 @@ export const HistoricalRequestForm = ({ onSuccess }: HistoricalRequestFormProps)
             <div className="text-sm text-muted-foreground">
               Duração: {calculateDays()} dias
             </div>
+          )}
+
+          {/* Campos específicos de licença maternidade */}
+          {formData.tipo === TipoAusencia.LICENCA_MATERNIDADE && (
+            <>
+              <div className="space-y-2">
+                <Label htmlFor="expectedDelivery">Data Prevista do Parto *</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "w-full justify-start text-left font-normal",
+                        !expectedDeliveryDate && "text-muted-foreground"
+                      )}
+                    >
+                      <Baby className="mr-2 h-4 w-4" />
+                      {expectedDeliveryDate ? format(expectedDeliveryDate, "dd/MM/yyyy", { locale: ptBR }) : "Data prevista do parto"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0">
+                    <Calendar
+                      mode="single"
+                      selected={expectedDeliveryDate}
+                      onSelect={(date) => {
+                        setExpectedDeliveryDate(date);
+                        setFormData({ ...formData, data_prevista_parto: date ? date.toISOString().split('T')[0] : '' });
+                      }}
+                      locale={ptBR}
+                      className="pointer-events-auto"
+                    />
+                  </PopoverContent>
+                </Popover>
+                <p className="text-sm text-muted-foreground">
+                  Necessário para validação dos 120 dias da CLT
+                </p>
+              </div>
+
+              {maternityValidation && maternityValidation.valid && (
+                <Alert>
+                  <AlertDescription>
+                    <strong>Duração da Licença:</strong> {maternityValidation.total_days} dias
+                    <br />
+                    <span className="text-muted-foreground">
+                      (120 dias CLT {maternityValidation.extension_days > 0 && `+ ${maternityValidation.extension_days} dias de extensão contratual`})
+                    </span>
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="contractException"
+                  checked={formData.is_contract_exception}
+                  onCheckedChange={(checked) => 
+                    setFormData({ ...formData, is_contract_exception: checked as boolean })
+                  }
+                />
+                <Label htmlFor="contractException">
+                  Esta licença tem extensão contratual além dos 120 dias da CLT
+                </Label>
+              </div>
+
+              {formData.is_contract_exception && (
+                <div className="space-y-2">
+                  <Label htmlFor="contractExceptionJustification">
+                    Justificativa da Extensão Contratual *
+                  </Label>
+                  <Textarea
+                    id="contractExceptionJustification"
+                    placeholder="Descreva o motivo da extensão além dos 120 dias da CLT"
+                    value={formData.contract_exception_justification}
+                    onChange={(e) => setFormData({ ...formData, contract_exception_justification: e.target.value })}
+                    required={formData.is_contract_exception}
+                  />
+                </div>
+              )}
+            </>
           )}
 
           <div className="space-y-2">
@@ -433,18 +572,33 @@ export const HistoricalRequestForm = ({ onSuccess }: HistoricalRequestFormProps)
                   originalDate: "",
                   originalChannel: "",
                   adminObservations: "",
-                  finalStatus: Status.APROVADO_FINAL
+                  finalStatus: Status.APROVADO_FINAL,
+                  data_prevista_parto: undefined,
+                  is_contract_exception: false,
+                  contract_exception_justification: undefined
                 });
                 setStartDate(undefined);
                 setEndDate(undefined);
                 setOriginalDate(undefined);
+                setExpectedDeliveryDate(undefined);
+                setMaternityValidation(null);
               }}
             >
               Limpar Formulário
             </Button>
             <Button 
               type="submit" 
-              disabled={isSubmitting || !formData.requesterId || !formData.tipo || !formData.inicio || !formData.fim || !formData.originalChannel || !formData.originalDate}
+              disabled={
+                isSubmitting || 
+                !formData.requesterId || 
+                !formData.tipo || 
+                !formData.inicio || 
+                !formData.fim || 
+                !formData.originalChannel || 
+                !formData.originalDate ||
+                (formData.tipo === TipoAusencia.LICENCA_MATERNIDADE && !formData.data_prevista_parto) ||
+                (formData.is_contract_exception && !formData.contract_exception_justification)
+              }
             >
               {isSubmitting ? "Registrando..." : "Registrar Solicitação"}
             </Button>
