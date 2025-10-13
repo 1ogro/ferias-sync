@@ -25,7 +25,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, Download, Users, Clock, TrendingUp } from "lucide-react";
+import { Calendar, Download, Users, Clock, TrendingUp, Briefcase, Baby } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -40,6 +40,8 @@ interface ApprovedVacation {
   status: string;
   approver_name: string;
   approval_date: string;
+  tipo: string;
+  data_prevista_parto?: string;
 }
 
 interface FilterOptions {
@@ -63,20 +65,23 @@ export function ApprovedVacationsExecutiveView() {
   const [selectedManager, setSelectedManager] = useState<string>("all");
   const [selectedTeam, setSelectedTeam] = useState<string>("all");
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
+  const [selectedType, setSelectedType] = useState<string>("all");
 
   const loadApprovedVacations = async () => {
     try {
       setLoading(true);
       
-      // Query para buscar férias aprovadas com informações dos gestores
+      // Query para buscar férias e licenças maternidade aprovadas com informações dos gestores
       const { data: vacationsData, error } = await supabase
         .from('requests')
         .select(`
           id,
           inicio,
           fim,
+          tipo,
           status,
           created_at,
+          data_prevista_parto,
           people!requests_requester_id_fkey (
             id,
             nome,
@@ -92,7 +97,7 @@ export function ApprovedVacationsExecutiveView() {
             )
           )
         `)
-        .eq('tipo', 'FERIAS')
+        .in('tipo', ['FERIAS', 'LICENCA_MATERNIDADE'])
         .in('status', ['APROVADO_FINAL', 'REALIZADO'])
         .not('inicio', 'is', null)
         .not('fim', 'is', null)
@@ -118,7 +123,9 @@ export function ApprovedVacationsExecutiveView() {
           vacation_days: vacationDays,
           status: vacation.status,
           approver_name: finalApproval?.people?.nome || 'Sistema',
-          approval_date: finalApproval?.created_at || vacation.created_at
+          approval_date: finalApproval?.created_at || vacation.created_at,
+          tipo: vacation.tipo,
+          data_prevista_parto: vacation.data_prevista_parto
         };
       }) || [];
 
@@ -162,16 +169,23 @@ export function ApprovedVacationsExecutiveView() {
       const matchesManager = selectedManager === 'all' || vacation.approver_name === selectedManager;
       const matchesTeam = selectedTeam === 'all' || vacation.requester_sub_time === selectedTeam;
       const matchesStatus = selectedStatus === 'all' || vacation.status === selectedStatus;
+      const matchesType = selectedType === 'all' || vacation.tipo === selectedType;
 
-      return matchesSearch && matchesMonth && matchesYear && matchesManager && matchesTeam && matchesStatus;
+      return matchesSearch && matchesMonth && matchesYear && matchesManager && matchesTeam && matchesStatus && matchesType;
     });
-  }, [vacations, searchTerm, selectedMonth, selectedYear, selectedManager, selectedTeam, selectedStatus]);
+  }, [vacations, searchTerm, selectedMonth, selectedYear, selectedManager, selectedTeam, selectedStatus, selectedType]);
 
   // Estatísticas
   const stats = useMemo(() => {
+    const vacations = filteredVacations.filter(v => v.tipo === 'FERIAS');
+    const maternityLeaves = filteredVacations.filter(v => v.tipo === 'LICENCA_MATERNIDADE');
+    
     return {
-      totalVacations: filteredVacations.length,
+      totalVacations: vacations.length,
+      totalMaternityLeaves: maternityLeaves.length,
       totalDays: filteredVacations.reduce((sum, v) => sum + v.vacation_days, 0),
+      vacationDays: vacations.reduce((sum, v) => sum + v.vacation_days, 0),
+      maternityDays: maternityLeaves.reduce((sum, v) => sum + v.vacation_days, 0),
       byTeam: filteredVacations.reduce((acc, v) => {
         acc[v.requester_sub_time] = (acc[v.requester_sub_time] || 0) + 1;
         return acc;
@@ -185,10 +199,11 @@ export function ApprovedVacationsExecutiveView() {
 
   const exportToCSV = () => {
     const headers = [
-      'Colaborador', 'Cargo', 'Time', 'Início', 'Fim', 'Dias', 'Status', 'Aprovador', 'Data Aprovação'
+      'Tipo', 'Colaborador', 'Cargo', 'Time', 'Início', 'Fim', 'Dias', 'Status', 'Aprovador', 'Data Aprovação'
     ];
     
     const csvData = filteredVacations.map(vacation => [
+      vacation.tipo === 'FERIAS' ? 'Férias' : 'Licença Maternidade',
       vacation.requester_name,
       vacation.requester_cargo,
       vacation.requester_sub_time,
@@ -207,7 +222,7 @@ export function ApprovedVacationsExecutiveView() {
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = `ferias_aprovadas_${selectedMonth}_${selectedYear}.csv`;
+    link.download = `ausencias_aprovadas_${selectedMonth}_${selectedYear}.csv`;
     link.click();
   };
 
@@ -226,29 +241,42 @@ export function ApprovedVacationsExecutiveView() {
   return (
     <div className="space-y-6">
       {/* Cards de Estatísticas */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Férias Aprovadas</CardTitle>
-            <Calendar className="h-4 w-4 text-muted-foreground" />
+            <Briefcase className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.totalVacations}</div>
             <p className="text-xs text-muted-foreground">
-              no período selecionado
+              {stats.vacationDays} dias
             </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Dias Totais</CardTitle>
+            <CardTitle className="text-sm font-medium">Lic. Maternidade</CardTitle>
+            <Baby className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.totalMaternityLeaves}</div>
+            <p className="text-xs text-muted-foreground">
+              {stats.maternityDays} dias
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total de Dias</CardTitle>
             <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.totalDays}</div>
             <p className="text-xs text-muted-foreground">
-              dias de férias aprovados
+              dias aprovados
             </p>
           </CardContent>
         </Card>
@@ -268,15 +296,17 @@ export function ApprovedVacationsExecutiveView() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Média por Aprovação</CardTitle>
+            <CardTitle className="text-sm font-medium">Média por Ausência</CardTitle>
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {stats.totalVacations > 0 ? Math.round(stats.totalDays / stats.totalVacations) : 0}
+              {(stats.totalVacations + stats.totalMaternityLeaves) > 0 
+                ? Math.round(stats.totalDays / (stats.totalVacations + stats.totalMaternityLeaves)) 
+                : 0}
             </div>
             <p className="text-xs text-muted-foreground">
-              dias por férias
+              dias por ausência
             </p>
           </CardContent>
         </Card>
@@ -288,12 +318,23 @@ export function ApprovedVacationsExecutiveView() {
           <CardTitle>Filtros</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-7 gap-4">
             <Input
               placeholder="Buscar colaborador..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
+            
+            <Select value={selectedType} onValueChange={setSelectedType}>
+              <SelectTrigger>
+                <SelectValue placeholder="Tipo" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos os tipos</SelectItem>
+                <SelectItem value="FERIAS">Férias</SelectItem>
+                <SelectItem value="LICENCA_MATERNIDADE">Licença Maternidade</SelectItem>
+              </SelectContent>
+            </Select>
             
             <Select value={selectedMonth.toString()} onValueChange={(value) => setSelectedMonth(parseInt(value))}>
               <SelectTrigger>
@@ -363,7 +404,7 @@ export function ApprovedVacationsExecutiveView() {
           
           <div className="flex justify-between items-center mt-4">
             <p className="text-sm text-muted-foreground">
-              {filteredVacations.length} férias encontradas
+              {filteredVacations.length} ausência{filteredVacations.length !== 1 ? 's' : ''} encontrada{filteredVacations.length !== 1 ? 's' : ''}
             </p>
             <Button onClick={exportToCSV} variant="outline" size="sm">
               <Download className="w-4 h-4 mr-2" />
@@ -373,16 +414,17 @@ export function ApprovedVacationsExecutiveView() {
         </CardContent>
       </Card>
 
-      {/* Tabela de Férias Aprovadas */}
+      {/* Tabela de Ausências Aprovadas */}
       <Card>
         <CardHeader>
-          <CardTitle>Férias Aprovadas</CardTitle>
+          <CardTitle>Ausências Aprovadas</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="rounded-md border">
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead>Tipo</TableHead>
                   <TableHead>Colaborador</TableHead>
                   <TableHead>Cargo</TableHead>
                   <TableHead>Time</TableHead>
@@ -396,13 +438,28 @@ export function ApprovedVacationsExecutiveView() {
               <TableBody>
                 {filteredVacations.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-6">
-                      Nenhuma féria aprovada encontrada para os filtros selecionados.
+                    <TableCell colSpan={9} className="text-center py-6">
+                      Nenhuma ausência aprovada encontrada para os filtros selecionados.
                     </TableCell>
                   </TableRow>
                 ) : (
                   filteredVacations.map((vacation) => (
                     <TableRow key={vacation.id}>
+                      <TableCell>
+                        <Badge variant={vacation.tipo === 'LICENCA_MATERNIDADE' ? 'secondary' : 'outline'} className="flex items-center gap-1 w-fit">
+                          {vacation.tipo === 'LICENCA_MATERNIDADE' ? (
+                            <>
+                              <Baby className="w-3 h-3" />
+                              Lic. Maternidade
+                            </>
+                          ) : (
+                            <>
+                              <Briefcase className="w-3 h-3" />
+                              Férias
+                            </>
+                          )}
+                        </Badge>
+                      </TableCell>
                       <TableCell className="font-medium">
                         {vacation.requester_name}
                       </TableCell>
