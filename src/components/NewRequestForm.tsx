@@ -7,9 +7,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { TipoAusencia, ModeloContrato, Status } from "@/lib/types";
+import { TipoAusencia, ModeloContrato, Status, MaternityLeaveValidation } from "@/lib/types";
 import { parseDateSafely } from "@/lib/dateUtils";
-import { Calendar, AlertTriangle, CheckCircle, DollarSign } from "lucide-react";
+import { Calendar, AlertTriangle, CheckCircle, DollarSign, Baby } from "lucide-react";
+import { validateMaternityLeave, calculateMaternityEndDate } from "@/lib/maternityLeaveUtils";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -22,6 +23,9 @@ interface FormData {
   fim: string;
   justificativa: string;
   dias_abono: number;
+  data_prevista_parto?: string;
+  is_contract_exception?: boolean;
+  contract_exception_justification?: string;
 }
 
 export const NewRequestForm = () => {
@@ -33,7 +37,10 @@ export const NewRequestForm = () => {
     inicio: "",
     fim: "", 
     justificativa: "",
-    dias_abono: 0
+    dias_abono: 0,
+    data_prevista_parto: "",
+    is_contract_exception: false,
+    contract_exception_justification: ""
   });
   const [conflicts, setConflicts] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -45,6 +52,7 @@ export const NewRequestForm = () => {
     message: string;
     availableBalance?: number;
   }>({ valid: true, message: "" });
+  const [maternityValidation, setMaternityValidation] = useState<MaternityLeaveValidation | null>(null);
 
   // Helper function to check if user can use abonos
   const canUseAbonos = () => {
@@ -235,6 +243,13 @@ export const NewRequestForm = () => {
         newData.dias_abono = 0;
       }
       
+      // Reset maternity fields when changing from maternity leave
+      if (field === "tipo" && value !== TipoAusencia.LICENCA_MATERNIDADE) {
+        newData.data_prevista_parto = "";
+        newData.is_contract_exception = false;
+        newData.contract_exception_justification = "";
+      }
+      
       return newData;
     });
     
@@ -246,6 +261,28 @@ export const NewRequestForm = () => {
       checkDayOffUsage().then(setDayOffAlreadyUsed);
     }
   };
+  
+  // Validate maternity leave when dates change
+  useEffect(() => {
+    if (formData.tipo === TipoAusencia.LICENCA_MATERNIDADE && formData.inicio && person) {
+      validateMaternityLeave(person.id, new Date(formData.inicio))
+        .then(validation => {
+          setMaternityValidation(validation);
+          if (validation.valid && validation.total_days) {
+            // Auto-calculate end date
+            const endDate = calculateMaternityEndDate(
+              new Date(formData.inicio),
+              validation.total_days
+            );
+            setFormData(prev => ({
+              ...prev,
+              fim: endDate.toISOString().split('T')[0],
+              is_contract_exception: (validation.extension_days || 0) > 0
+            }));
+          }
+        });
+    }
+  }, [formData.tipo, formData.inicio, person]);
 
   const calculateDays = () => {
     if (formData.inicio && formData.fim) {
@@ -299,6 +336,9 @@ export const NewRequestForm = () => {
           conflito_flag: conflicts.length > 0,
           conflito_refs: conflicts.length > 0 ? conflicts.join(',') : null,
           dias_abono: formData.dias_abono,
+          data_prevista_parto: formData.data_prevista_parto || null,
+          is_contract_exception: formData.is_contract_exception || false,
+          contract_exception_justification: formData.contract_exception_justification || null,
           status: initialStatus,
         })
         .select()
@@ -439,7 +479,8 @@ export const NewRequestForm = () => {
   const dayOffValidation = validateDayOff();
   const isFormValid = formData.tipo && formData.inicio && formData.fim && formData.justificativa &&
     dayOffValidation.isValid && !dayOffAlreadyUsed &&
-    (formData.tipo === TipoAusencia.DAYOFF || vacationValidation.valid);
+    (formData.tipo === TipoAusencia.DAYOFF || vacationValidation.valid) &&
+    (formData.tipo !== TipoAusencia.LICENCA_MATERNIDADE || (maternityValidation?.valid && formData.data_prevista_parto));
 
   return (
     <div className="max-w-2xl mx-auto">
@@ -465,9 +506,75 @@ export const NewRequestForm = () => {
                 <SelectContent>
                   <SelectItem value={TipoAusencia.FERIAS}>Férias</SelectItem>
                   <SelectItem value={TipoAusencia.DAYOFF}>Day Off</SelectItem>
+                  <SelectItem value={TipoAusencia.LICENCA_MATERNIDADE}>Licença Maternidade</SelectItem>
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Maternity Leave Expected Delivery Date */}
+            {formData.tipo === TipoAusencia.LICENCA_MATERNIDADE && (
+              <div className="space-y-4 p-4 bg-pink-50 dark:bg-pink-950/20 rounded-lg border border-pink-200 dark:border-pink-900">
+                <div className="flex items-center gap-2 mb-2">
+                  <Baby className="w-5 h-5 text-pink-600" />
+                  <Label className="text-base font-medium">Informações da Licença Maternidade</Label>
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="data_prevista_parto">Data Prevista do Parto *</Label>
+                  <Input
+                    id="data_prevista_parto"
+                    type="date"
+                    value={formData.data_prevista_parto}
+                    onChange={(e) => handleInputChange("data_prevista_parto", e.target.value)}
+                    min={new Date().toISOString().split('T')[0]}
+                  />
+                  <p className="text-sm text-muted-foreground">
+                    A licença pode iniciar até 28 dias antes do parto previsto
+                  </p>
+                </div>
+                
+                {maternityValidation && maternityValidation.valid && (
+                  <Alert className="bg-white dark:bg-background">
+                    <CheckCircle className="w-4 h-4 text-green-600" />
+                    <AlertDescription>
+                      <div className="space-y-1">
+                        <p><strong>Duração da Licença:</strong> {maternityValidation.total_days} dias</p>
+                        <p className="text-sm text-muted-foreground">
+                          • {maternityValidation.clt_days} dias (CLT)
+                          {(maternityValidation.extension_days || 0) > 0 && (
+                            <span> + {maternityValidation.extension_days} dias (extensão contratual)</span>
+                          )}
+                        </p>
+                      </div>
+                    </AlertDescription>
+                  </Alert>
+                )}
+                
+                {maternityValidation?.valid === false && (
+                  <Alert variant="destructive">
+                    <AlertTriangle className="w-4 h-4" />
+                    <AlertDescription>
+                      {maternityValidation.message}
+                    </AlertDescription>
+                  </Alert>
+                )}
+                
+                {maternityValidation && (maternityValidation.extension_days || 0) > 0 && (
+                  <div className="space-y-2">
+                    <Label htmlFor="contract_exception_justification">
+                      Justificativa para Extensão Contratual *
+                    </Label>
+                    <Textarea
+                      id="contract_exception_justification"
+                      value={formData.contract_exception_justification}
+                      onChange={(e) => handleInputChange("contract_exception_justification", e.target.value)}
+                      placeholder="Descreva o motivo da extensão além dos 120 dias da CLT..."
+                      rows={2}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Date Range */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -477,6 +584,11 @@ export const NewRequestForm = () => {
                   {formData.tipo === TipoAusencia.DAYOFF && person?.data_nascimento && (
                     <span className="text-sm text-muted-foreground ml-2">
                       (Day Off disponível a partir de {new Date(new Date().getFullYear(), new Date(person.data_nascimento).getMonth(), new Date(person.data_nascimento).getDate()).toLocaleDateString('pt-BR')})
+                    </span>
+                  )}
+                  {formData.tipo === TipoAusencia.LICENCA_MATERNIDADE && (
+                    <span className="text-sm text-muted-foreground ml-2">
+                      (Até 28 dias antes do parto)
                     </span>
                   )}
                 </Label>
@@ -489,14 +601,19 @@ export const NewRequestForm = () => {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="fim">Data de Fim *</Label>
+                <Label htmlFor="fim">
+                  Data de Fim * 
+                  {formData.tipo === TipoAusencia.LICENCA_MATERNIDADE && (
+                    <span className="text-sm text-muted-foreground ml-2">(Calculado automaticamente)</span>
+                  )}
+                </Label>
                 <Input
                   id="fim"
                   type="date"
                   value={formData.fim}
                   onChange={(e) => handleInputChange("fim", e.target.value)}
                   min={formData.inicio || new Date().toISOString().split('T')[0]}
-                  disabled={formData.tipo === TipoAusencia.DAYOFF}
+                  disabled={formData.tipo === TipoAusencia.DAYOFF || formData.tipo === TipoAusencia.LICENCA_MATERNIDADE}
                 />
               </div>
             </div>

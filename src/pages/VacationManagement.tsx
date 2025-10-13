@@ -89,6 +89,7 @@ const VacationManagement = () => {
   const [selectedPerson, setSelectedPerson] = useState<VacationData | null>(null);
   const [contractDate, setContractDate] = useState("");
   const [contractModel, setContractModel] = useState<ModeloContrato>(ModeloContrato.CLT);
+  const [maternityExtensionDays, setMaternityExtensionDays] = useState<number>(0);
   const [manualAccruedDays, setManualAccruedDays] = useState("");
   const [manualUsedDays, setManualUsedDays] = useState("");
   const [manualJustification, setManualJustification] = useState("");
@@ -222,6 +223,7 @@ const VacationManagement = () => {
     const updateData: any = {};
     const originalContractDate = selectedPerson.person.data_contrato || "";
     const originalContractModel = selectedPerson.person.modelo_contrato || ModeloContrato.CLT;
+    const originalMaternityExtension = (selectedPerson.person as any).maternity_extension_days || 0;
 
     // Check what fields have changed
     if (contractDate !== originalContractDate) {
@@ -230,6 +232,10 @@ const VacationManagement = () => {
 
     if (contractModel !== originalContractModel) {
       updateData.modelo_contrato = contractModel;
+    }
+    
+    if (maternityExtensionDays !== originalMaternityExtension) {
+      updateData.maternity_extension_days = maternityExtensionDays;
     }
 
     // Only proceed if there are changes
@@ -809,6 +815,22 @@ const VacationManagement = () => {
                    {contractModel === 'CLT_ABONO_FIXO' && "Permite venda de 0 ou 10 dias (valor fixo)"}
                    {contractModel === 'PJ' && "Pessoa Jurídica não tem direito a abono de férias"}
                    {contractModel === 'CLT' && "CLT padrão sem abono de férias"}
+                 </div>
+               </div>
+               <div>
+                 <label htmlFor="maternity-extension" className="block text-sm font-medium mb-2">
+                   Extensão Licença Maternidade (dias além de 120)
+                 </label>
+                 <Input
+                   id="maternity-extension"
+                   type="number"
+                   min="0"
+                   max="60"
+                   value={maternityExtensionDays}
+                   onChange={(e) => setMaternityExtensionDays(parseInt(e.target.value) || 0)}
+                 />
+                 <div className="text-xs text-muted-foreground mt-1">
+                   Dias adicionais além dos 120 dias da CLT (Máx: 60 dias)
                  </div>
                </div>
             </div>

@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "./StatusBadge";
-import { Calendar, AlertTriangle, Edit, Eye, Trash2, DollarSign } from "lucide-react";
+import { Calendar, AlertTriangle, Edit, Eye, Trash2, DollarSign, Baby } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -66,6 +66,13 @@ export const RequestCard = ({
                 <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 flex items-center gap-1">
                   <DollarSign className="w-3 h-3" />
                   Abono {request.dias_abono} dia{request.dias_abono > 1 ? 's' : ''}
+                </Badge>
+              )}
+              {request.tipo === TipoAusencia.LICENCA_MATERNIDADE && (
+                <Badge variant="outline" className="bg-pink-50 text-pink-700 border-pink-200 flex items-center gap-1">
+                  <Baby className="w-3 h-3" />
+                  120 dias
+                  {request.is_contract_exception && ` + extensão`}
                 </Badge>
               )}
               {isRetroactive() && (

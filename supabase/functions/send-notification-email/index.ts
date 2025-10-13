@@ -17,6 +17,11 @@ interface NotificationRequest {
   endDate?: string;
   approverName?: string;
   comment?: string;
+  expectedDeliveryDate?: string;
+  totalDays?: number;
+  hasExtension?: boolean;
+  extensionDays?: number;
+  extensionJustification?: string;
 }
 
 const handler = async (req: Request): Promise<Response> => {
@@ -57,12 +62,15 @@ function generateEmailContent(notification: NotificationRequest): { subject: str
     FERIAS: "Férias",
     DAYOFF: "Day Off",
     LICENCA_MEDICA: "Licença Médica",
+    LICENCA_MATERNIDADE: "Licença Maternidade",
   };
 
   const requestTypeLabel = typeLabels[notification.requestType] || notification.requestType;
   const dateRange = notification.startDate && notification.endDate
     ? `${notification.startDate} até ${notification.endDate}`
     : "";
+  
+  const isMaternityLeave = notification.requestType === 'LICENCA_MATERNIDADE';
 
   switch (notification.type) {
     case 'NEW_REQUEST':
@@ -70,10 +78,20 @@ function generateEmailContent(notification: NotificationRequest): { subject: str
         subject: `Nova solicitação de ${requestTypeLabel} - ${notification.requesterName}`,
         html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <h2 style="color: #2563eb;">Nova Solicitação</h2>
+            <h2 style="color: #2563eb;">${isMaternityLeave ? '👶 ' : ''}Nova Solicitação</h2>
             <p>Olá,</p>
             <p><strong>${notification.requesterName}</strong> criou uma nova solicitação de <strong>${requestTypeLabel}</strong>.</p>
             ${dateRange ? `<p><strong>Período:</strong> ${dateRange}</p>` : ''}
+            ${isMaternityLeave && notification.expectedDeliveryDate ? `
+              <p style="background-color: #fdf2f8; padding: 10px; border-left: 3px solid #ec4899;">
+                <strong>Data Prevista do Parto:</strong> ${notification.expectedDeliveryDate}<br/>
+                <strong>Duração:</strong> ${notification.totalDays || 120} dias
+                ${notification.hasExtension ? `
+                  <br/><strong>⚠️ Extensão Contratual:</strong> ${notification.extensionDays} dias
+                  <br/><strong>Justificativa:</strong> ${notification.extensionJustification}
+                ` : ''}
+              </p>
+            ` : ''}
             <p>Acesse o sistema para revisar e aprovar a solicitação.</p>
             <br/>
             <a href="${Deno.env.get('SUPABASE_URL')}" 

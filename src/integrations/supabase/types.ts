@@ -164,6 +164,7 @@ export type Database = {
           id: string
           is_admin: boolean | null
           local: string | null
+          maternity_extension_days: number | null
           modelo_contrato: string | null
           nome: string
           papel: string | null
@@ -182,6 +183,7 @@ export type Database = {
           id: string
           is_admin?: boolean | null
           local?: string | null
+          maternity_extension_days?: number | null
           modelo_contrato?: string | null
           nome: string
           papel?: string | null
@@ -200,6 +202,7 @@ export type Database = {
           id?: string
           is_admin?: boolean | null
           local?: string | null
+          maternity_extension_days?: number | null
           modelo_contrato?: string | null
           nome?: string
           papel?: string | null
@@ -245,11 +248,14 @@ export type Database = {
           admin_observations: string | null
           conflito_flag: boolean | null
           conflito_refs: string | null
+          contract_exception_justification: string | null
           created_at: string
+          data_prevista_parto: string | null
           dias_abono: number | null
           fim: string | null
           id: string
           inicio: string | null
+          is_contract_exception: boolean | null
           is_historical: boolean
           justificativa: string | null
           original_channel: string | null
@@ -264,11 +270,14 @@ export type Database = {
           admin_observations?: string | null
           conflito_flag?: boolean | null
           conflito_refs?: string | null
+          contract_exception_justification?: string | null
           created_at?: string
+          data_prevista_parto?: string | null
           dias_abono?: number | null
           fim?: string | null
           id?: string
           inicio?: string | null
+          is_contract_exception?: boolean | null
           is_historical?: boolean
           justificativa?: string | null
           original_channel?: string | null
@@ -283,11 +292,14 @@ export type Database = {
           admin_observations?: string | null
           conflito_flag?: boolean | null
           conflito_refs?: string | null
+          contract_exception_justification?: string | null
           created_at?: string
+          data_prevista_parto?: string | null
           dias_abono?: number | null
           fim?: string | null
           id?: string
           inicio?: string | null
+          is_contract_exception?: boolean | null
           is_historical?: boolean
           justificativa?: string | null
           original_channel?: string | null
@@ -510,6 +522,10 @@ export type Database = {
         Args: { p_data_nascimento: string; p_email: string; p_nome: string }
         Returns: undefined
       }
+      validate_maternity_leave: {
+        Args: { p_person_id: string; p_start_date: string }
+        Returns: Json
+      }
     }
     Enums: {
       status:
@@ -522,7 +538,11 @@ export type Database = {
         | "CANCELADO"
         | "REALIZADO"
         | "EM_ANDAMENTO"
-      TipoAusencia: "DAYOFF" | "FERIAS" | "LICENCA_MEDICA"
+      TipoAusencia:
+        | "DAYOFF"
+        | "FERIAS"
+        | "LICENCA_MEDICA"
+        | "LICENCA_MATERNIDADE"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -661,7 +681,12 @@ export const Constants = {
         "REALIZADO",
         "EM_ANDAMENTO",
       ],
-      TipoAusencia: ["DAYOFF", "FERIAS", "LICENCA_MEDICA"],
+      TipoAusencia: [
+        "DAYOFF",
+        "FERIAS",
+        "LICENCA_MEDICA",
+        "LICENCA_MATERNIDADE",
+      ],
     },
   },
 } as const

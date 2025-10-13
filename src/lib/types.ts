@@ -21,7 +21,8 @@ export enum ModeloContrato {
 export enum TipoAusencia {
   DAYOFF = "DAYOFF",
   FERIAS = "FERIAS",
-  LICENCA_MEDICA = "LICENCA_MEDICA"
+  LICENCA_MEDICA = "LICENCA_MEDICA",
+  LICENCA_MATERNIDADE = "LICENCA_MATERNIDADE"
 }
 
 export enum Status {
@@ -54,6 +55,7 @@ export interface Person {
   data_nascimento?: string; // Data de nascimento para cálculo de day-off
   data_contrato?: string; // Data de contrato para cálculo de férias
   modelo_contrato?: ModeloContrato; // Modelo de contrato: PJ ou CLT
+  maternity_extension_days?: number; // Extension days beyond 120 for maternity leave
 }
 
 export interface Request {
@@ -75,6 +77,9 @@ export interface Request {
   originalChannel?: string;
   adminObservations?: string;
   dias_abono?: number; // Number of vacation days sold (abono)
+  data_prevista_parto?: Date; // Expected delivery date for maternity leave
+  is_contract_exception?: boolean; // If maternity leave has extension beyond 120 days
+  contract_exception_justification?: string; // Justification for extension
 }
 
 export const STATUS_LABELS = {
@@ -94,7 +99,8 @@ export const STATUS_LABELS = {
 export const TIPO_LABELS = {
   [TipoAusencia.DAYOFF]: "Day Off",
   [TipoAusencia.FERIAS]: "Férias",
-  [TipoAusencia.LICENCA_MEDICA]: "Licença Médica"
+  [TipoAusencia.LICENCA_MEDICA]: "Licença Médica",
+  [TipoAusencia.LICENCA_MATERNIDADE]: "Licença Maternidade"
 };
 
 export const MODELO_CONTRATO_LABELS = {
@@ -143,4 +149,13 @@ export interface SpecialApproval {
   justification: string;
   approved_despite_medical_leave: boolean;
   created_at: Date;
+}
+
+// Maternity Leave Validation
+export interface MaternityLeaveValidation {
+  valid: boolean;
+  message?: string;
+  total_days?: number;
+  clt_days?: number;
+  extension_days?: number;
 }
