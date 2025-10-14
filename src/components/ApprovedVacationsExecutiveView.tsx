@@ -66,6 +66,8 @@ export function ApprovedVacationsExecutiveView() {
   const [selectedTeam, setSelectedTeam] = useState<string>("all");
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
   const [selectedType, setSelectedType] = useState<string>("all");
+  const [showOnlyActive, setShowOnlyActive] = useState(false);
+  const [showUpcoming, setShowUpcoming] = useState(false);
 
   const loadApprovedVacations = async () => {
     try {
@@ -160,8 +162,13 @@ export function ApprovedVacationsExecutiveView() {
 
   // Filtrar dados
   const filteredVacations = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
     return vacations.filter(vacation => {
       const startDate = new Date(vacation.start_date);
+      const endDate = new Date(vacation.end_date);
+      
       const matchesSearch = vacation.requester_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                            vacation.requester_cargo.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesMonth = startDate.getMonth() + 1 === selectedMonth;
@@ -171,9 +178,23 @@ export function ApprovedVacationsExecutiveView() {
       const matchesStatus = selectedStatus === 'all' || vacation.status === selectedStatus;
       const matchesType = selectedType === 'all' || vacation.tipo === selectedType;
 
+      // Active filter - acontecendo agora
+      if (showOnlyActive) {
+        const isActive = startDate <= today && endDate >= today;
+        if (!isActive) return false;
+      }
+
+      // Upcoming filter - próximas 30 dias
+      if (showUpcoming) {
+        const thirtyDaysFromNow = new Date();
+        thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
+        const isUpcoming = startDate >= today && startDate <= thirtyDaysFromNow;
+        if (!isUpcoming) return false;
+      }
+
       return matchesSearch && matchesMonth && matchesYear && matchesManager && matchesTeam && matchesStatus && matchesType;
     });
-  }, [vacations, searchTerm, selectedMonth, selectedYear, selectedManager, selectedTeam, selectedStatus, selectedType]);
+  }, [vacations, searchTerm, selectedMonth, selectedYear, selectedManager, selectedTeam, selectedStatus, selectedType, showOnlyActive, showUpcoming]);
 
   // Estatísticas
   const stats = useMemo(() => {
@@ -315,7 +336,33 @@ export function ApprovedVacationsExecutiveView() {
       {/* Filtros */}
       <Card>
         <CardHeader>
-          <CardTitle>Filtros</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle>Filtros</CardTitle>
+            <div className="flex gap-2">
+              <Button
+                variant={showOnlyActive ? "default" : "outline"}
+                size="sm"
+                onClick={() => {
+                  setShowOnlyActive(!showOnlyActive);
+                  setShowUpcoming(false);
+                }}
+              >
+                <Users className="w-4 h-4 mr-2" />
+                Ativas Hoje
+              </Button>
+              <Button
+                variant={showUpcoming ? "default" : "outline"}
+                size="sm"
+                onClick={() => {
+                  setShowUpcoming(!showUpcoming);
+                  setShowOnlyActive(false);
+                }}
+              >
+                <Calendar className="w-4 h-4 mr-2" />
+                Próximas 30 Dias
+              </Button>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-7 gap-4">
@@ -443,9 +490,16 @@ export function ApprovedVacationsExecutiveView() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredVacations.map((vacation) => (
-                    <TableRow key={vacation.id}>
-                      <TableCell>
+                  filteredVacations.map((vacation) => {
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+                    const startDate = new Date(vacation.start_date);
+                    const endDate = new Date(vacation.end_date);
+                    const isActiveNow = startDate <= today && endDate >= today;
+                    
+                    return (
+                      <TableRow key={vacation.id} className={isActiveNow ? "bg-primary/5" : ""}>
+                        <TableCell>
                         <Badge variant={vacation.tipo === 'LICENCA_MATERNIDADE' ? 'secondary' : 'outline'} className="flex items-center gap-1 w-fit">
                           {vacation.tipo === 'LICENCA_MATERNIDADE' ? (
                             <>
@@ -471,16 +525,24 @@ export function ApprovedVacationsExecutiveView() {
                       </TableCell>
                       <TableCell>{vacation.vacation_days} dias</TableCell>
                       <TableCell>
-                        <Badge variant={vacation.status === 'REALIZADO' ? 'default' : 'secondary'}>
-                          {vacation.status === 'APROVADO_FINAL' ? 'Aprovado' : 'Realizado'}
-                        </Badge>
+                        <div className="flex flex-col gap-1">
+                          <Badge variant={vacation.status === 'REALIZADO' ? 'default' : 'secondary'}>
+                            {vacation.status === 'APROVADO_FINAL' ? 'Aprovado' : 'Realizado'}
+                          </Badge>
+                          {isActiveNow && (
+                            <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 text-xs">
+                              ATIVA AGORA
+                            </Badge>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell>{vacation.approver_name}</TableCell>
                       <TableCell>
                         {format(new Date(vacation.approval_date), 'dd/MM/yyyy HH:mm')}
                       </TableCell>
                     </TableRow>
-                  ))
+                    );
+                  })
                 )}
               </TableBody>
             </Table>

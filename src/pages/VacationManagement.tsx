@@ -10,6 +10,7 @@ import { MedicalLeaveList } from "@/components/MedicalLeaveList";
 
 import { TeamCapacityDashboard } from "@/components/TeamCapacityDashboard";
 import { ApprovedVacationsExecutiveView } from "@/components/ApprovedVacationsExecutiveView";
+import { ActiveAbsencesDashboard } from "@/components/ActiveAbsencesDashboard";
 import { HistoricalRequestForm } from "@/components/HistoricalRequestForm";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -464,9 +465,10 @@ const VacationManagement = () => {
         </div>
 
         <Tabs defaultValue="vacation" className="w-full">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="vacation">Saldos de Férias</TabsTrigger>
             <TabsTrigger value="medical">Licenças Médicas</TabsTrigger>
+            <TabsTrigger value="active">Ausências Ativas</TabsTrigger>
             <TabsTrigger value="dashboard">Dashboard Executivo</TabsTrigger>
             <TabsTrigger value="historical" className="flex items-center gap-2">
               <History className="w-4 h-4" />
@@ -734,6 +736,11 @@ const VacationManagement = () => {
                 />
               </div>
             )}
+          </TabsContent>
+
+          {/* Active Absences Tab */}
+          <TabsContent value="active" className="space-y-6">
+            <ActiveAbsencesDashboard />
           </TabsContent>
 
           {/* Executive Dashboard Tab */}

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -10,9 +10,22 @@ import { useAuth } from "@/hooks/useAuth";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
+interface PlannedAbsence {
+  id: string;
+  tipo: string;
+  inicio: string;
+  fim: string;
+  requester: {
+    nome: string;
+    cargo: string;
+    sub_time: string;
+  };
+}
+
 export const TeamCapacityDashboard = () => {
   const [alerts, setAlerts] = useState<TeamCapacityAlert[]>([]);
   const [specialApprovals, setSpecialApprovals] = useState<SpecialApproval[]>([]);
+  const [plannedAbsences, setPlannedAbsences] = useState<PlannedAbsence[]>([]);
   const [loading, setLoading] = useState(false);
   const [historicalCount, setHistoricalCount] = useState(0);
   const { user, loading: authLoading } = useAuth();
@@ -26,25 +39,49 @@ export const TeamCapacityDashboard = () => {
     setLoading(true);
     try {
       console.log('Loading dashboard data for user:', user.id);
-      const [alertsData, approvalsData] = await Promise.all([
+      
+      const today = new Date().toISOString().split('T')[0];
+      
+      const [alertsData, approvalsData, plannedAbsencesData, historicalRequests] = await Promise.all([
         getTeamCapacityAlerts(),
-        getSpecialApprovals()
+        getSpecialApprovals(),
+        supabase
+          .from('requests')
+          .select(`
+            id,
+            tipo,
+            inicio,
+            fim,
+            requester_id,
+            people!requests_requester_id_fkey(nome, cargo, sub_time)
+          `)
+          .in('status', ['APROVADO_FINAL', 'REALIZADO'])
+          .in('tipo', ['FERIAS', 'LICENCA_MATERNIDADE'])
+          .lte('inicio', today)
+          .gte('fim', today),
+        supabase
+          .from('requests')
+          .select('id')
+          .eq('is_historical', true)
+          .gte('created_at', new Date(new Date().setDate(new Date().getDate() - 30)).toISOString())
       ]);
       
-      const currentYear = new Date().getFullYear();
-      
-      // Add historical requests count to dashboard
-      const { data: historicalRequests } = await supabase
-        .from('requests')
-        .select('id')
-        .eq('is_historical', true)
-        .gte('created_at', new Date(new Date().setDate(new Date().getDate() - 30)).toISOString());
-      
-      const historicalCount = historicalRequests?.length || 0;
+      const processedPlannedAbsences: PlannedAbsence[] = plannedAbsencesData.data?.map(absence => ({
+        id: absence.id,
+        tipo: absence.tipo,
+        inicio: absence.inicio,
+        fim: absence.fim,
+        requester: {
+          nome: absence.people?.nome || 'N/A',
+          cargo: absence.people?.cargo || 'N/A',
+          sub_time: absence.people?.sub_time || 'N/A'
+        }
+      })) || [];
       
       setAlerts(alertsData);
       setSpecialApprovals(approvalsData.slice(0, 10));
-      setHistoricalCount(historicalCount);
+      setPlannedAbsences(processedPlannedAbsences);
+      setHistoricalCount(historicalRequests?.data?.length || 0);
     } catch (error) {
       console.error('Error loading dashboard data:', error);
     } finally {
@@ -85,6 +122,32 @@ export const TeamCapacityDashboard = () => {
     weekAgo.setDate(weekAgo.getDate() - 7);
     return approvalDate >= weekAgo;
   });
+
+  // Calculate capacity impact by team
+  const capacityByTeam = useMemo(() => {
+    const teamImpact: Record<string, { medicalLeaves: number; plannedAbsences: number; total: number }> = {};
+
+    // Medical leaves impact
+    alerts.forEach(alert => {
+      if (!teamImpact[alert.team_id]) {
+        teamImpact[alert.team_id] = { medicalLeaves: 0, plannedAbsences: 0, total: 0 };
+      }
+      teamImpact[alert.team_id].medicalLeaves = alert.affected_people_count;
+      teamImpact[alert.team_id].total += alert.affected_people_count;
+    });
+
+    // Planned absences impact
+    plannedAbsences.forEach(absence => {
+      const team = absence.requester.sub_time;
+      if (!teamImpact[team]) {
+        teamImpact[team] = { medicalLeaves: 0, plannedAbsences: 0, total: 0 };
+      }
+      teamImpact[team].plannedAbsences += 1;
+      teamImpact[team].total += 1;
+    });
+
+    return teamImpact;
+  }, [alerts, plannedAbsences]);
 
   if (loading) {
     return (
@@ -143,15 +206,28 @@ export const TeamCapacityDashboard = () => {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Times Afetados</CardTitle>
+            <CardTitle className="text-sm font-medium">Ausências Programadas</CardTitle>
+            <Calendar className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{plannedAbsences.length}</div>
+            <p className="text-xs text-muted-foreground">
+              Férias e licenças ativas
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Capacidade Total</CardTitle>
             <TrendingDown className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {new Set(alerts.map(alert => alert.team_id)).size}
+              {Object.keys(capacityByTeam).length}
             </div>
             <p className="text-xs text-muted-foreground">
-              Com capacidade reduzida
+              Times com capacidade reduzida
             </p>
           </CardContent>
         </Card>
@@ -167,12 +243,48 @@ export const TeamCapacityDashboard = () => {
         </Alert>
       )}
 
+      {/* Planned Absences */}
+      {plannedAbsences.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Calendar className="h-5 w-5" />
+              Ausências Programadas Ativas
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {plannedAbsences.map((absence) => (
+                <div key={absence.id} className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="font-medium">{absence.requester.nome}</div>
+                      <div className="text-sm text-muted-foreground">
+                        {absence.requester.cargo} • {absence.requester.sub_time}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <Badge variant={absence.tipo === 'LICENCA_MATERNIDADE' ? 'secondary' : 'outline'} className="text-xs">
+                        {absence.tipo === 'LICENCA_MATERNIDADE' ? 'Lic. Maternidade' : 'Férias'}
+                      </Badge>
+                      <div className="text-xs text-muted-foreground mt-1">
+                        {format(new Date(absence.inicio), "dd/MM", { locale: ptBR })} - {format(new Date(absence.fim), "dd/MM", { locale: ptBR })}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Team Capacity Alerts */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <AlertTriangle className="h-5 w-5" />
-            Alertas de Capacidade por Time
+            Alertas de Capacidade por Time (Licenças Médicas)
           </CardTitle>
         </CardHeader>
         <CardContent>

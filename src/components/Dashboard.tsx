@@ -36,6 +36,7 @@ export const Dashboard = () => {
   const [approvalsLoading, setApprovalsLoading] = useState(true);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [requestToDelete, setRequestToDelete] = useState<Request | null>(null);
+  const [activeAbsences, setActiveAbsences] = useState<Request[]>([]);
   
   // Initialize birthday notifications for managers
   useBirthdayNotifications();
@@ -43,6 +44,7 @@ export const Dashboard = () => {
   useEffect(() => {
     if (person) {
       fetchUserRequests();
+      fetchActiveAbsences();
       if (person.papel === 'GESTOR' || person.papel === 'DIRETOR' || person.is_admin) {
         fetchPendingApprovals();
       }
@@ -104,6 +106,47 @@ export const Dashboard = () => {
       console.error('Error fetching requests:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchActiveAbsences = async () => {
+    if (!person) return;
+    
+    const today = new Date().toISOString().split('T')[0];
+    
+    try {
+      const { data } = await supabase
+        .from('requests')
+        .select(`
+          *,
+          requester:people!inner(*)
+        `)
+        .in('status', ['APROVADO_FINAL', 'REALIZADO'])
+        .in('tipo', ['FERIAS', 'LICENCA_MATERNIDADE'])
+        .lte('inicio', today)
+        .gte('fim', today)
+        .order('fim', { ascending: true });
+      
+      if (data) {
+        const formattedRequests: Request[] = data.map(req => ({
+          id: req.id,
+          requesterId: req.requester_id,
+          requester: req.requester as any,
+          tipo: req.tipo as TipoAusencia,
+          inicio: req.inicio ? parseDateSafely(req.inicio) : null,
+          fim: req.fim ? parseDateSafely(req.fim) : null,
+          tipoFerias: req.tipo_ferias,
+          status: req.status as Status,
+          justificativa: req.justificativa,
+          conflitoFlag: req.conflito_flag,
+          conflitoRefs: req.conflito_refs,
+          createdAt: new Date(req.created_at),
+          updatedAt: new Date(req.updated_at),
+        }));
+        setActiveAbsences(formattedRequests);
+      }
+    } catch (error) {
+      console.error('Error fetching active absences:', error);
     }
   };
 
@@ -350,9 +393,33 @@ export const Dashboard = () => {
         </Card>
       </div>
 
-      {/* Segunda Linha: 3 Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+      {/* Segunda Linha: 4 Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
         <VacationBalance />
+
+        {/* Active Absences Card */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Ausências Ativas</CardTitle>
+            <Users className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{activeAbsences.length}</div>
+            <p className="text-xs text-muted-foreground">
+              {activeAbsences.length === 1 ? "pessoa ausente hoje" : "pessoas ausentes hoje"}
+            </p>
+            {activeAbsences.length > 0 && (
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="mt-2 w-full"
+                onClick={() => navigate('/vacation-management')}
+              >
+                Ver Detalhes
+              </Button>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Pending Approvals Card - Only for Managers and Directors */}
         {isManagerOrDirector ? (
@@ -454,6 +521,84 @@ export const Dashboard = () => {
                   Nenhuma solicitação encontrada.
                 </p>
               )}
+            </CardContent>
+          </Card>
+
+          {/* Who's Away Today */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Users className="w-5 h-5 text-primary" />
+                Quem Está de Férias Hoje
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {activeAbsences.length === 0 ? (
+                  <p className="text-muted-foreground text-center py-4">
+                    Nenhuma ausência ativa no momento.
+                  </p>
+                ) : (
+                  <>
+                    {activeAbsences.slice(0, 5).map((absence) => {
+                      const daysRemaining = absence.fim 
+                        ? Math.ceil((absence.fim.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))
+                        : 0;
+                      
+                      return (
+                        <div key={absence.id} className="p-3 bg-muted/50 rounded-lg">
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <div className="font-medium">{absence.requester.nome}</div>
+                              <div className="text-sm text-muted-foreground">
+                                {absence.requester.cargo} • {absence.requester.subTime}
+                              </div>
+                              <div className="flex items-center gap-2 mt-2">
+                                <Badge variant={absence.tipo === TipoAusencia.LICENCA_MATERNIDADE ? 'secondary' : 'outline'} className="text-xs">
+                                  {absence.tipo === TipoAusencia.LICENCA_MATERNIDADE ? 'Lic. Maternidade' : 'Férias'}
+                                </Badge>
+                                <span className="text-xs text-muted-foreground">
+                                  {absence.inicio && absence.fim && 
+                                    `${absence.inicio.toLocaleDateString('pt-BR')} - ${absence.fim.toLocaleDateString('pt-BR')}`
+                                  }
+                                </span>
+                              </div>
+                            </div>
+                            <div className="text-right ml-2">
+                              <div className="text-xs font-medium text-primary">
+                                <Clock className="w-3 h-3 inline mr-1" />
+                                {daysRemaining === 0 ? 'Retorna hoje' : `Retorna em ${daysRemaining} dia${daysRemaining !== 1 ? 's' : ''}`}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    
+                    {activeAbsences.length > 5 && (
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="w-full"
+                        onClick={() => navigate('/vacation-management')}
+                      >
+                        Ver Todas ({activeAbsences.length})
+                      </Button>
+                    )}
+                    
+                    {activeAbsences.length > 0 && (
+                      <div className="pt-2 border-t">
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <AlertCircle className="w-4 h-4" />
+                          <span>
+                            {new Set(activeAbsences.map(a => a.requester.subTime)).size} time{new Set(activeAbsences.map(a => a.requester.subTime)).size !== 1 ? 's' : ''} impactado{new Set(activeAbsences.map(a => a.requester.subTime)).size !== 1 ? 's' : ''}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
             </CardContent>
           </Card>
 
