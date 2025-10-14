@@ -465,7 +465,7 @@ const VacationManagement = () => {
         </div>
 
         <Tabs defaultValue="vacation" className="w-full">
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
             <TabsTrigger value="vacation">Saldos de Férias</TabsTrigger>
             <TabsTrigger value="medical">Licenças Médicas</TabsTrigger>
             <TabsTrigger value="active">Ausências Ativas</TabsTrigger>

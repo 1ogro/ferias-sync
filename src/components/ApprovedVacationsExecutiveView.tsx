@@ -262,7 +262,7 @@ export function ApprovedVacationsExecutiveView() {
   return (
     <div className="space-y-6">
       {/* Cards de Estatísticas */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Férias Aprovadas</CardTitle>
@@ -365,7 +365,7 @@ export function ApprovedVacationsExecutiveView() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-7 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             <Input
               placeholder="Buscar colaborador..."
               value={searchTerm}
@@ -376,8 +376,8 @@ export function ApprovedVacationsExecutiveView() {
               <SelectTrigger>
                 <SelectValue placeholder="Tipo" />
               </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos os tipos</SelectItem>
+            <SelectContent className="z-50 bg-background">
+              <SelectItem value="all">Todos os tipos</SelectItem>
                 <SelectItem value="FERIAS">Férias</SelectItem>
                 <SelectItem value="LICENCA_MATERNIDADE">Licença Maternidade</SelectItem>
               </SelectContent>
@@ -387,7 +387,7 @@ export function ApprovedVacationsExecutiveView() {
               <SelectTrigger>
                 <SelectValue placeholder="Mês" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="z-50 bg-background">
                 {Array.from({ length: 12 }, (_, i) => (
                   <SelectItem key={i + 1} value={(i + 1).toString()}>
                     {format(new Date(2024, i), 'MMMM', { locale: ptBR })}
@@ -400,7 +400,7 @@ export function ApprovedVacationsExecutiveView() {
               <SelectTrigger>
                 <SelectValue placeholder="Ano" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="z-50 bg-background">
                 {Array.from({ length: 5 }, (_, i) => (
                   <SelectItem key={2022 + i} value={(2022 + i).toString()}>
                     {2022 + i}
@@ -413,8 +413,8 @@ export function ApprovedVacationsExecutiveView() {
               <SelectTrigger>
                 <SelectValue placeholder="Gestor Aprovador" />
               </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos os gestores</SelectItem>
+            <SelectContent className="z-50 bg-background">
+              <SelectItem value="all">Todos os gestores</SelectItem>
                 {filterOptions.managers.map(manager => (
                   <SelectItem key={manager.id} value={manager.name}>
                     {manager.name}
@@ -427,8 +427,8 @@ export function ApprovedVacationsExecutiveView() {
               <SelectTrigger>
                 <SelectValue placeholder="Time" />
               </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos os times</SelectItem>
+            <SelectContent className="z-50 bg-background">
+              <SelectItem value="all">Todos os times</SelectItem>
                 {filterOptions.teams.map(team => (
                   <SelectItem key={team} value={team}>
                     {team}
@@ -441,8 +441,8 @@ export function ApprovedVacationsExecutiveView() {
               <SelectTrigger>
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos os status</SelectItem>
+            <SelectContent className="z-50 bg-background">
+              <SelectItem value="all">Todos os status</SelectItem>
                 <SelectItem value="APROVADO_FINAL">Aprovado Final</SelectItem>
                 <SelectItem value="REALIZADO">Realizado</SelectItem>
               </SelectContent>
@@ -467,8 +467,8 @@ export function ApprovedVacationsExecutiveView() {
           <CardTitle>Ausências Aprovadas</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="rounded-md border">
-            <Table>
+      <div className="rounded-md border overflow-x-auto">
+        <Table className="min-w-[800px]">
               <TableHeader>
                 <TableRow>
                   <TableHead>Tipo</TableHead>

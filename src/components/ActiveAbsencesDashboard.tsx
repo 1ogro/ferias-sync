@@ -158,7 +158,7 @@ export function ActiveAbsencesDashboard() {
   return (
     <div className="space-y-6">
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Pessoas Ausentes</CardTitle>
@@ -236,7 +236,7 @@ export function ActiveAbsencesDashboard() {
               <SelectTrigger>
                 <SelectValue placeholder="Todos os times" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="z-50 bg-background">
                 <SelectItem value="all">Todos os times</SelectItem>
                 {uniqueTeams.map(team => (
                   <SelectItem key={team} value={team}>{team}</SelectItem>
@@ -248,7 +248,7 @@ export function ActiveAbsencesDashboard() {
               <SelectTrigger>
                 <SelectValue placeholder="Todos os tipos" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="z-50 bg-background">
                 <SelectItem value="all">Todos os tipos</SelectItem>
                 <SelectItem value="FERIAS">Férias</SelectItem>
                 <SelectItem value="LICENCA_MATERNIDADE">Licença Maternidade</SelectItem>
