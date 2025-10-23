@@ -253,7 +253,7 @@ export function ApprovedVacationsExecutiveView() {
             deletion_justification: justification,
             deleted_from: 'approved_vacations_executive_view'
           }
-        });
+        } as any);
 
       if (auditError) throw auditError;
 

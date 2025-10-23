@@ -206,7 +206,7 @@ export const TeamCapacityDashboard = () => {
               deletion_justification: justification,
               deleted_from: 'team_capacity_dashboard'
             }
-          });
+          } as any);
 
         if (auditError) throw auditError;
       }
