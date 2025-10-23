@@ -11,6 +11,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { DeletionDialog } from "@/components/DeletionDialog";
 
 interface PlannedAbsence {
   id: string;
@@ -36,6 +37,11 @@ export const TeamCapacityDashboard = () => {
   const [currentUserPerson, setCurrentUserPerson] = useState<Person | null>(null);
   const [allPeople, setAllPeople] = useState<Person[]>([]);
   const { user, loading: authLoading } = useAuth();
+  
+  // Estados para o dialog de exclusão
+  const [deletionDialogOpen, setDeletionDialogOpen] = useState(false);
+  const [selectedAbsence, setSelectedAbsence] = useState<PlannedAbsence | null>(null);
+  const [requireJustification, setRequireJustification] = useState(false);
 
   const loadDashboardData = async () => {
     if (!user || authLoading) {
@@ -146,50 +152,24 @@ export const TeamCapacityDashboard = () => {
     return requesterPerson?.gestorId === currentUserPerson.id;
   };
 
-  const handleDeleteAbsence = async (absence: PlannedAbsence) => {
-    const isDirectorOrAdmin = currentUserPerson?.papel === 'DIRETOR' || currentUserPerson?.is_admin;
-    const isManager = allPeople?.find(p => p.id === absence.requester_id)?.gestorId === currentUserPerson?.id;
+  const openDeleteDialog = (absence: PlannedAbsence) => {
     const isOwnRequest = currentUserPerson?.id === absence.requester_id;
-    
-    // Verificar se é solicitação não-aprovada (colaborador pode excluir suas próprias)
     const nonApprovedStatuses = ['RASCUNHO', 'PENDENTE', 'INFORMACOES_ADICIONAIS', 'REJEITADO'];
     const isNonApproved = nonApprovedStatuses.includes(absence.status);
-    
-    // Permissões:
-    // - Diretor/Admin: tudo
-    // - Gestor: subordinados
-    // - Colaborador: próprias solicitações não-aprovadas
-    const canDelete = isDirectorOrAdmin || isManager || (isOwnRequest && isNonApproved);
-    
-    if (!canDelete) {
-      return;
-    }
-
-    // Se for exclusão administrativa (não é colaborador excluindo própria não-aprovada), solicitar justificativa
     const isAdminDeletion = !isOwnRequest || !isNonApproved;
-    let justification = "";
     
-    if (isAdminDeletion) {
-      justification = prompt(
-        "Por favor, informe a justificativa para excluir esta solicitação.\n" +
-        "Esta ação será registrada no histórico de auditoria:"
-      ) || "";
-      
-      if (!justification.trim()) {
-        return;
-      }
-    }
+    setSelectedAbsence(absence);
+    setRequireJustification(isAdminDeletion);
+    setDeletionDialogOpen(true);
+  };
 
-    const confirmMessage = isAdminDeletion
-      ? `⚠️ EXCLUSÃO ADMINISTRATIVA\n\n` +
-        `Colaborador: ${absence.requester.nome}\n` +
-        `Período: ${format(new Date(absence.inicio), "dd/MM/yyyy")} - ${format(new Date(absence.fim), "dd/MM/yyyy")}\n\n` +
-        `Esta ação NÃO pode ser desfeita!\n` +
-        `Tem certeza que deseja excluir?`
-      : `Tem certeza que deseja excluir esta solicitação?\n\n` +
-        `Período: ${format(new Date(absence.inicio), "dd/MM/yyyy")} - ${format(new Date(absence.fim), "dd/MM/yyyy")}`;
+  const confirmDelete = async (justification?: string) => {
+    if (!selectedAbsence) return;
     
-    if (!confirm(confirmMessage)) return;
+    const isOwnRequest = currentUserPerson?.id === selectedAbsence.requester_id;
+    const nonApprovedStatuses = ['RASCUNHO', 'PENDENTE', 'INFORMACOES_ADICIONAIS', 'REJEITADO'];
+    const isNonApproved = nonApprovedStatuses.includes(selectedAbsence.status);
+    const isAdminDeletion = !isOwnRequest || !isNonApproved;
 
     try {
       // Registrar no audit_log apenas para exclusões administrativas
@@ -198,11 +178,11 @@ export const TeamCapacityDashboard = () => {
           .from('audit_logs')
           .insert({
             entidade: 'requests',
-            entidade_id: absence.id,
+            entidade_id: selectedAbsence.id,
             acao: 'ADMIN_DELETE',
             actor_id: currentUserPerson?.id,
             payload: {
-              request_data: absence,
+              request_data: selectedAbsence,
               deletion_justification: justification,
               deleted_from: 'team_capacity_dashboard'
             }
@@ -215,13 +195,17 @@ export const TeamCapacityDashboard = () => {
       const { error: deleteError } = await supabase
         .from('requests')
         .delete()
-        .eq('id', absence.id);
+        .eq('id', selectedAbsence.id);
 
       if (deleteError) throw deleteError;
 
+      setDeletionDialogOpen(false);
+      setSelectedAbsence(null);
       window.location.reload();
     } catch (error: any) {
       console.error('Erro ao excluir:', error);
+      setDeletionDialogOpen(false);
+      setSelectedAbsence(null);
     }
   };
 
@@ -475,7 +459,7 @@ export const TeamCapacityDashboard = () => {
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => handleDeleteAbsence(absence)}
+                            onClick={() => openDeleteDialog(absence)}
                             className="h-8 w-8 p-0 text-destructive hover:text-destructive"
                           >
                             <Trash2 className="h-4 w-4" />
@@ -489,6 +473,23 @@ export const TeamCapacityDashboard = () => {
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {/* Deletion Dialog */}
+      {selectedAbsence && (
+        <DeletionDialog
+          open={deletionDialogOpen}
+          onOpenChange={setDeletionDialogOpen}
+          onConfirm={confirmDelete}
+          title={requireJustification ? "⚠️ EXCLUSÃO ADMINISTRATIVA" : "Confirmar Exclusão"}
+          description={
+            requireJustification
+              ? `Colaborador: ${selectedAbsence.requester.nome}\nPeríodo: ${format(new Date(selectedAbsence.inicio), "dd/MM/yyyy")} - ${format(new Date(selectedAbsence.fim), "dd/MM/yyyy")}\n\nEsta ação NÃO pode ser desfeita!`
+              : `Tem certeza que deseja excluir esta solicitação?\n\nPeríodo: ${format(new Date(selectedAbsence.inicio), "dd/MM/yyyy")} - ${format(new Date(selectedAbsence.fim), "dd/MM/yyyy")}`
+          }
+          requireJustification={requireJustification}
+          isAdminDeletion={requireJustification}
+        />
       )}
 
       {/* Team Capacity Alerts */}

@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { DeletionDialog } from "@/components/DeletionDialog";
 import {
   Card,
   CardContent,
@@ -74,6 +75,10 @@ export function ApprovedVacationsExecutiveView() {
   const [selectedType, setSelectedType] = useState<string>("all");
   const [showOnlyActive, setShowOnlyActive] = useState(false);
   const [showUpcoming, setShowUpcoming] = useState(false);
+  
+  // Estados para o dialog de exclusão
+  const [deletionDialogOpen, setDeletionDialogOpen] = useState(false);
+  const [selectedVacation, setSelectedVacation] = useState<ApprovedVacation | null>(null);
 
   const loadApprovedVacations = async () => {
     try {
@@ -209,47 +214,24 @@ export function ApprovedVacationsExecutiveView() {
     return requesterPerson?.gestorId === currentUserPerson.id;
   };
 
-  const handleDeleteVacation = async (vacation: ApprovedVacation) => {
-    const isDirectorOrAdmin = currentUserPerson?.papel === 'DIRETOR' || currentUserPerson?.is_admin;
-    const requesterPerson = allPeople.find(p => p.id === vacation.requester_id);
-    const isManager = requesterPerson?.gestorId === currentUserPerson?.id;
-    
-    // Nota: Nesta view, só aparecem férias APROVADAS, então colaboradores não podem excluir
-    // (colaboradores só excluem não-aprovadas)
-    const canDelete = isDirectorOrAdmin || isManager;
-    
-    if (!canDelete) {
-      return;
-    }
+  const openDeleteDialog = (vacation: ApprovedVacation) => {
+    setSelectedVacation(vacation);
+    setDeletionDialogOpen(true);
+  };
 
-    const justification = prompt(
-      "Por favor, informe a justificativa para excluir esta solicitação.\n" +
-      "Esta ação será registrada no histórico de auditoria:"
-    ) || "";
-    
-    if (!justification.trim()) {
-      return;
-    }
-
-    const confirmMessage = 
-      `⚠️ EXCLUSÃO ADMINISTRATIVA\n\n` +
-      `Colaborador: ${vacation.requester_name}\n` +
-      `Período: ${format(new Date(vacation.start_date), "dd/MM/yyyy")} - ${format(new Date(vacation.end_date), "dd/MM/yyyy")}\n\n` +
-      `Esta ação NÃO pode ser desfeita!\n` +
-      `Tem certeza que deseja excluir?`;
-    
-    if (!confirm(confirmMessage)) return;
+  const confirmDelete = async (justification?: string) => {
+    if (!selectedVacation || !justification?.trim()) return;
 
     try {
       const { error: auditError } = await supabase
         .from('audit_logs')
         .insert({
           entidade: 'requests',
-          entidade_id: vacation.id,
+          entidade_id: selectedVacation.id,
           acao: 'ADMIN_DELETE',
           actor_id: currentUserPerson?.id,
           payload: {
-            request_data: vacation,
+            request_data: selectedVacation,
             deletion_justification: justification,
             deleted_from: 'approved_vacations_executive_view'
           }
@@ -260,13 +242,17 @@ export function ApprovedVacationsExecutiveView() {
       const { error: deleteError } = await supabase
         .from('requests')
         .delete()
-        .eq('id', vacation.id);
+        .eq('id', selectedVacation.id);
 
       if (deleteError) throw deleteError;
 
+      setDeletionDialogOpen(false);
+      setSelectedVacation(null);
       window.location.reload();
     } catch (error: any) {
       console.error('Erro ao excluir:', error);
+      setDeletionDialogOpen(false);
+      setSelectedVacation(null);
     }
   };
 
@@ -735,7 +721,7 @@ export function ApprovedVacationsExecutiveView() {
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => handleDeleteVacation(vacation)}
+                              onClick={() => openDeleteDialog(vacation)}
                               className="h-8 w-8 p-0 text-destructive hover:text-destructive"
                             >
                               <Trash2 className="h-4 w-4" />
@@ -752,6 +738,19 @@ export function ApprovedVacationsExecutiveView() {
           </div>
         </CardContent>
       </Card>
+      
+      {/* Deletion Dialog */}
+      {selectedVacation && (
+        <DeletionDialog
+          open={deletionDialogOpen}
+          onOpenChange={setDeletionDialogOpen}
+          onConfirm={confirmDelete}
+          title="⚠️ EXCLUSÃO ADMINISTRATIVA"
+          description={`Colaborador: ${selectedVacation.requester_name}\nPeríodo: ${format(new Date(selectedVacation.start_date), "dd/MM/yyyy")} - ${format(new Date(selectedVacation.end_date), "dd/MM/yyyy")}\n\nEsta ação NÃO pode ser desfeita!`}
+          requireJustification={true}
+          isAdminDeletion={true}
+        />
+      )}
     </div>
   );
 }

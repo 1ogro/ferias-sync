@@ -11,6 +11,8 @@ import { ArrowLeft, Calendar, User, Clock, AlertTriangle, Edit, Trash2 } from "l
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { DeletionDialog } from "@/components/DeletionDialog";
+import { CancellationDialog } from "@/components/CancellationDialog";
 
 const RequestDetail = () => {
   const { id } = useParams();
@@ -27,6 +29,11 @@ const RequestDetail = () => {
     date: Date;
     comment?: string;
   }>>([]);
+  
+  // Estados para os dialogs
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
+  const [deletionDialogOpen, setDeletionDialogOpen] = useState(false);
+  const [requireJustification, setRequireJustification] = useState(false);
   
   // Fetch current user's person data
   useEffect(() => {
@@ -251,7 +258,7 @@ const RequestDetail = () => {
   const canCancel = canDelete;
 
   const handleCancel = async () => {
-    if (!confirm("Tem certeza que deseja cancelar esta solicitação?")) return;
+    setCancelDialogOpen(false);
 
     try {
       const { error } = await supabase
@@ -277,36 +284,23 @@ const RequestDetail = () => {
     }
   };
 
-  const handleDelete = async () => {
-    // Se for administrador, pedir justificativa obrigatória
-    let justification = "";
-    if (!isOwnRequest && (isManager || isDirectorOrAdmin)) {
-      justification = prompt(
-        "Por favor, informe a justificativa para excluir esta solicitação.\n" +
-        "Esta ação será registrada no histórico de auditoria:"
-      ) || "";
-      
-      if (!justification.trim()) {
-        toast({
-          title: "Ação cancelada",
-          description: "É necessário informar uma justificativa para exclusão administrativa.",
-          variant: "destructive",
-        });
-        return;
-      }
-    }
+  const openDeleteDialog = () => {
+    const isAdminDeletion = !isOwnRequest && (isManager || isDirectorOrAdmin);
+    setRequireJustification(isAdminDeletion);
+    setDeletionDialogOpen(true);
+  };
 
-    const confirmMessage = isOwnRequest && request.status === Status.RASCUNHO
-      ? "Tem certeza que deseja excluir este rascunho? Esta ação não pode ser desfeita."
-      : `⚠️ EXCLUSÃO ADMINISTRATIVA\n\n` +
-        `Solicitação: ${TIPO_LABELS[request.tipo]}\n` +
-        `Status: ${request.status}\n` +
-        `Colaborador: ${request.requester.nome}\n` +
-        `Período: ${formatDate(request.inicio)} - ${formatDate(request.fim)}\n\n` +
-        `Esta ação NÃO pode ser desfeita!\n` +
-        `Tem certeza que deseja excluir?`;
+  const confirmDelete = async (justification?: string) => {
+    const isAdminDeletion = !isOwnRequest && (isManager || isDirectorOrAdmin);
     
-    if (!confirm(confirmMessage)) return;
+    if (isAdminDeletion && !justification?.trim()) {
+      toast({
+        title: "Ação cancelada",
+        description: "É necessário informar uma justificativa para exclusão administrativa.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     try {
       // Se for exclusão administrativa, registrar no audit_log ANTES de excluir
@@ -320,13 +314,13 @@ const RequestDetail = () => {
             actor_id: currentUserPerson?.id,
             payload: {
               request_data: {
-                requester_id: request.requesterId,
-                requester_name: request.requester.nome,
-                tipo: request.tipo,
-                inicio: request.inicio?.toISOString(),
-                fim: request.fim?.toISOString(),
-                status: request.status,
-                justificativa_original: request.justificativa
+                requester_id: request?.requesterId,
+                requester_name: request?.requester.nome,
+                tipo: request?.tipo,
+                inicio: request?.inicio?.toISOString(),
+                fim: request?.fim?.toISOString(),
+                status: request?.status,
+                justificativa_original: request?.justificativa
               },
               admin_justification: justification,
               admin_role: currentUserPerson?.papel
@@ -353,6 +347,7 @@ const RequestDetail = () => {
           : "A solicitação foi excluída e o histórico foi registrado.",
       });
 
+      setDeletionDialogOpen(false);
       navigate('/inbox');
     } catch (error: any) {
       toast({
@@ -360,6 +355,7 @@ const RequestDetail = () => {
         description: error.message,
         variant: "destructive",
       });
+      setDeletionDialogOpen(false);
     }
   };
 
@@ -411,7 +407,7 @@ const RequestDetail = () => {
                           variant="outline" 
                           size="sm" 
                           className="text-status-rejected border-status-rejected hover:bg-status-rejected/10"
-                          onClick={handleDelete}
+                          onClick={openDeleteDialog}
                         >
                           <Trash2 className="w-4 h-4 mr-1" />
                           {isOwnRequest && request.status === Status.RASCUNHO ? 'Excluir Rascunho' : 'Excluir (Admin)'}
@@ -519,6 +515,30 @@ const RequestDetail = () => {
           </div>
         </div>
       </main>
+      
+      {/* Cancellation Dialog */}
+      <CancellationDialog
+        open={cancelDialogOpen}
+        onOpenChange={setCancelDialogOpen}
+        onConfirm={handleCancel}
+      />
+      
+      {/* Deletion Dialog */}
+      {request && (
+        <DeletionDialog
+          open={deletionDialogOpen}
+          onOpenChange={setDeletionDialogOpen}
+          onConfirm={confirmDelete}
+          title={requireJustification ? "⚠️ EXCLUSÃO ADMINISTRATIVA" : "Confirmar Exclusão"}
+          description={
+            requireJustification
+              ? `Solicitação: ${TIPO_LABELS[request.tipo]}\nStatus: ${request.status}\nColaborador: ${request.requester.nome}\nPeríodo: ${formatDate(request.inicio)} - ${formatDate(request.fim)}\n\nEsta ação NÃO pode ser desfeita!`
+              : "Tem certeza que deseja excluir este rascunho? Esta ação não pode ser desfeita."
+          }
+          requireJustification={requireJustification}
+          isAdminDeletion={requireJustification}
+        />
+      )}
     </div>
   );
 };
