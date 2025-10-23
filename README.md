@@ -761,7 +761,8 @@ npm run dev
 
 ## 📄 Licença
 
-Este projeto é privado e destinado ao uso interno da empresa.
+Este projeto é privado, pessoal e destinado ao uso interno do time.
+Para mais informações, entre em contato com raul@1ogro.com.
 
 ---
 
