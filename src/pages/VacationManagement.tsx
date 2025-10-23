@@ -12,6 +12,7 @@ import { TeamCapacityDashboard } from "@/components/TeamCapacityDashboard";
 import { ApprovedVacationsExecutiveView } from "@/components/ApprovedVacationsExecutiveView";
 import { ActiveAbsencesDashboard } from "@/components/ActiveAbsencesDashboard";
 import { HistoricalRequestForm } from "@/components/HistoricalRequestForm";
+import { SheetsSync } from "@/components/SheetsSync";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -465,7 +466,7 @@ const VacationManagement = () => {
         </div>
 
         <Tabs defaultValue="vacation" className="w-full">
-          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
             <TabsTrigger value="vacation">Saldos de Férias</TabsTrigger>
             <TabsTrigger value="medical">Licenças Médicas</TabsTrigger>
             <TabsTrigger value="active">Ausências Ativas</TabsTrigger>
@@ -474,6 +475,7 @@ const VacationManagement = () => {
               <History className="w-4 h-4" />
               Regularização
             </TabsTrigger>
+            <TabsTrigger value="sheets">Google Sheets</TabsTrigger>
           </TabsList>
 
           {/* Vacation Management Tab */}
@@ -996,6 +998,12 @@ const VacationManagement = () => {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Google Sheets Sync Tab */}
+        <TabsContent value="sheets">
+          <SheetsSync />
+        </TabsContent>
+      </Tabs>
       </div>
     </div>
   );

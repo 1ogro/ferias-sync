@@ -2,3 +2,18 @@ project_id = "uhphxyhffpbnmsrlggbe"
 
 [functions.send-notification-email]
 verify_jwt = false
+
+[functions.send-scheduled-reminders]
+verify_jwt = false
+
+[functions.slack-notification]
+verify_jwt = false
+
+[functions.slack-interactions]
+verify_jwt = false
+
+[functions.sheets-import]
+verify_jwt = false
+
+[functions.sheets-export]
+verify_jwt = false
