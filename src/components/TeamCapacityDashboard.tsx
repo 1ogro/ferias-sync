@@ -255,7 +255,7 @@ export const TeamCapacityDashboard = () => {
           <CardContent>
             <div className="space-y-3">
               {plannedAbsences.map((absence) => (
-                <div key={absence.id} className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <div key={absence.id} className="p-3 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg">
                   <div className="flex items-center justify-between">
                     <div>
                       <div className="font-medium">{absence.requester.nome}</div>
