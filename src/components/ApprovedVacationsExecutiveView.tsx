@@ -60,7 +60,7 @@ export function ApprovedVacationsExecutiveView() {
   
   // Filtros
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
+  const [selectedMonth, setSelectedMonth] = useState<number | "all">(new Date().getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedManager, setSelectedManager] = useState<string>("all");
   const [selectedTeam, setSelectedTeam] = useState<string>("all");
@@ -172,9 +172,11 @@ export function ApprovedVacationsExecutiveView() {
       const matchesSearch = vacation.requester_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                            vacation.requester_cargo.toLowerCase().includes(searchTerm.toLowerCase());
       // Verificar se a ausência está ativa no mês selecionado (overlap check)
-      const selectedMonthStart = new Date(selectedYear, selectedMonth - 1, 1);
-      const selectedMonthEnd = new Date(selectedYear, selectedMonth, 0);
-      const matchesMonth = (startDate <= selectedMonthEnd && endDate >= selectedMonthStart);
+      const matchesMonth = selectedMonth === "all" ? true : (() => {
+        const selectedMonthStart = new Date(selectedYear, selectedMonth - 1, 1);
+        const selectedMonthEnd = new Date(selectedYear, selectedMonth, 0);
+        return (startDate <= selectedMonthEnd && endDate >= selectedMonthStart);
+      })();
       const matchesYear = true; // já contemplado no matchesMonth
       const matchesManager = selectedManager === 'all' || vacation.approver_name === selectedManager;
       const matchesTeam = selectedTeam === 'all' || vacation.requester_sub_time === selectedTeam;
@@ -436,11 +438,12 @@ export function ApprovedVacationsExecutiveView() {
               </SelectContent>
             </Select>
             
-            <Select value={selectedMonth.toString()} onValueChange={(value) => setSelectedMonth(parseInt(value))}>
+            <Select value={selectedMonth === "all" ? "all" : selectedMonth.toString()} onValueChange={(value) => setSelectedMonth(value === "all" ? "all" : parseInt(value))}>
               <SelectTrigger>
                 <SelectValue placeholder="Mês" />
               </SelectTrigger>
               <SelectContent className="z-50 bg-background">
+                <SelectItem value="all">Todos os meses</SelectItem>
                 {Array.from({ length: 12 }, (_, i) => (
                   <SelectItem key={i + 1} value={(i + 1).toString()}>
                     {format(new Date(2024, i), 'MMMM', { locale: ptBR })}
