@@ -112,13 +112,13 @@ export const VacationSummaryCard = ({ className }: VacationSummaryProps) => {
         {(stats.withoutContract > 0 || stats.accumulatedVacations > 0) && (
           <div className="space-y-2">
             {stats.withoutContract > 0 && (
-              <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
+              <Badge variant="outline" className="bg-red-50 dark:bg-red-950 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800">
                 <AlertTriangle className="h-3 w-3 mr-1" />
                 {stats.withoutContract} sem data de contrato
               </Badge>
             )}
             {stats.accumulatedVacations > 0 && (
-              <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
+              <Badge variant="outline" className="bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-700">
                 <TrendingUp className="h-3 w-3 mr-1" />
                 {stats.accumulatedVacations} com férias acumuladas
               </Badge>

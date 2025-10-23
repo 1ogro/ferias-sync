@@ -624,17 +624,17 @@ const VacationManagement = () => {
                            const isPJWithAccumulatedVacations = item.person.modelo_contrato === 'PJ' && item.balance_days > 30;
                            
                            return (
-                             <TableRow 
-                               key={`${item.person_id}-${item.year}`}
-                               className={isPJWithAccumulatedVacations ? "bg-amber-50 border-l-4 border-l-amber-400" : ""}
-                             >
+                              <TableRow 
+                                key={`${item.person_id}-${item.year}`}
+                                className={isPJWithAccumulatedVacations ? "bg-amber-50 dark:bg-amber-950 border-l-4 border-l-amber-400 dark:border-l-amber-600" : ""}
+                              >
                                <TableCell className="font-medium">
                                  <div className="flex items-center space-x-2">
                                    {item.person.nome}
                                    {isPJWithAccumulatedVacations && (
-                                     <Badge variant="outline" className="text-amber-600 border-amber-400 bg-amber-50 text-xs">
-                                       Férias Acumuladas
-                                     </Badge>
+                                      <Badge variant="outline" className="text-amber-600 dark:text-amber-400 border-amber-400 dark:border-amber-600 bg-amber-50 dark:bg-amber-950 text-xs">
+                                        Férias Acumuladas
+                                      </Badge>
                                    )}
                                  </div>
                                </TableCell>
