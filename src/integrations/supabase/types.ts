@@ -483,7 +483,7 @@ export type Database = {
     }
     Functions: {
       get_active_people_for_signup: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: {
           email: string
           id: string
@@ -499,10 +499,7 @@ export type Database = {
           without_contract: number
         }[]
       }
-      is_current_user_admin: {
-        Args: Record<PropertyKey, never>
-        Returns: boolean
-      }
+      is_current_user_admin: { Args: never; Returns: boolean }
       recalculate_vacation_balance: {
         Args: { p_person_id: string; p_year?: number }
         Returns: {
