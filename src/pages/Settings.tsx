@@ -22,7 +22,16 @@ const Settings = () => {
   const { toast } = useToast();
   const { settings, updateSettings, resetSettings } = useSettings();
   const { hasRole } = useAuth();
-  const { settings: integrationSettings, testSlack, testSheets, isTestingSlack, isTestingSheets } = useIntegrations();
+  const { 
+    settings: integrationSettings, 
+    isLoading,
+    testSlack, 
+    testSheets, 
+    syncExisting,
+    isTestingSlack, 
+    isTestingSheets,
+    isSyncing,
+  } = useIntegrations();
   const [hasChanges, setHasChanges] = useState(false);
   const [wizardOpen, setWizardOpen] = useState(false);
   const [wizardType, setWizardType] = useState<'slack' | 'sheets' | null>(null);
@@ -340,37 +349,60 @@ const Settings = () => {
                         Configure integrações com serviços externos para automatizar processos
                       </CardDescription>
                     </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="flex items-center justify-between p-4 border rounded-lg bg-muted/50">
+                        <div className="space-y-1">
+                          <p className="text-sm font-medium">Detectar integrações existentes</p>
+                          <p className="text-xs text-muted-foreground">
+                            Sincronize integrações já configuradas via secrets do Supabase
+                          </p>
+                        </div>
+                        <Button
+                          onClick={() => syncExisting()}
+                          disabled={isSyncing}
+                          variant="outline"
+                        >
+                          {isSyncing ? 'Sincronizando...' : 'Sincronizar'}
+                        </Button>
+                      </div>
+                    </CardContent>
                   </Card>
 
-                  <IntegrationCard
-                    title="Slack"
-                    description="Receba notificações de aprovações no Slack"
-                    status={(integrationSettings?.slack_status || 'not_configured') as 'not_configured' | 'configured' | 'active' | 'error'}
-                    lastTest={integrationSettings?.slack_test_date}
-                    errorMessage={integrationSettings?.slack_error_message}
-                    onConfigure={() => {
-                      setWizardType('slack');
-                      setWizardOpen(true);
-                    }}
-                    onTest={() => testSlack()}
-                    isTesting={isTestingSlack}
-                    icon={<MessageSquare className="w-6 h-6" />}
-                  />
+                  {isLoading ? (
+                    <div className="text-center py-4">Carregando integrações...</div>
+                  ) : (
+                    <>
+                      <IntegrationCard
+                        title="Slack"
+                        description="Receba notificações de aprovações no Slack"
+                        status={(integrationSettings?.slack_status || 'not_configured') as 'not_configured' | 'configured' | 'active' | 'error'}
+                        lastTest={integrationSettings?.slack_test_date}
+                        errorMessage={integrationSettings?.slack_error_message}
+                        onConfigure={() => {
+                          setWizardType('slack');
+                          setWizardOpen(true);
+                        }}
+                        onTest={() => testSlack()}
+                        isTesting={isTestingSlack}
+                        icon={<MessageSquare className="w-6 h-6" />}
+                      />
 
-                  <IntegrationCard
-                    title="Google Sheets"
-                    description="Sincronize dados com uma planilha do Google Sheets"
-                    status={(integrationSettings?.sheets_status || 'not_configured') as 'not_configured' | 'configured' | 'active' | 'error'}
-                    lastTest={integrationSettings?.sheets_last_sync}
-                    errorMessage={integrationSettings?.sheets_error_message}
-                    onConfigure={() => {
-                      setWizardType('sheets');
-                      setWizardOpen(true);
-                    }}
-                    onTest={() => testSheets()}
-                    isTesting={isTestingSheets}
-                    icon={<Sheet className="w-6 h-6" />}
-                  />
+                      <IntegrationCard
+                        title="Google Sheets"
+                        description="Sincronize dados com uma planilha do Google Sheets"
+                        status={(integrationSettings?.sheets_status || 'not_configured') as 'not_configured' | 'configured' | 'active' | 'error'}
+                        lastTest={integrationSettings?.sheets_last_sync}
+                        errorMessage={integrationSettings?.sheets_error_message}
+                        onConfigure={() => {
+                          setWizardType('sheets');
+                          setWizardOpen(true);
+                        }}
+                        onTest={() => testSheets()}
+                        isTesting={isTestingSheets}
+                        icon={<Sheet className="w-6 h-6" />}
+                      />
+                    </>
+                  )}
                 </div>
               </TabsContent>
             )}

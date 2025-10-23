@@ -229,6 +229,33 @@ export function useIntegrations() {
     },
   });
 
+  const syncExistingMutation = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke('sync-existing-integrations', {});
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      if (data.success) {
+        queryClient.invalidateQueries({ queryKey: ['integration-settings'] });
+        toast({
+          title: 'Sincronização concluída',
+          description: data.message,
+        });
+      } else {
+        throw new Error(data.message || 'Falha na sincronização');
+      }
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Erro na sincronização',
+        description: error.message,
+        variant: 'destructive',
+      });
+    },
+  });
+
   return {
     settings,
     isLoading,
@@ -236,9 +263,11 @@ export function useIntegrations() {
     updateSheets: updateSheetsMutation.mutate,
     testSlack: testSlackMutation.mutate,
     testSheets: testSheetsMutation.mutate,
+    syncExisting: syncExistingMutation.mutate,
     isUpdatingSlack: updateSlackMutation.isPending,
     isUpdatingSheets: updateSheetsMutation.isPending,
     isTestingSlack: testSlackMutation.isPending,
     isTestingSheets: testSheetsMutation.isPending,
+    isSyncing: syncExistingMutation.isPending,
   };
 }
