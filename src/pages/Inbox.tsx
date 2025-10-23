@@ -304,6 +304,33 @@ const Inbox = () => {
         // Don't block the flow if email fails
       }
 
+      // Send Slack notification
+      try {
+        let slackType: 'APPROVAL' | 'REJECTION' | 'REQUEST_INFO';
+        if (action === 'reject') {
+          slackType = 'REJECTION';
+        } else if (action === 'ask_info') {
+          slackType = 'REQUEST_INFO';
+        } else {
+          slackType = 'APPROVAL';
+        }
+
+        await supabase.functions.invoke('slack-notification', {
+          body: {
+            type: slackType,
+            requestId: requestId,
+            requesterName: request.requester?.nome || '',
+            requestType: request.tipo,
+            startDate: request.inicio ? new Date(request.inicio).toLocaleDateString('pt-BR') : '',
+            endDate: request.fim ? new Date(request.fim).toLocaleDateString('pt-BR') : '',
+            comment: null,
+          }
+        });
+      } catch (slackError) {
+        console.error('Error sending Slack notification:', slackError);
+        // Don't block the flow if Slack fails
+      }
+
       toast({
         title: "Sucesso",
         description: `Solicitação ${action === 'approve' ? 'aprovada' : action === 'reject' ? 'reprovada' : 'marcada para informações adicionais'} com sucesso`,

@@ -775,6 +775,11 @@ const VacationManagement = () => {
               <HistoricalRequestForm onSuccess={() => {}} />
             </div>
           </TabsContent>
+
+          {/* Google Sheets Sync Tab */}
+          <TabsContent value="sheets">
+            <SheetsSync />
+          </TabsContent>
         </Tabs>
 
         {/* Contract Edit Dialog */}
@@ -998,12 +1003,6 @@ const VacationManagement = () => {
             </DialogFooter>
           </DialogContent>
         </Dialog>
-
-        {/* Google Sheets Sync Tab */}
-        <TabsContent value="sheets">
-          <SheetsSync />
-        </TabsContent>
-      </Tabs>
       </div>
     </div>
   );

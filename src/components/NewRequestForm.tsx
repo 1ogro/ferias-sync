@@ -375,12 +375,16 @@ export const NewRequestForm = () => {
 
       // Send email notification to manager (if not auto-approved)
       if (!isDirector && person.gestorId) {
+        let managerData: { email: string } | null = null;
+        
         try {
-          const { data: managerData } = await supabase
+          const { data } = await supabase
             .from('people')
             .select('email')
             .eq('id', person.gestorId)
             .single();
+          
+          managerData = data;
 
           if (managerData?.email) {
             await supabase.functions.invoke('send-notification-email', {
@@ -397,6 +401,26 @@ export const NewRequestForm = () => {
         } catch (emailError) {
           console.error('Error sending email notification:', emailError);
           // Don't block the flow if email fails
+        }
+
+        // Send Slack notification to manager
+        try {
+          if (managerData?.email) {
+            await supabase.functions.invoke('slack-notification', {
+              body: {
+                type: 'NEW_REQUEST',
+                requestId: newRequest.id,
+                requesterName: person.nome,
+                requestType: formData.tipo,
+                startDate: new Date(formData.inicio).toLocaleDateString('pt-BR'),
+                endDate: new Date(formData.fim).toLocaleDateString('pt-BR'),
+                approverEmail: managerData.email,
+              }
+            });
+          }
+        } catch (slackError) {
+          console.error('Error sending Slack notification:', slackError);
+          // Don't block the flow if Slack fails
         }
       }
 
