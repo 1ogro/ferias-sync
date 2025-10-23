@@ -25,7 +25,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, Download, Users, Clock, TrendingUp, Briefcase, Baby, Activity, Edit } from "lucide-react";
+import { Calendar, Download, Users, Clock, TrendingUp, Briefcase, Baby, Activity, Edit, Trash2 } from "lucide-react";
 import { Person } from "@/lib/types";
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
@@ -206,6 +206,80 @@ export function ApprovedVacationsExecutiveView() {
     
     // Verificar se é gestor do solicitante
     const requesterPerson = allPeople.find(p => p.id === requesterId);
+    return requesterPerson?.gestorId === currentUserPerson.id;
+  };
+
+  const handleDeleteVacation = async (vacation: ApprovedVacation) => {
+    const isDirectorOrAdmin = currentUserPerson?.papel === 'DIRETOR' || currentUserPerson?.is_admin;
+    const requesterPerson = allPeople.find(p => p.id === vacation.requester_id);
+    const isManager = requesterPerson?.gestorId === currentUserPerson?.id;
+    
+    // Nota: Nesta view, só aparecem férias APROVADAS, então colaboradores não podem excluir
+    // (colaboradores só excluem não-aprovadas)
+    const canDelete = isDirectorOrAdmin || isManager;
+    
+    if (!canDelete) {
+      return;
+    }
+
+    const justification = prompt(
+      "Por favor, informe a justificativa para excluir esta solicitação.\n" +
+      "Esta ação será registrada no histórico de auditoria:"
+    ) || "";
+    
+    if (!justification.trim()) {
+      return;
+    }
+
+    const confirmMessage = 
+      `⚠️ EXCLUSÃO ADMINISTRATIVA\n\n` +
+      `Colaborador: ${vacation.requester_name}\n` +
+      `Período: ${format(new Date(vacation.start_date), "dd/MM/yyyy")} - ${format(new Date(vacation.end_date), "dd/MM/yyyy")}\n\n` +
+      `Esta ação NÃO pode ser desfeita!\n` +
+      `Tem certeza que deseja excluir?`;
+    
+    if (!confirm(confirmMessage)) return;
+
+    try {
+      const { error: auditError } = await supabase
+        .from('audit_logs')
+        .insert({
+          entidade: 'requests',
+          entidade_id: vacation.id,
+          acao: 'ADMIN_DELETE',
+          actor_id: currentUserPerson?.id,
+          payload: {
+            request_data: vacation,
+            deletion_justification: justification,
+            deleted_from: 'approved_vacations_executive_view'
+          }
+        });
+
+      if (auditError) throw auditError;
+
+      const { error: deleteError } = await supabase
+        .from('requests')
+        .delete()
+        .eq('id', vacation.id);
+
+      if (deleteError) throw deleteError;
+
+      window.location.reload();
+    } catch (error: any) {
+      console.error('Erro ao excluir:', error);
+    }
+  };
+
+  const canDeleteVacation = (vacationId: string) => {
+    if (!currentUserPerson) return false;
+    
+    const isDirectorOrAdmin = currentUserPerson.papel === 'DIRETOR' || currentUserPerson.is_admin;
+    if (isDirectorOrAdmin) return true;
+    
+    const vacation = filteredVacations.find(v => v.id === vacationId);
+    if (!vacation) return false;
+    
+    const requesterPerson = allPeople.find(p => p.id === vacation.requester_id);
     return requesterPerson?.gestorId === currentUserPerson.id;
   };
 
@@ -646,16 +720,28 @@ export function ApprovedVacationsExecutiveView() {
                         {format(new Date(vacation.approval_date), 'dd/MM/yyyy HH:mm')}
                       </TableCell>
                       <TableCell className="text-right">
-                        {canEditVacation(vacation.requester_id) && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => navigate(`/requests/${vacation.id}/edit`)}
-                            className="h-8 w-8 p-0"
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                        )}
+                        <div className="flex items-center justify-end gap-1">
+                          {canEditVacation(vacation.requester_id) && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => navigate(`/requests/${vacation.id}/edit`)}
+                              className="h-8 w-8 p-0"
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                          )}
+                          {canDeleteVacation(vacation.id) && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDeleteVacation(vacation)}
+                              className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                     );

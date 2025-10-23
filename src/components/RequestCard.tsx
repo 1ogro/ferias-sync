@@ -115,11 +115,20 @@ export const RequestCard = ({
               </Button>
               {(() => {
                 const isOwnRequest = currentUserId === request.requesterId;
+                
+                // Status que permitem exclusão direta por colaboradores
+                const nonApprovedStatuses = ['RASCUNHO', 'PENDENTE', 'INFORMACOES_ADICIONAIS', 'REJEITADO'];
+                const isNonApproved = nonApprovedStatuses.includes(request.status);
+                
+                // Lógica de permissão de exclusão:
+                // 1. Diretor/Admin: pode excluir qualquer solicitação
+                // 2. Gestor: pode excluir solicitações de subordinados
+                // 3. Colaborador: pode excluir APENAS suas próprias solicitações não-aprovadas
                 const canDeleteCard = 
-                  (isOwnRequest && request.status === Status.RASCUNHO) || // Próprio rascunho
-                  (currentUserRole && ['GESTOR', 'DIRETOR'].includes(currentUserRole) && 
-                   (isUserManager || currentUserRole === 'DIRETOR') &&
-                   request.status !== Status.RASCUNHO); // Gestor/Diretor pode excluir não-rascunhos
+                  currentUserRole === 'DIRETOR' || 
+                  currentUserRole === 'ADMIN' || 
+                  (currentUserRole === 'GESTOR' && isUserManager) ||
+                  (currentUserRole === 'COLABORADOR' && isOwnRequest && isNonApproved);
                 
                 return canDeleteCard && (
                   <Button
