@@ -25,12 +25,15 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, Download, Users, Clock, TrendingUp, Briefcase, Baby, Activity } from "lucide-react";
+import { Calendar, Download, Users, Clock, TrendingUp, Briefcase, Baby, Activity, Edit } from "lucide-react";
+import { Person } from "@/lib/types";
+import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
 interface ApprovedVacation {
   id: string;
+  requester_id: string;
   requester_name: string;
   requester_cargo: string;
   requester_sub_time: string;
@@ -50,6 +53,7 @@ interface FilterOptions {
 }
 
 export function ApprovedVacationsExecutiveView() {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const [vacations, setVacations] = useState<ApprovedVacation[]>([]);
   const [filterOptions, setFilterOptions] = useState<FilterOptions>({
@@ -57,6 +61,8 @@ export function ApprovedVacationsExecutiveView() {
     teams: []
   });
   const [loading, setLoading] = useState(true);
+  const [currentUserPerson, setCurrentUserPerson] = useState<Person | null>(null);
+  const [allPeople, setAllPeople] = useState<Person[]>([]);
   
   // Filtros
   const [searchTerm, setSearchTerm] = useState("");
@@ -78,6 +84,7 @@ export function ApprovedVacationsExecutiveView() {
         .from('requests')
         .select(`
           id,
+          requester_id,
           inicio,
           fim,
           tipo,
@@ -117,6 +124,7 @@ export function ApprovedVacationsExecutiveView() {
 
         return {
           id: vacation.id,
+          requester_id: vacation.requester_id,
           requester_name: vacation.people?.nome || 'N/A',
           requester_cargo: vacation.people?.cargo || 'N/A',
           requester_sub_time: vacation.people?.sub_time || 'N/A',
@@ -159,6 +167,47 @@ export function ApprovedVacationsExecutiveView() {
       loadApprovedVacations();
     }
   }, [user]);
+
+  useEffect(() => {
+    const fetchCurrentUserAndPeople = async () => {
+      if (!user) return;
+      
+      const [profileData, peopleData] = await Promise.all([
+        supabase
+          .from('profiles')
+          .select('person_id, people!inner(*)')
+          .eq('user_id', user.id)
+          .single(),
+        supabase
+          .from('people')
+          .select('*')
+          .eq('ativo', true)
+      ]);
+      
+      if (profileData.data?.people) {
+        setCurrentUserPerson(profileData.data.people as any);
+      }
+      
+      if (peopleData.data) {
+        setAllPeople(peopleData.data as any);
+      }
+    };
+    
+    if (user) {
+      fetchCurrentUserAndPeople();
+    }
+  }, [user]);
+
+  const canEditVacation = (requesterId: string) => {
+    if (!currentUserPerson) return false;
+    
+    const isDirectorOrAdmin = currentUserPerson.papel === 'DIRETOR' || currentUserPerson.is_admin;
+    if (isDirectorOrAdmin) return true;
+    
+    // Verificar se é gestor do solicitante
+    const requesterPerson = allPeople.find(p => p.id === requesterId);
+    return requesterPerson?.gestorId === currentUserPerson.id;
+  };
 
   // Filtrar dados
   const filteredVacations = useMemo(() => {
@@ -536,15 +585,16 @@ export function ApprovedVacationsExecutiveView() {
                   <TableHead>Status</TableHead>
                   <TableHead>Aprovador</TableHead>
                   <TableHead>Data Aprovação</TableHead>
+                  <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredVacations.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={9} className="text-center py-6">
-                      Nenhuma ausência aprovada encontrada para os filtros selecionados.
-                    </TableCell>
-                  </TableRow>
+                <TableRow>
+                  <TableCell colSpan={10} className="text-center py-6">
+                    Nenhuma ausência aprovada encontrada para os filtros selecionados.
+                  </TableCell>
+                </TableRow>
                 ) : (
                   filteredVacations.map((vacation) => {
                     const today = new Date();
@@ -594,6 +644,18 @@ export function ApprovedVacationsExecutiveView() {
                       <TableCell>{vacation.approver_name}</TableCell>
                       <TableCell>
                         {format(new Date(vacation.approval_date), 'dd/MM/yyyy HH:mm')}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {canEditVacation(vacation.requester_id) && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => navigate(`/requests/${vacation.id}/edit`)}
+                            className="h-8 w-8 p-0"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                        )}
                       </TableCell>
                     </TableRow>
                     );

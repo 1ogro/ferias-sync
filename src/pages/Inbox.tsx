@@ -16,6 +16,7 @@ const Inbox = () => {
   const [pendingRequests, setPendingRequests] = useState<Request[]>([]);
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState<string | null>(null);
+  const [currentUserPerson, setCurrentUserPerson] = useState<any>(null);
 
   const fetchPendingRequests = async () => {
     if (!person) {
@@ -128,6 +129,29 @@ const Inbox = () => {
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [person]);
+
+  useEffect(() => {
+    const fetchCurrentUser = async () => {
+      if (!person) return;
+      
+      const { data: userData } = await supabase.auth.getUser();
+      if (!userData.user) return;
+      
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('person_id, people!inner(*)')
+        .eq('user_id', userData.user.id)
+        .single();
+      
+      if (profile?.people) {
+        setCurrentUserPerson(profile.people);
+      }
+    };
+    
+    if (person) {
+      fetchCurrentUser();
+    }
   }, [person]);
 
   const handleApproval = async (requestId: string, action: 'approve' | 'reject' | 'ask_info') => {
@@ -328,16 +352,23 @@ const Inbox = () => {
           </Card>
         ) : pendingRequests.length > 0 ? (
           <div className="space-y-4">
-            {pendingRequests.map((request) => (
-              <Card key={request.id} className="hover:shadow-md transition-shadow">
-                <CardHeader className="pb-4">
-                  <div className="flex items-start justify-between">
-                    <RequestCard 
-                      request={request} 
-                      showActions={false}
-                    />
-                  </div>
-                </CardHeader>
+            {pendingRequests.map((request) => {
+              const isUserManagerOfRequester = person?.id === request.requester.gestorId;
+              
+              return (
+                <Card key={request.id} className="hover:shadow-md transition-shadow">
+                  <CardHeader className="pb-4">
+                    <div className="flex items-start justify-between">
+                      <RequestCard 
+                        request={request} 
+                        showActions={true}
+                        currentUserRole={person?.papel}
+                        isUserManager={isUserManagerOfRequester}
+                        currentUserId={person?.id}
+                        onEdit={(req) => window.location.href = `/requests/${req.id}/edit`}
+                      />
+                    </div>
+                  </CardHeader>
                 <CardContent className="pt-0">
                   <div className="mb-3">
                     <p className="text-sm text-muted-foreground">
@@ -379,8 +410,9 @@ const Inbox = () => {
                     </Button>
                   </div>
                 </CardContent>
-              </Card>
-            ))}
+                </Card>
+              );
+            })}
           </div>
         ) : (
           <Card className="p-8 text-center">

@@ -2,10 +2,12 @@ import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertTriangle, Users, Calendar, TrendingDown, Activity, Clock, Briefcase, Baby } from "lucide-react";
+import { AlertTriangle, Users, Calendar, TrendingDown, Activity, Clock, Briefcase, Baby, Edit } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { getTeamCapacityAlerts, getSpecialApprovals } from "@/lib/medicalLeaveUtils";
-import { TeamCapacityAlert, SpecialApproval } from "@/lib/types";
+import { TeamCapacityAlert, SpecialApproval, Person } from "@/lib/types";
+import { Button } from "@/components/ui/button";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -15,6 +17,7 @@ interface PlannedAbsence {
   tipo: string;
   inicio: string;
   fim: string;
+  requester_id: string;
   requester: {
     nome: string;
     cargo: string;
@@ -23,11 +26,14 @@ interface PlannedAbsence {
 }
 
 export const TeamCapacityDashboard = () => {
+  const navigate = useNavigate();
   const [alerts, setAlerts] = useState<TeamCapacityAlert[]>([]);
   const [specialApprovals, setSpecialApprovals] = useState<SpecialApproval[]>([]);
   const [plannedAbsences, setPlannedAbsences] = useState<PlannedAbsence[]>([]);
   const [loading, setLoading] = useState(false);
   const [historicalCount, setHistoricalCount] = useState(0);
+  const [currentUserPerson, setCurrentUserPerson] = useState<Person | null>(null);
+  const [allPeople, setAllPeople] = useState<Person[]>([]);
   const { user, loading: authLoading } = useAuth();
 
   const loadDashboardData = async () => {
@@ -71,6 +77,7 @@ export const TeamCapacityDashboard = () => {
         tipo: absence.tipo,
         inicio: absence.inicio,
         fim: absence.fim,
+        requester_id: absence.requester_id,
         requester: {
           nome: absence.people?.nome || 'N/A',
           cargo: absence.people?.cargo || 'N/A',
@@ -94,6 +101,47 @@ export const TeamCapacityDashboard = () => {
       loadDashboardData();
     }
   }, [user, authLoading]);
+
+  useEffect(() => {
+    const fetchCurrentUserAndPeople = async () => {
+      if (!user) return;
+      
+      const [profileData, peopleData] = await Promise.all([
+        supabase
+          .from('profiles')
+          .select('person_id, people!inner(*)')
+          .eq('user_id', user.id)
+          .single(),
+        supabase
+          .from('people')
+          .select('*')
+          .eq('ativo', true)
+      ]);
+      
+      if (profileData.data?.people) {
+        setCurrentUserPerson(profileData.data.people as any);
+      }
+      
+      if (peopleData.data) {
+        setAllPeople(peopleData.data as any);
+      }
+    };
+    
+    if (user) {
+      fetchCurrentUserAndPeople();
+    }
+  }, [user]);
+
+  const canEditAbsence = (requesterId: string) => {
+    if (!currentUserPerson) return false;
+    
+    const isDirectorOrAdmin = currentUserPerson.papel === 'DIRETOR' || currentUserPerson.is_admin;
+    if (isDirectorOrAdmin) return true;
+    
+    // Verificar se é gestor do solicitante
+    const requesterPerson = allPeople.find(p => p.id === requesterId);
+    return requesterPerson?.gestorId === currentUserPerson.id;
+  };
 
   const getCriticalAlerts = () => {
     return alerts.filter(alert => alert.affected_people_count >= 2);
@@ -297,20 +345,32 @@ export const TeamCapacityDashboard = () => {
               {plannedAbsences.map((absence) => (
                 <div key={absence.id} className="p-3 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg">
                   <div className="flex items-center justify-between">
-                    <div>
+                    <div className="flex-1">
                       <div className="font-medium">{absence.requester.nome}</div>
                       <div className="text-sm text-muted-foreground">
                         {absence.requester.cargo} • {absence.requester.sub_time}
                       </div>
                     </div>
-                    <div className="text-right">
-                      {(() => {
-                        const { label, variant } = getAbsenceBadge(absence.tipo);
-                        return <Badge variant={variant} className="text-xs">{label}</Badge>;
-                      })()}
-                      <div className="text-xs text-muted-foreground mt-1">
-                        {format(new Date(absence.inicio), "dd/MM", { locale: ptBR })} - {format(new Date(absence.fim), "dd/MM", { locale: ptBR })}
+                    <div className="flex items-center gap-3">
+                      <div className="text-right">
+                        {(() => {
+                          const { label, variant } = getAbsenceBadge(absence.tipo);
+                          return <Badge variant={variant} className="text-xs">{label}</Badge>;
+                        })()}
+                        <div className="text-xs text-muted-foreground mt-1">
+                          {format(new Date(absence.inicio), "dd/MM", { locale: ptBR })} - {format(new Date(absence.fim), "dd/MM", { locale: ptBR })}
+                        </div>
                       </div>
+                      {canEditAbsence(absence.requester_id) && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => navigate(`/requests/${absence.id}/edit`)}
+                          className="h-8 w-8 p-0"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </div>
