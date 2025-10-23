@@ -652,15 +652,22 @@ export const Dashboard = () => {
           {loading ? (
             <p>Carregando...</p>
           ) : userRequests.length > 0 ? (
-            userRequests.map((request) => (
-               <RequestCard 
-                 key={request.id} 
-                 request={request}
-                 onView={(req) => navigate(`/requests/${req.id}`)}
-                 onEdit={(req) => navigate(`/requests/${req.id}/edit`)}
-                 onDelete={handleDeleteRequest}
-               />
-            ))
+            userRequests.map((request) => {
+              const isUserManagerOfRequester = person?.id === request.requester.gestorId;
+              
+              return (
+                <RequestCard 
+                  key={request.id} 
+                  request={request}
+                  onView={(req) => navigate(`/requests/${req.id}`)}
+                  onEdit={(req) => navigate(`/requests/${req.id}/edit`)}
+                  onDelete={handleDeleteRequest}
+                  currentUserRole={person?.papel}
+                  isUserManager={isUserManagerOfRequester}
+                  currentUserId={person?.id}
+                />
+              );
+            })
           ) : (
             <Card className="p-8 text-center">
               <CalendarDays className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
