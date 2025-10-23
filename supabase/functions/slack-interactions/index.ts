@@ -1,17 +1,33 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { createHmac } from "https://deno.land/std@0.190.0/node/crypto.ts";
 
 const SLACK_SIGNING_SECRET = Deno.env.get("SLACK_SIGNING_SECRET")!;
 const SLACK_BOT_TOKEN = Deno.env.get("SLACK_BOT_TOKEN")!;
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-function verifySlackRequest(body: string, timestamp: string, signature: string): boolean {
+async function verifySlackRequest(body: string, timestamp: string, signature: string): Promise<boolean> {
+  const encoder = new TextEncoder();
   const baseString = `v0:${timestamp}:${body}`;
-  const hmac = createHmac("sha256", SLACK_SIGNING_SECRET);
-  hmac.update(baseString);
-  const computedSignature = `v0=${hmac.digest("hex")}`;
+  
+  const key = await crypto.subtle.importKey(
+    "raw",
+    encoder.encode(SLACK_SIGNING_SECRET),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+  
+  const signatureBytes = await crypto.subtle.sign(
+    "HMAC",
+    key,
+    encoder.encode(baseString)
+  );
+  
+  const hashArray = Array.from(new Uint8Array(signatureBytes));
+  const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  const computedSignature = `v0=${hashHex}`;
+  
   return computedSignature === signature;
 }
 
@@ -22,7 +38,8 @@ serve(async (req) => {
     const signature = req.headers.get("X-Slack-Signature") || "";
 
     // Verify request is from Slack
-    if (!verifySlackRequest(body, timestamp, signature)) {
+    const isValid = await verifySlackRequest(body, timestamp, signature);
+    if (!isValid) {
       console.error("Invalid Slack signature");
       return new Response("Unauthorized", { status: 401 });
     }
