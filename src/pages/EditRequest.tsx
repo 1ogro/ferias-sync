@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { parseDateSafely } from "@/lib/dateUtils";
-import { TipoAusencia, Status } from "@/lib/types";
+import { TipoAusencia, Status, Papel } from "@/lib/types";
 import { Calendar, AlertTriangle, CheckCircle, ArrowLeft, Edit } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
@@ -54,33 +54,55 @@ const EditRequest = () => {
       if (!id || !person) return;
       
       try {
+        // Fetch request without restricting to own requests (allow managers/directors)
         const { data: requestData, error } = await supabase
           .from('requests')
-          .select('*')
+          .select(`
+            *,
+            requester:people!requests_requester_id_fkey(*)
+          `)
           .eq('id', id)
-          .eq('requester_id', person.id) // Only allow editing own requests
-          .single();
+          .maybeSingle();
         
-        if (error) {
+        if (error || !requestData) {
           console.error('Error fetching request:', error);
           toast({
             title: "Erro",
-            description: "Solicitação não encontrada ou você não tem permissão para editá-la.",
+            description: "Solicitação não encontrada.",
             variant: "destructive",
           });
           navigate('/');
           return;
         }
         
-        if (requestData) {
-          setFormData({
-            tipo: requestData.tipo as TipoAusencia,
-            inicio: requestData.inicio || "",
-            fim: requestData.fim || "",
-            justificativa: requestData.justificativa || ""
+        // Verificar permissões
+        const isOwnRequest = person.id === requestData.requester_id;
+        const isManager = person.id === requestData.requester?.gestor_id;
+        const isDirectorOrAdmin = person.papel === Papel.DIRETOR || person.is_admin;
+        
+        // Usuário só pode editar próprio rascunho OU ser gestor/diretor
+        const hasPermission = 
+          (isOwnRequest && requestData.status === Status.RASCUNHO) ||
+          (isManager && requestData.status !== Status.RASCUNHO) ||
+          (isDirectorOrAdmin && requestData.status !== Status.RASCUNHO);
+        
+        if (!hasPermission) {
+          toast({
+            title: "Acesso negado",
+            description: "Você não tem permissão para editar esta solicitação.",
+            variant: "destructive",
           });
-          setOriginalStatus(requestData.status as Status);
+          navigate('/');
+          return;
         }
+        
+        setFormData({
+          tipo: requestData.tipo as TipoAusencia,
+          inicio: requestData.inicio || "",
+          fim: requestData.fim || "",
+          justificativa: requestData.justificativa || ""
+        });
+        setOriginalStatus(requestData.status as Status);
       } catch (error) {
         console.error('Error fetching request:', error);
         toast({
@@ -263,14 +285,27 @@ const EditRequest = () => {
 
       if (error) throw error;
 
-      // Create audit log
+      // Create audit log (diferente se for edição administrativa)
+      const { data: requestForAudit } = await supabase
+        .from('requests')
+        .select('requester_id')
+        .eq('id', id!)
+        .single();
+      
+      const isAdminEdit = requestForAudit && requestForAudit.requester_id !== person.id;
+      
       await supabase
         .from('audit_logs')
         .insert({
           entidade: 'requests',
           entidade_id: id!,
-          acao: 'UPDATE',
-          payload: { tipo: formData.tipo, inicio: formData.inicio, fim: formData.fim },
+          acao: isAdminEdit ? 'ADMIN_UPDATE' : 'UPDATE',
+          payload: { 
+            tipo: formData.tipo, 
+            inicio: formData.inicio, 
+            fim: formData.fim,
+            admin_role: isAdminEdit ? person.papel : undefined
+          },
           actor_id: person.id
         });
 
@@ -386,6 +421,15 @@ const EditRequest = () => {
                   <Badge variant="outline" className="ml-2">Rascunho</Badge>
                 )}
               </CardTitle>
+              {originalStatus !== Status.RASCUNHO && (
+                <Alert className="mt-4 border-amber-500 bg-amber-50">
+                  <AlertTriangle className="w-4 h-4 text-amber-600" />
+                  <AlertDescription className="text-amber-800">
+                    <strong>⚠️ Edição Administrativa:</strong> Você está editando uma solicitação já enviada. 
+                    As mudanças serão registradas no histórico de auditoria.
+                  </AlertDescription>
+                </Alert>
+              )}
             </CardHeader>
             <CardContent>
               <form onSubmit={handleUpdate} className="space-y-6">

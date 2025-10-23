@@ -13,6 +13,9 @@ interface RequestCardProps {
   onView?: (request: Request) => void;
   onDelete?: (request: Request) => void;
   showActions?: boolean;
+  currentUserRole?: 'COLABORADOR' | 'GESTOR' | 'DIRETOR' | 'ADMIN';
+  isUserManager?: boolean;
+  currentUserId?: string;
 }
 
 export const RequestCard = ({ 
@@ -20,7 +23,10 @@ export const RequestCard = ({
   onEdit, 
   onView,
   onDelete,
-  showActions = true 
+  showActions = true,
+  currentUserRole,
+  isUserManager,
+  currentUserId
 }: RequestCardProps) => {
   const formatDate = (date: Date | null) => {
     if (!date) return "Não definida";
@@ -100,23 +106,32 @@ export const RequestCard = ({
                 <Eye className="w-4 h-4" />
               </Button>
               <Button
-                variant="ghost" 
+                variant="ghost"
                 size="sm"
                 onClick={() => onEdit?.(request)}
                 className="h-8 w-8 p-0"
               >
                 <Edit className="w-4 h-4" />
               </Button>
-              {request.status === Status.RASCUNHO && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => onDelete?.(request)}
-                  className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </Button>
-              )}
+              {(() => {
+                const isOwnRequest = currentUserId === request.requesterId;
+                const canDeleteCard = 
+                  (isOwnRequest && request.status === Status.RASCUNHO) || // Próprio rascunho
+                  (currentUserRole && ['GESTOR', 'DIRETOR'].includes(currentUserRole) && 
+                   (isUserManager || currentUserRole === 'DIRETOR') &&
+                   request.status !== Status.RASCUNHO); // Gestor/Diretor pode excluir não-rascunhos
+                
+                return canDeleteCard && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => onDelete?.(request)}
+                    className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                );
+              })()}
             </div>
           )}
         </div>

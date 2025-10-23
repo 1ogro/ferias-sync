@@ -19,6 +19,7 @@ const RequestDetail = () => {
   const [comment, setComment] = useState("");
   const [request, setRequest] = useState<Request | null>(null);
   const [loading, setLoading] = useState(true);
+  const [currentUserPerson, setCurrentUserPerson] = useState<Person | null>(null);
   const [timelineEvents, setTimelineEvents] = useState<Array<{
     id: string;
     status: Status;
@@ -26,6 +27,26 @@ const RequestDetail = () => {
     date: Date;
     comment?: string;
   }>>([]);
+  
+  // Fetch current user's person data
+  useEffect(() => {
+    const fetchCurrentUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('person_id, people!inner(*)')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      
+      if (profile && profile.people) {
+        setCurrentUserPerson(profile.people as any);
+      }
+    };
+    
+    fetchCurrentUser();
+  }, []);
   
   // Fetch request data from Supabase
   useEffect(() => {
@@ -212,9 +233,22 @@ const RequestDetail = () => {
     return `${diffDays} dia${diffDays > 1 ? 's' : ''}`;
   };
 
-  const canEdit = ![Status.REALIZADO].includes(request.status);
-  const canCancel = ![Status.REALIZADO, Status.CANCELADO, Status.REPROVADO].includes(request.status);
-  const canDelete = request.status === Status.RASCUNHO;
+  // Verificar permissões de edição e exclusão
+  const isOwnRequest = currentUserPerson?.id === request.requesterId;
+  const isManager = currentUserPerson?.id === request.requester.gestorId;
+  const isDirectorOrAdmin = currentUserPerson?.papel === Papel.DIRETOR || currentUserPerson?.is_admin;
+  
+  // Permissões de edição
+  const canEdit = isOwnRequest 
+    ? request.status === Status.RASCUNHO // Próprio usuário só edita rascunhos
+    : (isManager || isDirectorOrAdmin) && request.status !== Status.RASCUNHO; // Gestor/diretor edita tudo exceto rascunhos
+  
+  // Permissões de exclusão
+  const canDelete = isOwnRequest
+    ? request.status === Status.RASCUNHO // Próprio usuário só exclui rascunhos
+    : (isManager || isDirectorOrAdmin) && request.status !== Status.RASCUNHO; // Gestor/diretor exclui tudo exceto rascunhos
+  
+  const canCancel = canDelete;
 
   const handleCancel = async () => {
     if (!confirm("Tem certeza que deseja cancelar esta solicitação?")) return;
@@ -244,9 +278,67 @@ const RequestDetail = () => {
   };
 
   const handleDelete = async () => {
-    if (!confirm("Tem certeza que deseja excluir este rascunho? Esta ação não pode ser desfeita.")) return;
+    // Se for administrador, pedir justificativa obrigatória
+    let justification = "";
+    if (!isOwnRequest && (isManager || isDirectorOrAdmin)) {
+      justification = prompt(
+        "Por favor, informe a justificativa para excluir esta solicitação.\n" +
+        "Esta ação será registrada no histórico de auditoria:"
+      ) || "";
+      
+      if (!justification.trim()) {
+        toast({
+          title: "Ação cancelada",
+          description: "É necessário informar uma justificativa para exclusão administrativa.",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
+    const confirmMessage = isOwnRequest && request.status === Status.RASCUNHO
+      ? "Tem certeza que deseja excluir este rascunho? Esta ação não pode ser desfeita."
+      : `⚠️ EXCLUSÃO ADMINISTRATIVA\n\n` +
+        `Solicitação: ${TIPO_LABELS[request.tipo]}\n` +
+        `Status: ${request.status}\n` +
+        `Colaborador: ${request.requester.nome}\n` +
+        `Período: ${formatDate(request.inicio)} - ${formatDate(request.fim)}\n\n` +
+        `Esta ação NÃO pode ser desfeita!\n` +
+        `Tem certeza que deseja excluir?`;
+    
+    if (!confirm(confirmMessage)) return;
 
     try {
+      // Se for exclusão administrativa, registrar no audit_log ANTES de excluir
+      if (!isOwnRequest && (isManager || isDirectorOrAdmin)) {
+        const { error: auditError } = await supabase
+          .from('audit_logs')
+          .insert({
+            entidade: 'requests',
+            entidade_id: id,
+            acao: 'ADMIN_DELETE',
+            actor_id: currentUserPerson?.id,
+            payload: {
+              request_data: {
+                requester_id: request.requesterId,
+                requester_name: request.requester.nome,
+                tipo: request.tipo,
+                inicio: request.inicio?.toISOString(),
+                fim: request.fim?.toISOString(),
+                status: request.status,
+                justificativa_original: request.justificativa
+              },
+              admin_justification: justification,
+              admin_role: currentUserPerson?.papel
+            }
+          });
+
+        if (auditError) {
+          console.error('Audit log error:', auditError);
+          throw new Error('Falha ao registrar ação no histórico de auditoria');
+        }
+      }
+
       const { error } = await supabase
         .from('requests')
         .delete()
@@ -255,11 +347,13 @@ const RequestDetail = () => {
       if (error) throw error;
 
       toast({
-        title: "Rascunho excluído",
-        description: "O rascunho foi excluído com sucesso.",
+        title: isOwnRequest ? "Rascunho excluído" : "Solicitação excluída (Admin)",
+        description: isOwnRequest 
+          ? "O rascunho foi excluído com sucesso." 
+          : "A solicitação foi excluída e o histórico foi registrado.",
       });
 
-      navigate('/');
+      navigate('/inbox');
     } catch (error: any) {
       toast({
         title: "Erro",
@@ -310,27 +404,17 @@ const RequestDetail = () => {
                         onClick={() => navigate(`/requests/${request.id}/edit`)}
                       >
                         <Edit className="w-4 h-4 mr-1" />
-                        Editar
+                        {isOwnRequest ? 'Editar' : 'Editar (Admin)'}
                       </Button>
-                      {canDelete ? (
+                      {canDelete && (
                         <Button 
                           variant="outline" 
                           size="sm" 
-                          className="text-status-rejected border-status-rejected"
+                          className="text-status-rejected border-status-rejected hover:bg-status-rejected/10"
                           onClick={handleDelete}
                         >
                           <Trash2 className="w-4 h-4 mr-1" />
-                          Excluir
-                        </Button>
-                      ) : canCancel && (
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
-                          className="text-status-rejected border-status-rejected"
-                          onClick={handleCancel}
-                        >
-                          <Trash2 className="w-4 h-4 mr-1" />
-                          Cancelar
+                          {isOwnRequest && request.status === Status.RASCUNHO ? 'Excluir Rascunho' : 'Excluir (Admin)'}
                         </Button>
                       )}
                     </div>
