@@ -10,6 +10,8 @@ interface AuthContextType {
   loading: boolean;
   profileChecked: boolean;
   contractDateChecked: boolean;
+  userRoles: string[];
+  hasRole: (role: string) => boolean;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signUp: (email: string, password: string, personId: string) => Promise<{ error: any }>;
   signInWithFigma: () => Promise<{ error: any }>;
@@ -27,6 +29,30 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [loading, setLoading] = useState(true);
   const [profileChecked, setProfileChecked] = useState(false);
   const [contractDateChecked, setContractDateChecked] = useState(false);
+  const [userRoles, setUserRoles] = useState<string[]>([]);
+
+  const fetchUserRoles = async (userId: string) => {
+    try {
+      console.log('Fetching user roles for user:', userId);
+      
+      const { data, error } = await supabase
+        .from('user_roles' as any)
+        .select('role')
+        .eq('user_id', userId);
+
+      if (error) {
+        console.error('Error fetching user roles:', error);
+        setUserRoles([]);
+      } else {
+        const roles = (data as any)?.map((r: any) => r.role) || [];
+        console.log('User roles:', roles);
+        setUserRoles(roles);
+      }
+    } catch (error) {
+      console.error('Error fetching user roles:', error);
+      setUserRoles([]);
+    }
+  };
 
   const fetchPersonData = async (userId?: string) => {
     const userIdToUse = userId || user?.id;
@@ -50,6 +76,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       } else if (profile?.people) {
         console.log('Profile found:', profile.people);
         setPerson(profile.people as Person);
+        
+        // Fetch user roles after getting person data
+        await fetchUserRoles(userIdToUse);
       } else {
         console.log('No profile found for user');
         setPerson(null);
@@ -62,6 +91,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setContractDateChecked(true);
       setLoading(false);
     }
+  };
+
+  const hasRole = (role: string) => {
+    return userRoles.includes(role);
   };
 
   useEffect(() => {
@@ -192,6 +225,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const signOut = async () => {
     await supabase.auth.signOut();
     setPerson(null);
+    setUserRoles([]);
     setProfileChecked(false);
     setContractDateChecked(false);
   };
@@ -230,6 +264,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     loading,
     profileChecked,
     contractDateChecked,
+    userRoles,
+    hasRole,
     signIn,
     signUp,
     signInWithFigma,

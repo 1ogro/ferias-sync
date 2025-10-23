@@ -17,3 +17,6 @@ verify_jwt = false
 
 [functions.sheets-export]
 verify_jwt = false
+
+[functions.test-integrations]
+verify_jwt = true

@@ -10,13 +10,24 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useSettings } from "@/hooks/useSettings";
-import { Monitor, Bell, Table, RotateCcw, Save } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import { useIntegrations } from "@/hooks/useIntegrations";
+import { IntegrationCard } from "@/components/integrations/IntegrationCard";
+import { IntegrationsWizard } from "@/components/integrations/IntegrationsWizard";
+import { Monitor, Bell, Table, RotateCcw, Save, Plug } from "lucide-react";
+import { MessageSquare, Sheet } from "lucide-react";
 import { useState } from "react";
 
 const Settings = () => {
   const { toast } = useToast();
   const { settings, updateSettings, resetSettings } = useSettings();
+  const { hasRole } = useAuth();
+  const { settings: integrationSettings, testSlack, testSheets, isTestingSlack, isTestingSheets } = useIntegrations();
   const [hasChanges, setHasChanges] = useState(false);
+  const [wizardOpen, setWizardOpen] = useState(false);
+  const [wizardType, setWizardType] = useState<'slack' | 'sheets' | null>(null);
+
+  const isDirectorOrAdmin = hasRole('director') || hasRole('admin');
 
   const handleSettingChange = (key: string, value: any) => {
     updateSettings({ [key]: value });
@@ -67,7 +78,7 @@ const Settings = () => {
           </div>
 
           <Tabs defaultValue="appearance" className="space-y-6">
-            <TabsList className="grid w-full grid-cols-4">
+            <TabsList className={`grid w-full ${isDirectorOrAdmin ? 'grid-cols-5' : 'grid-cols-4'}`}>
               <TabsTrigger value="appearance">
                 <Monitor className="w-4 h-4 mr-2" />
                 Aparência
@@ -81,6 +92,12 @@ const Settings = () => {
                 Exibição
               </TabsTrigger>
               <TabsTrigger value="advanced">Avançado</TabsTrigger>
+              {isDirectorOrAdmin && (
+                <TabsTrigger value="integrations">
+                  <Plug className="w-4 h-4 mr-2" />
+                  Integrações
+                </TabsTrigger>
+              )}
             </TabsList>
 
             <TabsContent value="appearance">
@@ -312,7 +329,58 @@ const Settings = () => {
                 </CardContent>
               </Card>
             </TabsContent>
+
+            {isDirectorOrAdmin && (
+              <TabsContent value="integrations">
+                <div className="space-y-6">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Integrações</CardTitle>
+                      <CardDescription>
+                        Configure integrações com serviços externos para automatizar processos
+                      </CardDescription>
+                    </CardHeader>
+                  </Card>
+
+                  <IntegrationCard
+                    title="Slack"
+                    description="Receba notificações de aprovações no Slack"
+                    status={(integrationSettings?.slack_status || 'not_configured') as 'not_configured' | 'configured' | 'active' | 'error'}
+                    lastTest={integrationSettings?.slack_test_date}
+                    errorMessage={integrationSettings?.slack_error_message}
+                    onConfigure={() => {
+                      setWizardType('slack');
+                      setWizardOpen(true);
+                    }}
+                    onTest={() => testSlack()}
+                    isTesting={isTestingSlack}
+                    icon={<MessageSquare className="w-6 h-6" />}
+                  />
+
+                  <IntegrationCard
+                    title="Google Sheets"
+                    description="Sincronize dados com uma planilha do Google Sheets"
+                    status={(integrationSettings?.sheets_status || 'not_configured') as 'not_configured' | 'configured' | 'active' | 'error'}
+                    lastTest={integrationSettings?.sheets_last_sync}
+                    errorMessage={integrationSettings?.sheets_error_message}
+                    onConfigure={() => {
+                      setWizardType('sheets');
+                      setWizardOpen(true);
+                    }}
+                    onTest={() => testSheets()}
+                    isTesting={isTestingSheets}
+                    icon={<Sheet className="w-6 h-6" />}
+                  />
+                </div>
+              </TabsContent>
+            )}
           </Tabs>
+
+          <IntegrationsWizard
+            open={wizardOpen}
+            onOpenChange={setWizardOpen}
+            initialType={wizardType}
+          />
         </div>
       </main>
     </div>
