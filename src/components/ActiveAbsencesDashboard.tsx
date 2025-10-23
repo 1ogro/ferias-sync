@@ -17,7 +17,8 @@ import {
   Briefcase, 
   Baby, 
   AlertTriangle,
-  Clock
+  Clock,
+  Activity
 } from "lucide-react";
 import { format, differenceInDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -65,7 +66,7 @@ export function ActiveAbsencesDashboard() {
           )
         `)
         .in('status', ['APROVADO_FINAL', 'REALIZADO'])
-        .in('tipo', ['FERIAS', 'LICENCA_MATERNIDADE'])
+        .in('tipo', ['FERIAS', 'LICENCA_MATERNIDADE', 'LICENCA_MEDICA', 'DAY_OFF'])
         .lte('inicio', today)
         .gte('fim', today)
         .order('fim', { ascending: true });
@@ -106,6 +107,8 @@ export function ActiveAbsencesDashboard() {
   const stats = useMemo(() => {
     const ferias = activeAbsences.filter(a => a.tipo === 'FERIAS').length;
     const maternidade = activeAbsences.filter(a => a.tipo === 'LICENCA_MATERNIDADE').length;
+    const licencaMedica = activeAbsences.filter(a => a.tipo === 'LICENCA_MEDICA').length;
+    const dayOff = activeAbsences.filter(a => a.tipo === 'DAY_OFF').length;
     const teams = new Set(activeAbsences.map(a => a.requester_sub_time));
     
     // Calcular times com múltiplas ausências
@@ -120,6 +123,8 @@ export function ActiveAbsencesDashboard() {
       total: activeAbsences.length,
       ferias,
       maternidade,
+      licencaMedica,
+      dayOff,
       teamsImpacted: teams.size,
       teamsWithAlert: teamsWithMultipleAbsences
     };
@@ -143,6 +148,19 @@ export function ActiveAbsencesDashboard() {
     return Array.from(new Set(activeAbsences.map(a => a.requester_sub_time))).sort();
   }, [activeAbsences]);
 
+  const getAbsenceBadge = (tipo: string) => {
+    switch (tipo) {
+      case 'LICENCA_MATERNIDADE':
+        return { icon: Baby, label: 'Lic. Maternidade', variant: 'secondary' as const };
+      case 'LICENCA_MEDICA':
+        return { icon: Activity, label: 'Lic. Médica', variant: 'destructive' as const };
+      case 'DAY_OFF':
+        return { icon: Clock, label: 'Day Off', variant: 'outline' as const };
+      default: // FERIAS
+        return { icon: Briefcase, label: 'Férias', variant: 'default' as const };
+    }
+  };
+
   if (loading) {
     return (
       <div className="space-y-6">
@@ -158,7 +176,7 @@ export function ActiveAbsencesDashboard() {
   return (
     <div className="space-y-6">
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-7 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Pessoas Ausentes</CardTitle>
@@ -213,6 +231,28 @@ export function ActiveAbsencesDashboard() {
             <p className="text-xs text-muted-foreground">times com 2+ ausências</p>
           </CardContent>
         </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Licenças Médicas</CardTitle>
+            <Activity className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.licencaMedica}</div>
+            <p className="text-xs text-muted-foreground">ativas</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Day Offs</CardTitle>
+            <Calendar className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.dayOff}</div>
+            <p className="text-xs text-muted-foreground">ativos</p>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Critical Alerts */}
@@ -252,6 +292,8 @@ export function ActiveAbsencesDashboard() {
                 <SelectItem value="all">Todos os tipos</SelectItem>
                 <SelectItem value="FERIAS">Férias</SelectItem>
                 <SelectItem value="LICENCA_MATERNIDADE">Licença Maternidade</SelectItem>
+                <SelectItem value="LICENCA_MEDICA">Licença Médica</SelectItem>
+                <SelectItem value="DAY_OFF">Day Off</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -270,7 +312,7 @@ export function ActiveAbsencesDashboard() {
           <CardContent>
             <div className="space-y-4">
               {teamsWithMultipleAbsences.map(([team, absences]) => (
-                <div key={team} className="p-4 bg-orange-50 border border-orange-200 rounded-lg">
+                <div key={team} className="p-4 bg-orange-50 dark:bg-orange-950 border border-orange-200 dark:border-orange-800 rounded-lg">
                   <div className="flex items-center justify-between mb-3">
                     <div className="font-semibold text-orange-800">{team}</div>
                     <Badge variant="outline" className="bg-orange-100 text-orange-800 border-orange-300">
@@ -285,9 +327,10 @@ export function ActiveAbsencesDashboard() {
                           <div className="text-xs text-muted-foreground">{absence.requester_cargo}</div>
                         </div>
                         <div className="text-right">
-                          <Badge variant={absence.tipo === 'LICENCA_MATERNIDADE' ? 'secondary' : 'outline'} className="text-xs">
-                            {absence.tipo === 'LICENCA_MATERNIDADE' ? 'Lic. Maternidade' : 'Férias'}
-                          </Badge>
+                          {(() => {
+                            const { label, variant } = getAbsenceBadge(absence.tipo);
+                            return <Badge variant={variant} className="text-xs">{label}</Badge>;
+                          })()}
                           <div className="text-xs text-muted-foreground mt-1">
                             Retorna em {absence.dias_restantes} dia{absence.dias_restantes !== 1 ? 's' : ''}
                           </div>
@@ -319,7 +362,10 @@ export function ActiveAbsencesDashboard() {
                 <div key={absence.id} className="flex items-center justify-between p-4 bg-muted/50 rounded-lg hover:bg-muted transition-colors">
                   <div className="flex items-center gap-4">
                     <div className={`w-1 h-16 rounded-full ${
-                      absence.tipo === 'LICENCA_MATERNIDADE' ? 'bg-purple-500' : 'bg-blue-500'
+                      absence.tipo === 'LICENCA_MATERNIDADE' ? 'bg-purple-500' :
+                      absence.tipo === 'LICENCA_MEDICA' ? 'bg-red-500' :
+                      absence.tipo === 'DAY_OFF' ? 'bg-green-500' :
+                      'bg-blue-500'
                     }`} />
                     <div>
                       <div className="font-semibold">{absence.requester_name}</div>
@@ -330,13 +376,15 @@ export function ActiveAbsencesDashboard() {
                     </div>
                   </div>
                   <div className="text-right">
-                    <Badge variant={absence.tipo === 'LICENCA_MATERNIDADE' ? 'secondary' : 'default'} className="mb-2">
-                      {absence.tipo === 'LICENCA_MATERNIDADE' ? (
-                        <><Baby className="w-3 h-3 mr-1" />Lic. Maternidade</>
-                      ) : (
-                        <><Briefcase className="w-3 h-3 mr-1" />Férias</>
-                      )}
-                    </Badge>
+                    {(() => {
+                      const { icon: Icon, label, variant } = getAbsenceBadge(absence.tipo);
+                      return (
+                        <Badge variant={variant} className="mb-2">
+                          <Icon className="w-3 h-3 mr-1" />
+                          {label}
+                        </Badge>
+                      );
+                    })()}
                     <div className="text-sm">
                       <div className="font-medium">
                         {format(new Date(absence.start_date), "dd/MM/yyyy")} - {format(new Date(absence.end_date), "dd/MM/yyyy")}
