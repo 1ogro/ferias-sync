@@ -171,8 +171,11 @@ export function ApprovedVacationsExecutiveView() {
       
       const matchesSearch = vacation.requester_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                            vacation.requester_cargo.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesMonth = startDate.getMonth() + 1 === selectedMonth;
-      const matchesYear = startDate.getFullYear() === selectedYear;
+      // Verificar se a ausência está ativa no mês selecionado (overlap check)
+      const selectedMonthStart = new Date(selectedYear, selectedMonth - 1, 1);
+      const selectedMonthEnd = new Date(selectedYear, selectedMonth, 0);
+      const matchesMonth = (startDate <= selectedMonthEnd && endDate >= selectedMonthStart);
+      const matchesYear = true; // já contemplado no matchesMonth
       const matchesManager = selectedManager === 'all' || vacation.approver_name === selectedManager;
       const matchesTeam = selectedTeam === 'all' || vacation.requester_sub_time === selectedTeam;
       const matchesStatus = selectedStatus === 'all' || vacation.status === selectedStatus;
