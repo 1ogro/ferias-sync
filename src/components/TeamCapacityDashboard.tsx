@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertTriangle, Users, Calendar, TrendingDown } from "lucide-react";
+import { AlertTriangle, Users, Calendar, TrendingDown, Activity, Clock, Briefcase, Baby } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { getTeamCapacityAlerts, getSpecialApprovals } from "@/lib/medicalLeaveUtils";
 import { TeamCapacityAlert, SpecialApproval } from "@/lib/types";
@@ -56,7 +56,7 @@ export const TeamCapacityDashboard = () => {
             people!requests_requester_id_fkey(nome, cargo, sub_time)
           `)
           .in('status', ['APROVADO_FINAL', 'REALIZADO'])
-          .in('tipo', ['FERIAS', 'LICENCA_MATERNIDADE'])
+          .in('tipo', ['FERIAS', 'LICENCA_MATERNIDADE', 'LICENCA_MEDICA', 'DAY_OFF'])
           .lte('inicio', today)
           .gte('fim', today),
         supabase
@@ -123,26 +123,66 @@ export const TeamCapacityDashboard = () => {
     return approvalDate >= weekAgo;
   });
 
+  // Helper function for absence badges
+  const getAbsenceBadge = (tipo: string) => {
+    switch (tipo) {
+      case 'LICENCA_MATERNIDADE':
+        return { icon: Baby, label: 'Lic. Maternidade', variant: 'secondary' as const };
+      case 'LICENCA_MEDICA':
+        return { icon: Activity, label: 'Lic. Médica', variant: 'destructive' as const };
+      case 'DAY_OFF':
+        return { icon: Clock, label: 'Day Off', variant: 'outline' as const };
+      default: // FERIAS
+        return { icon: Briefcase, label: 'Férias', variant: 'default' as const };
+    }
+  };
+
   // Calculate capacity impact by team
   const capacityByTeam = useMemo(() => {
-    const teamImpact: Record<string, { medicalLeaves: number; plannedAbsences: number; total: number }> = {};
+    const teamImpact: Record<string, { 
+      medicalLeaves: number; 
+      plannedAbsences: number; 
+      licencaMedica: number;
+      dayOff: number;
+      total: number 
+    }> = {};
 
     // Medical leaves impact
     alerts.forEach(alert => {
       if (!teamImpact[alert.team_id]) {
-        teamImpact[alert.team_id] = { medicalLeaves: 0, plannedAbsences: 0, total: 0 };
+        teamImpact[alert.team_id] = { 
+          medicalLeaves: 0, 
+          plannedAbsences: 0, 
+          licencaMedica: 0,
+          dayOff: 0,
+          total: 0 
+        };
       }
       teamImpact[alert.team_id].medicalLeaves = alert.affected_people_count;
       teamImpact[alert.team_id].total += alert.affected_people_count;
     });
 
-    // Planned absences impact
+    // Planned absences impact by type
     plannedAbsences.forEach(absence => {
       const team = absence.requester.sub_time;
       if (!teamImpact[team]) {
-        teamImpact[team] = { medicalLeaves: 0, plannedAbsences: 0, total: 0 };
+        teamImpact[team] = { 
+          medicalLeaves: 0, 
+          plannedAbsences: 0, 
+          licencaMedica: 0,
+          dayOff: 0,
+          total: 0 
+        };
       }
-      teamImpact[team].plannedAbsences += 1;
+      
+      if (absence.tipo === 'FERIAS' || absence.tipo === 'LICENCA_MATERNIDADE') {
+        teamImpact[team].plannedAbsences += 1;
+      } else if (absence.tipo === 'LICENCA_MEDICA') {
+        teamImpact[team].licencaMedica += 1;
+      } else if (absence.tipo === 'DAY_OFF') {
+        teamImpact[team].dayOff += 1;
+      }
+      
       teamImpact[team].total += 1;
     });
 
@@ -212,7 +252,7 @@ export const TeamCapacityDashboard = () => {
           <CardContent>
             <div className="text-2xl font-bold">{plannedAbsences.length}</div>
             <p className="text-xs text-muted-foreground">
-              Férias e licenças ativas
+              Ausências ativas
             </p>
           </CardContent>
         </Card>
@@ -264,9 +304,10 @@ export const TeamCapacityDashboard = () => {
                       </div>
                     </div>
                     <div className="text-right">
-                      <Badge variant={absence.tipo === 'LICENCA_MATERNIDADE' ? 'secondary' : 'outline'} className="text-xs">
-                        {absence.tipo === 'LICENCA_MATERNIDADE' ? 'Lic. Maternidade' : 'Férias'}
-                      </Badge>
+                      {(() => {
+                        const { label, variant } = getAbsenceBadge(absence.tipo);
+                        return <Badge variant={variant} className="text-xs">{label}</Badge>;
+                      })()}
                       <div className="text-xs text-muted-foreground mt-1">
                         {format(new Date(absence.inicio), "dd/MM", { locale: ptBR })} - {format(new Date(absence.fim), "dd/MM", { locale: ptBR })}
                       </div>

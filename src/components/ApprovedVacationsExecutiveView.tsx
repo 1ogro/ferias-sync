@@ -25,7 +25,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, Download, Users, Clock, TrendingUp, Briefcase, Baby } from "lucide-react";
+import { Calendar, Download, Users, Clock, TrendingUp, Briefcase, Baby, Activity } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -99,7 +99,7 @@ export function ApprovedVacationsExecutiveView() {
             )
           )
         `)
-        .in('tipo', ['FERIAS', 'LICENCA_MATERNIDADE'])
+        .in('tipo', ['FERIAS', 'LICENCA_MATERNIDADE', 'LICENCA_MEDICA', 'DAY_OFF'])
         .in('status', ['APROVADO_FINAL', 'REALIZADO'])
         .not('inicio', 'is', null)
         .not('fim', 'is', null)
@@ -196,17 +196,37 @@ export function ApprovedVacationsExecutiveView() {
     });
   }, [vacations, searchTerm, selectedMonth, selectedYear, selectedManager, selectedTeam, selectedStatus, selectedType, showOnlyActive, showUpcoming]);
 
+  // Helper function for type badges
+  const getTypeBadge = (tipo: string) => {
+    switch (tipo) {
+      case 'LICENCA_MATERNIDADE':
+        return { label: 'Lic. Maternidade', variant: 'secondary' as const };
+      case 'LICENCA_MEDICA':
+        return { label: 'Lic. Médica', variant: 'destructive' as const };
+      case 'DAY_OFF':
+        return { label: 'Day Off', variant: 'outline' as const };
+      default:
+        return { label: 'Férias', variant: 'default' as const };
+    }
+  };
+
   // Estatísticas
   const stats = useMemo(() => {
     const vacations = filteredVacations.filter(v => v.tipo === 'FERIAS');
     const maternityLeaves = filteredVacations.filter(v => v.tipo === 'LICENCA_MATERNIDADE');
+    const licencaMedica = filteredVacations.filter(v => v.tipo === 'LICENCA_MEDICA');
+    const dayOff = filteredVacations.filter(v => v.tipo === 'DAY_OFF');
     
     return {
       totalVacations: vacations.length,
       totalMaternityLeaves: maternityLeaves.length,
+      totalLicencaMedica: licencaMedica.length,
+      totalDayOff: dayOff.length,
       totalDays: filteredVacations.reduce((sum, v) => sum + v.vacation_days, 0),
       vacationDays: vacations.reduce((sum, v) => sum + v.vacation_days, 0),
       maternityDays: maternityLeaves.reduce((sum, v) => sum + v.vacation_days, 0),
+      licencaMedicaDays: licencaMedica.reduce((sum, v) => sum + v.vacation_days, 0),
+      dayOffDays: dayOff.reduce((sum, v) => sum + v.vacation_days, 0),
       byTeam: filteredVacations.reduce((acc, v) => {
         acc[v.requester_sub_time] = (acc[v.requester_sub_time] || 0) + 1;
         return acc;
@@ -224,7 +244,9 @@ export function ApprovedVacationsExecutiveView() {
     ];
     
     const csvData = filteredVacations.map(vacation => [
-      vacation.tipo === 'FERIAS' ? 'Férias' : 'Licença Maternidade',
+      vacation.tipo === 'FERIAS' ? 'Férias' : 
+      vacation.tipo === 'LICENCA_MATERNIDADE' ? 'Licença Maternidade' :
+      vacation.tipo === 'LICENCA_MEDICA' ? 'Licença Médica' : 'Day Off',
       vacation.requester_name,
       vacation.requester_cargo,
       vacation.requester_sub_time,
@@ -262,7 +284,7 @@ export function ApprovedVacationsExecutiveView() {
   return (
     <div className="space-y-6">
       {/* Cards de Estatísticas */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-7 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Férias Aprovadas</CardTitle>
@@ -285,6 +307,32 @@ export function ApprovedVacationsExecutiveView() {
             <div className="text-2xl font-bold">{stats.totalMaternityLeaves}</div>
             <p className="text-xs text-muted-foreground">
               {stats.maternityDays} dias
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Licenças Médicas</CardTitle>
+            <Activity className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.totalLicencaMedica}</div>
+            <p className="text-xs text-muted-foreground">
+              {stats.licencaMedicaDays} dias
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Day Offs</CardTitle>
+            <Clock className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.totalDayOff}</div>
+            <p className="text-xs text-muted-foreground">
+              {stats.dayOffDays} dias
             </p>
           </CardContent>
         </Card>
@@ -322,8 +370,8 @@ export function ApprovedVacationsExecutiveView() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {(stats.totalVacations + stats.totalMaternityLeaves) > 0 
-                ? Math.round(stats.totalDays / (stats.totalVacations + stats.totalMaternityLeaves)) 
+              {(stats.totalVacations + stats.totalMaternityLeaves + stats.totalLicencaMedica + stats.totalDayOff) > 0 
+                ? Math.round(stats.totalDays / (stats.totalVacations + stats.totalMaternityLeaves + stats.totalLicencaMedica + stats.totalDayOff)) 
                 : 0}
             </div>
             <p className="text-xs text-muted-foreground">
@@ -380,6 +428,8 @@ export function ApprovedVacationsExecutiveView() {
               <SelectItem value="all">Todos os tipos</SelectItem>
                 <SelectItem value="FERIAS">Férias</SelectItem>
                 <SelectItem value="LICENCA_MATERNIDADE">Licença Maternidade</SelectItem>
+                <SelectItem value="LICENCA_MEDICA">Licença Médica</SelectItem>
+                <SelectItem value="DAY_OFF">Day Off</SelectItem>
               </SelectContent>
             </Select>
             
@@ -500,19 +550,18 @@ export function ApprovedVacationsExecutiveView() {
                     return (
                       <TableRow key={vacation.id} className={isActiveNow ? "bg-primary/5" : ""}>
                         <TableCell>
-                        <Badge variant={vacation.tipo === 'LICENCA_MATERNIDADE' ? 'secondary' : 'outline'} className="flex items-center gap-1 w-fit">
-                          {vacation.tipo === 'LICENCA_MATERNIDADE' ? (
-                            <>
-                              <Baby className="w-3 h-3" />
-                              Lic. Maternidade
-                            </>
-                          ) : (
-                            <>
-                              <Briefcase className="w-3 h-3" />
-                              Férias
-                            </>
-                          )}
-                        </Badge>
+                          {(() => {
+                            const { label, variant } = getTypeBadge(vacation.tipo);
+                            const IconComponent = vacation.tipo === 'LICENCA_MATERNIDADE' ? Baby :
+                                                  vacation.tipo === 'LICENCA_MEDICA' ? Activity :
+                                                  vacation.tipo === 'DAY_OFF' ? Clock : Briefcase;
+                            return (
+                              <Badge variant={variant} className="flex items-center gap-1 w-fit">
+                                <IconComponent className="w-3 h-3" />
+                                {label}
+                              </Badge>
+                            );
+                          })()}
                       </TableCell>
                       <TableCell className="font-medium">
                         {vacation.requester_name}
