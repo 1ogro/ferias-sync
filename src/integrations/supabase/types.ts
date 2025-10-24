@@ -97,6 +97,87 @@ export type Database = {
           },
         ]
       }
+      integration_settings: {
+        Row: {
+          configured_at: string | null
+          configured_by: string | null
+          email_enabled: boolean | null
+          email_error_message: string | null
+          email_from_address: string | null
+          email_from_name: string | null
+          email_status: string | null
+          email_test_date: string | null
+          id: string
+          sheets_auto_sync: boolean | null
+          sheets_enabled: boolean | null
+          sheets_error_message: string | null
+          sheets_id: string | null
+          sheets_last_sync: string | null
+          sheets_service_account_set: boolean | null
+          sheets_status: string | null
+          sheets_sync_frequency: string | null
+          slack_bot_token_set: boolean | null
+          slack_channel_approvals: string | null
+          slack_enabled: boolean | null
+          slack_error_message: string | null
+          slack_status: string | null
+          slack_test_date: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          configured_at?: string | null
+          configured_by?: string | null
+          email_enabled?: boolean | null
+          email_error_message?: string | null
+          email_from_address?: string | null
+          email_from_name?: string | null
+          email_status?: string | null
+          email_test_date?: string | null
+          id?: string
+          sheets_auto_sync?: boolean | null
+          sheets_enabled?: boolean | null
+          sheets_error_message?: string | null
+          sheets_id?: string | null
+          sheets_last_sync?: string | null
+          sheets_service_account_set?: boolean | null
+          sheets_status?: string | null
+          sheets_sync_frequency?: string | null
+          slack_bot_token_set?: boolean | null
+          slack_channel_approvals?: string | null
+          slack_enabled?: boolean | null
+          slack_error_message?: string | null
+          slack_status?: string | null
+          slack_test_date?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          configured_at?: string | null
+          configured_by?: string | null
+          email_enabled?: boolean | null
+          email_error_message?: string | null
+          email_from_address?: string | null
+          email_from_name?: string | null
+          email_status?: string | null
+          email_test_date?: string | null
+          id?: string
+          sheets_auto_sync?: boolean | null
+          sheets_enabled?: boolean | null
+          sheets_error_message?: string | null
+          sheets_id?: string | null
+          sheets_last_sync?: string | null
+          sheets_service_account_set?: boolean | null
+          sheets_status?: string | null
+          sheets_sync_frequency?: string | null
+          slack_bot_token_set?: boolean | null
+          slack_channel_approvals?: string | null
+          slack_enabled?: boolean | null
+          slack_error_message?: string | null
+          slack_status?: string | null
+          slack_test_date?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       medical_leaves: {
         Row: {
           affects_team_capacity: boolean
@@ -435,6 +516,27 @@ export type Database = {
           },
         ]
       }
+      user_roles: {
+        Row: {
+          created_at: string | null
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
       vacation_balances: {
         Row: {
           accrued_days: number
@@ -499,6 +601,13 @@ export type Database = {
           without_contract: number
         }[]
       }
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
       is_current_user_admin: { Args: never; Returns: boolean }
       recalculate_vacation_balance: {
         Args: { p_person_id: string; p_year?: number }
@@ -525,6 +634,7 @@ export type Database = {
       }
     }
     Enums: {
+      app_role: "admin" | "director" | "manager" | "user"
       status:
         | "PENDENTE"
         | "EM_ANALISE_GESTOR"
@@ -667,6 +777,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      app_role: ["admin", "director", "manager", "user"],
       status: [
         "PENDENTE",
         "EM_ANALISE_GESTOR",

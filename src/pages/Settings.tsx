@@ -14,7 +14,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useIntegrations } from "@/hooks/useIntegrations";
 import { IntegrationCard } from "@/components/integrations/IntegrationCard";
 import { IntegrationsWizard } from "@/components/integrations/IntegrationsWizard";
-import { Monitor, Bell, Table, RotateCcw, Save, Plug } from "lucide-react";
+import { Monitor, Bell, Table, RotateCcw, Save, Plug, Mail } from "lucide-react";
 import { MessageSquare, Sheet } from "lucide-react";
 import { useState } from "react";
 
@@ -26,15 +26,17 @@ const Settings = () => {
     settings: integrationSettings, 
     isLoading,
     testSlack, 
-    testSheets, 
+    testSheets,
+    testEmail, 
     syncExisting,
     isTestingSlack, 
     isTestingSheets,
+    isTestingEmail,
     isSyncing,
   } = useIntegrations();
   const [hasChanges, setHasChanges] = useState(false);
   const [wizardOpen, setWizardOpen] = useState(false);
-  const [wizardType, setWizardType] = useState<'slack' | 'sheets' | null>(null);
+  const [wizardType, setWizardType] = useState<'slack' | 'sheets' | 'email' | null>(null);
 
   const isDirectorOrAdmin = hasRole('director') || hasRole('admin');
 
@@ -400,6 +402,21 @@ const Settings = () => {
                         onTest={() => testSheets()}
                         isTesting={isTestingSheets}
                         icon={<Sheet className="w-6 h-6" />}
+                      />
+
+                      <IntegrationCard
+                        title="Email (Resend)"
+                        description="Envie notificações automáticas por email"
+                        status={(integrationSettings?.email_status || 'not_configured') as 'not_configured' | 'configured' | 'active' | 'error'}
+                        lastTest={integrationSettings?.email_test_date}
+                        errorMessage={integrationSettings?.email_error_message}
+                        onConfigure={() => {
+                          setWizardType('email');
+                          setWizardOpen(true);
+                        }}
+                        onTest={() => testEmail()}
+                        isTesting={isTestingEmail}
+                        icon={<Mail className="w-6 h-6" />}
                       />
                     </>
                   )}

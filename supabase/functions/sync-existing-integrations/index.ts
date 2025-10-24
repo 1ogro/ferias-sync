@@ -23,11 +23,12 @@ serve(async (req) => {
     const GOOGLE_EMAIL = Deno.env.get("GOOGLE_SERVICE_ACCOUNT_EMAIL");
     const GOOGLE_KEY = Deno.env.get("GOOGLE_PRIVATE_KEY");
     const GOOGLE_SHEET_ID = Deno.env.get("GOOGLE_SHEET_ID");
+    const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 
     const updates: any = {
       updated_at: new Date().toISOString(),
     };
-    const report: any = { slack: false, sheets: false, details: [] };
+    const report: any = { slack: false, sheets: false, email: false, details: [] };
 
     // Check Slack integration
     if (SLACK_BOT_TOKEN && SLACK_CHANNEL) {
@@ -60,8 +61,20 @@ serve(async (req) => {
       if (!GOOGLE_SHEET_ID) report.details.push('GOOGLE_SHEET_ID não encontrado');
     }
 
+    // Check Email/Resend integration
+    if (RESEND_API_KEY) {
+      updates.email_enabled = true;
+      updates.email_status = 'configured';
+      report.email = true;
+      report.details.push('Email (Resend) configurado com sucesso');
+      console.log('Email/Resend integration detected');
+    } else {
+      console.log('Email/Resend integration not found');
+      report.details.push('RESEND_API_KEY não encontrado');
+    }
+
     // Update integration_settings table
-    if (report.slack || report.sheets) {
+    if (report.slack || report.sheets || report.email) {
       const { error } = await supabase
         .from('integration_settings')
         .update(updates)
@@ -78,6 +91,7 @@ serve(async (req) => {
     const syncedIntegrations = [];
     if (report.slack) syncedIntegrations.push('Slack');
     if (report.sheets) syncedIntegrations.push('Google Sheets');
+    if (report.email) syncedIntegrations.push('Email (Resend)');
 
     return new Response(
       JSON.stringify({

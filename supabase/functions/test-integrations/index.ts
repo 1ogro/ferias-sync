@@ -19,6 +19,8 @@ serve(async (req) => {
       return await testSlack();
     } else if (type === 'sheets') {
       return await testSheets();
+    } else if (type === 'email') {
+      return await testEmail();
     } else if (type === 'store-slack-token') {
       return new Response(
         JSON.stringify({ success: true, message: 'Token would be stored securely' }),
@@ -148,6 +150,70 @@ async function testSheets() {
     );
   } catch (error) {
     console.error('Sheets test error:', error);
+    return new Response(
+      JSON.stringify({
+        success: false,
+        message: error.message,
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+    );
+  }
+}
+
+async function testEmail() {
+  try {
+    const resendApiKey = Deno.env.get('RESEND_API_KEY');
+
+    if (!resendApiKey) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          message: 'Configuração do Resend não encontrada. Verifique se RESEND_API_KEY está configurado.',
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+      );
+    }
+
+    console.log('Testing Resend/Email connection');
+
+    // Import Resend dynamically
+    const { Resend } = await import('npm:resend@2.0.0');
+    const resend = new Resend(resendApiKey);
+
+    // Send a test email
+    const { data, error } = await resend.emails.send({
+      from: 'Sistema de Férias <onboarding@resend.dev>',
+      to: ['test@resend.dev'], // Resend test email
+      subject: '✅ Teste de Conexão - Sistema de Férias',
+      html: `
+        <h1>Teste de Conexão Bem-Sucedido</h1>
+        <p>O sistema de gestão de férias está conectado ao Resend e pronto para enviar emails.</p>
+        <p>Esta é uma mensagem de teste automática.</p>
+      `,
+    });
+
+    console.log('Resend API response:', { data, error });
+
+    if (error) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          message: `Erro na API do Resend: ${error.message || 'Erro desconhecido'}`,
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+      );
+    }
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        message: 'Email de teste enviado com sucesso',
+        details: { emailId: data?.id },
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  } catch (error) {
+    console.error('Email test error:', error);
     return new Response(
       JSON.stringify({
         success: false,

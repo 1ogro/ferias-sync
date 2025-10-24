@@ -2,9 +2,10 @@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { SlackSetup } from './SlackSetup';
 import { SheetsSetup } from './SheetsSetup';
+import { EmailSetup } from './EmailSetup';
 import { useIntegrations } from '@/hooks/useIntegrations';
 
-type IntegrationType = 'slack' | 'sheets' | null;
+type IntegrationType = 'slack' | 'sheets' | 'email' | null;
 
 interface IntegrationsWizardProps {
   open: boolean;
@@ -13,7 +14,7 @@ interface IntegrationsWizardProps {
 }
 
 export function IntegrationsWizard({ open, onOpenChange, initialType = null }: IntegrationsWizardProps) {
-  const { updateSlack, updateSheets, isUpdatingSlack, isUpdatingSheets } = useIntegrations();
+  const { updateSlack, updateSheets, updateEmail, isUpdatingSlack, isUpdatingSheets, isUpdatingEmail, settings } = useIntegrations();
 
   const handleSlackSave = (botToken: string, channelId: string) => {
     updateSlack(
@@ -40,12 +41,25 @@ export function IntegrationsWizard({ open, onOpenChange, initialType = null }: I
     });
   };
 
+  const handleEmailSave = (fromName: string, fromAddress: string) => {
+    updateEmail(
+      { fromName, fromAddress },
+      {
+        onSuccess: () => {
+          onOpenChange(false);
+        },
+      }
+    );
+  };
+
   const getTitle = () => {
     switch (initialType) {
       case 'slack':
         return 'Configurar Slack';
       case 'sheets':
         return 'Configurar Google Sheets';
+      case 'email':
+        return 'Configurar Email (Resend)';
       default:
         return 'Configurar Integração';
     }
@@ -57,6 +71,8 @@ export function IntegrationsWizard({ open, onOpenChange, initialType = null }: I
         return 'Configure a integração com o Slack para receber notificações de aprovações';
       case 'sheets':
         return 'Configure a integração com o Google Sheets para sincronizar dados';
+      case 'email':
+        return 'Configure o email de remetente para notificações automáticas';
       default:
         return 'Configure suas integrações';
     }
@@ -76,6 +92,14 @@ export function IntegrationsWizard({ open, onOpenChange, initialType = null }: I
           )}
           {initialType === 'sheets' && (
             <SheetsSetup onSave={handleSheetsSave} isSaving={isUpdatingSheets} />
+          )}
+          {initialType === 'email' && (
+            <EmailSetup 
+              onSave={handleEmailSave} 
+              isSaving={isUpdatingEmail}
+              initialFromName={settings?.email_from_name || ''}
+              initialFromAddress={settings?.email_from_address || ''}
+            />
           )}
         </div>
       </DialogContent>

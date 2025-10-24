@@ -18,6 +18,12 @@ export interface IntegrationSettings {
   sheets_last_sync: string | null;
   sheets_auto_sync: boolean;
   sheets_sync_frequency: string;
+  email_enabled: boolean;
+  email_from_address: string | null;
+  email_from_name: string | null;
+  email_status: string;
+  email_error_message: string | null;
+  email_test_date: string | null;
   configured_by: string | null;
   configured_at: string;
   updated_at: string;
@@ -256,18 +262,107 @@ export function useIntegrations() {
     },
   });
 
+  const updateEmailMutation = useMutation({
+    mutationFn: async ({ fromName, fromAddress }: { fromName: string; fromAddress: string }) => {
+      const { data, error } = await supabase
+        .from('integration_settings' as any)
+        .update({
+          email_enabled: true,
+          email_from_name: fromName,
+          email_from_address: fromAddress,
+          email_status: 'configured',
+          email_error_message: null,
+          updated_at: new Date().toISOString(),
+        } as any)
+        .eq('id', '00000000-0000-0000-0000-000000000000')
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['integration-settings'] });
+      toast({
+        title: "Email configurado",
+        description: "Configurações do email atualizadas com sucesso",
+      });
+    },
+    onError: (error: Error) => {
+      console.error('Email update error:', error);
+      toast({
+        variant: "destructive",
+        title: "Erro ao configurar email",
+        description: error.message,
+      });
+    },
+  });
+
+  const testEmailMutation = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke('test-integrations', {
+        body: { type: 'email' },
+      });
+
+      if (error) throw error;
+      if (data.error) throw new Error(data.error);
+      
+      return data;
+    },
+    onSuccess: async () => {
+      await supabase
+        .from('integration_settings' as any)
+        .update({
+          email_status: 'active',
+          email_test_date: new Date().toISOString(),
+          email_error_message: null,
+        } as any)
+        .eq('id', '00000000-0000-0000-0000-000000000000');
+
+      queryClient.invalidateQueries({ queryKey: ['integration-settings'] });
+      
+      toast({
+        title: "Teste bem-sucedido",
+        description: "Email de teste enviado com sucesso",
+      });
+    },
+    onError: async (error: Error) => {
+      console.error('Email test error:', error);
+      
+      await supabase
+        .from('integration_settings' as any)
+        .update({
+          email_status: 'error',
+          email_error_message: error.message,
+        } as any)
+        .eq('id', '00000000-0000-0000-0000-000000000000');
+
+      queryClient.invalidateQueries({ queryKey: ['integration-settings'] });
+      
+      toast({
+        variant: "destructive",
+        title: "Erro no teste de email",
+        description: error.message,
+      });
+    },
+  });
+
   return {
     settings,
     isLoading,
     updateSlack: updateSlackMutation.mutate,
     updateSheets: updateSheetsMutation.mutate,
+    updateEmail: updateEmailMutation.mutate,
     testSlack: testSlackMutation.mutate,
     testSheets: testSheetsMutation.mutate,
+    testEmail: testEmailMutation.mutate,
     syncExisting: syncExistingMutation.mutate,
     isUpdatingSlack: updateSlackMutation.isPending,
     isUpdatingSheets: updateSheetsMutation.isPending,
+    isUpdatingEmail: updateEmailMutation.isPending,
     isTestingSlack: testSlackMutation.isPending,
     isTestingSheets: testSheetsMutation.isPending,
+    isTestingEmail: testEmailMutation.isPending,
     isSyncing: syncExistingMutation.isPending,
   };
 }
