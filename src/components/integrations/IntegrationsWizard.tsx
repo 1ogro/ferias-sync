@@ -1,4 +1,4 @@
-import { useState } from 'react';
+
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { SlackSetup } from './SlackSetup';
 import { SheetsSetup } from './SheetsSetup';
@@ -13,7 +13,6 @@ interface IntegrationsWizardProps {
 }
 
 export function IntegrationsWizard({ open, onOpenChange, initialType = null }: IntegrationsWizardProps) {
-  const [integrationType] = useState<IntegrationType>(initialType);
   const { updateSlack, updateSheets, isUpdatingSlack, isUpdatingSheets } = useIntegrations();
 
   const handleSlackSave = (botToken: string, channelId: string) => {
@@ -42,7 +41,7 @@ export function IntegrationsWizard({ open, onOpenChange, initialType = null }: I
   };
 
   const getTitle = () => {
-    switch (integrationType) {
+    switch (initialType) {
       case 'slack':
         return 'Configurar Slack';
       case 'sheets':
@@ -53,7 +52,7 @@ export function IntegrationsWizard({ open, onOpenChange, initialType = null }: I
   };
 
   const getDescription = () => {
-    switch (integrationType) {
+    switch (initialType) {
       case 'slack':
         return 'Configure a integração com o Slack para receber notificações de aprovações';
       case 'sheets':
@@ -72,10 +71,10 @@ export function IntegrationsWizard({ open, onOpenChange, initialType = null }: I
         </DialogHeader>
 
         <div className="mt-4">
-          {integrationType === 'slack' && (
+          {initialType === 'slack' && (
             <SlackSetup onSave={handleSlackSave} isSaving={isUpdatingSlack} />
           )}
-          {integrationType === 'sheets' && (
+          {initialType === 'sheets' && (
             <SheetsSetup onSave={handleSheetsSave} isSaving={isUpdatingSheets} />
           )}
         </div>
