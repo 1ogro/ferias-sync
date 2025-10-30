@@ -93,6 +93,104 @@ Um sistema completo e robusto para gerenciamento de férias, licenças médicas,
 - **Impacto em saldos**: Regularizações afetam cálculo de saldos de férias
 - **Auditoria**: Todas as regularizações são registradas com autor e justificativa
 
+## 👤 Cadastro de Colaboradores com Aprovação Hierárquica
+
+Sistema completo para onboarding de novos colaboradores com processo de aprovação em dois níveis, garantindo validação e auditoria antes da ativação no sistema.
+
+### Fluxo de Cadastro
+
+#### 1. Criação por Gestores
+- **Acesso**: Gestores podem criar cadastros de novos colaboradores através da página Admin
+- **Formulário completo**:
+  - Dados pessoais: Nome, Email, Data de nascimento
+  - Dados contratuais: Data de contrato, Modelo de contrato (CLT, CLT_ABONO_LIVRE, CLT_ABONO_FIXO, PJ)
+  - Dados organizacionais: Cargo, Local, Sub-time, Papel (Colaborador/Gestor)
+  - Vinculação hierárquica: Gestor direto do novo colaborador
+- **Validações automáticas**:
+  - Email único no sistema
+  - Campos obrigatórios preenchidos
+  - Gestor direto válido e ativo
+- **Status inicial**: `PENDENTE`
+- **Registro de auditoria**: Criador e timestamp preservados
+
+#### 2. Aprovação por Diretores
+- **Visualização centralizada**: Lista de todos os cadastros pendentes com:
+  - Informações completas do colaborador
+  - Nome do gestor que criou o cadastro
+  - Data de criação
+  - Status atual
+- **Ações disponíveis**:
+  - ✅ **Aprovar**: Cria o colaborador no sistema e envia convite de acesso
+  - ❌ **Rejeitar**: Rejeita com motivo obrigatório
+  - 📝 **Adicionar notas**: Campo para observações do diretor
+- **Validação pré-aprovação**:
+  - Verifica se email já existe no sistema
+  - Valida se gestor direto ainda está ativo
+  - Confirma integridade dos dados
+- **Processo de aprovação**:
+  - Cria registro na tabela `people`
+  - Convida usuário para criar conta via Supabase Auth
+  - Atualiza status para `APROVADO`
+  - Registra reviewer e timestamp
+- **Processo de rejeição**:
+  - Atualiza status para `REJEITADO`
+  - Requer motivo da rejeição
+  - Registra reviewer e timestamp
+  - Mantém histórico para auditoria
+
+### Componentes do Sistema
+
+#### Interface de Gestores (`Admin.tsx`)
+- **Botão "Novo Colaborador"**: Abre formulário de cadastro
+- **Badge de contador**: Exibe número de cadastros pendentes de aprovação (para diretores)
+- **Formulário `NewCollaboratorForm`**: 
+  - Campos organizados e validados
+  - Seleção de gestor direto da lista de gestores ativos
+  - Feedback visual de sucesso/erro
+
+#### Interface de Diretores
+- **Botão "Aprovar Cadastros"**: Acesso à lista de pendências
+- **Lista `PendingCollaboratorsList`**: 
+  - Grid responsivo com cards de colaboradores
+  - Filtros e busca (futuro)
+  - Contador de pendências
+- **Cards `PendingCollaboratorCard`**: 
+  - Visualização clara de todas as informações
+  - Status badge (Pendente/Aprovado/Rejeitado)
+  - Botões de ação contextuais
+- **Diálogo `ApprovePendingCollaboratorDialog`**: 
+  - Revisão detalhada antes da decisão
+  - Campo de notas do diretor
+  - Confirmação em duas etapas
+
+### Benefícios do Sistema
+
+1. **Controle e Governança**:
+   - Aprovação obrigatória de diretores antes de criar novos acessos
+   - Rastreabilidade completa do processo de onboarding
+   - Validação de dados em múltiplas camadas
+
+2. **Distribuição de Responsabilidades**:
+   - Gestores podem iniciar o cadastro de sua equipe
+   - Diretores mantêm controle final sobre headcount
+   - Separação clara de permissões
+
+3. **Auditoria Completa**:
+   - Histórico de quem criou, quando e por quê
+   - Registro de aprovações e rejeições
+   - Motivos de rejeição preservados
+
+4. **Experiência do Usuário**:
+   - Processo guiado passo a passo
+   - Feedback claro em cada etapa
+   - Notificações de status (futuro)
+
+5. **Segurança**:
+   - Emails únicos no sistema
+   - Validação de hierarquia organizacional
+   - Prevenção de cadastros duplicados
+   - Row Level Security (RLS) na camada de banco
+
 ## 📱 Funcionalidades por Perfil
 
 ### Colaboradores
@@ -118,6 +216,8 @@ Um sistema completo e robusto para gerenciamento de férias, licenças médicas,
 - ✅ Editar/excluir solicitações da equipe (com justificativa obrigatória)
 - ✅ Ver alertas de conflitos de ausências no time
 - ✅ Acessar inbox com solicitações pendentes
+- ✅ Criar cadastros de novos colaboradores
+- ✅ Visualizar status dos cadastros criados
 
 ### Diretores/Admins
 - ✅ Aprovação final de todas as solicitações
@@ -138,6 +238,10 @@ Um sistema completo e robusto para gerenciamento de férias, licenças médicas,
   - Importação de colaboradores
   - Exportação de requests e saldos
 - ✅ Administração de usuários (CRUD completo)
+- ✅ Aprovação de cadastros de novos colaboradores:
+  - Visualização de todos os cadastros pendentes
+  - Aprovar ou rejeitar com motivo
+  - Adicionar notas administrativas
 - ✅ Gestão de configurações do sistema
 - ✅ Acesso a logs de auditoria
 - ✅ Auto-aprovação de solicitações próprias
