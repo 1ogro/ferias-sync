@@ -660,8 +660,8 @@ export function ApprovedVacationsExecutiveView() {
                   filteredVacations.map((vacation) => {
                     const today = new Date();
                     today.setHours(0, 0, 0, 0);
-                    const startDate = new Date(vacation.start_date);
-                    const endDate = new Date(vacation.end_date);
+                    const startDate = parseDateSafely(vacation.start_date);
+                    const endDate = parseDateSafely(vacation.end_date);
                     const isActiveNow = startDate <= today && endDate >= today;
                     
                     return (
@@ -686,8 +686,8 @@ export function ApprovedVacationsExecutiveView() {
                       <TableCell>{vacation.requester_cargo}</TableCell>
                       <TableCell>{vacation.requester_sub_time}</TableCell>
                       <TableCell>
-                        {format(new Date(vacation.start_date), 'dd/MM/yyyy')} -{' '}
-                        {format(new Date(vacation.end_date), 'dd/MM/yyyy')}
+                        {format(parseDateSafely(vacation.start_date), 'dd/MM/yyyy')} -{' '}
+                        {format(parseDateSafely(vacation.end_date), 'dd/MM/yyyy')}
                       </TableCell>
                       <TableCell>{vacation.vacation_days} dias</TableCell>
                       <TableCell>
