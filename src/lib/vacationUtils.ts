@@ -340,7 +340,8 @@ export async function validateVacationRequest(
   personId: string,
   startDate: Date,
   endDate: Date,
-  requestedDays: number
+  requestedDays: number,
+  skipValidation: boolean = false
 ): Promise<{
   valid: boolean;
   balance?: VacationBalance;
@@ -358,13 +359,15 @@ export async function validateVacationRequest(
     }
     
     // Check if has enough balance
-    if (requestedDays > balance.balance_days) {
-      return {
-        valid: false,
-        balance,
-        message: `Saldo insuficiente. Disponível: ${balance.balance_days} dias, solicitado: ${requestedDays} dias.`
-      };
-    }
+  if (requestedDays > balance.balance_days) {
+    return {
+      valid: skipValidation ? true : false,
+      balance,
+      message: skipValidation
+        ? `Saldo insuficiente detectado (disponível: ${balance.balance_days} dias, solicitado: ${requestedDays} dias), mas validação ignorada por privilégio administrativo.`
+        : `Saldo insuficiente. Disponível: ${balance.balance_days} dias, solicitado: ${requestedDays} dias.`
+    };
+  }
     
     // Get person data for conflict checking
     const { data: personData } = await supabase
@@ -389,14 +392,16 @@ export async function validateVacationRequest(
       personData.papel
     );
     
-    if (conflicts.length > 0) {
-      return {
-        valid: false,
-        balance,
-        conflicts,
-        message: "Conflitos detectados com outras solicitações."
-      };
-    }
+  if (conflicts.length > 0) {
+    return {
+      valid: skipValidation ? true : false,
+      balance,
+      conflicts,
+      message: skipValidation 
+        ? "Conflitos detectados, mas validação ignorada por privilégio administrativo."
+        : "Conflitos detectados com outras solicitações."
+    };
+  }
     
     return {
       valid: true,

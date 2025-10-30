@@ -30,8 +30,16 @@ interface FormData {
 
 export const NewRequestForm = () => {
   const { toast } = useToast();
-  const { person } = useAuth();
   const navigate = useNavigate();
+  const { person, hasRole } = useAuth();
+  
+  useEffect(() => {
+    const checkDirector = async () => {
+      const isDir = await hasRole('DIRETOR');
+      setIsDirector(isDir);
+    };
+    checkDirector();
+  }, [hasRole]);
   const [formData, setFormData] = useState<FormData>({
     tipo: "",
     inicio: "",
@@ -45,6 +53,7 @@ export const NewRequestForm = () => {
   const [conflicts, setConflicts] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSavingDraft, setIsSavingDraft] = useState(false);
+  const [isDirector, setIsDirector] = useState(false);
   const [dayOffAlreadyUsed, setDayOffAlreadyUsed] = useState(false);
   const [vacationConflicts, setVacationConflicts] = useState<VacationConflict[]>([]);
   const [vacationValidation, setVacationValidation] = useState<{
@@ -126,7 +135,8 @@ export const NewRequestForm = () => {
           person.id,
           startDate,
           endDate,
-          requestedDays
+          requestedDays,
+          isDirector
         );
         
         setVacationValidation({
@@ -501,10 +511,16 @@ export const NewRequestForm = () => {
   };
 
   const dayOffValidation = validateDayOff();
+  const hasAbono = formData.tipo === TipoAusencia.FERIAS && formData.dias_abono > 0;
+  const isMaternityLeave = formData.tipo === TipoAusencia.LICENCA_MATERNIDADE;
   const isFormValid = formData.tipo && formData.inicio && formData.fim && formData.justificativa &&
-    dayOffValidation.isValid && !dayOffAlreadyUsed &&
-    (formData.tipo === TipoAusencia.DAYOFF || vacationValidation.valid) &&
-    (formData.tipo !== TipoAusencia.LICENCA_MATERNIDADE || (maternityValidation?.valid && formData.data_prevista_parto));
+    (isDirector || (
+      dayOffValidation.isValid && 
+      !dayOffAlreadyUsed &&
+      (formData.tipo === TipoAusencia.DAYOFF || vacationValidation.valid)
+    )) &&
+    (!isMaternityLeave || maternityValidation?.valid) &&
+    (!hasAbono || (formData.dias_abono && formData.dias_abono > 0));
 
   return (
     <div className="max-w-2xl mx-auto">
@@ -788,7 +804,33 @@ export const NewRequestForm = () => {
             )}
 
             {/* Vacation Conflicts */}
-            {vacationConflicts.length > 0 && (
+            {isDirector && (vacationConflicts.length > 0 || conflicts.length > 0) && (
+              <Alert className="border-amber-500 bg-amber-50 dark:bg-amber-950/20">
+                <AlertTriangle className="w-4 h-4 text-amber-600" />
+                <AlertDescription className="text-amber-800 dark:text-amber-200">
+                  <strong>⚠️ Criação Privilegiada:</strong> Como diretor, você pode criar esta solicitação 
+                  mesmo com conflitos detectados. Os conflitos serão registrados para referência futura.
+                  {vacationConflicts.length > 0 && (
+                    <div className="mt-2 space-y-1">
+                      {vacationConflicts.map((conflict, index) => (
+                        <div key={index}>
+                          <p className="font-medium">{conflict.message}</p>
+                          <ul className="mt-1 text-sm">
+                            {conflict.conflicted_requests.map((req, reqIndex) => (
+                              <li key={reqIndex}>
+                                • {req.requester.nome} ({req.inicio.toLocaleDateString('pt-BR')} - {req.fim.toLocaleDateString('pt-BR')})
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {!isDirector && vacationConflicts.length > 0 && (
               <Alert variant="destructive">
                 <AlertTriangle className="w-4 h-4" />
                 <AlertDescription>
@@ -810,7 +852,7 @@ export const NewRequestForm = () => {
             )}
 
             {/* Conflict Alert */}
-            {conflicts.length > 0 && (
+            {!isDirector && conflicts.length > 0 && (
               <Alert variant="destructive">
                 <AlertTriangle className="w-4 h-4" />
                 <AlertDescription>

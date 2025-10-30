@@ -40,6 +40,7 @@ const EditRequest = () => {
   const [conflicts, setConflicts] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSavingDraft, setIsSavingDraft] = useState(false);
+  const [isDirector, setIsDirector] = useState(false);
   const [dayOffAlreadyUsed, setDayOffAlreadyUsed] = useState(false);
   const [vacationConflicts, setVacationConflicts] = useState<VacationConflict[]>([]);
   const [vacationValidation, setVacationValidation] = useState<{
@@ -103,6 +104,7 @@ const EditRequest = () => {
           justificativa: requestData.justificativa || ""
         });
         setOriginalStatus(requestData.status as Status);
+        setIsDirector(isDirectorOrAdmin);
       } catch (error) {
         console.error('Error fetching request:', error);
         toast({
@@ -134,7 +136,8 @@ const EditRequest = () => {
           person.id,
           startDate,
           endDate,
-          requestedDays
+          requestedDays,
+          isDirector
         );
         
         setVacationValidation({
@@ -279,6 +282,10 @@ const EditRequest = () => {
           justificativa: formData.justificativa,
           conflito_flag: conflicts.length > 0 || vacationConflicts.length > 0,
           conflito_refs: [...conflicts, ...vacationConflicts.map(c => c.message)].join('; '),
+          is_contract_exception: isDirector && (conflicts.length > 0 || vacationConflicts.length > 0),
+          contract_exception_justification: isDirector && (conflicts.length > 0 || vacationConflicts.length > 0) 
+            ? 'Edição administrativa por diretor com conflitos conhecidos' 
+            : null,
           status: originalStatus === Status.RASCUNHO ? 'PENDENTE' : originalStatus // Submit draft as PENDENTE
         })
         .eq('id', id);
@@ -397,8 +404,11 @@ const EditRequest = () => {
 
   const dayOffValidation = validateDayOff();
   const isFormValid = formData.tipo && formData.inicio && formData.fim && formData.justificativa &&
-    dayOffValidation.isValid && !dayOffAlreadyUsed &&
-    (formData.tipo === TipoAusencia.DAYOFF || vacationValidation.valid);
+    (isDirector || (
+      dayOffValidation.isValid && 
+      !dayOffAlreadyUsed &&
+      (formData.tipo === TipoAusencia.DAYOFF || vacationValidation.valid)
+    ));
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/30">
@@ -534,13 +544,16 @@ const EditRequest = () => {
                 )}
 
                 {/* Conflict Alerts */}
-                {vacationConflicts.length > 0 && (
-                  <Alert variant="destructive">
-                    <AlertTriangle className="w-4 h-4" />
-                    <AlertDescription>
-                      <strong>Conflitos detectados:</strong>
+            {isDirector && (vacationConflicts.length > 0 || conflicts.length > 0) && (
+              <Alert className="border-amber-500 bg-amber-50 dark:bg-amber-950/20">
+                <AlertTriangle className="w-4 h-4 text-amber-600" />
+                <AlertDescription className="text-amber-800 dark:text-amber-200">
+                  <strong>⚠️ Edição Privilegiada:</strong> Como diretor, você pode salvar esta solicitação 
+                  mesmo com conflitos detectados. Os conflitos serão registrados para referência futura.
+                  {vacationConflicts.length > 0 && (
+                    <div className="mt-2 space-y-1">
                       {vacationConflicts.map((conflict, index) => (
-                        <div key={index} className="mt-2">
+                        <div key={index}>
                           <p className="font-medium">{conflict.message}</p>
                           <ul className="mt-1 text-sm">
                             {conflict.conflicted_requests.map((req, reqIndex) => (
@@ -551,9 +564,32 @@ const EditRequest = () => {
                           </ul>
                         </div>
                       ))}
-                    </AlertDescription>
-                  </Alert>
-                )}
+                    </div>
+                  )}
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {!isDirector && vacationConflicts.length > 0 && (
+              <Alert variant="destructive">
+                <AlertTriangle className="w-4 h-4" />
+                <AlertDescription>
+                  <strong>Conflitos detectados:</strong>
+                  {vacationConflicts.map((conflict, index) => (
+                    <div key={index} className="mt-2">
+                      <p className="font-medium">{conflict.message}</p>
+                      <ul className="mt-1 text-sm">
+                        {conflict.conflicted_requests.map((req, reqIndex) => (
+                          <li key={reqIndex}>
+                            • {req.requester.nome} ({req.inicio.toLocaleDateString('pt-BR')} - {req.fim.toLocaleDateString('pt-BR')})
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+                </AlertDescription>
+              </Alert>
+            )}
 
                 {conflicts.length > 0 && (
                   <Alert variant="destructive">
