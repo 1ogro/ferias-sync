@@ -413,7 +413,7 @@ export const Dashboard = () => {
                 variant="outline" 
                 size="sm" 
                 className="mt-2 w-full"
-                onClick={() => navigate('/vacation-management')}
+                onClick={() => navigate('/vacation-management?tab=active')}
               >
                 Ver Detalhes
               </Button>

@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { getAllVacationBalances, saveManualVacationBalance, deleteManualVacationBalance, recalculateVacationBalance } from "@/lib/vacationUtils";
 import { supabase } from "@/integrations/supabase/client";
-import { Navigate } from "react-router-dom";
+import { Navigate, useSearchParams } from "react-router-dom";
 import { Person, ModeloContrato, MODELO_CONTRATO_LABELS } from "@/lib/types";
 import { Header } from "@/components/Header";
 import { MedicalLeaveForm } from "@/components/MedicalLeaveForm";
@@ -102,6 +102,10 @@ const VacationManagement = () => {
   const [massRecalculateLoading, setMassRecalculateLoading] = useState(false);
   const [massRecalculateProgress, setMassRecalculateProgress] = useState(0);
   const [contractTypeFilter, setContractTypeFilter] = useState<string>("all");
+  
+  // Get tab from URL query params
+  const [searchParams] = useSearchParams();
+  const initialTab = searchParams.get('tab') || 'vacation';
 
   // Check if user is authorized (DIRETOR or ADMIN)
   if (!person || (person.papel !== 'DIRETOR' && !person.is_admin)) {
@@ -465,7 +469,7 @@ const VacationManagement = () => {
           </div>
         </div>
 
-        <Tabs defaultValue="vacation" className="w-full">
+        <Tabs defaultValue={initialTab} className="w-full">
           <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
             <TabsTrigger value="vacation">Saldos de Férias</TabsTrigger>
             <TabsTrigger value="medical">Licenças Médicas</TabsTrigger>
