@@ -53,7 +53,7 @@ export function isValidDateString(dateString: string): boolean {
  */
 export function isBirthdayToday(birthDate: string | Date): boolean {
   const today = new Date();
-  const birth = typeof birthDate === 'string' ? new Date(birthDate) : birthDate;
+  const birth = typeof birthDate === 'string' ? parseDateSafely(birthDate) : birthDate;
   
   return today.getMonth() === birth.getMonth() && 
          today.getDate() === birth.getDate();
@@ -86,7 +86,7 @@ export function formatDateToYYYYMMDD(date: Date): string {
  */
 export function isWithinDayOffPeriod(birthDate: string | Date): boolean {
   const today = new Date();
-  const birth = typeof birthDate === 'string' ? new Date(birthDate) : birthDate;
+  const birth = typeof birthDate === 'string' ? parseDateSafely(birthDate) : birthDate;
   
   const currentYear = today.getFullYear();
   const nextYear = currentYear + 1;
@@ -111,7 +111,7 @@ export function getDayOffEligibilityPeriod(birthDate: string | Date): {
   end: Date;
   isCurrentlyEligible: boolean;
 } {
-  const birth = typeof birthDate === 'string' ? new Date(birthDate) : birthDate;
+  const birth = typeof birthDate === 'string' ? parseDateSafely(birthDate) : birthDate;
   const today = new Date();
   const currentYear = today.getFullYear();
   const nextYear = currentYear + 1;

@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { DeletionDialog } from "@/components/DeletionDialog";
+import { parseDateSafely } from "@/lib/dateUtils";
 import {
   Card,
   CardContent,
@@ -124,7 +125,7 @@ export function ApprovedVacationsExecutiveView() {
         const approvals = vacation.approvals || [];
         const finalApproval = approvals.find(a => a.acao === 'APROVADO_FINAL') || approvals[approvals.length - 1];
         const vacationDays = vacation.inicio && vacation.fim 
-          ? Math.ceil((new Date(vacation.fim).getTime() - new Date(vacation.inicio).getTime()) / (1000 * 60 * 60 * 24)) + 1
+          ? Math.ceil((parseDateSafely(vacation.fim).getTime() - parseDateSafely(vacation.inicio).getTime()) / (1000 * 60 * 60 * 24)) + 1
           : 0;
 
         return {
@@ -275,8 +276,8 @@ export function ApprovedVacationsExecutiveView() {
     today.setHours(0, 0, 0, 0);
 
     return vacations.filter(vacation => {
-      const startDate = new Date(vacation.start_date);
-      const endDate = new Date(vacation.end_date);
+      const startDate = parseDateSafely(vacation.start_date);
+      const endDate = parseDateSafely(vacation.end_date);
       
       const matchesSearch = vacation.requester_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                            vacation.requester_cargo.toLowerCase().includes(searchTerm.toLowerCase());
@@ -364,8 +365,8 @@ export function ApprovedVacationsExecutiveView() {
       vacation.requester_name,
       vacation.requester_cargo,
       vacation.requester_sub_time,
-      format(new Date(vacation.start_date), 'dd/MM/yyyy'),
-      format(new Date(vacation.end_date), 'dd/MM/yyyy'),
+      format(parseDateSafely(vacation.start_date), 'dd/MM/yyyy'),
+      format(parseDateSafely(vacation.end_date), 'dd/MM/yyyy'),
       vacation.vacation_days.toString(),
       vacation.status,
       vacation.approver_name,

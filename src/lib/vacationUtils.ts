@@ -1,6 +1,7 @@
 import { Request, Person, Status, TipoAusencia } from "./types";
 import { supabase } from "@/integrations/supabase/client";
 import { getMedicalLeaveConflicts } from "./medicalLeaveUtils";
+import { parseDateSafely } from "./dateUtils";
 
 export interface VacationBalance {
   id?: string;
@@ -30,7 +31,7 @@ export function calculateVacationBalance(
   requests: Request[],
   targetYear: number = new Date().getFullYear()
 ): VacationBalance {
-  const contract = typeof contractDate === 'string' ? new Date(contractDate) : contractDate;
+  const contract = typeof contractDate === 'string' ? parseDateSafely(contractDate) : contractDate;
   const today = new Date();
   
   // Calculate how many years the person has worked until the target year

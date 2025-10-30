@@ -4,6 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { parseDateSafely } from "@/lib/dateUtils";
 import { 
   Select, 
   SelectContent, 
@@ -74,7 +75,7 @@ export function ActiveAbsencesDashboard() {
       if (error) throw error;
 
       const processedAbsences: ActiveAbsence[] = data?.map(absence => {
-        const daysRemaining = differenceInDays(new Date(absence.fim), new Date());
+        const daysRemaining = differenceInDays(parseDateSafely(absence.fim), new Date());
         
         return {
           id: absence.id,
@@ -387,7 +388,7 @@ export function ActiveAbsencesDashboard() {
                     })()}
                     <div className="text-sm">
                       <div className="font-medium">
-                        {format(new Date(absence.start_date), "dd/MM/yyyy")} - {format(new Date(absence.end_date), "dd/MM/yyyy")}
+                        {format(parseDateSafely(absence.start_date), "dd/MM/yyyy")} - {format(parseDateSafely(absence.end_date), "dd/MM/yyyy")}
                       </div>
                       <div className="flex items-center gap-1 text-muted-foreground mt-1">
                         <Clock className="w-3 h-3" />

@@ -15,6 +15,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { validateMaternityLeave, calculateMaternityEndDate, calculateExpectedDeliveryDate } from "@/lib/maternityLeaveUtils";
 import { MaternityLeaveValidation } from "@/lib/types";
+import { parseDateSafely } from "@/lib/dateUtils";
 
 interface FormData {
   requesterId: string;
@@ -97,14 +98,14 @@ export const HistoricalRequestForm = ({ onSuccess }: HistoricalRequestFormProps)
       formData.requesterId &&
       formData.inicio
     ) {
-      validateMaternityLeave(formData.requesterId, new Date(formData.inicio))
+      validateMaternityLeave(formData.requesterId, parseDateSafely(formData.inicio))
         .then(validation => {
           setMaternityValidation(validation);
           
           if (validation.valid && validation.total_days) {
             // Auto-calcular data fim
             const endDate = calculateMaternityEndDate(
-              new Date(formData.inicio),
+              parseDateSafely(formData.inicio),
               validation.total_days
             );
             setEndDate(endDate);
@@ -115,7 +116,7 @@ export const HistoricalRequestForm = ({ onSuccess }: HistoricalRequestFormProps)
 
             // Calcular data prevista do parto se não foi informada
             if (!formData.data_prevista_parto) {
-              const expectedDelivery = calculateExpectedDeliveryDate(new Date(formData.inicio));
+              const expectedDelivery = calculateExpectedDeliveryDate(parseDateSafely(formData.inicio));
               setExpectedDeliveryDate(expectedDelivery);
               setFormData(prev => ({
                 ...prev,
@@ -152,8 +153,8 @@ export const HistoricalRequestForm = ({ onSuccess }: HistoricalRequestFormProps)
 
   const calculateDays = () => {
     if (formData.inicio && formData.fim) {
-      const start = new Date(formData.inicio);
-      const end = new Date(formData.fim);
+      const start = parseDateSafely(formData.inicio);
+      const end = parseDateSafely(formData.fim);
       const diffTime = Math.abs(end.getTime() - start.getTime());
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
       return diffDays;
