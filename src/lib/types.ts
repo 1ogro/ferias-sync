@@ -159,3 +159,28 @@ export interface MaternityLeaveValidation {
   clt_days?: number;
   extension_days?: number;
 }
+
+// Pending People (Approval workflow for new employee registrations)
+export interface PendingPerson {
+  id: string;
+  nome: string;
+  email: string;
+  cargo?: string;
+  local?: string;
+  sub_time?: string;
+  papel: Papel;
+  gestor_id: string;
+  gestor?: Person;
+  data_contrato?: string;
+  data_nascimento?: string;
+  modelo_contrato?: ModeloContrato;
+  status: 'PENDENTE' | 'APROVADO' | 'REJEITADO';
+  created_by: string;
+  creator?: Person;
+  created_at: Date;
+  reviewed_by?: string;
+  reviewer?: Person;
+  reviewed_at?: Date;
+  rejection_reason?: string;
+  director_notes?: string;
+}

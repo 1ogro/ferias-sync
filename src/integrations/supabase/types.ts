@@ -232,6 +232,69 @@ export type Database = {
           },
         ]
       }
+      pending_people: {
+        Row: {
+          cargo: string | null
+          created_at: string | null
+          created_by: string
+          data_contrato: string | null
+          data_nascimento: string | null
+          director_notes: string | null
+          email: string
+          gestor_id: string
+          id: string
+          local: string | null
+          modelo_contrato: string | null
+          nome: string
+          papel: string
+          rejection_reason: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          sub_time: string | null
+        }
+        Insert: {
+          cargo?: string | null
+          created_at?: string | null
+          created_by: string
+          data_contrato?: string | null
+          data_nascimento?: string | null
+          director_notes?: string | null
+          email: string
+          gestor_id: string
+          id?: string
+          local?: string | null
+          modelo_contrato?: string | null
+          nome: string
+          papel?: string
+          rejection_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          sub_time?: string | null
+        }
+        Update: {
+          cargo?: string | null
+          created_at?: string | null
+          created_by?: string
+          data_contrato?: string | null
+          data_nascimento?: string | null
+          director_notes?: string | null
+          email?: string
+          gestor_id?: string
+          id?: string
+          local?: string | null
+          modelo_contrato?: string | null
+          nome?: string
+          papel?: string
+          rejection_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          sub_time?: string | null
+        }
+        Relationships: []
+      }
       people: {
         Row: {
           ativo: boolean | null
@@ -584,6 +647,23 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      approve_pending_person: {
+        Args: {
+          p_cargo?: string
+          p_data_contrato?: string
+          p_data_nascimento?: string
+          p_director_notes?: string
+          p_email?: string
+          p_gestor_id?: string
+          p_local?: string
+          p_modelo_contrato?: string
+          p_nome?: string
+          p_pending_id: string
+          p_reviewer_id: string
+          p_sub_time?: string
+        }
+        Returns: Json
+      }
       get_active_people_for_signup: {
         Args: never
         Returns: {
@@ -619,6 +699,14 @@ export type Database = {
           used_days: number
           year: number
         }[]
+      }
+      reject_pending_person: {
+        Args: {
+          p_pending_id: string
+          p_rejection_reason: string
+          p_reviewer_id: string
+        }
+        Returns: Json
       }
       set_contract_data_for_current_user: {
         Args: { p_date: string; p_model: string }

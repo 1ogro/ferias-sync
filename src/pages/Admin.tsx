@@ -51,6 +51,8 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { Navigate } from "react-router-dom";
 import { Header } from "@/components/Header";
+import { NewCollaboratorForm } from "@/components/NewCollaboratorForm";
+import { PendingCollaboratorsList } from "@/components/PendingCollaboratorsList";
 import { 
   Plus, 
   Search, 
@@ -65,7 +67,9 @@ import {
   UserX,
   ChevronUp,
   ChevronDown,
-  History
+  History,
+  UserPlus,
+  FileCheck
 } from "lucide-react";
 
 interface FormData {
@@ -129,6 +133,14 @@ const Admin = () => {
   const [sortField, setSortField] = useState<SortField>('nome');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [showFilters, setShowFilters] = useState(false);
+
+  // Pending collaborators management
+  const [showNewCollaboratorDialog, setShowNewCollaboratorDialog] = useState(false);
+  const [showPendingCollaboratorsDialog, setShowPendingCollaboratorsDialog] = useState(false);
+  const [pendingCount, setPendingCount] = useState(0);
+
+  const isManager = person?.papel === Papel.GESTOR;
+  const isDirector = person?.papel === Papel.DIRETOR || person?.is_admin;
 
   // Statistics
   const stats = useMemo(() => {
@@ -429,7 +441,36 @@ const Admin = () => {
           <h1 className="text-3xl font-bold">Administração de Usuários</h1>
           <p className="text-muted-foreground">Gerencie todos os usuários do sistema</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          {isManager && (
+            <Button 
+              onClick={() => setShowNewCollaboratorDialog(true)} 
+              variant="outline" 
+              size="sm"
+            >
+              <UserPlus className="h-4 w-4 mr-2" />
+              Novo Colaborador
+            </Button>
+          )}
+          {isDirector && (
+            <Button 
+              onClick={() => setShowPendingCollaboratorsDialog(true)} 
+              variant="outline" 
+              size="sm"
+              className="relative"
+            >
+              <FileCheck className="h-4 w-4 mr-2" />
+              Aprovar Cadastros
+              {pendingCount > 0 && (
+                <Badge 
+                  variant="destructive" 
+                  className="ml-2 h-5 min-w-[20px] rounded-full px-1"
+                >
+                  {pendingCount}
+                </Badge>
+              )}
+            </Button>
+          )}
           <Button onClick={exportToCSV} variant="outline" size="sm">
             <Download className="h-4 w-4 mr-2" />
             Exportar CSV
@@ -858,6 +899,43 @@ const Admin = () => {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* New Collaborator Dialog (for Managers) */}
+      <Dialog open={showNewCollaboratorDialog} onOpenChange={setShowNewCollaboratorDialog}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Cadastrar Novo Colaborador</DialogTitle>
+            <DialogDescription>
+              Preencha os dados do colaborador. O cadastro será enviado para aprovação do diretor.
+            </DialogDescription>
+          </DialogHeader>
+          <NewCollaboratorForm 
+            onSuccess={() => {
+              setShowNewCollaboratorDialog(false);
+              toast({
+                title: "Sucesso",
+                description: "Cadastro enviado para aprovação",
+              });
+            }}
+            onCancel={() => setShowNewCollaboratorDialog(false)}
+          />
+        </DialogContent>
+      </Dialog>
+
+      {/* Pending Collaborators Dialog (for Directors) */}
+      <Dialog open={showPendingCollaboratorsDialog} onOpenChange={setShowPendingCollaboratorsDialog}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Aprovar Cadastros de Colaboradores</DialogTitle>
+            <DialogDescription>
+              Revise e aprove os cadastros pendentes submetidos pelos gestores.
+            </DialogDescription>
+          </DialogHeader>
+          <PendingCollaboratorsList 
+            onCountChange={(count) => setPendingCount(count)}
+          />
         </DialogContent>
       </Dialog>
       </div>
