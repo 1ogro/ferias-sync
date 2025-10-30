@@ -68,7 +68,7 @@ export function ApprovedVacationsExecutiveView() {
   
   // Filtros
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedMonth, setSelectedMonth] = useState<number | "all">(new Date().getMonth() + 1);
+  const [selectedMonth, setSelectedMonth] = useState<number | "all">("all");
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedManager, setSelectedManager] = useState<string>("all");
   const [selectedTeam, setSelectedTeam] = useState<string>("all");
