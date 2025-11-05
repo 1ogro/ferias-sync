@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Calendar, Menu, Bell, User, Settings, LogOut, Shield } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
@@ -15,6 +16,7 @@ export const Header = ({ showNavigation = true }: HeaderProps) => {
   const location = useLocation();
   const { person, signOut } = useAuth();
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const navigation = [
     { name: "Dashboard", href: "/", icon: Calendar },
@@ -78,6 +80,56 @@ export const Header = ({ showNavigation = true }: HeaderProps) => {
             </div>
 
             <div className="flex items-center gap-4">
+              {/* Menu Mobile - visível apenas em telas pequenas */}
+              {showNavigation && (
+                <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
+                  <SheetTrigger asChild>
+                    <Button variant="ghost" size="sm" className="md:hidden">
+                      <Menu className="h-5 w-5" />
+                      <span className="sr-only">Abrir menu</span>
+                    </Button>
+                  </SheetTrigger>
+                  <SheetContent side="left" className="w-72">
+                    <SheetHeader>
+                      <SheetTitle>Menu</SheetTitle>
+                    </SheetHeader>
+                    <nav className="flex flex-col gap-2 mt-6">
+                      {filteredNavigation.map((item) => {
+                        const isActive = location.pathname === item.href;
+                        return (
+                          <Link
+                            key={item.name}
+                            to={item.href}
+                            onClick={() => setIsMobileMenuOpen(false)}
+                            className={`flex items-center gap-3 px-4 py-3 rounded-md text-sm font-medium transition-colors ${
+                              isActive
+                                ? "bg-primary/10 text-primary"
+                                : "text-muted-foreground hover:text-foreground hover:bg-accent"
+                            }`}
+                          >
+                            <item.icon className="w-5 h-5" />
+                            {item.name}
+                          </Link>
+                        );
+                      })}
+                    </nav>
+                    
+                    {/* Informações do usuário no drawer */}
+                    <div className="absolute bottom-6 left-6 right-6">
+                      <div className="flex items-center gap-3 p-3 bg-muted rounded-md">
+                        <User className="w-5 h-5" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{person?.nome}</p>
+                          <Badge className={`${getPapelColor(person?.papel || '')} text-xs mt-1`}>
+                            {person?.papel}
+                          </Badge>
+                        </div>
+                      </div>
+                    </div>
+                  </SheetContent>
+                </Sheet>
+              )}
+              
               <Badge className={getPapelColor(person?.papel || '')}>
                 {person?.nome?.split(' ')[0] || 'Usuário'}
               </Badge>
