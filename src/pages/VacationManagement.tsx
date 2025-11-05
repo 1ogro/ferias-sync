@@ -14,6 +14,7 @@ import { ActiveAbsencesDashboard } from "@/components/ActiveAbsencesDashboard";
 import { HistoricalRequestForm } from "@/components/HistoricalRequestForm";
 import { SheetsSync } from "@/components/SheetsSync";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -470,17 +471,38 @@ const VacationManagement = () => {
         </div>
 
         <Tabs defaultValue={initialTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
-            <TabsTrigger value="vacation">Saldos de Férias</TabsTrigger>
-            <TabsTrigger value="medical">Licenças Médicas</TabsTrigger>
-            <TabsTrigger value="active">Ausências Ativas</TabsTrigger>
-            <TabsTrigger value="dashboard">Dashboard Executivo</TabsTrigger>
-            <TabsTrigger value="historical" className="flex items-center gap-2">
-              <History className="w-4 h-4" />
-              Regularização
-            </TabsTrigger>
-            <TabsTrigger value="sheets">Google Sheets</TabsTrigger>
-          </TabsList>
+          {/* Mobile: ScrollArea horizontal */}
+          <div className="block lg:hidden">
+            <ScrollArea className="w-full whitespace-nowrap">
+              <TabsList className="inline-flex w-max">
+                <TabsTrigger value="vacation">Saldos de Férias</TabsTrigger>
+                <TabsTrigger value="medical">Licenças Médicas</TabsTrigger>
+                <TabsTrigger value="active">Ausências Ativas</TabsTrigger>
+                <TabsTrigger value="dashboard">Dashboard Executivo</TabsTrigger>
+                <TabsTrigger value="historical" className="flex items-center gap-2">
+                  <History className="w-4 h-4" />
+                  Regularização
+                </TabsTrigger>
+                <TabsTrigger value="sheets">Google Sheets</TabsTrigger>
+              </TabsList>
+              <ScrollBar orientation="horizontal" />
+            </ScrollArea>
+          </div>
+          
+          {/* Desktop: Grid layout */}
+          <div className="hidden lg:block">
+            <TabsList className="grid w-full grid-cols-6">
+              <TabsTrigger value="vacation">Saldos de Férias</TabsTrigger>
+              <TabsTrigger value="medical">Licenças Médicas</TabsTrigger>
+              <TabsTrigger value="active">Ausências Ativas</TabsTrigger>
+              <TabsTrigger value="dashboard">Dashboard Executivo</TabsTrigger>
+              <TabsTrigger value="historical" className="flex items-center gap-2">
+                <History className="w-4 h-4" />
+                Regularização
+              </TabsTrigger>
+              <TabsTrigger value="sheets">Google Sheets</TabsTrigger>
+            </TabsList>
+          </div>
 
           {/* Vacation Management Tab */}
           <TabsContent value="vacation" className="space-y-6">
