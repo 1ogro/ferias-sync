@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
+import useEmblaCarousel from "embla-carousel-react";
 import { useAuth } from "@/hooks/useAuth";
 import { getAllVacationBalances, saveManualVacationBalance, deleteManualVacationBalance, recalculateVacationBalance } from "@/lib/vacationUtils";
 import { supabase } from "@/integrations/supabase/client";
@@ -107,6 +108,45 @@ const VacationManagement = () => {
   // Get tab from URL query params
   const [searchParams] = useSearchParams();
   const initialTab = searchParams.get('tab') || 'vacation';
+
+  // Tab values mapping for swipe navigation
+  const tabValues = ['vacation', 'medical', 'active', 'dashboard', 'historical', 'sheets'];
+  
+  // Estado para controlar a tab ativa (modo controlado)
+  const [activeTab, setActiveTab] = useState(initialTab);
+
+  // Embla Carousel para swipe gestures (apenas mobile)
+  const [emblaRef, emblaApi] = useEmblaCarousel({ 
+    axis: 'x',
+    skipSnaps: false,
+    dragFree: false,
+    startIndex: tabValues.indexOf(initialTab)
+  });
+
+  // Sincronizar Carousel → Tab (quando usuário faz swipe)
+  const onSelect = useCallback(() => {
+    if (!emblaApi) return;
+    const index = emblaApi.selectedScrollSnap();
+    setActiveTab(tabValues[index]);
+  }, [emblaApi]);
+
+  useEffect(() => {
+    if (!emblaApi) return;
+    emblaApi.on('select', onSelect);
+    onSelect();
+    return () => {
+      emblaApi.off('select', onSelect);
+    };
+  }, [emblaApi, onSelect]);
+
+  // Sincronizar Tab → Carousel (quando usuário clica em tab)
+  useEffect(() => {
+    if (!emblaApi) return;
+    const index = tabValues.indexOf(activeTab);
+    if (index !== -1 && index !== emblaApi.selectedScrollSnap()) {
+      emblaApi.scrollTo(index, false);
+    }
+  }, [activeTab, emblaApi]);
 
   // Check if user is authorized (DIRETOR or ADMIN)
   if (!person || (person.papel !== 'DIRETOR' && !person.is_admin)) {
@@ -458,6 +498,329 @@ const VacationManagement = () => {
     }
   };
 
+  // Função auxiliar para renderizar conteúdo de cada tab (para mobile carousel)
+  const renderTabContent = (tabValue: string) => {
+    switch(tabValue) {
+      case 'vacation':
+        return (
+          <div className="space-y-6 mt-6">
+            {/* Statistics */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
+              <Card>
+                <CardContent className="flex items-center p-6">
+                  <Users className="h-8 w-8 text-primary" />
+                  <div className="ml-4">
+                    <p className="text-sm font-medium text-muted-foreground">Total Colaboradores</p>
+                    <p className="text-2xl font-bold">{stats.total}</p>
+                  </div>
+                </CardContent>
+              </Card>
+              
+              <Card>
+                <CardContent className="flex items-center p-6">
+                  <AlertTriangle className="h-8 w-8 text-red-600" />
+                  <div className="ml-4">
+                    <p className="text-sm font-medium text-muted-foreground">Sem Data Contrato</p>
+                    <p className="text-2xl font-bold">{stats.withoutContract}</p>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardContent className="flex items-center p-6">
+                  <CalendarDays className="h-8 w-8 text-amber-600" />
+                  <div className="ml-4">
+                    <p className="text-sm font-medium text-muted-foreground">Férias Acumuladas (&gt;30)</p>
+                    <p className="text-2xl font-bold">{stats.accumulatedVacations}</p>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardContent className="flex items-center p-6">
+                  <Edit className="h-8 w-8 text-purple-600" />
+                  <div className="ml-4">
+                    <p className="text-sm font-medium text-muted-foreground">Saldos Manuais</p>
+                    <p className="text-2xl font-bold">{stats.manualBalances}</p>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardContent className="flex items-center p-6">
+                  <Users className="h-8 w-8 text-green-600" />
+                  <div className="ml-4">
+                    <p className="text-sm font-medium text-muted-foreground">CLT Abono Livre</p>
+                    <p className="text-2xl font-bold">{stats.contractTypeCounts['CLT_ABONO_LIVRE'] || 0}</p>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardContent className="flex items-center p-6">
+                  <Users className="h-8 w-8 text-orange-600" />
+                  <div className="ml-4">
+                    <p className="text-sm font-medium text-muted-foreground">CLT Abono Fixo</p>
+                    <p className="text-2xl font-bold">{stats.contractTypeCounts['CLT_ABONO_FIXO'] || 0}</p>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Controls */}
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle>Gerenciamento de Saldos de Férias</CardTitle>
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={() => setMassRecalculateOpen(true)}>
+                    <Calculator className="h-4 w-4 mr-2" />
+                    Recalcular Saldos
+                  </Button>
+                  <Button variant="outline" onClick={exportToCSV}>
+                    <Download className="h-4 w-4 mr-2" />
+                    Exportar CSV
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {/* Filters */}
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6">
+                  <div className="flex items-center gap-2">
+                    <Search className="h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Buscar por nome, cargo ou time..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="max-w-sm"
+                    />
+                  </div>
+                  
+                  <div className="flex items-center gap-2">
+                    <Filter className="h-4 w-4 text-muted-foreground" />
+                    <Select value={contractTypeFilter} onValueChange={setContractTypeFilter}>
+                      <SelectTrigger className="w-48">
+                        <SelectValue placeholder="Filtrar por contrato" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todos os Contratos</SelectItem>
+                        {Object.values(ModeloContrato).map((tipo) => (
+                          <SelectItem key={tipo} value={tipo}>
+                            {MODELO_CONTRATO_LABELS[tipo]}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Select value={selectedYear.toString()} onValueChange={(value) => setSelectedYear(parseInt(value))}>
+                      <SelectTrigger className="w-32">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i).map((year) => (
+                          <SelectItem key={year} value={year.toString()}>
+                            {year}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                {/* Table */}
+                {loading ? (
+                  <div className="text-center py-8">Carregando dados...</div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <Table>
+                       <TableHeader>
+                         <TableRow>
+                            <TableHead className="min-w-[200px]">Nome</TableHead>
+                            <TableHead className="min-w-[150px]">Modelo Contrato</TableHead>
+                            <TableHead className="min-w-[130px]">Tipo de Abono</TableHead>
+                            <TableHead className="min-w-[120px]">Time</TableHead>
+                            <TableHead className="min-w-[120px]">Data Contrato</TableHead>
+                            <TableHead className="min-w-[100px] text-center">Adquiridos</TableHead>
+                            <TableHead className="min-w-[80px] text-center">Usados</TableHead>
+                            <TableHead className="min-w-[80px] text-center">Saldo</TableHead>
+                            <TableHead className="min-w-[100px] text-center">Status</TableHead>
+                            <TableHead className="min-w-[140px] sticky right-0 bg-background text-center">Ações</TableHead>
+                         </TableRow>
+                       </TableHeader>
+                      <TableBody>
+                         {filteredData.map((item) => {
+                           const isPJWithAccumulatedVacations = item.person.modelo_contrato === 'PJ' && item.balance_days > 30;
+                           
+                           return (
+                              <TableRow 
+                                key={`${item.person_id}-${item.year}`}
+                                className={isPJWithAccumulatedVacations ? "bg-amber-50 dark:bg-amber-950 border-l-4 border-l-amber-400 dark:border-l-amber-600" : ""}
+                              >
+                               <TableCell className="font-medium">
+                                 <div className="flex items-center space-x-2">
+                                   {item.person.nome}
+                                   {isPJWithAccumulatedVacations && (
+                                      <Badge variant="outline" className="text-amber-600 dark:text-amber-400 border-amber-400 dark:border-amber-600 bg-amber-50 dark:bg-amber-950 text-xs">
+                                        Férias Acumuladas
+                                      </Badge>
+                                   )}
+                                 </div>
+                               </TableCell>
+                                <TableCell>
+                                  <Badge variant={getContractBadgeVariant(item.person.modelo_contrato)}>
+                                    {MODELO_CONTRATO_LABELS[item.person.modelo_contrato as ModeloContrato] || MODELO_CONTRATO_LABELS[ModeloContrato.CLT]}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell>
+                                  <span className="text-sm text-muted-foreground">
+                                    {getAbonoInfo(item.person.modelo_contrato)}
+                                  </span>
+                                </TableCell>
+                                <TableCell>{item.person.sub_time || "N/A"}</TableCell>
+                               <TableCell>
+                                 {item.person.data_contrato ? (
+                                   format(new Date(item.person.data_contrato), "dd/MM/yyyy")
+                                 ) : (
+                                   <span className="text-red-600 text-sm">Não definida</span>
+                                 )}
+                               </TableCell>
+                               <TableCell className="text-center">{item.accrued_days}</TableCell>
+                               <TableCell className="text-center">{item.used_days}</TableCell>
+                               <TableCell className="text-center">
+                                 <Badge className={getBalanceColor(item.balance_days, !!item.person.data_contrato)}>
+                                   {getBalanceIcon(item.balance_days, !!item.person.data_contrato)}
+                                   <span className="ml-1">{item.balance_days}</span>
+                                 </Badge>
+                               </TableCell>
+                               <TableCell className="text-center">
+                                 {item.is_manual ? (
+                                   <Badge variant="secondary" className="text-xs">
+                                     Manual
+                                   </Badge>
+                                 ) : (
+                                   <Badge variant="outline" className="text-xs">
+                                     Auto
+                                   </Badge>
+                                 )}
+                               </TableCell>
+                               <TableCell className="sticky right-0 bg-background">
+                                 <div className="flex gap-1 justify-center">
+                                   <Button
+                                     variant="ghost"
+                                     size="sm"
+                                     onClick={() => handleEditContract(item)}
+                                   >
+                                     <Edit className="h-3 w-3" />
+                                   </Button>
+                                   <Button
+                                     variant="ghost"
+                                     size="sm"
+                                     onClick={() => handleEditBalance(item)}
+                                   >
+                                     <CalendarDays className="h-3 w-3" />
+                                   </Button>
+                                   {item.is_manual && (
+                                     <Button
+                                       variant="ghost"
+                                       size="sm"
+                                       onClick={() => handleRestoreAutomatic(item.person_id)}
+                                     >
+                                       <RotateCcw className="h-3 w-3" />
+                                     </Button>
+                                   )}
+                                 </div>
+                               </TableCell>
+                             </TableRow>
+                           );
+                         })}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        );
+      
+      case 'medical':
+        return (
+          <div className="space-y-6 mt-6">
+            <div className="flex justify-between items-center">
+              <h2 className="text-2xl font-bold">Licenças Médicas</h2>
+              <Button onClick={() => setShowMedicalLeaveForm(true)}>
+                Registrar Licença Médica
+              </Button>
+            </div>
+            
+            <MedicalLeaveList onRefresh={fetchVacationData} />
+            
+            {showMedicalLeaveForm && (
+              <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+                <MedicalLeaveForm
+                  people={allPeople}
+                  onSuccess={() => {
+                    setShowMedicalLeaveForm(false);
+                    fetchVacationData();
+                  }}
+                  onCancel={() => setShowMedicalLeaveForm(false)}
+                />
+              </div>
+            )}
+          </div>
+        );
+      
+      case 'active':
+        return (
+          <div className="space-y-6 mt-6">
+            <ActiveAbsencesDashboard />
+          </div>
+        );
+      
+      case 'dashboard':
+        return (
+          <div className="space-y-6 mt-6">
+            <Tabs defaultValue="capacity" className="w-full">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="capacity">Capacidade de Times</TabsTrigger>
+                <TabsTrigger value="vacations">Férias Aprovadas</TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="capacity" className="mt-6">
+                <TeamCapacityDashboard />
+              </TabsContent>
+              
+              <TabsContent value="vacations" className="mt-6">
+                <ApprovedVacationsExecutiveView />
+              </TabsContent>
+            </Tabs>
+          </div>
+        );
+      
+      case 'historical':
+        return (
+          <div className="space-y-6 mt-6">
+            <div className="bg-card rounded-lg p-6 shadow-sm">
+              <div className="mb-6">
+                <h3 className="text-lg font-semibold text-foreground">Regularização Histórica</h3>
+                <p className="text-sm text-muted-foreground">
+                  Registre solicitações históricas que foram processadas por outros canais
+                </p>
+              </div>
+              <HistoricalRequestForm onSuccess={() => {}} />
+            </div>
+          </div>
+        );
+      
+      case 'sheets':
+        return (
+          <div className="mt-6">
+            <SheetsSync />
+          </div>
+        );
+      
+      default:
+        return null;
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/30">
       <Header />
@@ -470,7 +833,7 @@ const VacationManagement = () => {
           </div>
         </div>
 
-        <Tabs defaultValue={initialTab} className="w-full">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           {/* Mobile: ScrollArea horizontal */}
           <div className="block lg:hidden">
             <ScrollArea className="w-full whitespace-nowrap">
@@ -505,7 +868,7 @@ const VacationManagement = () => {
           </div>
 
           {/* Vacation Management Tab */}
-          <TabsContent value="vacation" className="space-y-6">
+          <TabsContent value="vacation" className="space-y-6 hidden lg:block">
             {/* Statistics */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
               <Card>
@@ -742,7 +1105,7 @@ const VacationManagement = () => {
           </TabsContent>
 
           {/* Medical Leave Management Tab */}
-          <TabsContent value="medical" className="space-y-6">
+          <TabsContent value="medical" className="space-y-6 hidden lg:block">
             <div className="flex justify-between items-center">
               <h2 className="text-2xl font-bold">Licenças Médicas</h2>
               <Button onClick={() => setShowMedicalLeaveForm(true)}>
@@ -767,12 +1130,12 @@ const VacationManagement = () => {
           </TabsContent>
 
           {/* Active Absences Tab */}
-          <TabsContent value="active" className="space-y-6">
+          <TabsContent value="active" className="space-y-6 hidden lg:block">
             <ActiveAbsencesDashboard />
           </TabsContent>
 
           {/* Executive Dashboard Tab */}
-          <TabsContent value="dashboard" className="space-y-6">
+          <TabsContent value="dashboard" className="space-y-6 hidden lg:block">
             <Tabs defaultValue="capacity" className="w-full">
               <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="capacity">Capacidade de Times</TabsTrigger>
@@ -790,7 +1153,7 @@ const VacationManagement = () => {
           </TabsContent>
 
           {/* Historical Requests Tab */}
-          <TabsContent value="historical" className="space-y-6">
+          <TabsContent value="historical" className="space-y-6 hidden lg:block">
             <div className="bg-card rounded-lg p-6 shadow-sm">
               <div className="mb-6">
                 <h3 className="text-lg font-semibold text-foreground">Regularização Histórica</h3>
@@ -803,9 +1166,27 @@ const VacationManagement = () => {
           </TabsContent>
 
           {/* Google Sheets Sync Tab */}
-          <TabsContent value="sheets">
+          <TabsContent value="sheets" className="hidden lg:block">
             <SheetsSync />
           </TabsContent>
+
+          {/* Mobile: Carousel com swipe gestures */}
+          <div className="lg:hidden">
+            <div className="overflow-hidden" ref={emblaRef}>
+              <div className="flex touch-pan-y">
+                {tabValues.map((tabValue) => (
+                  <div key={tabValue} className="flex-[0_0_100%] min-w-0">
+                    {activeTab === tabValue && renderTabContent(tabValue)}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Desktop: Renderização normal das tabs */}
+          <div className="hidden lg:block">
+            {/* Conteúdo já renderizado pelos TabsContent acima */}
+          </div>
         </Tabs>
 
         {/* Contract Edit Dialog */}
