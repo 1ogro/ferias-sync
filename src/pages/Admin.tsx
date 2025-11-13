@@ -105,7 +105,6 @@ const Admin = () => {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   
    const [formData, setFormData] = useState<FormData>({
@@ -242,30 +241,18 @@ const Admin = () => {
         data_contrato: formData.data_contrato || null
       };
 
-      if (isEditing) {
-        const { error } = await supabase
-          .from('people')
-          .update(data)
-          .eq('id', formData.id);
+      // Only allow editing existing users
+      const { error } = await supabase
+        .from('people')
+        .update(data)
+        .eq('id', formData.id);
 
-        if (error) throw error;
-        
-        toast({
-          title: "Sucesso",
-          description: "Pessoa atualizada com sucesso!",
-        });
-      } else {
-        const { error } = await supabase
-          .from('people')
-          .insert([data]);
-
-        if (error) throw error;
-        
-        toast({
-          title: "Sucesso",
-          description: "Pessoa criada com sucesso!",
-        });
-      }
+      if (error) throw error;
+      
+      toast({
+        title: "Sucesso",
+        description: "Pessoa atualizada com sucesso!",
+      });
 
       resetForm();
       fetchPeople();
@@ -295,7 +282,6 @@ const Admin = () => {
        gestorId: person.gestorId || '',
        data_contrato: person.data_contrato || ''
      });
-    setIsEditing(true);
     setIsDialogOpen(true);
   };
 
@@ -339,7 +325,6 @@ const Admin = () => {
       gestorId: '',
       data_contrato: ''
     });
-    setIsEditing(false);
     setIsDialogOpen(false);
   };
 
@@ -482,10 +467,6 @@ const Admin = () => {
           >
             <History className="h-4 w-4 mr-2" />
             Cadastro Histórico
-          </Button>
-          <Button onClick={() => setIsDialogOpen(true)} size="sm">
-            <Plus className="h-4 w-4 mr-2" />
-            Novo Usuário
           </Button>
         </div>
       </div>
@@ -724,27 +705,14 @@ const Admin = () => {
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="sm:max-w-[600px]">
           <DialogHeader>
-            <DialogTitle>
-              {isEditing ? 'Editar Usuário' : 'Novo Usuário'}
-            </DialogTitle>
+            <DialogTitle>Editar Usuário</DialogTitle>
             <DialogDescription>
-              {isEditing ? 'Edite as informações do usuário.' : 'Adicione um novo usuário ao sistema.'}
+              Edite as informações do usuário. Para criar novos colaboradores, use o fluxo de aprovação.
             </DialogDescription>
           </DialogHeader>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="id">ID *</Label>
-                <Input
-                  id="id"
-                  value={formData.id}
-                  onChange={(e) => setFormData({ ...formData, id: e.target.value })}
-                  required
-                  disabled={isEditing}
-                />
-              </div>
-
               <div>
                 <Label htmlFor="nome">Nome *</Label>
                 <Input
@@ -833,22 +801,22 @@ const Admin = () => {
                  </Select>
                </div>
 
-               <div>
-                 <Label htmlFor="is_admin">Permissões de Admin</Label>
-                 <Select 
-                   value={formData.is_admin?.toString() || 'false'} 
-                   onValueChange={(value) => setFormData({ ...formData, is_admin: value === 'true' })}
-                   disabled={isEditing && !canEditAdminPermission(person, people.find(p => p.id === formData.id) || { papel: formData.papel, id: formData.id } as Person)}
-                 >
-                   <SelectTrigger>
-                     <SelectValue />
-                   </SelectTrigger>
-                   <SelectContent>
-                     <SelectItem value="false">Não</SelectItem>
-                     <SelectItem value="true">Sim</SelectItem>
-                   </SelectContent>
-                 </Select>
-               </div>
+                <div>
+                  <Label htmlFor="is_admin">Permissões de Admin</Label>
+                  <Select 
+                    value={formData.is_admin?.toString() || 'false'} 
+                    onValueChange={(value) => setFormData({ ...formData, is_admin: value === 'true' })}
+                    disabled={!canEditAdminPermission(person, people.find(p => p.id === formData.id) || { papel: formData.papel, id: formData.id } as Person)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="false">Não</SelectItem>
+                      <SelectItem value="true">Sim</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
 
                <div>
                  <Label htmlFor="ativo">Status *</Label>
@@ -895,7 +863,7 @@ const Admin = () => {
                 Cancelar
               </Button>
               <Button type="submit" disabled={submitting}>
-                {submitting ? 'Salvando...' : (isEditing ? 'Atualizar' : 'Criar')}
+                {submitting ? 'Salvando...' : 'Atualizar'}
               </Button>
             </DialogFooter>
           </form>
