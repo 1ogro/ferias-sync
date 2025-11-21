@@ -62,6 +62,9 @@ import {
   History,
   Calculator,
   Loader2,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -111,6 +114,8 @@ const VacationManagement = () => {
   const [contractTypeFilter, setContractTypeFilter] = useState<string>("all");
   const [detailsDrawerOpen, setDetailsDrawerOpen] = useState(false);
   const [detailsDrawerItem, setDetailsDrawerItem] = useState<VacationData | null>(null);
+  const [sortColumn, setSortColumn] = useState<string | null>(null);
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   
   // Get tab from URL query params
   const [searchParams] = useSearchParams();
@@ -204,8 +209,24 @@ const VacationManagement = () => {
     }
   };
 
+  const handleSort = (column: string) => {
+    if (sortColumn === column) {
+      // Se já está ordenando por esta coluna, alterna a direção ou remove a ordenação
+      if (sortDirection === 'asc') {
+        setSortDirection('desc');
+      } else {
+        setSortColumn(null);
+        setSortDirection('asc');
+      }
+    } else {
+      // Nova coluna selecionada
+      setSortColumn(column);
+      setSortDirection('asc');
+    }
+  };
+
   const filteredData = useMemo(() => {
-    return vacationData.filter(item => {
+    let filtered = vacationData.filter(item => {
       const matchesSearch = item.person.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (item.person.cargo && item.person.cargo.toLowerCase().includes(searchTerm.toLowerCase())) ||
         (item.person.sub_time && item.person.sub_time.toLowerCase().includes(searchTerm.toLowerCase()));
@@ -216,7 +237,58 @@ const VacationManagement = () => {
       
       return matchesSearch && matchesContractType;
     });
-  }, [vacationData, searchTerm, contractTypeFilter]);
+
+    // Aplicar ordenação se houver coluna selecionada
+    if (sortColumn) {
+      filtered = [...filtered].sort((a, b) => {
+        let aValue: any;
+        let bValue: any;
+
+        switch (sortColumn) {
+          case 'nome':
+            aValue = a.person.nome.toLowerCase();
+            bValue = b.person.nome.toLowerCase();
+            break;
+          case 'modelo_contrato':
+            aValue = a.person.modelo_contrato || 'CLT';
+            bValue = b.person.modelo_contrato || 'CLT';
+            break;
+          case 'time':
+            aValue = a.person.sub_time || '';
+            bValue = b.person.sub_time || '';
+            break;
+          case 'saldo':
+            aValue = a.balance_days;
+            bValue = b.balance_days;
+            break;
+          case 'adquiridos':
+            aValue = a.accrued_days;
+            bValue = b.accrued_days;
+            break;
+          case 'usados':
+            aValue = a.used_days;
+            bValue = b.used_days;
+            break;
+          case 'status':
+            aValue = a.is_manual ? 'Manual' : 'Auto';
+            bValue = b.is_manual ? 'Manual' : 'Auto';
+            break;
+          case 'data_contrato':
+            aValue = a.person.data_contrato ? new Date(a.person.data_contrato).getTime() : 0;
+            bValue = b.person.data_contrato ? new Date(b.person.data_contrato).getTime() : 0;
+            break;
+          default:
+            return 0;
+        }
+
+        if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1;
+        if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1;
+        return 0;
+      });
+    }
+
+    return filtered;
+  }, [vacationData, searchTerm, contractTypeFilter, sortColumn, sortDirection]);
 
   const stats = useMemo(() => {
     const contractTypeCounts = vacationData.reduce((acc, item) => {
@@ -921,14 +993,118 @@ const VacationManagement = () => {
                         <Table>
                           <TableHeader>
                             <TableRow>
-                              <TableHead className="min-w-[200px]">Nome</TableHead>
-                              <TableHead className="min-w-[150px]">Modelo Contrato</TableHead>
-                              <TableHead className="min-w-[120px]">Time</TableHead>
-                              <TableHead className="min-w-[80px] text-center">Saldo</TableHead>
-                              <TableHead className="min-w-[100px] text-center">Adquiridos</TableHead>
-                              <TableHead className="min-w-[80px] text-center">Usados</TableHead>
-                              <TableHead className="min-w-[100px] text-center">Status</TableHead>
-                              <TableHead className="min-w-[120px]">Data Contrato</TableHead>
+                              <TableHead className="min-w-[200px]">
+                                <Button
+                                  variant="ghost"
+                                  onClick={() => handleSort('nome')}
+                                  className="h-auto p-0 hover:bg-transparent font-semibold flex items-center gap-1"
+                                >
+                                  Nome
+                                  {sortColumn === 'nome' ? (
+                                    sortDirection === 'asc' ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />
+                                  ) : (
+                                    <ArrowUpDown className="h-4 w-4 opacity-50" />
+                                  )}
+                                </Button>
+                              </TableHead>
+                              <TableHead className="min-w-[150px]">
+                                <Button
+                                  variant="ghost"
+                                  onClick={() => handleSort('modelo_contrato')}
+                                  className="h-auto p-0 hover:bg-transparent font-semibold flex items-center gap-1"
+                                >
+                                  Modelo Contrato
+                                  {sortColumn === 'modelo_contrato' ? (
+                                    sortDirection === 'asc' ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />
+                                  ) : (
+                                    <ArrowUpDown className="h-4 w-4 opacity-50" />
+                                  )}
+                                </Button>
+                              </TableHead>
+                              <TableHead className="min-w-[120px]">
+                                <Button
+                                  variant="ghost"
+                                  onClick={() => handleSort('time')}
+                                  className="h-auto p-0 hover:bg-transparent font-semibold flex items-center gap-1"
+                                >
+                                  Time
+                                  {sortColumn === 'time' ? (
+                                    sortDirection === 'asc' ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />
+                                  ) : (
+                                    <ArrowUpDown className="h-4 w-4 opacity-50" />
+                                  )}
+                                </Button>
+                              </TableHead>
+                              <TableHead className="min-w-[80px] text-center">
+                                <Button
+                                  variant="ghost"
+                                  onClick={() => handleSort('saldo')}
+                                  className="h-auto p-0 hover:bg-transparent font-semibold flex items-center gap-1 mx-auto"
+                                >
+                                  Saldo
+                                  {sortColumn === 'saldo' ? (
+                                    sortDirection === 'asc' ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />
+                                  ) : (
+                                    <ArrowUpDown className="h-4 w-4 opacity-50" />
+                                  )}
+                                </Button>
+                              </TableHead>
+                              <TableHead className="min-w-[100px] text-center">
+                                <Button
+                                  variant="ghost"
+                                  onClick={() => handleSort('adquiridos')}
+                                  className="h-auto p-0 hover:bg-transparent font-semibold flex items-center gap-1 mx-auto"
+                                >
+                                  Adquiridos
+                                  {sortColumn === 'adquiridos' ? (
+                                    sortDirection === 'asc' ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />
+                                  ) : (
+                                    <ArrowUpDown className="h-4 w-4 opacity-50" />
+                                  )}
+                                </Button>
+                              </TableHead>
+                              <TableHead className="min-w-[80px] text-center">
+                                <Button
+                                  variant="ghost"
+                                  onClick={() => handleSort('usados')}
+                                  className="h-auto p-0 hover:bg-transparent font-semibold flex items-center gap-1 mx-auto"
+                                >
+                                  Usados
+                                  {sortColumn === 'usados' ? (
+                                    sortDirection === 'asc' ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />
+                                  ) : (
+                                    <ArrowUpDown className="h-4 w-4 opacity-50" />
+                                  )}
+                                </Button>
+                              </TableHead>
+                              <TableHead className="min-w-[100px] text-center">
+                                <Button
+                                  variant="ghost"
+                                  onClick={() => handleSort('status')}
+                                  className="h-auto p-0 hover:bg-transparent font-semibold flex items-center gap-1 mx-auto"
+                                >
+                                  Status
+                                  {sortColumn === 'status' ? (
+                                    sortDirection === 'asc' ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />
+                                  ) : (
+                                    <ArrowUpDown className="h-4 w-4 opacity-50" />
+                                  )}
+                                </Button>
+                              </TableHead>
+                              <TableHead className="min-w-[120px]">
+                                <Button
+                                  variant="ghost"
+                                  onClick={() => handleSort('data_contrato')}
+                                  className="h-auto p-0 hover:bg-transparent font-semibold flex items-center gap-1"
+                                >
+                                  Data Contrato
+                                  {sortColumn === 'data_contrato' ? (
+                                    sortDirection === 'asc' ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />
+                                  ) : (
+                                    <ArrowUpDown className="h-4 w-4 opacity-50" />
+                                  )}
+                                </Button>
+                              </TableHead>
                               <TableHead className="min-w-[130px]">Tipo de Abono</TableHead>
                               <TableHead className="min-w-[160px] sticky right-0 bg-background text-center z-10">Ações</TableHead>
                             </TableRow>
