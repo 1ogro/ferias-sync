@@ -923,13 +923,13 @@ const VacationManagement = () => {
                             <TableRow>
                               <TableHead className="min-w-[200px]">Nome</TableHead>
                               <TableHead className="min-w-[150px]">Modelo Contrato</TableHead>
-                              <TableHead className="min-w-[130px]">Tipo de Abono</TableHead>
                               <TableHead className="min-w-[120px]">Time</TableHead>
-                              <TableHead className="min-w-[120px]">Data Contrato</TableHead>
+                              <TableHead className="min-w-[80px] text-center">Saldo</TableHead>
                               <TableHead className="min-w-[100px] text-center">Adquiridos</TableHead>
                               <TableHead className="min-w-[80px] text-center">Usados</TableHead>
-                              <TableHead className="min-w-[80px] text-center">Saldo</TableHead>
                               <TableHead className="min-w-[100px] text-center">Status</TableHead>
+                              <TableHead className="min-w-[120px]">Data Contrato</TableHead>
+                              <TableHead className="min-w-[130px]">Tipo de Abono</TableHead>
                               <TableHead className="min-w-[160px] sticky right-0 bg-background text-center z-10">Ações</TableHead>
                             </TableRow>
                           </TableHeader>
