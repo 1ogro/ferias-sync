@@ -114,38 +114,19 @@ export function VacationTableRow({
         </Tooltip>
       </TableCell>
       <TableCell>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <span className="text-sm text-muted-foreground cursor-help">
-              {getAbonoInfo(item.person.modelo_contrato)}
-            </span>
-          </TooltipTrigger>
-          <TooltipContent side="top">
-            <p className="text-xs">Opções de abono pecuniário disponíveis</p>
-          </TooltipContent>
-        </Tooltip>
-      </TableCell>
-      <TableCell>
         <span className="text-sm">{item.person.sub_time || "N/A"}</span>
-      </TableCell>
-      <TableCell>
-        {item.person.data_contrato ? (
-          <span className="text-sm">{format(new Date(item.person.data_contrato), "dd/MM/yyyy")}</span>
-        ) : (
-          <span className="text-destructive text-sm font-medium">Não definida</span>
-        )}
-      </TableCell>
-      <TableCell className="text-center">
-        <span className="font-medium">{item.accrued_days}</span>
-      </TableCell>
-      <TableCell className="text-center">
-        <span className="font-medium">{item.used_days}</span>
       </TableCell>
       <TableCell className="text-center">
         <Badge className={getBalanceColor(item.balance_days, !!item.person.data_contrato)} variant="outline">
           {getBalanceIcon(item.balance_days, !!item.person.data_contrato)}
           <span className="ml-1.5 font-semibold">{item.balance_days}</span>
         </Badge>
+      </TableCell>
+      <TableCell className="text-center">
+        <span className="font-medium">{item.accrued_days}</span>
+      </TableCell>
+      <TableCell className="text-center">
+        <span className="font-medium">{item.used_days}</span>
       </TableCell>
       <TableCell className="text-center">
         {item.is_manual ? (
@@ -166,6 +147,25 @@ export function VacationTableRow({
             Auto
           </Badge>
         )}
+      </TableCell>
+      <TableCell>
+        {item.person.data_contrato ? (
+          <span className="text-sm">{format(new Date(item.person.data_contrato), "dd/MM/yyyy")}</span>
+        ) : (
+          <span className="text-destructive text-sm font-medium">Não definida</span>
+        )}
+      </TableCell>
+      <TableCell>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="text-sm text-muted-foreground cursor-help">
+              {getAbonoInfo(item.person.modelo_contrato)}
+            </span>
+          </TooltipTrigger>
+          <TooltipContent side="top">
+            <p className="text-xs">Opções de abono pecuniário disponíveis</p>
+          </TooltipContent>
+        </Tooltip>
       </TableCell>
       <TableCell className="sticky right-0 bg-background shadow-[-8px_0_12px_-4px_rgba(0,0,0,0.05)]">
         {isMobile ? (
