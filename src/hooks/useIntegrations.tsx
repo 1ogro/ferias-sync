@@ -24,6 +24,13 @@ export interface IntegrationSettings {
   email_status: string;
   email_error_message: string | null;
   email_test_date: string | null;
+  figma_enabled: boolean;
+  figma_client_id: string | null;
+  figma_client_secret_set: boolean;
+  figma_redirect_uri: string | null;
+  figma_status: string;
+  figma_error_message: string | null;
+  figma_test_date: string | null;
   configured_by: string | null;
   configured_at: string;
   updated_at: string;
@@ -347,22 +354,122 @@ export function useIntegrations() {
     },
   });
 
+  const updateFigmaMutation = useMutation({
+    mutationFn: async (params: {
+      clientId: string;
+      clientSecret: string;
+      redirectUri: string;
+    }) => {
+      // Store the Client Secret in Supabase Secrets via edge function
+      const { error: secretError } = await supabase.functions.invoke('test-integrations', {
+        body: {
+          type: 'store-figma-secret',
+          clientSecret: params.clientSecret,
+        },
+      });
+
+      if (secretError) throw secretError;
+
+      // Update integration_settings with Client ID and flags
+      const { error: updateError } = await supabase
+        .from('integration_settings' as any)
+        .update({
+          figma_enabled: true,
+          figma_client_id: params.clientId,
+          figma_client_secret_set: true,
+          figma_redirect_uri: params.redirectUri,
+          figma_status: 'configured',
+          updated_at: new Date().toISOString(),
+        } as any)
+        .eq('id', '00000000-0000-0000-0000-000000000000');
+
+      if (updateError) throw updateError;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['integration-settings'] });
+      toast({
+        title: 'Figma configurado',
+        description: 'As configurações do OAuth do Figma foram salvas com sucesso.',
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Erro ao configurar Figma',
+        description: error.message,
+        variant: 'destructive',
+      });
+    },
+  });
+
+  const testFigmaMutation = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke('test-integrations', {
+        body: { type: 'figma' },
+      });
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      if (data.success) {
+        toast({
+          title: 'Configuração verificada',
+          description: 'O OAuth do Figma está configurado corretamente.',
+        });
+
+        // Update test date
+        supabase
+          .from('integration_settings' as any)
+          .update({
+            figma_status: 'active',
+            figma_test_date: new Date().toISOString(),
+            figma_error_message: null,
+          } as any)
+          .eq('id', '00000000-0000-0000-0000-000000000000')
+          .then(() => queryClient.invalidateQueries({ queryKey: ['integration-settings'] }));
+      } else {
+        throw new Error(data.message || 'Falha no teste');
+      }
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Falha no teste do Figma',
+        description: error.message,
+        variant: 'destructive',
+      });
+
+      // Update error status
+      supabase
+        .from('integration_settings' as any)
+        .update({
+          figma_status: 'error',
+          figma_error_message: error.message,
+        } as any)
+        .eq('id', '00000000-0000-0000-0000-000000000000')
+        .then(() => queryClient.invalidateQueries({ queryKey: ['integration-settings'] }));
+    },
+  });
+
   return {
     settings,
     isLoading,
     updateSlack: updateSlackMutation.mutate,
     updateSheets: updateSheetsMutation.mutate,
     updateEmail: updateEmailMutation.mutate,
+    updateFigma: updateFigmaMutation.mutate,
     testSlack: testSlackMutation.mutate,
     testSheets: testSheetsMutation.mutate,
     testEmail: testEmailMutation.mutate,
+    testFigma: testFigmaMutation.mutate,
     syncExisting: syncExistingMutation.mutate,
     isUpdatingSlack: updateSlackMutation.isPending,
     isUpdatingSheets: updateSheetsMutation.isPending,
     isUpdatingEmail: updateEmailMutation.isPending,
+    isUpdatingFigma: updateFigmaMutation.isPending,
     isTestingSlack: testSlackMutation.isPending,
     isTestingSheets: testSheetsMutation.isPending,
     isTestingEmail: testEmailMutation.isPending,
+    isTestingFigma: testFigmaMutation.isPending,
     isSyncing: syncExistingMutation.isPending,
   };
 }
