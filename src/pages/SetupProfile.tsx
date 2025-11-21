@@ -22,6 +22,15 @@ export default function SetupProfile() {
   const [selectedPersonId, setSelectedPersonId] = useState<string>('');
   const [submitting, setSubmitting] = useState(false);
   const [fetchingPeople, setFetchingPeople] = useState(true);
+  const [authProvider, setAuthProvider] = useState<string>('email');
+
+  useEffect(() => {
+    // Detect OAuth provider
+    if (user) {
+      const provider = user.app_metadata?.provider || 'email';
+      setAuthProvider(provider);
+    }
+  }, [user]);
 
   useEffect(() => {
     // Only fetch people after profile check is complete
@@ -145,12 +154,22 @@ export default function SetupProfile() {
         </CardHeader>
         
         <CardContent className="space-y-4">
-          <Alert>
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>
-              Selecione seu nome da lista abaixo para vincular sua conta ao perfil organizacional correto.
-            </AlertDescription>
-          </Alert>
+          {authProvider === 'figma' ? (
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                Você fez login com Figma usando o email <strong>{user?.email}</strong>.
+                Para continuar, selecione seu nome na lista abaixo para vincular sua conta.
+              </AlertDescription>
+            </Alert>
+          ) : (
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                Selecione seu nome da lista abaixo para vincular sua conta ao perfil organizacional correto.
+              </AlertDescription>
+            </Alert>
+          )}
 
           <div className="space-y-2">
             <label className="text-sm font-medium">Selecionar Pessoa</label>
