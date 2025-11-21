@@ -15,7 +15,7 @@ interface FigmaSetupProps {
 export function FigmaSetup({ onSave, isSaving, initialClientId = '', initialRedirectUri = '' }: FigmaSetupProps) {
   const [clientId, setClientId] = useState(initialClientId);
   const [clientSecret, setClientSecret] = useState('');
-  const [redirectUri, setRedirectUri] = useState(initialRedirectUri || `${window.location.origin}/`);
+  const [redirectUri, setRedirectUri] = useState(initialRedirectUri || `${window.location.origin}/auth/callback/figma`);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
