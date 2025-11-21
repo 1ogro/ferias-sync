@@ -69,7 +69,9 @@ import {
   ChevronDown,
   History,
   UserPlus,
-  FileCheck
+  FileCheck,
+  Maximize2,
+  Minimize2
 } from "lucide-react";
 
 interface FormData {
@@ -132,6 +134,7 @@ const Admin = () => {
   const [sortField, setSortField] = useState<SortField>('nome');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [showFilters, setShowFilters] = useState(false);
+  const [isCompactView, setIsCompactView] = useState(false);
 
   // Pending collaborators management
   const [showNewCollaboratorDialog, setShowNewCollaboratorDialog] = useState(false);
@@ -539,6 +542,24 @@ const Admin = () => {
                 <Filter className="h-4 w-4 mr-2" />
                 Filtros
               </Button>
+              <Button
+                variant="outline"
+                onClick={() => setIsCompactView(!isCompactView)}
+                className="w-full sm:w-auto"
+                title={isCompactView ? "Alternar para visualização expandida" : "Alternar para visualização compacta"}
+              >
+                {isCompactView ? (
+                  <>
+                    <Maximize2 className="h-4 w-4 mr-2" />
+                    Expandir
+                  </>
+                ) : (
+                  <>
+                    <Minimize2 className="h-4 w-4 mr-2" />
+                    Compactar
+                  </>
+                )}
+              </Button>
               {(filters.search || filters.papel || filters.ativo || filters.local || filters.cargo) && (
                 <Button variant="outline" onClick={clearFilters} className="w-full sm:w-auto">
                   <X className="h-4 w-4 mr-2" />
@@ -603,8 +624,8 @@ const Admin = () => {
                  <TableRow>
                    <SortableHeader field="nome">Nome</SortableHeader>
                    <SortableHeader field="email">Email</SortableHeader>
-                   <SortableHeader field="cargo">Cargo</SortableHeader>
-                   <SortableHeader field="local">Local</SortableHeader>
+                   {!isCompactView && <SortableHeader field="cargo">Cargo</SortableHeader>}
+                   {!isCompactView && <SortableHeader field="local">Local</SortableHeader>}
                    <SortableHeader field="papel">Papel</SortableHeader>
                    <SortableHeader field="is_admin">Admin</SortableHeader>
                    <SortableHeader field="ativo">Status</SortableHeader>
@@ -615,9 +636,9 @@ const Admin = () => {
                  {filteredAndSortedPeople.map((targetPerson) => (
                    <TableRow key={targetPerson.id}>
                      <TableCell className="font-medium">{targetPerson.nome}</TableCell>
-                     <TableCell>{targetPerson.email}</TableCell>
-                     <TableCell>{targetPerson.cargo || '-'}</TableCell>
-                     <TableCell>{targetPerson.local || '-'}</TableCell>
+                     <TableCell className={isCompactView ? "text-xs" : ""}>{targetPerson.email}</TableCell>
+                     {!isCompactView && <TableCell>{targetPerson.cargo || '-'}</TableCell>}
+                     {!isCompactView && <TableCell>{targetPerson.local || '-'}</TableCell>}
                      <TableCell>
                        <Badge className={getPapelColor(targetPerson.papel)}>
                          {targetPerson.papel}
