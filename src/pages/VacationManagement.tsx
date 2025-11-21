@@ -65,6 +65,7 @@ import {
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
+  X,
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -111,11 +112,15 @@ const VacationManagement = () => {
   const [massRecalculateJustification, setMassRecalculateJustification] = useState("");
   const [massRecalculateLoading, setMassRecalculateLoading] = useState(false);
   const [massRecalculateProgress, setMassRecalculateProgress] = useState(0);
-  const [contractTypeFilter, setContractTypeFilter] = useState<string>("all");
   const [detailsDrawerOpen, setDetailsDrawerOpen] = useState(false);
   const [detailsDrawerItem, setDetailsDrawerItem] = useState<VacationData | null>(null);
   const [sortColumn, setSortColumn] = useState<string | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  
+  // Advanced filters
+  const [selectedTimes, setSelectedTimes] = useState<string[]>([]);
+  const [selectedContractTypes, setSelectedContractTypes] = useState<string[]>([]);
+  const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
   
   // Get tab from URL query params
   const [searchParams] = useSearchParams();
@@ -225,17 +230,71 @@ const VacationManagement = () => {
     }
   };
 
+  const toggleFilter = (filterType: 'time' | 'contract' | 'status', value: string) => {
+    switch (filterType) {
+      case 'time':
+        setSelectedTimes(prev => 
+          prev.includes(value) ? prev.filter(v => v !== value) : [...prev, value]
+        );
+        break;
+      case 'contract':
+        setSelectedContractTypes(prev =>
+          prev.includes(value) ? prev.filter(v => v !== value) : [...prev, value]
+        );
+        break;
+      case 'status':
+        setSelectedStatuses(prev =>
+          prev.includes(value) ? prev.filter(v => v !== value) : [...prev, value]
+        );
+        break;
+    }
+  };
+
+  const removeFilter = (filterType: 'time' | 'contract' | 'status', value: string) => {
+    switch (filterType) {
+      case 'time':
+        setSelectedTimes(prev => prev.filter(v => v !== value));
+        break;
+      case 'contract':
+        setSelectedContractTypes(prev => prev.filter(v => v !== value));
+        break;
+      case 'status':
+        setSelectedStatuses(prev => prev.filter(v => v !== value));
+        break;
+    }
+  };
+
+  const clearAllFilters = () => {
+    setSelectedTimes([]);
+    setSelectedContractTypes([]);
+    setSelectedStatuses([]);
+  };
+
+  const activeFiltersCount = selectedTimes.length + selectedContractTypes.length + selectedStatuses.length;
+
+  // Get unique values for filters
+  const availableTimes = useMemo(() => {
+    const times = new Set(vacationData.map(item => item.person.sub_time).filter(Boolean));
+    return Array.from(times).sort();
+  }, [vacationData]);
+
   const filteredData = useMemo(() => {
     let filtered = vacationData.filter(item => {
       const matchesSearch = item.person.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (item.person.cargo && item.person.cargo.toLowerCase().includes(searchTerm.toLowerCase())) ||
         (item.person.sub_time && item.person.sub_time.toLowerCase().includes(searchTerm.toLowerCase()));
       
-      const matchesContractType = contractTypeFilter === "all" || 
-        item.person.modelo_contrato === contractTypeFilter ||
-        (!item.person.modelo_contrato && contractTypeFilter === "CLT");
+      const matchesTime = selectedTimes.length === 0 || 
+        (item.person.sub_time && selectedTimes.includes(item.person.sub_time));
       
-      return matchesSearch && matchesContractType;
+      const matchesContractType = selectedContractTypes.length === 0 || 
+        selectedContractTypes.includes(item.person.modelo_contrato || 'CLT');
+      
+      const matchesStatus = selectedStatuses.length === 0 || 
+        (selectedStatuses.includes('manual') && item.is_manual) ||
+        (selectedStatuses.includes('auto') && !item.is_manual);
+      
+      return matchesSearch && matchesTime && matchesContractType && matchesStatus;
     });
 
     // Aplicar ordenação se houver coluna selecionada
@@ -288,7 +347,7 @@ const VacationManagement = () => {
     }
 
     return filtered;
-  }, [vacationData, searchTerm, contractTypeFilter, sortColumn, sortDirection]);
+  }, [vacationData, searchTerm, selectedTimes, selectedContractTypes, selectedStatuses, sortColumn, sortDirection]);
 
   const stats = useMemo(() => {
     const contractTypeCounts = vacationData.reduce((acc, item) => {
@@ -646,37 +705,23 @@ const VacationManagement = () => {
               </CardHeader>
               <CardContent>
                 {/* Filters */}
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6">
-                  <div className="flex items-center gap-2">
-                    <Search className="h-4 w-4 text-muted-foreground" />
-                    <Input
-                      placeholder="Buscar por nome, cargo ou time..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="max-w-sm"
-                    />
-                  </div>
-                  
-                  <div className="flex items-center gap-2">
-                    <Filter className="h-4 w-4 text-muted-foreground" />
-                    <Select value={contractTypeFilter} onValueChange={setContractTypeFilter}>
-                      <SelectTrigger className="w-48">
-                        <SelectValue placeholder="Filtrar por contrato" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Todos os Contratos</SelectItem>
-                        {Object.values(ModeloContrato).map((tipo) => (
-                          <SelectItem key={tipo} value={tipo}>
-                            {MODELO_CONTRATO_LABELS[tipo]}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                <div className="space-y-4 mb-6">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex items-center gap-2 flex-1">
+                      <Search className="h-4 w-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Buscar por nome, cargo ou time..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="max-w-sm"
+                      />
+                    </div>
+                    
                     <Select value={selectedYear.toString()} onValueChange={(value) => setSelectedYear(parseInt(value))}>
                       <SelectTrigger className="w-32">
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="z-50 bg-background">
                         {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i).map((year) => (
                           <SelectItem key={year} value={year.toString()}>
                             {year}
@@ -685,6 +730,127 @@ const VacationManagement = () => {
                       </SelectContent>
                     </Select>
                   </div>
+
+                  {/* Advanced Filters */}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-sm text-muted-foreground flex items-center gap-2">
+                      <Filter className="h-4 w-4" />
+                      Filtros:
+                    </span>
+                    
+                    {/* Time Filter */}
+                    {availableTimes.length > 0 && (
+                      <Select onValueChange={(value) => toggleFilter('time', value)}>
+                        <SelectTrigger className="w-[180px] h-8">
+                          <SelectValue placeholder="+ Time" />
+                        </SelectTrigger>
+                        <SelectContent className="z-50 bg-background">
+                          {availableTimes.map((time) => (
+                            <SelectItem key={time} value={time}>
+                              {time}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                    
+                    {/* Contract Type Filter */}
+                    <Select onValueChange={(value) => toggleFilter('contract', value)}>
+                      <SelectTrigger className="w-[180px] h-8">
+                        <SelectValue placeholder="+ Modelo Contrato" />
+                      </SelectTrigger>
+                      <SelectContent className="z-50 bg-background">
+                        {Object.values(ModeloContrato).map((tipo) => (
+                          <SelectItem key={tipo} value={tipo}>
+                            {MODELO_CONTRATO_LABELS[tipo]}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    
+                    {/* Status Filter */}
+                    <Select onValueChange={(value) => toggleFilter('status', value)}>
+                      <SelectTrigger className="w-[180px] h-8">
+                        <SelectValue placeholder="+ Status" />
+                      </SelectTrigger>
+                      <SelectContent className="z-50 bg-background">
+                        <SelectItem value="manual">Manual</SelectItem>
+                        <SelectItem value="auto">Automático</SelectItem>
+                      </SelectContent>
+                    </Select>
+
+                    {activeFiltersCount > 0 && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={clearAllFilters}
+                        className="h-8 text-xs"
+                      >
+                        Limpar todos ({activeFiltersCount})
+                      </Button>
+                    )}
+                  </div>
+
+                  {/* Active Filters Chips */}
+                  {activeFiltersCount > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {selectedTimes.map((time) => (
+                        <Badge
+                          key={`time-${time}`}
+                          variant="secondary"
+                          className="gap-1 pl-2 pr-1 py-1 hover:bg-secondary/80"
+                        >
+                          <span className="text-xs">Time: {time}</span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-4 w-4 p-0 hover:bg-transparent"
+                            onClick={() => removeFilter('time', time)}
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </Badge>
+                      ))}
+                      {selectedContractTypes.map((contract) => (
+                        <Badge
+                          key={`contract-${contract}`}
+                          variant="secondary"
+                          className="gap-1 pl-2 pr-1 py-1 hover:bg-secondary/80"
+                        >
+                          <span className="text-xs">
+                            Contrato: {MODELO_CONTRATO_LABELS[contract as ModeloContrato]}
+                          </span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-4 w-4 p-0 hover:bg-transparent"
+                            onClick={() => removeFilter('contract', contract)}
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </Badge>
+                      ))}
+                      {selectedStatuses.map((status) => (
+                        <Badge
+                          key={`status-${status}`}
+                          variant="secondary"
+                          className="gap-1 pl-2 pr-1 py-1 hover:bg-secondary/80"
+                        >
+                          <span className="text-xs">
+                            Status: {status === 'manual' ? 'Manual' : 'Automático'}
+                          </span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-4 w-4 p-0 hover:bg-transparent"
+                            onClick={() => removeFilter('status', status)}
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 {/* Table */}
@@ -942,37 +1108,23 @@ const VacationManagement = () => {
               </CardHeader>
               <CardContent>
                 {/* Filters */}
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6">
-                  <div className="flex items-center gap-2">
-                    <Search className="h-4 w-4 text-muted-foreground" />
-                    <Input
-                      placeholder="Buscar por nome, cargo ou time..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="max-w-sm"
-                    />
-                  </div>
-                  
-                  <div className="flex items-center gap-2">
-                    <Filter className="h-4 w-4 text-muted-foreground" />
-                    <Select value={contractTypeFilter} onValueChange={setContractTypeFilter}>
-                      <SelectTrigger className="w-48">
-                        <SelectValue placeholder="Filtrar por contrato" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Todos os Contratos</SelectItem>
-                        {Object.values(ModeloContrato).map((tipo) => (
-                          <SelectItem key={tipo} value={tipo}>
-                            {MODELO_CONTRATO_LABELS[tipo]}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                <div className="space-y-4 mb-6">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex items-center gap-2 flex-1">
+                      <Search className="h-4 w-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Buscar por nome, cargo ou time..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="max-w-sm"
+                      />
+                    </div>
+                    
                     <Select value={selectedYear.toString()} onValueChange={(value) => setSelectedYear(parseInt(value))}>
                       <SelectTrigger className="w-32">
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="z-50 bg-background">
                         {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i).map((year) => (
                           <SelectItem key={year} value={year.toString()}>
                             {year}
@@ -981,6 +1133,127 @@ const VacationManagement = () => {
                       </SelectContent>
                     </Select>
                   </div>
+
+                  {/* Advanced Filters */}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-sm text-muted-foreground flex items-center gap-2">
+                      <Filter className="h-4 w-4" />
+                      Filtros:
+                    </span>
+                    
+                    {/* Time Filter */}
+                    {availableTimes.length > 0 && (
+                      <Select onValueChange={(value) => toggleFilter('time', value)}>
+                        <SelectTrigger className="w-[180px] h-8">
+                          <SelectValue placeholder="+ Time" />
+                        </SelectTrigger>
+                        <SelectContent className="z-50 bg-background">
+                          {availableTimes.map((time) => (
+                            <SelectItem key={time} value={time}>
+                              {time}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                    
+                    {/* Contract Type Filter */}
+                    <Select onValueChange={(value) => toggleFilter('contract', value)}>
+                      <SelectTrigger className="w-[180px] h-8">
+                        <SelectValue placeholder="+ Modelo Contrato" />
+                      </SelectTrigger>
+                      <SelectContent className="z-50 bg-background">
+                        {Object.values(ModeloContrato).map((tipo) => (
+                          <SelectItem key={tipo} value={tipo}>
+                            {MODELO_CONTRATO_LABELS[tipo]}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    
+                    {/* Status Filter */}
+                    <Select onValueChange={(value) => toggleFilter('status', value)}>
+                      <SelectTrigger className="w-[180px] h-8">
+                        <SelectValue placeholder="+ Status" />
+                      </SelectTrigger>
+                      <SelectContent className="z-50 bg-background">
+                        <SelectItem value="manual">Manual</SelectItem>
+                        <SelectItem value="auto">Automático</SelectItem>
+                      </SelectContent>
+                    </Select>
+
+                    {activeFiltersCount > 0 && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={clearAllFilters}
+                        className="h-8 text-xs"
+                      >
+                        Limpar todos ({activeFiltersCount})
+                      </Button>
+                    )}
+                  </div>
+
+                  {/* Active Filters Chips */}
+                  {activeFiltersCount > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {selectedTimes.map((time) => (
+                        <Badge
+                          key={`time-${time}`}
+                          variant="secondary"
+                          className="gap-1 pl-2 pr-1 py-1 hover:bg-secondary/80"
+                        >
+                          <span className="text-xs">Time: {time}</span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-4 w-4 p-0 hover:bg-transparent"
+                            onClick={() => removeFilter('time', time)}
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </Badge>
+                      ))}
+                      {selectedContractTypes.map((contract) => (
+                        <Badge
+                          key={`contract-${contract}`}
+                          variant="secondary"
+                          className="gap-1 pl-2 pr-1 py-1 hover:bg-secondary/80"
+                        >
+                          <span className="text-xs">
+                            Contrato: {MODELO_CONTRATO_LABELS[contract as ModeloContrato]}
+                          </span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-4 w-4 p-0 hover:bg-transparent"
+                            onClick={() => removeFilter('contract', contract)}
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </Badge>
+                      ))}
+                      {selectedStatuses.map((status) => (
+                        <Badge
+                          key={`status-${status}`}
+                          variant="secondary"
+                          className="gap-1 pl-2 pr-1 py-1 hover:bg-secondary/80"
+                        >
+                          <span className="text-xs">
+                            Status: {status === 'manual' ? 'Manual' : 'Automático'}
+                          </span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-4 w-4 p-0 hover:bg-transparent"
+                            onClick={() => removeFilter('status', status)}
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 {/* Table */}
