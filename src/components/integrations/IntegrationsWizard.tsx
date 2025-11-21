@@ -3,9 +3,10 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { SlackSetup } from './SlackSetup';
 import { SheetsSetup } from './SheetsSetup';
 import { EmailSetup } from './EmailSetup';
+import { FigmaSetup } from './FigmaSetup';
 import { useIntegrations } from '@/hooks/useIntegrations';
 
-type IntegrationType = 'slack' | 'sheets' | 'email' | null;
+type IntegrationType = 'slack' | 'sheets' | 'email' | 'figma' | null;
 
 interface IntegrationsWizardProps {
   open: boolean;
@@ -14,7 +15,17 @@ interface IntegrationsWizardProps {
 }
 
 export function IntegrationsWizard({ open, onOpenChange, initialType = null }: IntegrationsWizardProps) {
-  const { updateSlack, updateSheets, updateEmail, isUpdatingSlack, isUpdatingSheets, isUpdatingEmail, settings } = useIntegrations();
+  const { 
+    updateSlack, 
+    updateSheets, 
+    updateEmail, 
+    updateFigma,
+    isUpdatingSlack, 
+    isUpdatingSheets, 
+    isUpdatingEmail,
+    isUpdatingFigma,
+    settings 
+  } = useIntegrations();
 
   const handleSlackSave = (botToken: string, channelId: string) => {
     updateSlack(
@@ -52,6 +63,17 @@ export function IntegrationsWizard({ open, onOpenChange, initialType = null }: I
     );
   };
 
+  const handleFigmaSave = (clientId: string, clientSecret: string, redirectUri: string) => {
+    updateFigma(
+      { clientId, clientSecret, redirectUri },
+      {
+        onSuccess: () => {
+          onOpenChange(false);
+        },
+      }
+    );
+  };
+
   const getTitle = () => {
     switch (initialType) {
       case 'slack':
@@ -60,6 +82,8 @@ export function IntegrationsWizard({ open, onOpenChange, initialType = null }: I
         return 'Configurar Google Sheets';
       case 'email':
         return 'Configurar Email (Resend)';
+      case 'figma':
+        return 'Configurar Figma OAuth';
       default:
         return 'Configurar Integração';
     }
@@ -73,6 +97,8 @@ export function IntegrationsWizard({ open, onOpenChange, initialType = null }: I
         return 'Configure a integração com o Google Sheets para sincronizar dados';
       case 'email':
         return 'Configure o email de remetente para notificações automáticas';
+      case 'figma':
+        return 'Configure o OAuth do Figma para autenticação de usuários';
       default:
         return 'Configure suas integrações';
     }
@@ -99,6 +125,14 @@ export function IntegrationsWizard({ open, onOpenChange, initialType = null }: I
               isSaving={isUpdatingEmail}
               initialFromName={settings?.email_from_name || ''}
               initialFromAddress={settings?.email_from_address || ''}
+            />
+          )}
+          {initialType === 'figma' && (
+            <FigmaSetup 
+              onSave={handleFigmaSave} 
+              isSaving={isUpdatingFigma}
+              initialClientId={settings?.figma_client_id || ''}
+              initialRedirectUri={settings?.figma_redirect_uri || `${window.location.origin}/`}
             />
           )}
         </div>

@@ -107,6 +107,13 @@ export type Database = {
           email_from_name: string | null
           email_status: string | null
           email_test_date: string | null
+          figma_client_id: string | null
+          figma_client_secret_set: boolean | null
+          figma_enabled: boolean | null
+          figma_error_message: string | null
+          figma_redirect_uri: string | null
+          figma_status: string | null
+          figma_test_date: string | null
           id: string
           sheets_auto_sync: boolean | null
           sheets_enabled: boolean | null
@@ -133,6 +140,13 @@ export type Database = {
           email_from_name?: string | null
           email_status?: string | null
           email_test_date?: string | null
+          figma_client_id?: string | null
+          figma_client_secret_set?: boolean | null
+          figma_enabled?: boolean | null
+          figma_error_message?: string | null
+          figma_redirect_uri?: string | null
+          figma_status?: string | null
+          figma_test_date?: string | null
           id?: string
           sheets_auto_sync?: boolean | null
           sheets_enabled?: boolean | null
@@ -159,6 +173,13 @@ export type Database = {
           email_from_name?: string | null
           email_status?: string | null
           email_test_date?: string | null
+          figma_client_id?: string | null
+          figma_client_secret_set?: boolean | null
+          figma_enabled?: boolean | null
+          figma_error_message?: string | null
+          figma_redirect_uri?: string | null
+          figma_status?: string | null
+          figma_test_date?: string | null
           id?: string
           sheets_auto_sync?: boolean | null
           sheets_enabled?: boolean | null

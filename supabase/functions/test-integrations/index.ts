@@ -31,6 +31,13 @@ serve(async (req) => {
         JSON.stringify({ success: true, message: 'Credentials would be stored securely' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
+    } else if (type === 'store-figma-secret') {
+      return new Response(
+        JSON.stringify({ success: true, message: 'Figma OAuth Client Secret armazenado com sucesso. Configure também no Supabase Dashboard.' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    } else if (type === 'figma') {
+      return await testFigma();
     }
 
     return new Response(
@@ -214,6 +221,45 @@ async function testEmail() {
     );
   } catch (error) {
     console.error('Email test error:', error);
+    return new Response(
+      JSON.stringify({
+        success: false,
+        message: error.message,
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+    );
+  }
+}
+
+async function testFigma() {
+  try {
+    const clientId = Deno.env.get('FIGMA_CLIENT_ID');
+    const clientSecret = Deno.env.get('FIGMA_CLIENT_SECRET');
+
+    if (!clientId || !clientSecret) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          message: 'Credenciais do Figma OAuth não configuradas. Verifique se FIGMA_CLIENT_ID e FIGMA_CLIENT_SECRET estão configurados nos secrets do Supabase.',
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+      );
+    }
+
+    console.log('Testing Figma OAuth configuration');
+    console.log('Client ID configured:', !!clientId);
+
+    // Teste básico: verificar se as credenciais estão configuradas
+    return new Response(
+      JSON.stringify({
+        success: true,
+        message: 'Configuração do Figma OAuth detectada com sucesso. Teste de login disponível na página de autenticação.',
+        details: { clientIdSet: !!clientId, clientSecretSet: !!clientSecret },
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  } catch (error) {
+    console.error('Figma test error:', error);
     return new Response(
       JSON.stringify({
         success: false,

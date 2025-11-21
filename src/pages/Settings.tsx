@@ -14,7 +14,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useIntegrations } from "@/hooks/useIntegrations";
 import { IntegrationCard } from "@/components/integrations/IntegrationCard";
 import { IntegrationsWizard } from "@/components/integrations/IntegrationsWizard";
-import { Monitor, Bell, Table, RotateCcw, Save, Plug, Mail } from "lucide-react";
+import { Monitor, Bell, Table, RotateCcw, Save, Plug, Mail, Figma } from "lucide-react";
 import { MessageSquare, Sheet } from "lucide-react";
 import { useState } from "react";
 
@@ -27,16 +27,18 @@ const Settings = () => {
     isLoading,
     testSlack, 
     testSheets,
-    testEmail, 
+    testEmail,
+    testFigma,
     syncExisting,
     isTestingSlack, 
     isTestingSheets,
     isTestingEmail,
+    isTestingFigma,
     isSyncing,
   } = useIntegrations();
   const [hasChanges, setHasChanges] = useState(false);
   const [wizardOpen, setWizardOpen] = useState(false);
-  const [wizardType, setWizardType] = useState<'slack' | 'sheets' | 'email' | null>(null);
+  const [wizardType, setWizardType] = useState<'slack' | 'sheets' | 'email' | 'figma' | null>(null);
 
   const isDirectorOrAdmin = hasRole('director') || hasRole('admin');
 
@@ -417,6 +419,21 @@ const Settings = () => {
                         onTest={() => testEmail()}
                         isTesting={isTestingEmail}
                         icon={<Mail className="w-6 h-6" />}
+                      />
+
+                      <IntegrationCard
+                        title="Figma OAuth"
+                        description="Configure autenticação via Figma para login no sistema"
+                        status={(integrationSettings?.figma_status || 'not_configured') as 'not_configured' | 'configured' | 'active' | 'error'}
+                        lastTest={integrationSettings?.figma_test_date}
+                        errorMessage={integrationSettings?.figma_error_message}
+                        onConfigure={() => {
+                          setWizardType('figma');
+                          setWizardOpen(true);
+                        }}
+                        onTest={() => testFigma()}
+                        isTesting={isTestingFigma}
+                        icon={<Figma className="w-6 h-6" />}
                       />
                     </>
                   )}
