@@ -9,7 +9,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { TipoAusencia, ModeloContrato, Status, MaternityLeaveValidation } from "@/lib/types";
 import { parseDateSafely } from "@/lib/dateUtils";
-import { Calendar, AlertTriangle, CheckCircle, DollarSign, Baby } from "lucide-react";
+import { Calendar, AlertTriangle, CheckCircle, DollarSign, Baby, HelpCircle } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { validateMaternityLeave, calculateMaternityEndDate } from "@/lib/maternityLeaveUtils";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
@@ -619,12 +620,24 @@ export const NewRequestForm = () => {
             {/* Date Range */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="inicio">
+                <Label htmlFor="inicio" className="flex items-center gap-1">
                   Data de Início *
                   {formData.tipo === TipoAusencia.DAYOFF && person?.data_nascimento && (
-                    <span className="text-sm text-muted-foreground ml-2">
-                      (Day Off disponível a partir de {new Date(new Date().getFullYear(), new Date(person.data_nascimento).getMonth(), new Date(person.data_nascimento).getDate()).toLocaleDateString('pt-BR')})
-                    </span>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="inline-flex items-center gap-1 text-sm text-muted-foreground ml-1 cursor-help">
+                            (a partir de {new Date(new Date().getFullYear(), new Date(person.data_nascimento).getMonth(), 1).toLocaleDateString('pt-BR')})
+                            <HelpCircle className="w-3.5 h-3.5" />
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent side="top" className="max-w-xs">
+                          <p className="font-medium mb-1">Período de elegibilidade do Day Off</p>
+                          <p className="text-sm">O day-off pode ser solicitado a partir do <strong>primeiro dia do seu mês de aniversário</strong> até a véspera do próximo aniversário.</p>
+                          <p className="text-sm mt-1 text-muted-foreground">Você tem direito a 1 day-off por ano.</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                   )}
                   {formData.tipo === TipoAusencia.LICENCA_MATERNIDADE && (
                     <span className="text-sm text-muted-foreground ml-2">
