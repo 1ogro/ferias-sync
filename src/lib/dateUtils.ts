@@ -91,8 +91,8 @@ export function isWithinDayOffPeriod(birthDate: string | Date): boolean {
   const currentYear = today.getFullYear();
   const nextYear = currentYear + 1;
   
-  // Birthday this year
-  const birthdayThisYear = new Date(currentYear, birth.getMonth(), birth.getDate());
+  // First day of birthday month this year
+  const eligibilityStartThisYear = new Date(currentYear, birth.getMonth(), 1);
   // Birthday next year
   const birthdayNextYear = new Date(nextYear, birth.getMonth(), birth.getDate());
   // Day before birthday next year
@@ -100,7 +100,7 @@ export function isWithinDayOffPeriod(birthDate: string | Date): boolean {
   dayBeforeBirthdayNextYear.setDate(dayBeforeBirthdayNextYear.getDate() - 1);
   
   // Check if today is within the eligibility period
-  return today >= birthdayThisYear && today <= dayBeforeBirthdayNextYear;
+  return today >= eligibilityStartThisYear && today <= dayBeforeBirthdayNextYear;
 }
 
 /**
@@ -116,8 +116,8 @@ export function getDayOffEligibilityPeriod(birthDate: string | Date): {
   const currentYear = today.getFullYear();
   const nextYear = currentYear + 1;
   
-  // Birthday this year
-  const birthdayThisYear = new Date(currentYear, birth.getMonth(), birth.getDate());
+  // First day of birthday month this year
+  const eligibilityStartThisYear = new Date(currentYear, birth.getMonth(), 1);
   // Birthday next year
   const birthdayNextYear = new Date(nextYear, birth.getMonth(), birth.getDate());
   // Day before birthday next year
@@ -125,9 +125,9 @@ export function getDayOffEligibilityPeriod(birthDate: string | Date): {
   dayBeforeBirthdayNextYear.setDate(dayBeforeBirthdayNextYear.getDate() - 1);
   
   return {
-    start: birthdayThisYear,
+    start: eligibilityStartThisYear,
     end: dayBeforeBirthdayNextYear,
-    isCurrentlyEligible: today >= birthdayThisYear && today <= dayBeforeBirthdayNextYear
+    isCurrentlyEligible: today >= eligibilityStartThisYear && today <= dayBeforeBirthdayNextYear
   };
 }
 

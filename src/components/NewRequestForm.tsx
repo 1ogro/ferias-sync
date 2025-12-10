@@ -217,15 +217,15 @@ export const NewRequestForm = () => {
     const today = new Date();
     const currentYear = today.getFullYear();
     
-    // Birthday this year
-    const birthdayThisYear = new Date(currentYear, birth.getMonth(), birth.getDate());
+    // First day of birthday month this year
+    const eligibilityStartThisYear = new Date(currentYear, birth.getMonth(), 1);
     
-    // Check if we're before the birthday this year
-    if (today < birthdayThisYear) {
-      const birthdayStr = birthdayThisYear.toLocaleDateString('pt-BR');
+    // Check if we're before the first day of birthday month this year
+    if (today < eligibilityStartThisYear) {
+      const eligibilityStr = eligibilityStartThisYear.toLocaleDateString('pt-BR');
       return {
         isValid: false,
-        message: `Day-off só pode ser solicitado a partir do seu aniversário (${birthdayStr})`
+        message: `Day-off só pode ser solicitado a partir de ${eligibilityStr} (início do mês de aniversário)`
       };
     }
 
