@@ -39,17 +39,17 @@ export function calculateAvailableDayOffs(person: Person | null, requests: Reque
     };
   }
 
-  // Check if currently within eligibility period (from birthday to day before next birthday)
+  // Check if currently within eligibility period (from first day of birthday month to day before next birthday)
   const birth = new Date(person.data_nascimento);
-  const birthdayThisYear = new Date(currentYear, birth.getMonth(), birth.getDate());
+  const eligibilityStartThisYear = new Date(currentYear, birth.getMonth(), 1);
   const today = new Date();
   
-  if (today < birthdayThisYear) {
-    const birthdayStr = birthdayThisYear.toLocaleDateString('pt-BR');
+  if (today < eligibilityStartThisYear) {
+    const eligibilityStr = eligibilityStartThisYear.toLocaleDateString('pt-BR');
     return {
       available: 1,
       canRequest: false,
-      message: `Day-off disponível a partir do seu aniversário (${birthdayStr})`
+      message: `Day-off disponível a partir de ${eligibilityStr} (início do mês de aniversário)`
     };
   }
 
