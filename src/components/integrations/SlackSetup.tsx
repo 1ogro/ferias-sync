@@ -45,9 +45,16 @@ export function SlackSetup({ onSave, isSaving }: SlackSetupProps) {
     <form onSubmit={handleSubmit} className="space-y-4">
       <Alert>
         <Info className="h-4 w-4" />
-        <AlertDescription>
-          Para configurar o Slack, você precisa criar um Bot Token na sua workspace.
-          Acesse <a href="https://api.slack.com/apps" target="_blank" rel="noopener noreferrer" className="underline">api.slack.com/apps</a> para criar um app.
+        <AlertDescription className="space-y-2">
+          <p>Para configurar o Slack, você precisa criar um Bot Token na sua workspace:</p>
+          <ol className="list-decimal list-inside text-sm space-y-1">
+            <li>Acesse <a href="https://api.slack.com/apps" target="_blank" rel="noopener noreferrer" className="underline">api.slack.com/apps</a></li>
+            <li>Crie ou selecione seu app</li>
+            <li>Vá em <strong>OAuth & Permissions</strong></li>
+            <li>Em <strong>Bot Token Scopes</strong>, adicione: <code className="bg-muted px-1 rounded">chat:write</code>, <code className="bg-muted px-1 rounded">users:read</code>, <code className="bg-muted px-1 rounded">users:read.email</code></li>
+            <li>Reinstale o app na workspace</li>
+            <li>Copie o <strong>Bot User OAuth Token</strong> (xoxb-...)</li>
+          </ol>
         </AlertDescription>
       </Alert>
 
