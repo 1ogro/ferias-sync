@@ -235,7 +235,7 @@ const Settings = () => {
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="z-[100] bg-popover">
                         <SelectItem value="5">5 itens</SelectItem>
                         <SelectItem value="10">10 itens</SelectItem>
                         <SelectItem value="20">20 itens</SelectItem>
@@ -259,7 +259,7 @@ const Settings = () => {
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="z-[100] bg-popover">
                         <SelectItem value="dd/MM/yyyy">DD/MM/AAAA</SelectItem>
                         <SelectItem value="MM/dd/yyyy">MM/DD/AAAA</SelectItem>
                         <SelectItem value="yyyy-MM-dd">AAAA-MM-DD</SelectItem>
