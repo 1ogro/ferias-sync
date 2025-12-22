@@ -11,13 +11,26 @@ import {
 export function ThemeToggle() {
   const { setTheme, theme } = useTheme();
 
+  const renderIcon = () => {
+    switch (theme) {
+      case 'dark':
+        return <Moon className="h-[1.2rem] w-[1.2rem]" />;
+      case 'light':
+        return <Sun className="h-[1.2rem] w-[1.2rem]" />;
+      case 'system':
+      default:
+        return <Monitor className="h-[1.2rem] w-[1.2rem]" />;
+    }
+  };
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm" className="relative">
-          <Sun className="h-[1.2rem] w-[1.2rem] rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
-          <Moon className="absolute left-3 h-[1.2rem] w-[1.2rem] rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
-          <span className="ml-2 capitalize">{theme === 'system' ? 'Sistema' : theme === 'light' ? 'Claro' : 'Escuro'}</span>
+        <Button variant="outline" size="sm" className="gap-2">
+          {renderIcon()}
+          <span className="capitalize">
+            {theme === 'system' ? 'Sistema' : theme === 'light' ? 'Claro' : 'Escuro'}
+          </span>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="z-[100] bg-popover">
