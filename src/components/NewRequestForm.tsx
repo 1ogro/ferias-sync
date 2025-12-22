@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { TipoAusencia, ModeloContrato, Status, MaternityLeaveValidation } from "@/lib/types";
-import { parseDateSafely } from "@/lib/dateUtils";
+import { parseDateSafely, validateDayOffEligibility, getDayOffEligibilityPeriod } from "@/lib/dateUtils";
 import { Calendar, AlertTriangle, CheckCircle, DollarSign, Baby, HelpCircle } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { validateMaternityLeave, calculateMaternityEndDate } from "@/lib/maternityLeaveUtils";
@@ -188,11 +188,17 @@ export const NewRequestForm = () => {
 
   // Check if day-off was already used this year
   const checkDayOffUsage = async () => {
-    if (formData.tipo !== TipoAusencia.DAYOFF || !person) return;
+    if (formData.tipo !== TipoAusencia.DAYOFF || !person) return false;
+
+    console.log('[DayOff Debug] checkDayOffUsage called:', {
+      requester_id: person.id,
+      year: new Date().getFullYear(),
+      tipo: formData.tipo
+    });
 
     try {
       const currentYear = new Date().getFullYear();
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('requests')
         .select('id, inicio, status')
         .eq('requester_id', person.id)
@@ -201,37 +207,41 @@ export const NewRequestForm = () => {
         .gte('inicio', `${currentYear}-01-01`)
         .lte('inicio', `${currentYear}-12-31`);
 
-      return data && data.length > 0;
+      const alreadyUsed = data && data.length > 0;
+      
+      console.log('[DayOff Debug] checkDayOffUsage result:', {
+        requester_id: person.id,
+        year: currentYear,
+        existingDayOffs: data,
+        alreadyUsed,
+        error: error?.message
+      });
+
+      return alreadyUsed;
     } catch (error) {
-      console.error('Error checking day-off usage:', error);
+      console.error('[DayOff Debug] Error checking day-off usage:', error);
       return false;
     }
   };
 
-  // Validate Day Off eligibility period
-  const validateDayOff = () => {
-    if (formData.tipo !== TipoAusencia.DAYOFF || !person?.data_nascimento || !formData.inicio) {
-      return { isValid: true, message: "" };
-    }
-
-    const birth = new Date(person.data_nascimento);
-    const today = new Date();
-    const currentYear = today.getFullYear();
+  // Get day-off validation using centralized function
+  const getDayOffValidation = () => {
+    const validation = validateDayOffEligibility(
+      person?.data_nascimento,
+      dayOffAlreadyUsed,
+      isDirector,
+      true // Enable debug logging
+    );
     
-    // First day of birthday month this year
-    const eligibilityStartThisYear = new Date(currentYear, birth.getMonth(), 1);
+    console.log('[DayOff Debug] getDayOffValidation result:', {
+      tipo: formData.tipo,
+      isValid: validation.isValid,
+      message: validation.message,
+      period: validation.period,
+      debug: validation.debug
+    });
     
-    // Check if we're before the first day of birthday month this year
-    if (today < eligibilityStartThisYear) {
-      const eligibilityStr = eligibilityStartThisYear.toLocaleDateString('pt-BR');
-      return {
-        isValid: false,
-        message: `Day-off só pode ser solicitado a partir de ${eligibilityStr} (início do mês de aniversário)`
-      };
-    }
-
-    // We're in the eligibility period - day-off can be requested for any date
-    return { isValid: true, message: "" };
+    return validation;
   };
 
   const handleInputChange = (field: keyof FormData, value: string | number) => {
@@ -511,17 +521,27 @@ export const NewRequestForm = () => {
     }
   };
 
-  const dayOffValidation = validateDayOff();
+  const dayOffValidation = getDayOffValidation();
   const hasAbono = formData.tipo === TipoAusencia.FERIAS && formData.dias_abono > 0;
   const isMaternityLeave = formData.tipo === TipoAusencia.LICENCA_MATERNIDADE;
   const isFormValid = formData.tipo && formData.inicio && formData.fim && formData.justificativa &&
     (isDirector || (
-      dayOffValidation.isValid && 
-      !dayOffAlreadyUsed &&
+      (formData.tipo !== TipoAusencia.DAYOFF || dayOffValidation.isValid) && 
       (formData.tipo === TipoAusencia.DAYOFF || vacationValidation.valid)
     )) &&
     (!isMaternityLeave || maternityValidation?.valid) &&
     (!hasAbono || (formData.dias_abono && formData.dias_abono > 0));
+
+  console.log('[DayOff Debug] Form validation state:', {
+    tipo: formData.tipo,
+    isDayOff: formData.tipo === TipoAusencia.DAYOFF,
+    dayOffValidation: dayOffValidation.isValid,
+    dayOffAlreadyUsed,
+    isDirector,
+    vacationValidation: vacationValidation.valid,
+    isFormValid,
+    hasRequiredFields: !!(formData.tipo && formData.inicio && formData.fim && formData.justificativa)
+  });
 
   return (
     <div className="max-w-2xl mx-auto">
@@ -745,62 +765,33 @@ export const NewRequestForm = () => {
               </div>
             )}
 
-            {/* Day Off Eligibility Period - Positive message when eligible */}
-            {formData.tipo === TipoAusencia.DAYOFF && person?.data_nascimento && !dayOffAlreadyUsed && (() => {
-              const birth = new Date(person.data_nascimento);
-              const today = new Date();
-              const currentYear = today.getFullYear();
-              const eligibilityStart = new Date(currentYear, birth.getMonth(), 1);
-              const nextBirthday = new Date(currentYear + 1, birth.getMonth(), birth.getDate());
-              const eligibilityEnd = new Date(nextBirthday.getTime() - 24 * 60 * 60 * 1000);
-              
-              if (today >= eligibilityStart) {
-                return (
-                  <Alert className="border-green-500 bg-green-50 dark:bg-green-950/20">
-                    <CheckCircle className="w-4 h-4 text-green-600" />
-                    <AlertDescription className="text-green-800 dark:text-green-200">
-                      <strong>Período de elegibilidade:</strong> {eligibilityStart.toLocaleDateString('pt-BR')} a {eligibilityEnd.toLocaleDateString('pt-BR')}
+            {/* Day Off Eligibility Period - Using centralized validation */}
+            {formData.tipo === TipoAusencia.DAYOFF && dayOffValidation.isValid && dayOffValidation.period && (
+              <Alert className="border-green-500 bg-green-50 dark:bg-green-950/20">
+                <CheckCircle className="w-4 h-4 text-green-600" />
+                <AlertDescription className="text-green-800 dark:text-green-200">
+                  <strong>Período de elegibilidade:</strong> {dayOffValidation.period.startFormatted} a {dayOffValidation.period.endFormatted}
+                  <br />
+                  <small className="text-green-700 dark:text-green-300">Você tem 1 day-off disponível para usar neste período.</small>
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {/* Day Off Validation Error Messages - Using centralized validation */}
+            {formData.tipo === TipoAusencia.DAYOFF && !dayOffValidation.isValid && (
+              <Alert variant="destructive">
+                <AlertTriangle className="w-4 h-4" />
+                <AlertDescription>
+                  {dayOffValidation.message}
+                  {dayOffValidation.period && (
+                    <>
                       <br />
-                      <small className="text-green-700 dark:text-green-300">Você tem 1 day-off disponível para usar neste período.</small>
-                    </AlertDescription>
-                  </Alert>
-                );
-              }
-              return null;
-            })()}
-
-            {/* Day Off Validation Messages */}
-            {formData.tipo === TipoAusencia.DAYOFF && !person?.data_nascimento && (
-              <Alert variant="destructive">
-                <AlertTriangle className="w-4 h-4" />
-                <AlertDescription>
-                  <strong>Atenção:</strong> Você precisa cadastrar sua data de nascimento no perfil para solicitar Day Off.
-                  <br />
-                  <small>Day Off pode ser solicitado a qualquer momento após o seu aniversário (até a véspera do próximo aniversário).</small>
+                      <small>Período de elegibilidade: {dayOffValidation.period.startFormatted} a {dayOffValidation.period.endFormatted}</small>
+                    </>
+                  )}
                 </AlertDescription>
               </Alert>
             )}
-
-            {formData.tipo === TipoAusencia.DAYOFF && dayOffAlreadyUsed && (
-              <Alert variant="destructive">
-                <AlertTriangle className="w-4 h-4" />
-                <AlertDescription>
-                  <strong>Day-off já utilizado este ano!</strong> Você já usou seu day-off de {new Date().getFullYear()}.
-                  <br />
-                  <small>O day-off será resetado em 01/01/{new Date().getFullYear() + 1}.</small>
-                </AlertDescription>
-              </Alert>
-            )}
-
-            {formData.tipo === TipoAusencia.DAYOFF && formData.inicio && (() => {
-              const validation = validateDayOff();
-              return !validation.isValid ? (
-                <Alert variant="destructive">
-                  <AlertTriangle className="w-4 h-4" />
-                  <AlertDescription>{validation.message}</AlertDescription>
-                </Alert>
-              ) : null;
-            })()}
 
             {/* Vacation Balance Display */}
             {formData.tipo === TipoAusencia.FERIAS && vacationValidation.availableBalance !== undefined && (
