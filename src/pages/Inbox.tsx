@@ -54,9 +54,9 @@ const Inbox = () => {
       let filteredData = data || [];
 
       if (person.papel === 'DIRETOR' || person.is_admin) {
-        // Directors see all requests needing director approval
+        // Directors see all requests needing approval (including PENDENTE)
         filteredData = filteredData.filter(item => 
-          [Status.EM_ANALISE_DIRETOR, Status.EM_ANALISE_GESTOR].includes(item.status as Status)
+          [Status.PENDENTE, Status.EM_ANALISE_DIRETOR, Status.EM_ANALISE_GESTOR].includes(item.status as Status)
         );
         console.log('Director view: filtered to', filteredData.length, 'requests');
       } else {
