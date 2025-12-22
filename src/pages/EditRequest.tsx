@@ -208,25 +208,36 @@ const EditRequest = () => {
     }
   };
 
-  // Validate day-off date
+  // Validate day-off date - eligibility starts from first day of birthday month
   const validateDayOff = () => {
-    if (formData.tipo !== TipoAusencia.DAYOFF || !person?.data_nascimento || !formData.inicio) {
+    if (formData.tipo !== TipoAusencia.DAYOFF || !person?.data_nascimento) {
       return { isValid: true, message: "" };
     }
 
-    const selectedDate = new Date(formData.inicio);
-    const birthDate = new Date(person.data_nascimento);
-    const currentYear = selectedDate.getFullYear();
-    const birthdayThisYear = new Date(currentYear, birthDate.getMonth(), birthDate.getDate());
-
-    if (selectedDate.getTime() !== birthdayThisYear.getTime()) {
+    const birth = new Date(person.data_nascimento);
+    const today = new Date();
+    const currentYear = today.getFullYear();
+    
+    // First day of birthday month this year
+    const eligibilityStartThisYear = new Date(currentYear, birth.getMonth(), 1);
+    // Day before next birthday (end of eligibility period)
+    const nextBirthday = new Date(currentYear + 1, birth.getMonth(), birth.getDate());
+    const eligibilityEnd = new Date(nextBirthday.getTime() - 24 * 60 * 60 * 1000);
+    
+    // Format dates for display
+    const startStr = eligibilityStartThisYear.toLocaleDateString('pt-BR');
+    const endStr = eligibilityEnd.toLocaleDateString('pt-BR');
+    
+    // Check if we're before the first day of birthday month this year
+    if (today < eligibilityStartThisYear) {
       return {
         isValid: false,
-        message: `Day Off só pode ser solicitado no dia do seu aniversário (${birthdayThisYear.toLocaleDateString('pt-BR')})`
+        message: `Day-off só pode ser solicitado a partir de ${startStr} (início do mês de aniversário)`
       };
     }
 
-    return { isValid: true, message: "" };
+    // We're in the eligibility period - day-off can be requested
+    return { isValid: true, message: `Day-off disponível de ${startStr} até ${endStr}` };
   };
 
   const handleInputChange = (field: keyof FormData, value: string) => {
