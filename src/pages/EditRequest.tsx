@@ -503,6 +503,30 @@ const EditRequest = () => {
                   </div>
                 </div>
 
+                {/* Day Off Eligibility Period - Positive message when eligible */}
+                {formData.tipo === TipoAusencia.DAYOFF && person?.data_nascimento && !dayOffAlreadyUsed && (() => {
+                  const birth = new Date(person.data_nascimento);
+                  const today = new Date();
+                  const currentYear = today.getFullYear();
+                  const eligibilityStart = new Date(currentYear, birth.getMonth(), 1);
+                  const nextBirthday = new Date(currentYear + 1, birth.getMonth(), birth.getDate());
+                  const eligibilityEnd = new Date(nextBirthday.getTime() - 24 * 60 * 60 * 1000);
+                  
+                  if (today >= eligibilityStart) {
+                    return (
+                      <Alert className="border-green-500 bg-green-50 dark:bg-green-950/20">
+                        <CheckCircle className="w-4 h-4 text-green-600" />
+                        <AlertDescription className="text-green-800 dark:text-green-200">
+                          <strong>Período de elegibilidade:</strong> {eligibilityStart.toLocaleDateString('pt-BR')} a {eligibilityEnd.toLocaleDateString('pt-BR')}
+                          <br />
+                          <small className="text-green-700 dark:text-green-300">Você tem 1 day-off disponível para usar neste período.</small>
+                        </AlertDescription>
+                      </Alert>
+                    );
+                  }
+                  return null;
+                })()}
+
                 {/* Validation Messages */}
                 {formData.tipo === TipoAusencia.DAYOFF && !person?.data_nascimento && (
                   <Alert variant="destructive">
@@ -522,7 +546,7 @@ const EditRequest = () => {
                   </Alert>
                 )}
 
-                {formData.tipo === TipoAusencia.DAYOFF && formData.inicio && !dayOffValidation.isValid && (
+                {formData.tipo === TipoAusencia.DAYOFF && !dayOffValidation.isValid && (
                   <Alert variant="destructive">
                     <AlertTriangle className="w-4 h-4" />
                     <AlertDescription>{dayOffValidation.message}</AlertDescription>
