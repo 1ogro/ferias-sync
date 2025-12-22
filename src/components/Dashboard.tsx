@@ -172,9 +172,9 @@ export const Dashboard = () => {
       let filteredData = requestsData || [];
 
       if (person.papel === 'DIRETOR' || person.is_admin) {
-        // Directors see all requests needing director approval
+        // Directors see all requests needing approval (including PENDENTE)
         filteredData = filteredData.filter(item => 
-          [Status.EM_ANALISE_DIRETOR, Status.EM_ANALISE_GESTOR].includes(item.status as Status)
+          [Status.PENDENTE, Status.EM_ANALISE_DIRETOR, Status.EM_ANALISE_GESTOR].includes(item.status as Status)
         );
       } else {
         // Managers see requests from their direct reports
