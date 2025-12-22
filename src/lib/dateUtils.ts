@@ -82,7 +82,7 @@ export function formatDateToYYYYMMDD(date: Date): string {
 
 /**
  * Checks if the current date is within the day-off eligibility period
- * (from birthday of current year until the day before birthday of next year)
+ * (from first day of birthday month until the day before birthday of next year)
  */
 export function isWithinDayOffPeriod(birthDate: string | Date): boolean {
   const today = new Date();
@@ -128,6 +128,146 @@ export function getDayOffEligibilityPeriod(birthDate: string | Date): {
     start: eligibilityStartThisYear,
     end: dayBeforeBirthdayNextYear,
     isCurrentlyEligible: today >= eligibilityStartThisYear && today <= dayBeforeBirthdayNextYear
+  };
+}
+
+/**
+ * Centralized Day-Off validation with comprehensive debug logging
+ * Use this function in all forms to ensure consistent validation
+ */
+export interface DayOffValidationResult {
+  isValid: boolean;
+  message: string;
+  period: {
+    start: Date;
+    end: Date;
+    startFormatted: string;
+    endFormatted: string;
+  } | null;
+  debug: {
+    birthDate: string | null;
+    today: string;
+    currentYear: number;
+    hasBirthDate: boolean;
+    dayOffAlreadyUsed: boolean;
+    isDirector: boolean;
+    isWithinPeriod: boolean;
+    validationReason: string;
+  };
+}
+
+export function validateDayOffEligibility(
+  birthDate: string | Date | null | undefined,
+  dayOffAlreadyUsed: boolean,
+  isDirector: boolean,
+  debugEnabled: boolean = true
+): DayOffValidationResult {
+  const today = new Date();
+  const currentYear = today.getFullYear();
+  
+  // Initialize debug info
+  const debug = {
+    birthDate: birthDate ? (typeof birthDate === 'string' ? birthDate : birthDate.toISOString()) : null,
+    today: today.toISOString(),
+    currentYear,
+    hasBirthDate: !!birthDate,
+    dayOffAlreadyUsed,
+    isDirector,
+    isWithinPeriod: false,
+    validationReason: ''
+  };
+
+  // Log entry point
+  if (debugEnabled) {
+    console.log('[DayOff Debug] validateDayOffEligibility called:', debug);
+  }
+
+  // Check if director - directors can bypass all validations
+  if (isDirector) {
+    debug.validationReason = 'Director bypass - all validations skipped';
+    if (debugEnabled) {
+      console.log('[DayOff Debug] Director bypass active:', debug);
+    }
+    return {
+      isValid: true,
+      message: 'Diretor: validações de elegibilidade ignoradas',
+      period: birthDate ? (() => {
+        const period = getDayOffEligibilityPeriod(birthDate);
+        return {
+          start: period.start,
+          end: period.end,
+          startFormatted: period.start.toLocaleDateString('pt-BR'),
+          endFormatted: period.end.toLocaleDateString('pt-BR')
+        };
+      })() : null,
+      debug
+    };
+  }
+
+  // Check if birth date exists
+  if (!birthDate) {
+    debug.validationReason = 'Missing birth date';
+    if (debugEnabled) {
+      console.log('[DayOff Debug] No birth date found:', debug);
+    }
+    return {
+      isValid: false,
+      message: 'Você precisa cadastrar sua data de nascimento no perfil para solicitar Day Off.',
+      period: null,
+      debug
+    };
+  }
+
+  // Check if day-off was already used
+  if (dayOffAlreadyUsed) {
+    debug.validationReason = 'Day-off already used this year';
+    if (debugEnabled) {
+      console.log('[DayOff Debug] Day-off already used:', debug);
+    }
+    return {
+      isValid: false,
+      message: `Day-off já utilizado este ano! Você já usou seu day-off de ${currentYear}.`,
+      period: null,
+      debug
+    };
+  }
+
+  // Calculate eligibility period
+  const period = getDayOffEligibilityPeriod(birthDate);
+  debug.isWithinPeriod = period.isCurrentlyEligible;
+
+  const periodInfo = {
+    start: period.start,
+    end: period.end,
+    startFormatted: period.start.toLocaleDateString('pt-BR'),
+    endFormatted: period.end.toLocaleDateString('pt-BR')
+  };
+
+  // Check if we're within eligibility period
+  if (!period.isCurrentlyEligible) {
+    debug.validationReason = `Before eligibility period - starts ${periodInfo.startFormatted}`;
+    if (debugEnabled) {
+      console.log('[DayOff Debug] Not within eligibility period:', debug);
+    }
+    return {
+      isValid: false,
+      message: `Day-off só pode ser solicitado a partir de ${periodInfo.startFormatted} (início do mês de aniversário)`,
+      period: periodInfo,
+      debug
+    };
+  }
+
+  // All validations passed
+  debug.validationReason = 'All validations passed - day-off available';
+  if (debugEnabled) {
+    console.log('[DayOff Debug] Validation successful:', debug);
+  }
+
+  return {
+    isValid: true,
+    message: `Day-off disponível de ${periodInfo.startFormatted} até ${periodInfo.endFormatted}`,
+    period: periodInfo,
+    debug
   };
 }
 
