@@ -38,6 +38,8 @@ serve(async (req) => {
       );
     } else if (type === 'figma') {
       return await testFigma();
+    } else if (type === 'verify-figma-config') {
+      return verifyFigmaConfig();
     }
 
     return new Response(
@@ -266,6 +268,35 @@ async function testFigma() {
         message: error.message,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+    );
+  }
+}
+
+function verifyFigmaConfig() {
+  try {
+    const secretClientId = Deno.env.get('FIGMA_CLIENT_ID');
+    const hasClientSecret = !!Deno.env.get('FIGMA_CLIENT_SECRET');
+
+    console.log('Verifying Figma config - Secret Client ID:', secretClientId ? `${secretClientId.substring(0, 8)}...` : 'not set');
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        secretClientId: secretClientId || null,
+        hasClientSecret,
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  } catch (error) {
+    console.error('Figma config verification error:', error);
+    return new Response(
+      JSON.stringify({
+        success: false,
+        message: error.message,
+        secretClientId: null,
+        hasClientSecret: false,
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
     );
   }
 }

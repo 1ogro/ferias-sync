@@ -450,6 +450,17 @@ export function useIntegrations() {
     },
   });
 
+  const verifyFigmaConfigMutation = useMutation({
+    mutationFn: async (): Promise<{ secretClientId: string | null; hasClientSecret: boolean }> => {
+      const { data, error } = await supabase.functions.invoke('test-integrations', {
+        body: { type: 'verify-figma-config' },
+      });
+
+      if (error) throw error;
+      return data;
+    },
+  });
+
   return {
     settings,
     isLoading,
@@ -462,6 +473,7 @@ export function useIntegrations() {
     testEmail: testEmailMutation.mutate,
     testFigma: testFigmaMutation.mutate,
     syncExisting: syncExistingMutation.mutate,
+    verifyFigmaConfig: verifyFigmaConfigMutation.mutateAsync,
     isUpdatingSlack: updateSlackMutation.isPending,
     isUpdatingSheets: updateSheetsMutation.isPending,
     isUpdatingEmail: updateEmailMutation.isPending,
@@ -470,6 +482,7 @@ export function useIntegrations() {
     isTestingSheets: testSheetsMutation.isPending,
     isTestingEmail: testEmailMutation.isPending,
     isTestingFigma: testFigmaMutation.isPending,
+    isVerifyingFigma: verifyFigmaConfigMutation.isPending,
     isSyncing: syncExistingMutation.isPending,
   };
 }
