@@ -20,10 +20,12 @@ export function IntegrationsWizard({ open, onOpenChange, initialType = null }: I
     updateSheets, 
     updateEmail, 
     updateFigma,
+    verifyFigmaConfig,
     isUpdatingSlack, 
     isUpdatingSheets, 
     isUpdatingEmail,
     isUpdatingFigma,
+    isVerifyingFigma,
     settings 
   } = useIntegrations();
 
@@ -133,6 +135,8 @@ export function IntegrationsWizard({ open, onOpenChange, initialType = null }: I
               isSaving={isUpdatingFigma}
               initialClientId={settings?.figma_client_id || ''}
               initialRedirectUri={settings?.figma_redirect_uri || `${window.location.origin}/`}
+              onVerifyConfig={verifyFigmaConfig}
+              isVerifying={isVerifyingFigma}
             />
           )}
         </div>
