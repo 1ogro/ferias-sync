@@ -80,6 +80,7 @@ export interface Request {
   data_prevista_parto?: Date; // Expected delivery date for maternity leave
   is_contract_exception?: boolean; // If maternity leave has extension beyond 120 days
   contract_exception_justification?: string; // Justification for extension
+  portal_rh_solicitado?: boolean; // If CLT vacation was requested in Portal RH
 }
 
 export const STATUS_LABELS = {
