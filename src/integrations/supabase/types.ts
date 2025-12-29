@@ -425,6 +425,7 @@ export type Database = {
           justificativa: string | null
           original_channel: string | null
           original_created_at: string | null
+          portal_rh_solicitado: boolean | null
           requester_id: string
           status: string
           tipo: string
@@ -447,6 +448,7 @@ export type Database = {
           justificativa?: string | null
           original_channel?: string | null
           original_created_at?: string | null
+          portal_rh_solicitado?: boolean | null
           requester_id: string
           status?: string
           tipo: string
@@ -469,6 +471,7 @@ export type Database = {
           justificativa?: string | null
           original_channel?: string | null
           original_created_at?: string | null
+          portal_rh_solicitado?: boolean | null
           requester_id?: string
           status?: string
           tipo?: string
