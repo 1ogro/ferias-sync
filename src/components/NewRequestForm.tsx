@@ -7,9 +7,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { TipoAusencia, ModeloContrato, Status, MaternityLeaveValidation } from "@/lib/types";
 import { parseDateSafely, validateDayOffEligibility, getDayOffEligibilityPeriod } from "@/lib/dateUtils";
-import { Calendar, AlertTriangle, CheckCircle, DollarSign, Baby, HelpCircle } from "lucide-react";
+import { Calendar, AlertTriangle, CheckCircle, DollarSign, Baby, HelpCircle, Building } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { validateMaternityLeave, calculateMaternityEndDate } from "@/lib/maternityLeaveUtils";
 import { useToast } from "@/hooks/use-toast";
@@ -27,6 +28,7 @@ interface FormData {
   data_prevista_parto?: string;
   is_contract_exception?: boolean;
   contract_exception_justification?: string;
+  portal_rh_solicitado: boolean;
 }
 
 export const NewRequestForm = () => {
@@ -49,7 +51,8 @@ export const NewRequestForm = () => {
     dias_abono: 0,
     data_prevista_parto: "",
     is_contract_exception: false,
-    contract_exception_justification: ""
+    contract_exception_justification: "",
+    portal_rh_solicitado: false
   });
   const [conflicts, setConflicts] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -64,13 +67,16 @@ export const NewRequestForm = () => {
   }>({ valid: true, message: "" });
   const [maternityValidation, setMaternityValidation] = useState<MaternityLeaveValidation | null>(null);
 
-  // Helper function to check if user can use abonos
-  const canUseAbonos = () => {
+  // Helper function to check if user is CLT
+  const isCLT = () => {
     if (!person?.modelo_contrato) return false;
     return person.modelo_contrato === ModeloContrato.CLT || 
            person.modelo_contrato === ModeloContrato.CLT_ABONO_LIVRE ||
            person.modelo_contrato === ModeloContrato.CLT_ABONO_FIXO;
   };
+
+  // Helper function to check if user can use abonos (same as isCLT)
+  const canUseAbonos = isCLT;
 
   // Helper function to get abono constraints
   const getAbonoConstraints = () => {
@@ -244,7 +250,7 @@ export const NewRequestForm = () => {
     return validation;
   };
 
-  const handleInputChange = (field: keyof FormData, value: string | number) => {
+  const handleInputChange = (field: keyof FormData, value: string | number | boolean) => {
     setFormData(prev => {
       const newData = { ...prev, [field]: value };
       
@@ -262,6 +268,7 @@ export const NewRequestForm = () => {
       // Reset abono when changing from vacation to other types
       if (field === "tipo" && value !== TipoAusencia.FERIAS) {
         newData.dias_abono = 0;
+        newData.portal_rh_solicitado = false; // Reset portal RH flag
       }
       
       // Reset maternity fields when changing from maternity leave
@@ -360,6 +367,7 @@ export const NewRequestForm = () => {
           data_prevista_parto: formData.data_prevista_parto || null,
           is_contract_exception: formData.is_contract_exception || false,
           contract_exception_justification: formData.contract_exception_justification || null,
+          portal_rh_solicitado: formData.portal_rh_solicitado,
           status: initialStatus,
         })
         .select()
@@ -524,13 +532,20 @@ export const NewRequestForm = () => {
   const dayOffValidation = getDayOffValidation();
   const hasAbono = formData.tipo === TipoAusencia.FERIAS && formData.dias_abono > 0;
   const isMaternityLeave = formData.tipo === TipoAusencia.LICENCA_MATERNIDADE;
+  
+  // Portal RH validation for CLT vacation requests
+  const needsPortalRH = formData.tipo === TipoAusencia.FERIAS && isCLT();
+  const canBypassPortalRH = isDirector || person?.papel === 'GESTOR';
+  const portalRHValid = !needsPortalRH || formData.portal_rh_solicitado || canBypassPortalRH;
+  
   const isFormValid = formData.tipo && formData.inicio && formData.fim && formData.justificativa &&
     (isDirector || (
       (formData.tipo !== TipoAusencia.DAYOFF || dayOffValidation.isValid) && 
       (formData.tipo === TipoAusencia.DAYOFF || vacationValidation.valid)
     )) &&
     (!isMaternityLeave || maternityValidation?.valid) &&
-    (!hasAbono || (formData.dias_abono && formData.dias_abono > 0));
+    (!hasAbono || (formData.dias_abono && formData.dias_abono > 0)) &&
+    portalRHValid;
 
   console.log('[DayOff Debug] Form validation state:', {
     tipo: formData.tipo,
@@ -762,6 +777,60 @@ export const NewRequestForm = () => {
                   O abono permite "vender" dias de férias de volta para a empresa. 
                   Férias mínimas exigidas por lei: 10 dias corridos.
                 </p>
+              </div>
+            )}
+
+            {/* Portal RH Section - Only for CLT vacation requests */}
+            {needsPortalRH && (
+              <div className="space-y-4 p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-900">
+                <div className="flex items-center gap-2">
+                  <Building className="w-5 h-5 text-blue-600" />
+                  <Label className="text-base font-medium">Portal RH</Label>
+                </div>
+                
+                <div className="flex items-start space-x-3">
+                  <Checkbox 
+                    id="portal_rh_solicitado"
+                    checked={formData.portal_rh_solicitado}
+                    onCheckedChange={(checked) => 
+                      handleInputChange("portal_rh_solicitado", !!checked)
+                    }
+                  />
+                  <div className="grid gap-1.5 leading-none">
+                    <Label 
+                      htmlFor="portal_rh_solicitado" 
+                      className="text-sm font-medium cursor-pointer"
+                    >
+                      Já solicitei estas férias no Portal RH
+                    </Label>
+                    <p className="text-sm text-muted-foreground">
+                      Confirmo que abri a solicitação de férias no Portal RH da empresa.
+                    </p>
+                  </div>
+                </div>
+
+                {!formData.portal_rh_solicitado && !canBypassPortalRH && (
+                  <Alert className="border-amber-500 bg-amber-50 dark:bg-amber-950/20">
+                    <AlertTriangle className="w-4 h-4 text-amber-600" />
+                    <AlertDescription className="text-amber-800 dark:text-amber-200">
+                      <strong>Atenção:</strong> Para funcionários CLT, é obrigatório que as 
+                      férias sejam solicitadas também no Portal RH da empresa.
+                      <br/><br/>
+                      <strong>Importante:</strong> Solicitações sem abertura prévia no Portal RH 
+                      só poderão ser realizadas em regime de exceção pelo seu gestor imediato.
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                {!formData.portal_rh_solicitado && canBypassPortalRH && (
+                  <Alert className="border-amber-500 bg-amber-50 dark:bg-amber-950/20">
+                    <AlertTriangle className="w-4 h-4 text-amber-600" />
+                    <AlertDescription className="text-amber-800 dark:text-amber-200">
+                      <strong>Criação em Exceção:</strong> Como gestor/diretor, você pode criar esta 
+                      solicitação mesmo sem marcação do Portal RH. Esta exceção será registrada.
+                    </AlertDescription>
+                  </Alert>
+                )}
               </div>
             )}
 
