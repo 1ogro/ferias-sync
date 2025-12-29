@@ -98,7 +98,8 @@ export const Dashboard = () => {
           isHistorical: req.is_historical || false,
           originalCreatedAt: req.original_created_at ? new Date(req.original_created_at) : undefined,
           originalChannel: req.original_channel,
-          adminObservations: req.admin_observations
+          adminObservations: req.admin_observations,
+          portal_rh_solicitado: req.portal_rh_solicitado
         }));
         setUserRequests(formattedRequests);
       }
@@ -142,6 +143,7 @@ export const Dashboard = () => {
           conflitoRefs: req.conflito_refs,
           createdAt: new Date(req.created_at),
           updatedAt: new Date(req.updated_at),
+          portal_rh_solicitado: req.portal_rh_solicitado
         }));
         setActiveAbsences(formattedRequests);
       }
@@ -197,6 +199,7 @@ export const Dashboard = () => {
         createdAt: new Date(item.created_at),
         updatedAt: new Date(item.updated_at),
         conflitoFlag: item.conflito_flag,
+        portal_rh_solicitado: item.portal_rh_solicitado,
         requester: {
           ...item.requester,
           papel: item.requester.papel as any,

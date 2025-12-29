@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "./StatusBadge";
-import { Calendar, AlertTriangle, Edit, Eye, Trash2, DollarSign, Baby } from "lucide-react";
+import { Calendar, AlertTriangle, Edit, Eye, Trash2, DollarSign, Baby, Building } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -84,6 +84,12 @@ export const RequestCard = ({
               {isRetroactive() && (
                 <Badge variant="outline" className="bg-muted text-muted-foreground border-muted-foreground/30">
                   Retroativo
+                </Badge>
+              )}
+              {request.tipo === TipoAusencia.FERIAS && request.portal_rh_solicitado === false && (
+                <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-700 flex items-center gap-1">
+                  <Building className="w-3 h-3" />
+                  Exceção Portal RH
                 </Badge>
               )}
               {request.conflitoFlag && (
