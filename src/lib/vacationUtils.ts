@@ -516,3 +516,210 @@ export async function recalculateVacationBalance(
     return { success: false, error: 'Erro interno' };
   }
 }
+
+/**
+ * Migration preview result interface
+ */
+export interface MigrationPreview {
+  sourceYear: number;
+  targetYear: number;
+  sourceCount: number;
+  existingInTarget: number;
+  toMigrate: number;
+  sourceBalances: Array<{
+    person_id: string;
+    person_name: string;
+    accrued_days: number;
+    used_days: number;
+    balance_days: number;
+    justification?: string;
+    existsInTarget: boolean;
+  }>;
+}
+
+/**
+ * Migration result interface
+ */
+export interface MigrationResult {
+  success: boolean;
+  migrated: number;
+  skipped: number;
+  errors: string[];
+}
+
+/**
+ * Get preview of migration from source year to target year
+ */
+export async function getMigrationPreview(
+  sourceYear: number,
+  targetYear: number
+): Promise<MigrationPreview> {
+  try {
+    // Get all manual balances from source year
+    const { data: sourceBalances, error: sourceError } = await supabase
+      .from('vacation_balances')
+      .select('*, person:people!vacation_balances_person_id_fkey(id, nome)')
+      .eq('year', sourceYear);
+
+    if (sourceError) {
+      console.error('Error fetching source balances:', sourceError);
+      return {
+        sourceYear,
+        targetYear,
+        sourceCount: 0,
+        existingInTarget: 0,
+        toMigrate: 0,
+        sourceBalances: []
+      };
+    }
+
+    // Get all balances in target year to check for existing
+    const { data: targetBalances, error: targetError } = await supabase
+      .from('vacation_balances')
+      .select('person_id')
+      .eq('year', targetYear);
+
+    if (targetError) {
+      console.error('Error fetching target balances:', targetError);
+    }
+
+    const targetPersonIds = new Set(targetBalances?.map(b => b.person_id) || []);
+
+    const mappedBalances = (sourceBalances || []).map(balance => ({
+      person_id: balance.person_id,
+      person_name: (balance.person as any)?.nome || 'Desconhecido',
+      accrued_days: balance.accrued_days,
+      used_days: balance.used_days,
+      balance_days: balance.balance_days,
+      justification: balance.manual_justification,
+      existsInTarget: targetPersonIds.has(balance.person_id)
+    }));
+
+    const existingCount = mappedBalances.filter(b => b.existsInTarget).length;
+
+    return {
+      sourceYear,
+      targetYear,
+      sourceCount: mappedBalances.length,
+      existingInTarget: existingCount,
+      toMigrate: mappedBalances.length - existingCount,
+      sourceBalances: mappedBalances
+    };
+  } catch (error) {
+    console.error('Error getting migration preview:', error);
+    return {
+      sourceYear,
+      targetYear,
+      sourceCount: 0,
+      existingInTarget: 0,
+      toMigrate: 0,
+      sourceBalances: []
+    };
+  }
+}
+
+/**
+ * Migrate manual balances from source year to target year
+ */
+export async function migrateManualBalances(
+  sourceYear: number,
+  targetYear: number,
+  justification: string,
+  updatedBy: string,
+  overwriteExisting: boolean = false,
+  onProgress?: (progress: number) => void
+): Promise<MigrationResult> {
+  const result: MigrationResult = {
+    success: true,
+    migrated: 0,
+    skipped: 0,
+    errors: []
+  };
+
+  try {
+    // Get preview to know what to migrate
+    const preview = await getMigrationPreview(sourceYear, targetYear);
+
+    if (preview.sourceCount === 0) {
+      return result;
+    }
+
+    const balancesToMigrate = overwriteExisting
+      ? preview.sourceBalances
+      : preview.sourceBalances.filter(b => !b.existsInTarget);
+
+    let processed = 0;
+
+    for (const balance of balancesToMigrate) {
+      try {
+        // Get contract anniversary for this person
+        const { data: personData } = await supabase
+          .from('people')
+          .select('data_contrato')
+          .eq('id', balance.person_id)
+          .single();
+
+        let contractAnniversary: Date;
+        
+        if (personData?.data_contrato) {
+          const contractDate = new Date(personData.data_contrato);
+          contractAnniversary = new Date(targetYear, contractDate.getMonth(), contractDate.getDate());
+        } else {
+          contractAnniversary = new Date(targetYear, 0, 1);
+        }
+
+        // Build migration justification
+        const migrationJustification = balance.justification
+          ? `Migrado de ${sourceYear}: ${balance.justification}. Observação: ${justification}`
+          : `Migrado de ${sourceYear}. Observação: ${justification}`;
+
+        // Insert or update balance in target year
+        const { error } = await supabase
+          .from('vacation_balances')
+          .upsert({
+            person_id: balance.person_id,
+            year: targetYear,
+            accrued_days: balance.accrued_days,
+            used_days: balance.used_days,
+            balance_days: balance.balance_days,
+            contract_anniversary: contractAnniversary.toISOString().split('T')[0],
+            manual_justification: migrationJustification,
+            updated_by: updatedBy
+          });
+
+        if (error) {
+          result.errors.push(`${balance.person_name}: ${error.message}`);
+        } else {
+          result.migrated++;
+        }
+      } catch (error: any) {
+        result.errors.push(`${balance.person_name}: ${error.message || 'Erro desconhecido'}`);
+      }
+
+      processed++;
+      if (onProgress) {
+        onProgress(Math.round((processed / balancesToMigrate.length) * 100));
+      }
+    }
+
+    // Count skipped (existing and not overwritten)
+    result.skipped = preview.existingInTarget;
+    if (overwriteExisting) {
+      result.skipped = 0;
+    }
+
+    if (result.errors.length > 0) {
+      result.success = false;
+    }
+
+    return result;
+  } catch (error: any) {
+    console.error('Error in migrateManualBalances:', error);
+    return {
+      success: false,
+      migrated: 0,
+      skipped: 0,
+      errors: [error.message || 'Erro interno']
+    };
+  }
+}

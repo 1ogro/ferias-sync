@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import useEmblaCarousel from "embla-carousel-react";
 import { useAuth } from "@/hooks/useAuth";
-import { getAllVacationBalances, saveManualVacationBalance, deleteManualVacationBalance, recalculateVacationBalance } from "@/lib/vacationUtils";
+import { getAllVacationBalances, saveManualVacationBalance, deleteManualVacationBalance, recalculateVacationBalance, getMigrationPreview, migrateManualBalances, MigrationPreview } from "@/lib/vacationUtils";
 import { supabase } from "@/integrations/supabase/client";
 import { Navigate, useSearchParams } from "react-router-dom";
 import { Person, ModeloContrato, MODELO_CONTRATO_LABELS } from "@/lib/types";
@@ -66,7 +66,12 @@ import {
   ArrowUp,
   ArrowDown,
   X,
+  ArrowRightLeft,
 } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import { Progress } from "@/components/ui/progress";
+import { Textarea } from "@/components/ui/textarea";
 import { format } from "date-fns";
 
 // Interface for vacation data display
@@ -116,6 +121,16 @@ const VacationManagement = () => {
   const [detailsDrawerItem, setDetailsDrawerItem] = useState<VacationData | null>(null);
   const [sortColumn, setSortColumn] = useState<string | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  
+  // Migration states
+  const [migrateDialogOpen, setMigrateDialogOpen] = useState(false);
+  const [migrateSourceYear, setMigrateSourceYear] = useState(new Date().getFullYear() - 1);
+  const [migrateJustification, setMigrateJustification] = useState("");
+  const [migrateOverwrite, setMigrateOverwrite] = useState(false);
+  const [migrateLoading, setMigrateLoading] = useState(false);
+  const [migrateProgress, setMigrateProgress] = useState(0);
+  const [migratePreview, setMigratePreview] = useState<MigrationPreview | null>(null);
+  const [migratePreviewLoading, setMigratePreviewLoading] = useState(false);
   
   // Advanced filters
   const [selectedTimes, setSelectedTimes] = useState<string[]>([]);
@@ -576,6 +591,99 @@ const VacationManagement = () => {
     }
   };
 
+  // Migration handlers
+  const handleOpenMigrateDialog = async () => {
+    setMigrateSourceYear(selectedYear - 1);
+    setMigrateJustification("");
+    setMigrateOverwrite(false);
+    setMigratePreview(null);
+    setMigrateDialogOpen(true);
+    
+    // Auto-load preview
+    await loadMigrationPreview(selectedYear - 1);
+  };
+
+  const loadMigrationPreview = async (sourceYear: number) => {
+    setMigratePreviewLoading(true);
+    try {
+      const preview = await getMigrationPreview(sourceYear, selectedYear);
+      setMigratePreview(preview);
+    } catch (error) {
+      console.error('Error loading migration preview:', error);
+      toast({
+        title: "Erro",
+        description: "Erro ao carregar prévia da migração.",
+        variant: "destructive",
+      });
+    } finally {
+      setMigratePreviewLoading(false);
+    }
+  };
+
+  const handleSourceYearChange = async (year: string) => {
+    const yearNum = parseInt(year);
+    setMigrateSourceYear(yearNum);
+    await loadMigrationPreview(yearNum);
+  };
+
+  const handleMigrate = async () => {
+    if (!migrateJustification.trim()) {
+      toast({
+        title: "Erro",
+        description: "Justificativa é obrigatória para a migração.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setMigrateLoading(true);
+    setMigrateProgress(0);
+
+    try {
+      const result = await migrateManualBalances(
+        migrateSourceYear,
+        selectedYear,
+        migrateJustification.trim(),
+        person.id,
+        migrateOverwrite,
+        (progress) => setMigrateProgress(progress)
+      );
+
+      if (result.migrated > 0 || result.skipped > 0) {
+        toast({
+          title: "Migração Concluída",
+          description: `${result.migrated} saldo(s) migrado(s)${result.skipped > 0 ? `, ${result.skipped} já existente(s) pulado(s)` : ''}.`,
+          variant: result.errors.length > 0 ? "destructive" : "default",
+        });
+      } else if (result.errors.length > 0) {
+        toast({
+          title: "Erro na Migração",
+          description: result.errors[0],
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Nenhum Saldo para Migrar",
+          description: `Não há saldos manuais em ${migrateSourceYear} para migrar.`,
+        });
+      }
+
+      setMigrateDialogOpen(false);
+      setMigrateJustification("");
+      fetchVacationData();
+    } catch (error: any) {
+      console.error("Erro na migração:", error);
+      toast({
+        title: "Erro",
+        description: error.message || "Erro interno na migração.",
+        variant: "destructive",
+      });
+    } finally {
+      setMigrateLoading(false);
+      setMigrateProgress(0);
+    }
+  };
+
   const exportToCSV = () => {
     const csvContent = [
       ['Nome', 'Cargo', 'Time', 'Data Contrato', 'Dias Adquiridos', 'Dias Usados', 'Saldo', 'Status'],
@@ -692,7 +800,11 @@ const VacationManagement = () => {
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle>Gerenciamento de Saldos de Férias</CardTitle>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="outline" onClick={handleOpenMigrateDialog}>
+                    <ArrowRightLeft className="h-4 w-4 mr-2" />
+                    Migrar Saldos
+                  </Button>
                   <Button variant="outline" onClick={() => setMassRecalculateOpen(true)}>
                     <Calculator className="h-4 w-4 mr-2" />
                     Recalcular Saldos
@@ -1705,6 +1817,156 @@ const VacationManagement = () => {
                   <>
                     <Calculator className="w-4 h-4 mr-2" />
                     Recalcular {filteredData.length} Saldo(s)
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Migration Dialog */}
+        <Dialog open={migrateDialogOpen} onOpenChange={setMigrateDialogOpen}>
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader>
+              <DialogTitle>Migrar Saldos Manuais</DialogTitle>
+              <DialogDescription>
+                Copiar saldos manuais de um ano anterior para {selectedYear}.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              {/* Source Year Selector */}
+              <div>
+                <Label htmlFor="source-year" className="block text-sm font-medium mb-2">
+                  Ano de Origem
+                </Label>
+                <Select 
+                  value={migrateSourceYear.toString()} 
+                  onValueChange={handleSourceYearChange}
+                  disabled={migrateLoading}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="z-50 bg-background">
+                    {Array.from({ length: 5 }, (_, i) => selectedYear - 4 + i)
+                      .filter(year => year < selectedYear)
+                      .map((year) => (
+                        <SelectItem key={year} value={year.toString()}>
+                          {year}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Preview Section */}
+              <div className="bg-muted/50 p-4 rounded-lg space-y-2">
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  <History className="h-4 w-4" />
+                  Prévia da Migração
+                </div>
+                
+                {migratePreviewLoading ? (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Carregando...
+                  </div>
+                ) : migratePreview ? (
+                  <div className="space-y-1 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Saldos em {migrateSourceYear}:</span>
+                      <span className="font-medium">{migratePreview.sourceCount}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Já existem em {selectedYear}:</span>
+                      <span className="font-medium text-amber-600">{migratePreview.existingInTarget}</span>
+                    </div>
+                    <div className="flex justify-between border-t pt-1">
+                      <span className="text-muted-foreground">Serão migrados:</span>
+                      <span className="font-bold text-primary">
+                        {migrateOverwrite ? migratePreview.sourceCount : migratePreview.toMigrate}
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-sm text-muted-foreground">
+                    Selecione um ano para ver a prévia.
+                  </div>
+                )}
+              </div>
+
+              {/* Overwrite Checkbox */}
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="overwrite"
+                  checked={migrateOverwrite}
+                  onCheckedChange={(checked) => setMigrateOverwrite(checked === true)}
+                  disabled={migrateLoading}
+                />
+                <Label htmlFor="overwrite" className="text-sm cursor-pointer">
+                  Sobrescrever saldos existentes em {selectedYear}
+                </Label>
+              </div>
+
+              {/* Justification */}
+              <div>
+                <Label htmlFor="migrate-justification" className="block text-sm font-medium mb-2">
+                  Justificativa <span className="text-red-500">*</span>
+                </Label>
+                <Textarea
+                  id="migrate-justification"
+                  value={migrateJustification}
+                  onChange={(e) => setMigrateJustification(e.target.value)}
+                  placeholder="Ex: Migração de saldos para novo ano fiscal..."
+                  rows={3}
+                  disabled={migrateLoading}
+                />
+              </div>
+
+              {/* Info Box */}
+              <div className="text-xs text-muted-foreground bg-blue-50 dark:bg-blue-950/30 p-3 rounded">
+                <strong>Nota:</strong> A justificativa original será preservada. Os saldos migrados serão marcados com "Migrado de {migrateSourceYear}".
+              </div>
+
+              {/* Progress */}
+              {migrateLoading && (
+                <div className="space-y-2">
+                  <div className="text-sm text-muted-foreground">
+                    Progresso: {migrateProgress}%
+                  </div>
+                  <Progress value={migrateProgress} className="w-full" />
+                </div>
+              )}
+            </div>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setMigrateDialogOpen(false);
+                  setMigrateJustification("");
+                }}
+                disabled={migrateLoading}
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={handleMigrate}
+                disabled={
+                  migrateLoading || 
+                  !migrateJustification.trim() || 
+                  !migratePreview ||
+                  (migrateOverwrite ? migratePreview.sourceCount === 0 : migratePreview.toMigrate === 0)
+                }
+              >
+                {migrateLoading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Migrando...
+                  </>
+                ) : (
+                  <>
+                    <ArrowRightLeft className="w-4 h-4 mr-2" />
+                    Migrar {migratePreview ? (migrateOverwrite ? migratePreview.sourceCount : migratePreview.toMigrate) : 0} Saldo(s)
                   </>
                 )}
               </Button>
