@@ -558,7 +558,7 @@ export async function getMigrationPreview(
     // Get all manual balances from source year
     const { data: sourceBalances, error: sourceError } = await supabase
       .from('vacation_balances')
-      .select('*, person:people!vacation_balances_person_id_fkey(id, nome)')
+      .select('*')
       .eq('year', sourceYear);
 
     if (sourceError) {
@@ -572,6 +572,15 @@ export async function getMigrationPreview(
         sourceBalances: []
       };
     }
+
+    // Fetch person names separately (no FK constraint exists)
+    const personIds = sourceBalances?.map(b => b.person_id) || [];
+    const { data: people } = await supabase
+      .from('people')
+      .select('id, nome')
+      .in('id', personIds);
+
+    const peopleMap = new Map(people?.map(p => [p.id, p.nome]) || []);
 
     // Get all balances in target year to check for existing
     const { data: targetBalances, error: targetError } = await supabase
@@ -587,7 +596,7 @@ export async function getMigrationPreview(
 
     const mappedBalances = (sourceBalances || []).map(balance => ({
       person_id: balance.person_id,
-      person_name: (balance.person as any)?.nome || 'Desconhecido',
+      person_name: peopleMap.get(balance.person_id) || 'Desconhecido',
       accrued_days: balance.accrued_days,
       used_days: balance.used_days,
       balance_days: balance.balance_days,
