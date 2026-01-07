@@ -1208,6 +1208,10 @@ const VacationManagement = () => {
               <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle>Gerenciamento de Saldos de Férias</CardTitle>
                 <div className="flex gap-2">
+                  <Button variant="outline" onClick={handleOpenMigrateDialog}>
+                    <ArrowRightLeft className="h-4 w-4 mr-2" />
+                    Migrar Saldos
+                  </Button>
                   <Button variant="outline" onClick={() => setMassRecalculateOpen(true)}>
                     <Calculator className="h-4 w-4 mr-2" />
                     Recalcular Saldos
