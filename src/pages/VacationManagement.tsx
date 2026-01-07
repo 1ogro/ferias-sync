@@ -117,6 +117,12 @@ const VacationManagement = () => {
   const [massRecalculateJustification, setMassRecalculateJustification] = useState("");
   const [massRecalculateLoading, setMassRecalculateLoading] = useState(false);
   const [massRecalculateProgress, setMassRecalculateProgress] = useState(0);
+  const [recalculatePreview, setRecalculatePreview] = useState<{
+    totalPeople: number;
+    withManualBalance: number;
+    withoutManualBalance: number;
+  } | null>(null);
+  const [recalculatePreviewLoading, setRecalculatePreviewLoading] = useState(false);
   const [detailsDrawerOpen, setDetailsDrawerOpen] = useState(false);
   const [detailsDrawerItem, setDetailsDrawerItem] = useState<VacationData | null>(null);
   const [sortColumn, setSortColumn] = useState<string | null>(null);
@@ -591,6 +597,33 @@ const VacationManagement = () => {
     }
   };
 
+  // Recalculate preview handler
+  const handleOpenRecalculateDialog = async () => {
+    setMassRecalculateJustification("");
+    setRecalculatePreview(null);
+    setMassRecalculateOpen(true);
+    setRecalculatePreviewLoading(true);
+    
+    try {
+      const { data: manualBalances } = await supabase
+        .from('vacation_balances')
+        .select('person_id')
+        .eq('year', selectedYear);
+      
+      const manualPersonIds = new Set(manualBalances?.map(b => b.person_id) || []);
+      
+      setRecalculatePreview({
+        totalPeople: filteredData.length,
+        withManualBalance: filteredData.filter(d => manualPersonIds.has(d.person_id)).length,
+        withoutManualBalance: filteredData.filter(d => !manualPersonIds.has(d.person_id)).length
+      });
+    } catch (error) {
+      console.error('Erro ao carregar preview de recálculo:', error);
+    } finally {
+      setRecalculatePreviewLoading(false);
+    }
+  };
+
   // Migration handlers
   const handleOpenMigrateDialog = async () => {
     setMigrateSourceYear(selectedYear - 1);
@@ -805,7 +838,7 @@ const VacationManagement = () => {
                     <ArrowRightLeft className="h-4 w-4 mr-2" />
                     Migrar Saldos
                   </Button>
-                  <Button variant="outline" onClick={() => setMassRecalculateOpen(true)}>
+                  <Button variant="outline" onClick={handleOpenRecalculateDialog}>
                     <Calculator className="h-4 w-4 mr-2" />
                     Recalcular Saldos
                   </Button>
@@ -1212,7 +1245,7 @@ const VacationManagement = () => {
                     <ArrowRightLeft className="h-4 w-4 mr-2" />
                     Migrar Saldos
                   </Button>
-                  <Button variant="outline" onClick={() => setMassRecalculateOpen(true)}>
+                  <Button variant="outline" onClick={handleOpenRecalculateDialog}>
                     <Calculator className="h-4 w-4 mr-2" />
                     Recalcular Saldos
                   </Button>
@@ -1751,26 +1784,46 @@ const VacationManagement = () => {
 
         {/* Mass Recalculate Dialog */}
         <Dialog open={massRecalculateOpen} onOpenChange={setMassRecalculateOpen}>
-          <DialogContent className="sm:max-w-[425px]">
+          <DialogContent className="sm:max-w-[500px]">
             <DialogHeader>
               <DialogTitle>Recalcular Saldos em Massa</DialogTitle>
               <DialogDescription>
-                Recalcular automaticamente os saldos de férias para todos os {filteredData.length} colaborador(es) exibido(s) na lista atual.
+                Recalcular automaticamente os saldos de férias para o ano de <strong>{selectedYear}</strong>
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
-              <div className="text-sm text-muted-foreground bg-blue-50 p-3 rounded">
-                <strong>Atenção:</strong> Esta operação irá:
+              {/* Preview Section */}
+              <div className="bg-muted p-4 rounded-lg space-y-2">
+                <h4 className="font-medium flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4 text-amber-500" />
+                  Prévia do Recálculo - Ano {selectedYear}
+                </h4>
+                {recalculatePreviewLoading ? (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Carregando prévia...
+                  </div>
+                ) : recalculatePreview ? (
+                  <div className="text-sm space-y-1">
+                    <p>• <strong>{recalculatePreview.totalPeople}</strong> colaborador(es) serão processados</p>
+                    <p>• <strong>{recalculatePreview.withManualBalance}</strong> possuem saldo manual (serão sobrescritos)</p>
+                    <p>• <strong>{recalculatePreview.withoutManualBalance}</strong> usam cálculo automático (terão saldo manual criado)</p>
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="text-sm text-destructive/90 bg-destructive/10 border border-destructive/20 p-3 rounded">
+                <strong>⚠️ ATENÇÃO:</strong> Esta operação irá:
                 <ul className="list-disc ml-4 mt-2">
-                  <li>Recalcular baseado na data de contrato e solicitações aprovadas</li>
-                  <li>Sobrescrever saldos manuais existentes</li>
+                  <li>Recalcular baseado na data de contrato e solicitações aprovadas de <strong>{selectedYear}</strong></li>
+                  <li>Sobrescrever saldos manuais existentes de {selectedYear}</li>
                   <li>Aplicar a mesma justificativa para todos os registros</li>
                 </ul>
               </div>
               
               <div>
                 <label htmlFor="mass-justification" className="block text-sm font-medium mb-2">
-                  Justificativa para Recálculo <span className="text-red-500">*</span>
+                  Justificativa para Recálculo <span className="text-destructive">*</span>
                 </label>
                 <textarea
                   id="mass-justification"
@@ -1788,12 +1841,7 @@ const VacationManagement = () => {
                   <div className="text-sm text-muted-foreground">
                     Progresso: {massRecalculateProgress}%
                   </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div 
-                      className="bg-primary h-2 rounded-full transition-all duration-300"
-                      style={{ width: `${massRecalculateProgress}%` }}
-                    />
-                  </div>
+                  <Progress value={massRecalculateProgress} className="h-2" />
                 </div>
               )}
             </div>
@@ -1803,6 +1851,7 @@ const VacationManagement = () => {
                 onClick={() => {
                   setMassRecalculateOpen(false);
                   setMassRecalculateJustification("");
+                  setRecalculatePreview(null);
                 }}
                 disabled={massRecalculateLoading}
               >
@@ -1810,7 +1859,8 @@ const VacationManagement = () => {
               </Button>
               <Button
                 onClick={handleMassRecalculate}
-                disabled={massRecalculateLoading || !massRecalculateJustification.trim()}
+                disabled={massRecalculateLoading || !massRecalculateJustification.trim() || recalculatePreviewLoading}
+                variant="destructive"
               >
                 {massRecalculateLoading ? (
                   <>
@@ -1820,7 +1870,7 @@ const VacationManagement = () => {
                 ) : (
                   <>
                     <Calculator className="w-4 h-4 mr-2" />
-                    Recalcular {filteredData.length} Saldo(s)
+                    Recalcular {filteredData.length} Saldo(s) de {selectedYear}
                   </>
                 )}
               </Button>
