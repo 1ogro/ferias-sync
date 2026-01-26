@@ -123,6 +123,7 @@ const VacationManagement = () => {
     withoutManualBalance: number;
   } | null>(null);
   const [recalculatePreviewLoading, setRecalculatePreviewLoading] = useState(false);
+  const [recalculateYear, setRecalculateYear] = useState(new Date().getFullYear());
   const [detailsDrawerOpen, setDetailsDrawerOpen] = useState(false);
   const [detailsDrawerItem, setDetailsDrawerItem] = useState<VacationData | null>(null);
   const [sortColumn, setSortColumn] = useState<string | null>(null);
@@ -545,17 +546,18 @@ const VacationManagement = () => {
     setMassRecalculateLoading(true);
     setMassRecalculateProgress(0);
     
-    const itemsToProcess = filteredData.length;
+    const balancesToProcess = await getAllVacationBalances(recalculateYear);
+    const itemsToProcess = balancesToProcess.length;
     let processed = 0;
     let successful = 0;
     let failed = 0;
 
     try {
-      for (const item of filteredData) {
+      for (const item of balancesToProcess) {
         try {
           const result = await recalculateVacationBalance(
             item.person_id,
-            selectedYear,
+            recalculateYear,
             massRecalculateJustification.trim(),
             person.id
           );
@@ -599,6 +601,8 @@ const VacationManagement = () => {
 
   // Recalculate preview handler
   const handleOpenRecalculateDialog = async () => {
+    const yearToRecalculate = selectedYear;
+    setRecalculateYear(yearToRecalculate);
     setMassRecalculateJustification("");
     setRecalculatePreview(null);
     setMassRecalculateOpen(true);
@@ -608,14 +612,41 @@ const VacationManagement = () => {
       const { data: manualBalances } = await supabase
         .from('vacation_balances')
         .select('person_id')
-        .eq('year', selectedYear);
+        .eq('year', yearToRecalculate);
       
+      const balances = await getAllVacationBalances(yearToRecalculate);
       const manualPersonIds = new Set(manualBalances?.map(b => b.person_id) || []);
       
       setRecalculatePreview({
-        totalPeople: filteredData.length,
-        withManualBalance: filteredData.filter(d => manualPersonIds.has(d.person_id)).length,
-        withoutManualBalance: filteredData.filter(d => !manualPersonIds.has(d.person_id)).length
+        totalPeople: balances.length,
+        withManualBalance: balances.filter(d => manualPersonIds.has(d.person_id)).length,
+        withoutManualBalance: balances.filter(d => !manualPersonIds.has(d.person_id)).length
+      });
+    } catch (error) {
+      console.error('Erro ao carregar preview de recálculo:', error);
+    } finally {
+      setRecalculatePreviewLoading(false);
+    }
+  };
+
+  const handleRecalculateYearChange = async (year: string) => {
+    const yearNum = parseInt(year);
+    setRecalculateYear(yearNum);
+    setRecalculatePreviewLoading(true);
+    
+    try {
+      const { data: manualBalances } = await supabase
+        .from('vacation_balances')
+        .select('person_id')
+        .eq('year', yearNum);
+      
+      const balances = await getAllVacationBalances(yearNum);
+      const manualPersonIds = new Set(manualBalances?.map(b => b.person_id) || []);
+      
+      setRecalculatePreview({
+        totalPeople: balances.length,
+        withManualBalance: balances.filter(d => manualPersonIds.has(d.person_id)).length,
+        withoutManualBalance: balances.filter(d => !manualPersonIds.has(d.person_id)).length
       });
     } catch (error) {
       console.error('Erro ao carregar preview de recálculo:', error);
@@ -1782,21 +1813,44 @@ const VacationManagement = () => {
           </DialogContent>
         </Dialog>
 
-        {/* Mass Recalculate Dialog */}
         <Dialog open={massRecalculateOpen} onOpenChange={setMassRecalculateOpen}>
           <DialogContent className="sm:max-w-[500px]">
             <DialogHeader>
               <DialogTitle>Recalcular Saldos em Massa</DialogTitle>
               <DialogDescription>
-                Recalcular automaticamente os saldos de férias para o ano de <strong>{selectedYear}</strong>
+                Recalcular automaticamente os saldos de férias para todos os colaboradores.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
+              {/* Year Selector */}
+              <div>
+                <Label htmlFor="recalculate-year" className="block text-sm font-medium mb-2">
+                  Ano para Recálculo
+                </Label>
+                <Select 
+                  value={recalculateYear.toString()} 
+                  onValueChange={handleRecalculateYearChange}
+                  disabled={massRecalculateLoading}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="z-50 bg-background">
+                    {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i)
+                      .map((year) => (
+                        <SelectItem key={year} value={year.toString()}>
+                          {year}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
               {/* Preview Section */}
               <div className="bg-muted p-4 rounded-lg space-y-2">
                 <h4 className="font-medium flex items-center gap-2">
                   <AlertTriangle className="h-4 w-4 text-amber-500" />
-                  Prévia do Recálculo - Ano {selectedYear}
+                  Prévia do Recálculo - Ano {recalculateYear}
                 </h4>
                 {recalculatePreviewLoading ? (
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -1815,8 +1869,8 @@ const VacationManagement = () => {
               <div className="text-sm text-destructive/90 bg-destructive/10 border border-destructive/20 p-3 rounded">
                 <strong>⚠️ ATENÇÃO:</strong> Esta operação irá:
                 <ul className="list-disc ml-4 mt-2">
-                  <li>Recalcular baseado na data de contrato e solicitações aprovadas de <strong>{selectedYear}</strong></li>
-                  <li>Sobrescrever saldos manuais existentes de {selectedYear}</li>
+                  <li>Recalcular baseado na data de contrato e solicitações aprovadas de <strong>{recalculateYear}</strong></li>
+                  <li>Sobrescrever saldos manuais existentes de {recalculateYear}</li>
                   <li>Aplicar a mesma justificativa para todos os registros</li>
                 </ul>
               </div>
@@ -1870,15 +1924,13 @@ const VacationManagement = () => {
                 ) : (
                   <>
                     <Calculator className="w-4 h-4 mr-2" />
-                    Recalcular {filteredData.length} Saldo(s) de {selectedYear}
+                    Recalcular {recalculatePreview?.totalPeople || 0} Saldo(s) de {recalculateYear}
                   </>
                 )}
               </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
-
-        {/* Migration Dialog */}
         <Dialog open={migrateDialogOpen} onOpenChange={setMigrateDialogOpen}>
           <DialogContent className="sm:max-w-[500px]">
             <DialogHeader>
