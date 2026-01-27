@@ -172,16 +172,29 @@ export default function Auth() {
       const { error } = await signInWithFigma();
       
       if (error) {
+        // Detectar erros de configuração e fornecer mensagens mais úteis
+        const errorMsg = error.message?.toLowerCase() || '';
+        
+        let description = error.message;
+        
+        if (errorMsg.includes('redirect') || errorMsg.includes('uri')) {
+          description = 'Erro de configuração de Redirect URI. Verifique se o URI configurado no Figma OAuth App corresponde ao esperado pelo Supabase (deve ser https://uhphxyhffpbnmsrlggbe.supabase.co/auth/v1/callback).';
+        } else if (errorMsg.includes('client_id') || errorMsg.includes("doesn't exist") || errorMsg.includes('client id')) {
+          description = 'Client ID inválido ou não encontrado. Verifique as configurações do OAuth app no Figma e compare com o configurado no Supabase.';
+        } else if (errorMsg.includes('provider') || errorMsg.includes('not enabled') || errorMsg.includes('disabled')) {
+          description = 'O provider Figma não está habilitado. Configure-o no Supabase Dashboard em Authentication → Providers.';
+        }
+        
         toast({
           title: 'Erro no login com Figma',
-          description: error.message,
+          description,
           variant: 'destructive',
         });
       }
     } catch (error) {
       toast({
         title: 'Erro no login com Figma',
-        description: 'Ocorreu um erro inesperado.',
+        description: 'Ocorreu um erro inesperado. Tente novamente.',
         variant: 'destructive',
       });
     } finally {
