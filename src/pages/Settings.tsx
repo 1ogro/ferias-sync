@@ -14,8 +14,9 @@ import { useAuth } from "@/hooks/useAuth";
 import { useIntegrations } from "@/hooks/useIntegrations";
 import { IntegrationCard } from "@/components/integrations/IntegrationCard";
 import { IntegrationsWizard } from "@/components/integrations/IntegrationsWizard";
-import { Monitor, Bell, Table, RotateCcw, Save, Plug, Mail, Figma } from "lucide-react";
+import { Monitor, Bell, Table, RotateCcw, Save, Plug, Mail, Figma, Stethoscope, Settings as SettingsIcon, TestTube } from "lucide-react";
 import { MessageSquare, Sheet } from "lucide-react";
+import { Link } from "react-router-dom";
 import { useState } from "react";
 
 const Settings = () => {
@@ -421,20 +422,91 @@ const Settings = () => {
                         icon={<Mail className="w-6 h-6" />}
                       />
 
-                      <IntegrationCard
-                        title="Figma OAuth"
-                        description="Configure autenticação via Figma para login no sistema"
-                        status={(integrationSettings?.figma_status || 'not_configured') as 'not_configured' | 'configured' | 'active' | 'error'}
-                        lastTest={integrationSettings?.figma_test_date}
-                        errorMessage={integrationSettings?.figma_error_message}
-                        onConfigure={() => {
-                          setWizardType('figma');
-                          setWizardOpen(true);
-                        }}
-                        onTest={() => testFigma()}
-                        isTesting={isTestingFigma}
-                        icon={<Figma className="w-6 h-6" />}
-                      />
+                      {/* Figma OAuth - Card customizado com link para diagnóstico */}
+                      <Card>
+                        <CardHeader>
+                          <div className="flex items-start justify-between">
+                            <div className="flex items-center gap-3">
+                              <div className="text-primary">
+                                <Figma className="w-6 h-6" />
+                              </div>
+                              <div>
+                                <CardTitle>Figma OAuth</CardTitle>
+                                <CardDescription className="mt-1">
+                                  Configure autenticação via Figma para login no sistema
+                                </CardDescription>
+                              </div>
+                            </div>
+                            {integrationSettings?.figma_status === 'not_configured' && (
+                              <Badge variant="outline">Não configurado</Badge>
+                            )}
+                            {integrationSettings?.figma_status === 'configured' && (
+                              <Badge variant="secondary">Configurado</Badge>
+                            )}
+                            {integrationSettings?.figma_status === 'active' && (
+                              <Badge className="bg-green-600">Ativo</Badge>
+                            )}
+                            {integrationSettings?.figma_status === 'error' && (
+                              <Badge variant="destructive">Erro</Badge>
+                            )}
+                            {!integrationSettings?.figma_status && (
+                              <Badge variant="outline">Não configurado</Badge>
+                            )}
+                          </div>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="space-y-4">
+                            {integrationSettings?.figma_error_message && (
+                              <div className="text-sm text-destructive bg-destructive/10 p-3 rounded-md">
+                                <strong>Erro:</strong> {integrationSettings.figma_error_message}
+                              </div>
+                            )}
+
+                            {integrationSettings?.figma_test_date && (
+                              <div className="text-sm text-muted-foreground">
+                                Último teste: {new Date(integrationSettings.figma_test_date).toLocaleString('pt-BR')}
+                              </div>
+                            )}
+
+                            <div className="flex gap-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  setWizardType('figma');
+                                  setWizardOpen(true);
+                                }}
+                                className="flex-1"
+                              >
+                                <SettingsIcon className="w-4 h-4 mr-2" />
+                                Configurar
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => testFigma()}
+                                disabled={!integrationSettings?.figma_status || integrationSettings.figma_status === 'not_configured' || isTestingFigma}
+                                className="flex-1"
+                              >
+                                <TestTube className="w-4 h-4 mr-2" />
+                                {isTestingFigma ? 'Testando...' : 'Testar'}
+                              </Button>
+                            </div>
+                            
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              asChild
+                              className="w-full text-muted-foreground hover:text-foreground"
+                            >
+                              <Link to="/figma-diagnostic">
+                                <Stethoscope className="w-4 h-4 mr-2" />
+                                Executar Diagnóstico Completo
+                              </Link>
+                            </Button>
+                          </div>
+                        </CardContent>
+                      </Card>
                     </>
                   )}
                 </div>
