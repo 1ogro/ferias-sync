@@ -1,225 +1,252 @@
 
 
-## Plano: Adicionar Seletor de Ano no Diálogo de Recálculo em Massa
+## Plano: Melhorar Mensagem de Erro do Login com Figma
 
-### Contexto
-
-Atualmente, o diálogo de recálculo usa o `selectedYear` global da página (o mesmo seletor do topo da tabela). O usuário quer poder escolher qual ano recalcular diretamente no diálogo, similar ao que existe no diálogo de migração com o seletor "Ano de Origem".
-
-### Alterações Necessárias
-
-**Arquivo:** `src/pages/VacationManagement.tsx`
+### Objetivo
+Adicionar mensagens de erro mais detalhadas quando o login com Figma falhar, especificamente para erros relacionados à configuração de redirect URI, ajudando os usuários a diagnosticar e corrigir o problema.
 
 ---
 
-### 1. Adicionar Novo Estado para Ano de Recálculo
+### Análise do Problema
 
-**Localização:** Após linha ~119 (junto aos estados de recálculo)
+O erro "Invalid redirect uri" ocorre quando há inconsistência entre três locais de configuração:
 
-```typescript
-const [recalculateYear, setRecalculateYear] = useState(new Date().getFullYear());
+1. **Figma OAuth App** - O redirect URI configurado no Figma
+2. **Supabase Auth Provider** - O redirect URI no painel do Supabase
+3. **Aplicação** - A URL de callback usada no código (`/auth/callback/figma`)
+
+O fluxo correto requer:
+```text
+┌─────────────────────────────────────────────────────────────────────┐
+│                          FLUXO OAUTH FIGMA                          │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  1. App chama signInWithFigma()                                     │
+│     ↓                                                               │
+│  2. Supabase redireciona para Figma com redirect_uri                │
+│     (Supabase Callback: .../auth/v1/callback)                       │
+│     ↓                                                               │
+│  3. Figma valida se redirect_uri está no OAuth App                  │
+│     ❌ Se não bater → "Invalid redirect uri"                        │
+│     ↓                                                               │
+│  4. Figma retorna para Supabase                                     │
+│     ↓                                                               │
+│  5. Supabase redireciona para app (redirectTo do código)            │
+│     (/auth/callback/figma)                                          │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-### 2. Criar Handler para Mudança de Ano no Recálculo
+### Arquivos a Modificar
 
-**Localização:** Após `handleOpenRecalculateDialog` (~linha 625)
-
-```typescript
-const handleRecalculateYearChange = async (year: string) => {
-  const yearNum = parseInt(year);
-  setRecalculateYear(yearNum);
-  
-  // Recarregar preview para o novo ano
-  setRecalculatePreviewLoading(true);
-  try {
-    const { data: manualBalances } = await supabase
-      .from('vacation_balances')
-      .select('person_id')
-      .eq('year', yearNum);
-    
-    // Buscar dados do ano selecionado
-    const balances = await getAllVacationBalances(yearNum);
-    const manualPersonIds = new Set(manualBalances?.map(b => b.person_id) || []);
-    
-    setRecalculatePreview({
-      totalPeople: balances.length,
-      withManualBalance: balances.filter(d => manualPersonIds.has(d.person_id)).length,
-      withoutManualBalance: balances.filter(d => !manualPersonIds.has(d.person_id)).length
-    });
-  } catch (error) {
-    console.error('Erro ao carregar preview:', error);
-  } finally {
-    setRecalculatePreviewLoading(false);
-  }
-};
-```
+| Arquivo | Alteração |
+|---------|-----------|
+| `src/pages/FigmaCallback.tsx` | Adicionar detecção e tratamento específico para erros de redirect URI |
+| `src/pages/Auth.tsx` | Melhorar mensagem de erro no `handleFigmaLogin` |
 
 ---
 
-### 3. Modificar `handleOpenRecalculateDialog`
+### 1. Melhorar FigmaCallback.tsx
 
-Inicializar `recalculateYear` com o ano atual da página:
+**Alterações:**
+- Detectar erros específicos como "invalid_redirect_uri", "redirect_uri_mismatch"
+- Mostrar mensagem expandida com instruções de correção
+- Incluir links para configuração no Supabase e Figma
 
-```typescript
-const handleOpenRecalculateDialog = async () => {
-  const yearToRecalculate = selectedYear; // Usar ano atual como padrão
-  setRecalculateYear(yearToRecalculate);
-  setMassRecalculateJustification("");
-  setRecalculatePreview(null);
-  setMassRecalculateOpen(true);
-  setRecalculatePreviewLoading(true);
-  
-  try {
-    const { data: manualBalances } = await supabase
-      .from('vacation_balances')
-      .select('person_id')
-      .eq('year', yearToRecalculate);
-    
-    const manualPersonIds = new Set(manualBalances?.map(b => b.person_id) || []);
-    
-    setRecalculatePreview({
-      totalPeople: filteredData.length,
-      withManualBalance: filteredData.filter(d => manualPersonIds.has(d.person_id)).length,
-      withoutManualBalance: filteredData.filter(d => !manualPersonIds.has(d.person_id)).length
-    });
-  } catch (error) {
-    console.error('Erro ao carregar preview:', error);
-  } finally {
-    setRecalculatePreviewLoading(false);
-  }
-};
-```
-
----
-
-### 4. Modificar `handleMassRecalculate`
-
-Usar `recalculateYear` em vez de `selectedYear`:
-
-**Linha ~556-558:** Trocar `selectedYear` por `recalculateYear`
-
-```typescript
-const result = await recalculateVacationBalance(
-  item.person_id,
-  recalculateYear,  // <-- Mudança aqui
-  massRecalculateJustification.trim(),
-  person.id
-);
-```
-
----
-
-### 5. Atualizar UI do Diálogo
-
-**Localização:** Linhas ~1786-1878
-
-Adicionar seletor de ano após o título, similar ao diálogo de migração:
+**Código:**
 
 ```tsx
-<Dialog open={massRecalculateOpen} onOpenChange={setMassRecalculateOpen}>
-  <DialogContent className="sm:max-w-[500px]">
-    <DialogHeader>
-      <DialogTitle>Recalcular Saldos em Massa</DialogTitle>
-      <DialogDescription>
-        Recalcular automaticamente os saldos de férias para todos os colaboradores.
-      </DialogDescription>
-    </DialogHeader>
-    <div className="space-y-4">
-      {/* Novo: Seletor de Ano */}
-      <div>
-        <Label htmlFor="recalculate-year" className="block text-sm font-medium mb-2">
-          Ano para Recálculo
-        </Label>
-        <Select 
-          value={recalculateYear.toString()} 
-          onValueChange={handleRecalculateYearChange}
-          disabled={massRecalculateLoading}
-        >
-          <SelectTrigger className="w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent className="z-50 bg-background">
-            {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i)
-              .map((year) => (
-                <SelectItem key={year} value={year.toString()}>
-                  {year}
-                </SelectItem>
+// Adicionar helper para detectar tipo de erro
+const getFigmaErrorDetails = (errorCode: string, errorDescription: string) => {
+  const lowerError = (errorCode + errorDescription).toLowerCase();
+  
+  if (lowerError.includes('redirect') && (lowerError.includes('invalid') || lowerError.includes('mismatch'))) {
+    return {
+      title: 'Erro de Configuração de Redirect URI',
+      description: 'O URI de redirecionamento configurado não corresponde ao esperado pelo Figma.',
+      isRedirectError: true,
+      steps: [
+        'Verifique o Redirect URI no Figma OAuth App (Account Settings → OAuth apps)',
+        'O valor deve ser exatamente: https://uhphxyhffpbnmsrlggbe.supabase.co/auth/v1/callback',
+        'Verifique também as configurações do provider Figma no Supabase Dashboard',
+        'Certifique-se de que as URLs de redirect no Supabase incluem este domínio'
+      ],
+      links: {
+        figma: 'https://www.figma.com/settings',
+        supabase: 'https://supabase.com/dashboard/project/uhphxyhffpbnmsrlggbe/auth/providers'
+      }
+    };
+  }
+  
+  if (lowerError.includes('client_id') || lowerError.includes("doesn't exist")) {
+    return {
+      title: 'Erro de Client ID',
+      description: 'O Client ID configurado não foi encontrado no Figma.',
+      isRedirectError: false,
+      steps: [
+        'Verifique se o Client ID está correto no Supabase Dashboard',
+        'Compare com o Client ID do seu OAuth app no Figma'
+      ],
+      links: {
+        figma: 'https://www.figma.com/settings',
+        supabase: 'https://supabase.com/dashboard/project/uhphxyhffpbnmsrlggbe/auth/providers'
+      }
+    };
+  }
+  
+  return null;
+};
+```
+
+**UI Expandida para Erros de Redirect:**
+
+```tsx
+{status === 'error' && (
+  <div className="space-y-4">
+    <Alert variant="destructive">
+      <XCircle className="h-4 w-4" />
+      <AlertTitle>Erro na Autenticação</AlertTitle>
+      <AlertDescription>{errorMessage}</AlertDescription>
+    </Alert>
+    
+    {errorDetails?.isRedirectError && (
+      <Alert className="border-amber-500/50 bg-amber-500/10">
+        <AlertTriangle className="h-4 w-4 text-amber-500" />
+        <AlertTitle className="text-amber-600">{errorDetails.title}</AlertTitle>
+        <AlertDescription className="space-y-3">
+          <p>{errorDetails.description}</p>
+          
+          <div className="mt-2">
+            <p className="font-medium text-sm mb-1">Como corrigir:</p>
+            <ol className="list-decimal list-inside text-xs space-y-1">
+              {errorDetails.steps.map((step, i) => (
+                <li key={i}>{step}</li>
               ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      {/* Preview Section - atualizar referências de selectedYear para recalculateYear */}
-      <div className="bg-muted p-4 rounded-lg space-y-2">
-        <h4 className="font-medium flex items-center gap-2">
-          <AlertTriangle className="h-4 w-4 text-amber-500" />
-          Prévia do Recálculo - Ano {recalculateYear}
-        </h4>
-        {/* ... resto do preview ... */}
-      </div>
-
-      {/* Avisos - atualizar referências */}
-      <div className="text-sm text-destructive/90 ...">
-        <strong>⚠️ ATENÇÃO:</strong> Esta operação irá:
-        <ul className="list-disc ml-4 mt-2">
-          <li>Recalcular baseado na data de contrato e solicitações aprovadas de <strong>{recalculateYear}</strong></li>
-          <li>Sobrescrever saldos manuais existentes de {recalculateYear}</li>
-          <li>Aplicar a mesma justificativa para todos os registros</li>
-        </ul>
-      </div>
-      
-      {/* ... resto do diálogo ... */}
-    </div>
-    <DialogFooter>
-      {/* Atualizar texto do botão */}
-      <Button onClick={handleMassRecalculate} variant="destructive" ...>
-        Recalcular {recalculatePreview?.totalPeople || 0} Saldo(s) de {recalculateYear}
-      </Button>
-    </DialogFooter>
-  </DialogContent>
-</Dialog>
+            </ol>
+          </div>
+          
+          <div className="flex gap-2 mt-3">
+            <a 
+              href={errorDetails.links.figma}
+              target="_blank"
+              className="text-xs text-primary hover:underline flex items-center gap-1"
+            >
+              <Figma className="h-3 w-3" />
+              Configurações Figma
+            </a>
+            <a 
+              href={errorDetails.links.supabase}
+              target="_blank"
+              className="text-xs text-primary hover:underline flex items-center gap-1"
+            >
+              <ExternalLink className="h-3 w-3" />
+              Supabase Providers
+            </a>
+          </div>
+        </AlertDescription>
+      </Alert>
+    )}
+    
+    <Button onClick={() => navigate('/auth')} className="w-full" variant="outline">
+      Voltar para Login
+    </Button>
+  </div>
+)}
 ```
 
 ---
 
-### Resultado Visual
+### 2. Melhorar Auth.tsx
 
+**Alterações no `handleFigmaLogin`:**
+
+```tsx
+const handleFigmaLogin = async () => {
+  setLoading(true);
+  try {
+    const { error } = await signInWithFigma();
+    
+    if (error) {
+      // Detectar erros de configuração
+      const errorMsg = error.message?.toLowerCase() || '';
+      
+      let description = error.message;
+      
+      if (errorMsg.includes('redirect') || errorMsg.includes('uri')) {
+        description = 'Erro de configuração de Redirect URI. Verifique se o URI configurado no Figma OAuth App corresponde ao esperado pelo Supabase.';
+      } else if (errorMsg.includes('client_id') || errorMsg.includes("doesn't exist")) {
+        description = 'Client ID inválido ou não encontrado. Verifique as configurações do OAuth app no Figma.';
+      } else if (errorMsg.includes('provider') || errorMsg.includes('not enabled')) {
+        description = 'O provider Figma não está habilitado. Configure-o no Supabase Dashboard em Authentication → Providers.';
+      }
+      
+      toast({
+        title: 'Erro no login com Figma',
+        description,
+        variant: 'destructive',
+      });
+    }
+  } catch (error) {
+    toast({
+      title: 'Erro no login com Figma',
+      description: 'Ocorreu um erro inesperado. Tente novamente.',
+      variant: 'destructive',
+    });
+  } finally {
+    setLoading(false);
+  }
+};
 ```
-┌──────────────────────────────────────────────┐
-│  Recalcular Saldos em Massa                  │
-│                                              │
-│  Ano para Recálculo:                         │
-│  ┌────────────────────────────────────────┐  │
-│  │ 2026                               ▼   │  │
-│  └────────────────────────────────────────┘  │
-│                                              │
-│  ┌────────────────────────────────────────┐  │
-│  │ ⚠️ Prévia do Recálculo - Ano 2026      │  │
-│  │                                        │  │
-│  │ • 24 colaborador(es) serão processados │  │
-│  │ • 1 possuem saldo manual               │  │
-│  │ • 23 usam cálculo automático           │  │
-│  └────────────────────────────────────────┘  │
-│                                              │
-│  ⚠️ ATENÇÃO: Esta operação irá...            │
-│                                              │
-│  Justificativa: [________________________]   │
-│                                              │
-│  [Cancelar]    [Recalcular 24 Saldo(s) de 2026]│
-└──────────────────────────────────────────────┘
+
+---
+
+### 3. Informação Técnica para Administradores
+
+**Adicionar seção informativa no FigmaCallback quando houver erro:**
+
+```text
+┌──────────────────────────────────────────────────────────────────┐
+│  ⚠️ Erro de Configuração de Redirect URI                         │
+├──────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  O URI de redirecionamento configurado não corresponde           │
+│  ao esperado pelo Figma.                                         │
+│                                                                  │
+│  📋 Como corrigir:                                               │
+│                                                                  │
+│  1. No Figma OAuth App, configure o Redirect URI como:           │
+│     ┌────────────────────────────────────────────────────────┐   │
+│     │ https://uhphxyhffpbnmsrlggbe.supabase.co/auth/v1/callback │ │
+│     └────────────────────────────────────────────────────────┘   │
+│                                                                  │
+│  2. No Supabase Dashboard → Authentication → URL Configuration: │
+│     Adicione as seguintes URLs de redirect:                      │
+│     • https://ferias-sync.lovable.app/auth/callback/figma        │
+│     • https://*--*.lovable.app/auth/callback/figma (preview)     │
+│                                                                  │
+│  🔗 [Configurações Figma]  [Supabase Providers]                  │
+│                                                                  │
+│  [Voltar para Login]                                             │
+└──────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
 ### Resumo das Alterações
 
-| Arquivo | Alteração |
-|---------|-----------|
-| `src/pages/VacationManagement.tsx` | Adicionar estado `recalculateYear` |
-| `src/pages/VacationManagement.tsx` | Criar handler `handleRecalculateYearChange` |
-| `src/pages/VacationManagement.tsx` | Modificar `handleOpenRecalculateDialog` para inicializar o ano |
-| `src/pages/VacationManagement.tsx` | Modificar `handleMassRecalculate` para usar `recalculateYear` |
-| `src/pages/VacationManagement.tsx` | Atualizar UI do diálogo com seletor de ano |
+| Arquivo | Linha | Alteração |
+|---------|-------|-----------|
+| `src/pages/FigmaCallback.tsx` | Novo código | Adicionar helper `getFigmaErrorDetails()` |
+| `src/pages/FigmaCallback.tsx` | ~90-105 | Expandir seção de erro com detalhes e instruções |
+| `src/pages/Auth.tsx` | ~169-190 | Melhorar detecção e mensagens em `handleFigmaLogin` |
+
+### Resultado Esperado
+
+Quando um usuário enfrentar o erro "Invalid redirect uri":
+1. Verá uma mensagem clara explicando que é um problema de configuração
+2. Receberá passos específicos para corrigir o problema
+3. Terá links diretos para os painéis de configuração do Figma e Supabase
+4. Administradores poderão diagnosticar rapidamente a causa raiz
 
