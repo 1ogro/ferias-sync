@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import { Loader2, CheckCircle2, XCircle, AlertTriangle, ExternalLink, Figma } from 'lucide-react';
+import { Loader2, CheckCircle2, XCircle, AlertTriangle, ExternalLink, Figma, Stethoscope } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -223,13 +223,21 @@ export default function FigmaCallback() {
                 </Alert>
               )}
               
-              <Button
-                onClick={() => navigate('/auth')}
-                className="w-full"
-                variant="outline"
-              >
-                Voltar para Login
-              </Button>
+              <div className="flex flex-col gap-2">
+                <Button asChild variant="default" className="w-full">
+                  <Link to="/figma-diagnostic">
+                    <Stethoscope className="h-4 w-4 mr-2" />
+                    Executar Diagnóstico Completo
+                  </Link>
+                </Button>
+                <Button
+                  onClick={() => navigate('/auth')}
+                  className="w-full"
+                  variant="outline"
+                >
+                  Voltar para Login
+                </Button>
+              </div>
             </div>
           )}
         </CardContent>
