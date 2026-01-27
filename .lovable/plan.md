@@ -1,236 +1,177 @@
 
 
-## Plano: Melhorar Mensagem de Erro do Login com Figma
+## Plano: Adicionar Link para Página de Diagnóstico no Card do Figma
 
 ### Objetivo
-Adicionar mensagens de erro mais detalhadas quando o login com Figma falhar, especificamente para erros relacionados à configuração de redirect URI, ajudando os usuários a diagnosticar e corrigir o problema.
+Adicionar um botão/link para a página de diagnóstico de configuração do Figma OAuth (`/figma-diagnostic`) diretamente no card de integração do Figma na página de configurações (`/settings`).
 
 ---
 
-### Análise do Problema
+### Abordagem
 
-O erro "Invalid redirect uri" ocorre quando há inconsistência entre três locais de configuração:
+Existem duas formas de implementar:
 
-1. **Figma OAuth App** - O redirect URI configurado no Figma
-2. **Supabase Auth Provider** - O redirect URI no painel do Supabase
-3. **Aplicação** - A URL de callback usada no código (`/auth/callback/figma`)
+**Opção A - Modificar apenas Settings.tsx** (Recomendada)
+Adicionar um terceiro botão específico para o Figma diretamente no Settings.tsx, sem modificar o componente genérico IntegrationCard.
 
-O fluxo correto requer:
-```text
-┌─────────────────────────────────────────────────────────────────────┐
-│                          FLUXO OAUTH FIGMA                          │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                     │
-│  1. App chama signInWithFigma()                                     │
-│     ↓                                                               │
-│  2. Supabase redireciona para Figma com redirect_uri                │
-│     (Supabase Callback: .../auth/v1/callback)                       │
-│     ↓                                                               │
-│  3. Figma valida se redirect_uri está no OAuth App                  │
-│     ❌ Se não bater → "Invalid redirect uri"                        │
-│     ↓                                                               │
-│  4. Figma retorna para Supabase                                     │
-│     ↓                                                               │
-│  5. Supabase redireciona para app (redirectTo do código)            │
-│     (/auth/callback/figma)                                          │
-│                                                                     │
-└─────────────────────────────────────────────────────────────────────┘
-```
+**Opção B - Modificar IntegrationCard**
+Adicionar uma prop opcional para link extra em qualquer integration card.
+
+Vou seguir a **Opção A** por ser mais simples e focada no caso do Figma, que é o único que tem página de diagnóstico.
 
 ---
 
-### Arquivos a Modificar
+### Alterações Necessárias
 
-| Arquivo | Alteração |
-|---------|-----------|
-| `src/pages/FigmaCallback.tsx` | Adicionar detecção e tratamento específico para erros de redirect URI |
-| `src/pages/Auth.tsx` | Melhorar mensagem de erro no `handleFigmaLogin` |
+**Arquivo:** `src/pages/Settings.tsx`
 
 ---
 
-### 1. Melhorar FigmaCallback.tsx
+### 1. Adicionar Import do Ícone
 
-**Alterações:**
-- Detectar erros específicos como "invalid_redirect_uri", "redirect_uri_mismatch"
-- Mostrar mensagem expandida com instruções de correção
-- Incluir links para configuração no Supabase e Figma
-
-**Código:**
+Adicionar `Stethoscope` aos imports do lucide-react:
 
 ```tsx
-// Adicionar helper para detectar tipo de erro
-const getFigmaErrorDetails = (errorCode: string, errorDescription: string) => {
-  const lowerError = (errorCode + errorDescription).toLowerCase();
-  
-  if (lowerError.includes('redirect') && (lowerError.includes('invalid') || lowerError.includes('mismatch'))) {
-    return {
-      title: 'Erro de Configuração de Redirect URI',
-      description: 'O URI de redirecionamento configurado não corresponde ao esperado pelo Figma.',
-      isRedirectError: true,
-      steps: [
-        'Verifique o Redirect URI no Figma OAuth App (Account Settings → OAuth apps)',
-        'O valor deve ser exatamente: https://uhphxyhffpbnmsrlggbe.supabase.co/auth/v1/callback',
-        'Verifique também as configurações do provider Figma no Supabase Dashboard',
-        'Certifique-se de que as URLs de redirect no Supabase incluem este domínio'
-      ],
-      links: {
-        figma: 'https://www.figma.com/settings',
-        supabase: 'https://supabase.com/dashboard/project/uhphxyhffpbnmsrlggbe/auth/providers'
-      }
-    };
-  }
-  
-  if (lowerError.includes('client_id') || lowerError.includes("doesn't exist")) {
-    return {
-      title: 'Erro de Client ID',
-      description: 'O Client ID configurado não foi encontrado no Figma.',
-      isRedirectError: false,
-      steps: [
-        'Verifique se o Client ID está correto no Supabase Dashboard',
-        'Compare com o Client ID do seu OAuth app no Figma'
-      ],
-      links: {
-        figma: 'https://www.figma.com/settings',
-        supabase: 'https://supabase.com/dashboard/project/uhphxyhffpbnmsrlggbe/auth/providers'
-      }
-    };
-  }
-  
-  return null;
-};
-```
-
-**UI Expandida para Erros de Redirect:**
-
-```tsx
-{status === 'error' && (
-  <div className="space-y-4">
-    <Alert variant="destructive">
-      <XCircle className="h-4 w-4" />
-      <AlertTitle>Erro na Autenticação</AlertTitle>
-      <AlertDescription>{errorMessage}</AlertDescription>
-    </Alert>
-    
-    {errorDetails?.isRedirectError && (
-      <Alert className="border-amber-500/50 bg-amber-500/10">
-        <AlertTriangle className="h-4 w-4 text-amber-500" />
-        <AlertTitle className="text-amber-600">{errorDetails.title}</AlertTitle>
-        <AlertDescription className="space-y-3">
-          <p>{errorDetails.description}</p>
-          
-          <div className="mt-2">
-            <p className="font-medium text-sm mb-1">Como corrigir:</p>
-            <ol className="list-decimal list-inside text-xs space-y-1">
-              {errorDetails.steps.map((step, i) => (
-                <li key={i}>{step}</li>
-              ))}
-            </ol>
-          </div>
-          
-          <div className="flex gap-2 mt-3">
-            <a 
-              href={errorDetails.links.figma}
-              target="_blank"
-              className="text-xs text-primary hover:underline flex items-center gap-1"
-            >
-              <Figma className="h-3 w-3" />
-              Configurações Figma
-            </a>
-            <a 
-              href={errorDetails.links.supabase}
-              target="_blank"
-              className="text-xs text-primary hover:underline flex items-center gap-1"
-            >
-              <ExternalLink className="h-3 w-3" />
-              Supabase Providers
-            </a>
-          </div>
-        </AlertDescription>
-      </Alert>
-    )}
-    
-    <Button onClick={() => navigate('/auth')} className="w-full" variant="outline">
-      Voltar para Login
-    </Button>
-  </div>
-)}
+import { Monitor, Bell, Table, RotateCcw, Save, Plug, Mail, Figma, Stethoscope } from "lucide-react";
 ```
 
 ---
 
-### 2. Melhorar Auth.tsx
+### 2. Adicionar Import do Link
 
-**Alterações no `handleFigmaLogin`:**
+Adicionar `Link` do react-router-dom:
 
 ```tsx
-const handleFigmaLogin = async () => {
-  setLoading(true);
-  try {
-    const { error } = await signInWithFigma();
-    
-    if (error) {
-      // Detectar erros de configuração
-      const errorMsg = error.message?.toLowerCase() || '';
-      
-      let description = error.message;
-      
-      if (errorMsg.includes('redirect') || errorMsg.includes('uri')) {
-        description = 'Erro de configuração de Redirect URI. Verifique se o URI configurado no Figma OAuth App corresponde ao esperado pelo Supabase.';
-      } else if (errorMsg.includes('client_id') || errorMsg.includes("doesn't exist")) {
-        description = 'Client ID inválido ou não encontrado. Verifique as configurações do OAuth app no Figma.';
-      } else if (errorMsg.includes('provider') || errorMsg.includes('not enabled')) {
-        description = 'O provider Figma não está habilitado. Configure-o no Supabase Dashboard em Authentication → Providers.';
-      }
-      
-      toast({
-        title: 'Erro no login com Figma',
-        description,
-        variant: 'destructive',
-      });
-    }
-  } catch (error) {
-    toast({
-      title: 'Erro no login com Figma',
-      description: 'Ocorreu um erro inesperado. Tente novamente.',
-      variant: 'destructive',
-    });
-  } finally {
-    setLoading(false);
-  }
-};
+import { Link } from "react-router-dom";
 ```
 
 ---
 
-### 3. Informação Técnica para Administradores
+### 3. Substituir IntegrationCard do Figma por Card Customizado
 
-**Adicionar seção informativa no FigmaCallback quando houver erro:**
+Substituir o `<IntegrationCard>` do Figma (linhas ~424-437) por uma versão expandida que inclua o botão de diagnóstico:
+
+```tsx
+{/* Figma OAuth - Card customizado com link para diagnóstico */}
+<Card>
+  <CardHeader>
+    <div className="flex items-start justify-between">
+      <div className="flex items-center gap-3">
+        <div className="text-primary">
+          <Figma className="w-6 h-6" />
+        </div>
+        <div>
+          <CardTitle>Figma OAuth</CardTitle>
+          <CardDescription className="mt-1">
+            Configure autenticação via Figma para login no sistema
+          </CardDescription>
+        </div>
+      </div>
+      {/* Status Badge */}
+      {integrationSettings?.figma_status === 'not_configured' && (
+        <Badge variant="outline">Não configurado</Badge>
+      )}
+      {integrationSettings?.figma_status === 'configured' && (
+        <Badge variant="secondary">Configurado</Badge>
+      )}
+      {integrationSettings?.figma_status === 'active' && (
+        <Badge className="bg-green-600">Ativo</Badge>
+      )}
+      {integrationSettings?.figma_status === 'error' && (
+        <Badge variant="destructive">Erro</Badge>
+      )}
+      {!integrationSettings?.figma_status && (
+        <Badge variant="outline">Não configurado</Badge>
+      )}
+    </div>
+  </CardHeader>
+  <CardContent>
+    <div className="space-y-4">
+      {integrationSettings?.figma_error_message && (
+        <div className="text-sm text-destructive bg-destructive/10 p-3 rounded-md">
+          <strong>Erro:</strong> {integrationSettings.figma_error_message}
+        </div>
+      )}
+
+      {integrationSettings?.figma_test_date && (
+        <div className="text-sm text-muted-foreground">
+          Último teste: {new Date(integrationSettings.figma_test_date).toLocaleString('pt-BR')}
+        </div>
+      )}
+
+      <div className="flex gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            setWizardType('figma');
+            setWizardOpen(true);
+          }}
+          className="flex-1"
+        >
+          <Settings className="w-4 h-4 mr-2" />
+          Configurar
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => testFigma()}
+          disabled={!integrationSettings?.figma_status || integrationSettings.figma_status === 'not_configured' || isTestingFigma}
+          className="flex-1"
+        >
+          <TestTube className="w-4 h-4 mr-2" />
+          {isTestingFigma ? 'Testando...' : 'Testar'}
+        </Button>
+      </div>
+      
+      {/* Novo: Botão de Diagnóstico */}
+      <Button
+        variant="ghost"
+        size="sm"
+        asChild
+        className="w-full text-muted-foreground hover:text-foreground"
+      >
+        <Link to="/figma-diagnostic">
+          <Stethoscope className="w-4 h-4 mr-2" />
+          Executar Diagnóstico Completo
+        </Link>
+      </Button>
+    </div>
+  </CardContent>
+</Card>
+```
+
+---
+
+### Resultado Visual
 
 ```text
-┌──────────────────────────────────────────────────────────────────┐
-│  ⚠️ Erro de Configuração de Redirect URI                         │
-├──────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│  O URI de redirecionamento configurado não corresponde           │
-│  ao esperado pelo Figma.                                         │
-│                                                                  │
-│  📋 Como corrigir:                                               │
-│                                                                  │
-│  1. No Figma OAuth App, configure o Redirect URI como:           │
-│     ┌────────────────────────────────────────────────────────┐   │
-│     │ https://uhphxyhffpbnmsrlggbe.supabase.co/auth/v1/callback │ │
-│     └────────────────────────────────────────────────────────┘   │
-│                                                                  │
-│  2. No Supabase Dashboard → Authentication → URL Configuration: │
-│     Adicione as seguintes URLs de redirect:                      │
-│     • https://ferias-sync.lovable.app/auth/callback/figma        │
-│     • https://*--*.lovable.app/auth/callback/figma (preview)     │
-│                                                                  │
-│  🔗 [Configurações Figma]  [Supabase Providers]                  │
-│                                                                  │
-│  [Voltar para Login]                                             │
-└──────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────┐
+│  🎨 Figma OAuth                      [Configurado]  │
+│  Configure autenticação via Figma para login...     │
+├─────────────────────────────────────────────────────┤
+│                                                     │
+│  Último teste: 27/01/2026, 10:30:00                 │
+│                                                     │
+│  ┌──────────────────┐  ┌──────────────────┐         │
+│  │ ⚙️ Configurar    │  │ 🧪 Testar        │         │
+│  └──────────────────┘  └──────────────────┘         │
+│                                                     │
+│  ┌─────────────────────────────────────────────┐    │
+│  │ 🩺 Executar Diagnóstico Completo            │    │
+│  └─────────────────────────────────────────────┘    │
+│                                                     │
+└─────────────────────────────────────────────────────┘
 ```
+
+---
+
+### Imports Necessários (Adicionais)
+
+Adicionar ao arquivo Settings.tsx:
+- `Settings as SettingsIcon` (para evitar conflito com nome da página)
+- `TestTube` do lucide-react
+- `Link` do react-router-dom
 
 ---
 
@@ -238,15 +179,7 @@ const handleFigmaLogin = async () => {
 
 | Arquivo | Linha | Alteração |
 |---------|-------|-----------|
-| `src/pages/FigmaCallback.tsx` | Novo código | Adicionar helper `getFigmaErrorDetails()` |
-| `src/pages/FigmaCallback.tsx` | ~90-105 | Expandir seção de erro com detalhes e instruções |
-| `src/pages/Auth.tsx` | ~169-190 | Melhorar detecção e mensagens em `handleFigmaLogin` |
-
-### Resultado Esperado
-
-Quando um usuário enfrentar o erro "Invalid redirect uri":
-1. Verá uma mensagem clara explicando que é um problema de configuração
-2. Receberá passos específicos para corrigir o problema
-3. Terá links diretos para os painéis de configuração do Figma e Supabase
-4. Administradores poderão diagnosticar rapidamente a causa raiz
+| `src/pages/Settings.tsx` | ~17 | Adicionar import de `Stethoscope`, `TestTube` |
+| `src/pages/Settings.tsx` | Top | Adicionar import de `Link` do react-router-dom |
+| `src/pages/Settings.tsx` | ~424-437 | Substituir IntegrationCard do Figma por Card customizado com botão de diagnóstico |
 
