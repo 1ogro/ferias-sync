@@ -28,6 +28,7 @@ const VacationManagement = lazy(() => import("./pages/VacationManagement"));
 const HistoricalRequests = lazy(() => import("./pages/HistoricalRequests"));
 const Settings = lazy(() => import("./pages/Settings"));
 const FigmaCallback = lazy(() => import("./pages/FigmaCallback"));
+const FigmaDiagnostic = lazy(() => import("./pages/FigmaDiagnostic"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient();
@@ -75,6 +76,11 @@ const App = () => (
             <Route path="/auth/callback/figma" element={
               <Suspense fallback={<PageLoader />}>
                 <FigmaCallback />
+              </Suspense>
+            } />
+            <Route path="/figma-diagnostic" element={
+              <Suspense fallback={<PageLoader />}>
+                <FigmaDiagnostic />
               </Suspense>
             } />
             <Route path="/setup-profile" element={<SetupProfile />} />
