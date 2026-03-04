@@ -260,6 +260,7 @@ export type Database = {
           created_by: string
           data_contrato: string | null
           data_nascimento: string | null
+          dia_pagamento: number | null
           director_notes: string | null
           email: string
           gestor_id: string
@@ -280,6 +281,7 @@ export type Database = {
           created_by: string
           data_contrato?: string | null
           data_nascimento?: string | null
+          dia_pagamento?: number | null
           director_notes?: string | null
           email: string
           gestor_id: string
@@ -300,6 +302,7 @@ export type Database = {
           created_by?: string
           data_contrato?: string | null
           data_nascimento?: string | null
+          dia_pagamento?: number | null
           director_notes?: string | null
           email?: string
           gestor_id?: string
@@ -323,6 +326,7 @@ export type Database = {
           created_at: string | null
           data_contrato: string | null
           data_nascimento: string | null
+          dia_pagamento: number | null
           email: string
           gestor_direto_email: string | null
           gestor_id: string | null
@@ -342,6 +346,7 @@ export type Database = {
           created_at?: string | null
           data_contrato?: string | null
           data_nascimento?: string | null
+          dia_pagamento?: number | null
           email: string
           gestor_direto_email?: string | null
           gestor_id?: string | null
@@ -361,6 +366,7 @@ export type Database = {
           created_at?: string | null
           data_contrato?: string | null
           data_nascimento?: string | null
+          dia_pagamento?: number | null
           email?: string
           gestor_direto_email?: string | null
           gestor_id?: string | null
@@ -671,23 +677,42 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      approve_pending_person: {
-        Args: {
-          p_cargo?: string
-          p_data_contrato?: string
-          p_data_nascimento?: string
-          p_director_notes?: string
-          p_email?: string
-          p_gestor_id?: string
-          p_local?: string
-          p_modelo_contrato?: string
-          p_nome?: string
-          p_pending_id: string
-          p_reviewer_id: string
-          p_sub_time?: string
-        }
-        Returns: Json
-      }
+      approve_pending_person:
+        | {
+            Args: {
+              p_cargo?: string
+              p_data_contrato?: string
+              p_data_nascimento?: string
+              p_director_notes?: string
+              p_email?: string
+              p_gestor_id?: string
+              p_local?: string
+              p_modelo_contrato?: string
+              p_nome?: string
+              p_pending_id: string
+              p_reviewer_id: string
+              p_sub_time?: string
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_cargo?: string
+              p_data_contrato?: string
+              p_data_nascimento?: string
+              p_dia_pagamento?: number
+              p_director_notes?: string
+              p_email?: string
+              p_gestor_id?: string
+              p_local?: string
+              p_modelo_contrato?: string
+              p_nome?: string
+              p_pending_id: string
+              p_reviewer_id: string
+              p_sub_time?: string
+            }
+            Returns: Json
+          }
       get_active_people_for_signup: {
         Args: never
         Returns: {

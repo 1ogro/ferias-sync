@@ -23,6 +23,7 @@ interface FormData {
   data_contrato: string;
   data_nascimento: string;
   modelo_contrato: ModeloContrato;
+  dia_pagamento: string;
 }
 
 interface FormErrors {
@@ -47,6 +48,7 @@ export function NewCollaboratorForm({ onSuccess, onCancel }: NewCollaboratorForm
     data_contrato: "",
     data_nascimento: "",
     modelo_contrato: ModeloContrato.CLT,
+    dia_pagamento: "",
   });
 
   const validate = (): boolean => {
@@ -103,6 +105,7 @@ export function NewCollaboratorForm({ onSuccess, onCancel }: NewCollaboratorForm
         data_contrato: formData.data_contrato || null,
         data_nascimento: formData.data_nascimento || null,
         modelo_contrato: formData.modelo_contrato,
+        dia_pagamento: formData.modelo_contrato === ModeloContrato.PJ && formData.dia_pagamento ? parseInt(formData.dia_pagamento) : null,
         created_by: person.id,
         status: "PENDENTE",
       });
@@ -193,7 +196,7 @@ export function NewCollaboratorForm({ onSuccess, onCancel }: NewCollaboratorForm
         <Label htmlFor="modelo_contrato">Modelo de Contrato</Label>
         <Select
           value={formData.modelo_contrato}
-          onValueChange={(value) => setFormData({ ...formData, modelo_contrato: value as ModeloContrato })}
+          onValueChange={(value) => setFormData({ ...formData, modelo_contrato: value as ModeloContrato, dia_pagamento: value !== ModeloContrato.PJ ? "" : formData.dia_pagamento })}
           disabled={loading}
         >
           <SelectTrigger>
@@ -208,6 +211,27 @@ export function NewCollaboratorForm({ onSuccess, onCancel }: NewCollaboratorForm
           </SelectContent>
         </Select>
       </div>
+
+      {formData.modelo_contrato === ModeloContrato.PJ && (
+        <div className="space-y-2">
+          <Label htmlFor="dia_pagamento">Dia de Pagamento</Label>
+          <Select
+            value={formData.dia_pagamento || "none"}
+            onValueChange={(value) => setFormData({ ...formData, dia_pagamento: value === "none" ? "" : value })}
+            disabled={loading}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Selecionar dia" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">Não definido</SelectItem>
+              <SelectItem value="10">Dia 10</SelectItem>
+              <SelectItem value="20">Dia 20</SelectItem>
+              <SelectItem value="30">Dia 30</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      )}
 
       <div className="space-y-2">
         <Label htmlFor="data_contrato">Data de Contrato</Label>

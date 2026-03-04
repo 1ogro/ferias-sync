@@ -41,6 +41,7 @@ export function ApprovePendingCollaboratorDialog({
     data_contrato: pending.data_contrato || "",
     data_nascimento: pending.data_nascimento || "",
     modelo_contrato: pending.modelo_contrato || ModeloContrato.CLT,
+    dia_pagamento: pending.dia_pagamento?.toString() || "",
   });
 
   useEffect(() => {
@@ -78,6 +79,7 @@ export function ApprovePendingCollaboratorDialog({
         p_data_contrato: formData.data_contrato !== pending.data_contrato ? formData.data_contrato : null,
         p_data_nascimento: formData.data_nascimento !== pending.data_nascimento ? formData.data_nascimento : null,
         p_modelo_contrato: formData.modelo_contrato !== pending.modelo_contrato ? formData.modelo_contrato : null,
+        p_dia_pagamento: formData.dia_pagamento ? parseInt(formData.dia_pagamento) : null,
       });
 
       if (error) throw error;
@@ -207,7 +209,7 @@ export function ApprovePendingCollaboratorDialog({
                 <Label htmlFor="modelo_contrato">Modelo de Contrato</Label>
                 <Select
                   value={formData.modelo_contrato}
-                  onValueChange={(value) => setFormData({ ...formData, modelo_contrato: value as ModeloContrato })}
+                  onValueChange={(value) => setFormData({ ...formData, modelo_contrato: value as ModeloContrato, dia_pagamento: value !== 'PJ' ? '' : formData.dia_pagamento })}
                   disabled={loading}
                 >
                   <SelectTrigger>
@@ -222,6 +224,27 @@ export function ApprovePendingCollaboratorDialog({
                   </SelectContent>
                 </Select>
               </div>
+
+              {formData.modelo_contrato === 'PJ' && (
+                <div className="space-y-2">
+                  <Label htmlFor="dia_pagamento">Dia de Pagamento</Label>
+                  <Select
+                    value={formData.dia_pagamento || "none"}
+                    onValueChange={(value) => setFormData({ ...formData, dia_pagamento: value === "none" ? "" : value })}
+                    disabled={loading}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecionar dia" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Não definido</SelectItem>
+                      <SelectItem value="10">Dia 10</SelectItem>
+                      <SelectItem value="20">Dia 20</SelectItem>
+                      <SelectItem value="30">Dia 30</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
 
               <div className="space-y-2">
                 <Label htmlFor="data_contrato">Data de Contrato</Label>
