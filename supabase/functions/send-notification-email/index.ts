@@ -9,10 +9,10 @@ const corsHeaders = {
 };
 
 interface NotificationRequest {
-  type: 'NEW_REQUEST' | 'APPROVAL_MANAGER' | 'APPROVAL_FINAL' | 'REJECTION' | 'REQUEST_INFO';
+  type: 'NEW_REQUEST' | 'APPROVAL_MANAGER' | 'APPROVAL_FINAL' | 'REJECTION' | 'REQUEST_INFO' | 'PAYMENT_DAY_CHANGE_REQUEST';
   to: string;
   requesterName: string;
-  requestType: string;
+  requestType?: string;
   startDate?: string;
   endDate?: string;
   approverName?: string;
@@ -22,6 +22,8 @@ interface NotificationRequest {
   hasExtension?: boolean;
   extensionDays?: number;
   extensionJustification?: string;
+  currentPaymentDay?: number;
+  desiredPaymentDay?: number;
 }
 
 const handler = async (req: Request): Promise<Response> => {
@@ -65,7 +67,7 @@ function generateEmailContent(notification: NotificationRequest): { subject: str
     LICENCA_MATERNIDADE: "Licença Maternidade",
   };
 
-  const requestTypeLabel = typeLabels[notification.requestType] || notification.requestType;
+  const requestTypeLabel = typeLabels[notification.requestType || ''] || notification.requestType || '';
   const dateRange = notification.startDate && notification.endDate
     ? `${notification.startDate} até ${notification.endDate}`
     : "";
@@ -178,6 +180,25 @@ function generateEmailContent(notification: NotificationRequest): { subject: str
               Responder
             </a>
             <br/><br/>
+            <p style="color: #666; font-size: 12px;">Este é um email automático, por favor não responda.</p>
+          </div>
+        `,
+      };
+
+    case 'PAYMENT_DAY_CHANGE_REQUEST':
+      return {
+        subject: `Solicitação de alteração de dia de pagamento - ${notification.requesterName}`,
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2 style="color: #2563eb;">💰 Solicitação de Alteração de Dia de Pagamento</h2>
+            <p>Olá,</p>
+            <p>O colaborador <strong>${notification.requesterName}</strong> solicita a alteração do dia de pagamento:</p>
+            <div style="background-color: #f0f9ff; padding: 15px; border-left: 3px solid #2563eb; margin: 15px 0;">
+              <p style="margin: 5px 0;"><strong>Dia atual:</strong> ${notification.currentPaymentDay || 'Não definido'}</p>
+              <p style="margin: 5px 0;"><strong>Dia desejado:</strong> ${notification.desiredPaymentDay}</p>
+            </div>
+            <p>Acesse o painel administrativo para realizar a alteração, se aprovada.</p>
+            <br/>
             <p style="color: #666; font-size: 12px;">Este é um email automático, por favor não responda.</p>
           </div>
         `,

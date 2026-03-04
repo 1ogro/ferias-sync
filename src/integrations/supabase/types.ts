@@ -757,10 +757,12 @@ export type Database = {
         }
         Returns: Json
       }
-      set_contract_data_for_current_user: {
-        Args: { p_date: string; p_model: string }
-        Returns: undefined
-      }
+      set_contract_data_for_current_user:
+        | { Args: { p_date: string; p_model: string }; Returns: undefined }
+        | {
+            Args: { p_date: string; p_dia_pagamento?: number; p_model: string }
+            Returns: undefined
+          }
       update_profile_for_current_user: {
         Args: { p_data_nascimento: string; p_email: string; p_nome: string }
         Returns: undefined
