@@ -56,6 +56,7 @@ export interface Person {
   data_contrato?: string; // Data de contrato para cálculo de férias
   modelo_contrato?: ModeloContrato; // Modelo de contrato: PJ ou CLT
   maternity_extension_days?: number; // Extension days beyond 120 for maternity leave
+  dia_pagamento?: number; // Dia do mês para pagamento PJ (10, 20 ou 30)
 }
 
 export interface Request {
@@ -175,6 +176,7 @@ export interface PendingPerson {
   data_contrato?: string;
   data_nascimento?: string;
   modelo_contrato?: ModeloContrato;
+  dia_pagamento?: number;
   status: 'PENDENTE' | 'APROVADO' | 'REJEITADO';
   created_by: string;
   creator?: Person;

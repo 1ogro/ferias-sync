@@ -86,6 +86,8 @@ interface FormData {
   ativo: boolean;
   gestorId: string;
   data_contrato: string;
+  modelo_contrato: string;
+  dia_pagamento: string;
 }
 
 interface FilterState {
@@ -120,7 +122,9 @@ const Admin = () => {
      is_admin: false,
      ativo: true,
      gestorId: '',
-     data_contrato: ''
+     data_contrato: '',
+     modelo_contrato: '',
+     dia_pagamento: ''
    });
 
   const [filters, setFilters] = useState<FilterState>({
@@ -211,7 +215,8 @@ const Admin = () => {
         papel: person.papel as Papel,
         gestorId: person.gestor_id,
         subTime: person.sub_time,
-        modelo_contrato: person.modelo_contrato as any
+        modelo_contrato: person.modelo_contrato as any,
+        dia_pagamento: person.dia_pagamento
       })));
     } catch (error) {
       console.error('Erro ao buscar pessoas:', error);
@@ -241,7 +246,9 @@ const Admin = () => {
         is_admin: formData.is_admin,
         ativo: formData.ativo,
         gestor_id: formData.gestorId || null,
-        data_contrato: formData.data_contrato || null
+        data_contrato: formData.data_contrato || null,
+        modelo_contrato: formData.modelo_contrato || null,
+        dia_pagamento: formData.dia_pagamento ? parseInt(formData.dia_pagamento) : null
       };
 
       // Only allow editing existing users
@@ -283,7 +290,9 @@ const Admin = () => {
        is_admin: person.is_admin,
        ativo: person.ativo,
        gestorId: person.gestorId || '',
-       data_contrato: person.data_contrato || ''
+       data_contrato: person.data_contrato || '',
+       modelo_contrato: person.modelo_contrato || '',
+       dia_pagamento: person.dia_pagamento?.toString() || ''
      });
     setIsDialogOpen(true);
   };
@@ -326,7 +335,9 @@ const Admin = () => {
       is_admin: false,
       ativo: true,
       gestorId: '',
-      data_contrato: ''
+      data_contrato: '',
+      modelo_contrato: '',
+      dia_pagamento: ''
     });
     setIsDialogOpen(false);
   };
@@ -625,6 +636,7 @@ const Admin = () => {
                    <SortableHeader field="nome">Nome</SortableHeader>
                    <SortableHeader field="email">Email</SortableHeader>
                    {!isCompactView && <SortableHeader field="cargo">Cargo</SortableHeader>}
+                   {!isCompactView && <TableHead>Contrato</TableHead>}
                    {!isCompactView && <SortableHeader field="local">Local</SortableHeader>}
                    <SortableHeader field="papel">Papel</SortableHeader>
                    <SortableHeader field="is_admin">Admin</SortableHeader>
@@ -638,6 +650,12 @@ const Admin = () => {
                      <TableCell className="font-medium">{targetPerson.nome}</TableCell>
                      <TableCell className={isCompactView ? "text-xs" : ""}>{targetPerson.email}</TableCell>
                      {!isCompactView && <TableCell>{targetPerson.cargo || '-'}</TableCell>}
+                     {!isCompactView && <TableCell>
+                       {targetPerson.modelo_contrato || '-'}
+                       {targetPerson.modelo_contrato === 'PJ' && targetPerson.dia_pagamento && (
+                         <Badge variant="outline" className="ml-1 text-xs">dia {targetPerson.dia_pagamento}</Badge>
+                       )}
+                     </TableCell>}
                      {!isCompactView && <TableCell>{targetPerson.local || '-'}</TableCell>}
                      <TableCell>
                        <Badge className={getPapelColor(targetPerson.papel)}>
@@ -854,6 +872,45 @@ const Admin = () => {
                   </SelectContent>
                 </Select>
               </div>
+
+              <div>
+                <Label htmlFor="modelo_contrato">Modelo de Contrato</Label>
+                <Select 
+                  value={formData.modelo_contrato || "none"} 
+                  onValueChange={(value) => setFormData({ ...formData, modelo_contrato: value === "none" ? "" : value, dia_pagamento: value !== 'PJ' ? '' : formData.dia_pagamento })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecionar contrato" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Não definido</SelectItem>
+                    <SelectItem value="PJ">PJ</SelectItem>
+                    <SelectItem value="CLT">CLT</SelectItem>
+                    <SelectItem value="CLT_ABONO_LIVRE">CLT com Abono Livre</SelectItem>
+                    <SelectItem value="CLT_ABONO_FIXO">CLT com Abono Fixo</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {formData.modelo_contrato === 'PJ' && (
+                <div>
+                  <Label htmlFor="dia_pagamento">Dia de Pagamento</Label>
+                  <Select 
+                    value={formData.dia_pagamento || "none"} 
+                    onValueChange={(value) => setFormData({ ...formData, dia_pagamento: value === "none" ? "" : value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecionar dia" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Não definido</SelectItem>
+                      <SelectItem value="10">Dia 10</SelectItem>
+                      <SelectItem value="20">Dia 20</SelectItem>
+                      <SelectItem value="30">Dia 30</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
 
               <div className="sm:col-span-2">
                 <Label htmlFor="gestorId">Gestor ID</Label>
