@@ -16,6 +16,7 @@ const ContractDateSetup = () => {
   const { person, fetchPersonData } = useAuth();
   const [contractDate, setContractDate] = useState("");
   const [modeloContrato, setModeloContrato] = useState<ModeloContrato>(ModeloContrato.CLT);
+  const [diaPagamento, setDiaPagamento] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
 
   const handleSaveContractDate = async () => {
@@ -30,10 +31,14 @@ const ContractDateSetup = () => {
 
     setLoading(true);
     try {
-      const { error } = await supabase.rpc('set_contract_data_for_current_user', {
+      const rpcParams: any = {
         p_date: contractDate,
-        p_model: modeloContrato
-      });
+        p_model: modeloContrato,
+      };
+      if (modeloContrato === ModeloContrato.PJ && diaPagamento) {
+        rpcParams.p_dia_pagamento = diaPagamento;
+      }
+      const { error } = await supabase.rpc('set_contract_data_for_current_user', rpcParams);
 
       if (error) throw error;
 
@@ -116,11 +121,30 @@ const ContractDateSetup = () => {
                 </SelectContent>
               </Select>
             </div>
+
+            {modeloContrato === ModeloContrato.PJ && (
+              <div className="space-y-2">
+                <Label htmlFor="diaPagamento">Dia de Pagamento Desejado *</Label>
+                <Select value={diaPagamento?.toString() || ""} onValueChange={(value) => setDiaPagamento(Number(value))}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o dia de pagamento" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="10">Dia 10</SelectItem>
+                    <SelectItem value="20">Dia 20</SelectItem>
+                    <SelectItem value="30">Dia 30</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-sm text-muted-foreground">
+                  Selecione o dia do mês em que deseja receber o pagamento
+                </p>
+              </div>
+            )}
           </div>
 
           <Button
             onClick={handleSaveContractDate}
-            disabled={loading || !contractDate}
+            disabled={loading || !contractDate || (modeloContrato === ModeloContrato.PJ && !diaPagamento)}
             className="w-full"
           >
             {loading ? (

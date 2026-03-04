@@ -3,9 +3,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { EnhancedCalendar } from "@/components/ui/enhanced-calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon } from "lucide-react";
+import { CalendarIcon, Send } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -30,6 +32,9 @@ export const ProfileModal = ({ open, onOpenChange }: ProfileModalProps) => {
     data_nascimento: undefined as Date | undefined,
   });
   const [birthdateInput, setBirthdateInput] = useState("");
+  const [showChangeRequest, setShowChangeRequest] = useState(false);
+  const [desiredPaymentDay, setDesiredPaymentDay] = useState<string>("");
+  const [isRequestingChange, setIsRequestingChange] = useState(false);
 
   useEffect(() => {
     if (person && open) {
@@ -40,15 +45,14 @@ export const ProfileModal = ({ open, onOpenChange }: ProfileModalProps) => {
         data_nascimento: birthDate,
       });
       setBirthdateInput(formatDateToBRString(birthDate));
+      setShowChangeRequest(false);
+      setDesiredPaymentDay("");
     }
   }, [person, open]);
 
-  // Handle text input changes with mask
   const handleBirthdateInputChange = (value: string) => {
     const maskedValue = applyDateMask(value);
     setBirthdateInput(maskedValue);
-    
-    // Try to parse and update date if valid
     if (maskedValue.length === 10) {
       const parsed = parseBRStringToDate(maskedValue);
       if (parsed) {
@@ -59,7 +63,6 @@ export const ProfileModal = ({ open, onOpenChange }: ProfileModalProps) => {
     }
   };
 
-  // Handle calendar selection
   const handleCalendarSelect = (date: Date | undefined) => {
     setFormData(prev => ({ ...prev, data_nascimento: date }));
     setBirthdateInput(formatDateToBRString(date));
@@ -68,35 +71,61 @@ export const ProfileModal = ({ open, onOpenChange }: ProfileModalProps) => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!person) return;
-
     setIsSubmitting(true);
-
     try {
       const { error } = await supabase.rpc('update_profile_for_current_user', {
         p_nome: formData.nome,
         p_email: formData.email,
         p_data_nascimento: formData.data_nascimento ? formatDateToYYYYMMDD(formData.data_nascimento) : null,
       });
-
       if (error) throw error;
-
-      toast({
-        title: "Perfil atualizado!",
-        description: "Suas informações foram salvas com sucesso.",
-      });
-
+      toast({ title: "Perfil atualizado!", description: "Suas informações foram salvas com sucesso." });
       onOpenChange(false);
-      
-      // Refresh the page to update the header info
       window.location.reload();
     } catch (error: any) {
-      toast({
-        title: "Erro",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast({ title: "Erro", description: error.message, variant: "destructive" });
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleRequestPaymentDayChange = async () => {
+    if (!person || !desiredPaymentDay) return;
+    setIsRequestingChange(true);
+    try {
+      const { data: directors, error: dirError } = await supabase
+        .from('people')
+        .select('email')
+        .eq('papel', 'DIRETOR')
+        .eq('ativo', true);
+
+      if (dirError) throw dirError;
+
+      if (!directors || directors.length === 0) {
+        toast({ title: "Erro", description: "Nenhum diretor encontrado para enviar a solicitação.", variant: "destructive" });
+        return;
+      }
+
+      // Send email to each director
+      for (const director of directors) {
+        await supabase.functions.invoke('send-notification-email', {
+          body: {
+            type: 'PAYMENT_DAY_CHANGE_REQUEST',
+            to: director.email,
+            requesterName: person.nome,
+            currentPaymentDay: person.dia_pagamento,
+            desiredPaymentDay: Number(desiredPaymentDay),
+          },
+        });
+      }
+
+      toast({ title: "Solicitação enviada!", description: "Os diretores foram notificados sobre sua solicitação de alteração." });
+      setShowChangeRequest(false);
+      setDesiredPaymentDay("");
+    } catch (error: any) {
+      toast({ title: "Erro", description: error.message || "Erro ao enviar solicitação.", variant: "destructive" });
+    } finally {
+      setIsRequestingChange(false);
     }
   };
 
@@ -106,6 +135,8 @@ export const ProfileModal = ({ open, onOpenChange }: ProfileModalProps) => {
     const birthday = new Date(formData.data_nascimento);
     return new Date(currentYear, birthday.getMonth(), birthday.getDate());
   };
+
+  const isPJ = person?.modelo_contrato === 'PJ';
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -156,11 +187,7 @@ export const ProfileModal = ({ open, onOpenChange }: ProfileModalProps) => {
               
               <Popover>
                 <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="shrink-0"
-                  >
+                  <Button variant="outline" size="icon" className="shrink-0">
                     <CalendarIcon className="h-4 w-4" />
                   </Button>
                 </PopoverTrigger>
@@ -184,12 +211,69 @@ export const ProfileModal = ({ open, onOpenChange }: ProfileModalProps) => {
             )}
           </div>
 
+          {isPJ && (
+            <div className="space-y-2">
+              <Label>Dia de Pagamento</Label>
+              <div className="flex items-center gap-2">
+                <Badge variant="secondary" className="text-sm">
+                  {person?.dia_pagamento ? `Dia ${person.dia_pagamento}` : 'Não definido'}
+                </Badge>
+                {!showChangeRequest && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowChangeRequest(true)}
+                    className="text-xs"
+                  >
+                    Solicitar alteração
+                  </Button>
+                )}
+              </div>
+              
+              {showChangeRequest && (
+                <div className="flex items-end gap-2 p-3 rounded-md border bg-muted/50">
+                  <div className="flex-1 space-y-1">
+                    <Label className="text-xs">Novo dia desejado</Label>
+                    <Select value={desiredPaymentDay} onValueChange={setDesiredPaymentDay}>
+                      <SelectTrigger className="h-8">
+                        <SelectValue placeholder="Selecione" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {[10, 20, 30]
+                          .filter(d => d !== person?.dia_pagamento)
+                          .map(d => (
+                            <SelectItem key={d} value={d.toString()}>Dia {d}</SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={!desiredPaymentDay || isRequestingChange}
+                    onClick={handleRequestPaymentDayChange}
+                    className="h-8"
+                  >
+                    <Send className="h-3 w-3 mr-1" />
+                    {isRequestingChange ? "Enviando..." : "Enviar"}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => { setShowChangeRequest(false); setDesiredPaymentDay(""); }}
+                    className="h-8"
+                  >
+                    Cancelar
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="flex justify-end gap-2 pt-4">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-            >
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancelar
             </Button>
             <Button type="submit" disabled={isSubmitting || !formData.nome || !formData.email}>
