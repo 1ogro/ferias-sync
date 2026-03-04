@@ -1,76 +1,50 @@
 
 
-## Plano: Adicionar Dia de Pagamento para Colaboradores PJ
+## Plano: Nova Tab "Resumo do Colaborador"
 
 ### Objetivo
-Adicionar um campo `dia_pagamento` à tabela `people` para controlar em qual data (10, 20 ou 30) cada colaborador PJ recebe o pagamento, baseado na data de emissão da nota fiscal.
+Criar uma nova tab na página de Gestão de RH que consolide informações pessoais e contratuais dos colaboradores: modelo de contrato, data de contrato, aniversário de contrato, data de aniversário do colaborador e dia de recebimento (PJ).
 
----
+### Abordagem
+Criar um componente separado `CollaboratorSummaryTable.tsx` e adicioná-lo como nova tab no `VacationManagement.tsx`.
 
 ### Alterações
 
-#### 1. Migração de Banco de Dados
-Adicionar coluna `dia_pagamento` à tabela `people`:
+#### 1. Novo componente: `src/components/CollaboratorSummaryTable.tsx`
 
-```sql
-ALTER TABLE public.people 
-ADD COLUMN dia_pagamento integer DEFAULT NULL;
+Tabela com as seguintes colunas:
+- **Nome** - nome do colaborador
+- **Modelo Contrato** - PJ, CLT, CLT Abono Livre, CLT Abono Fixo
+- **Data Contrato** - data de início do contrato
+- **Aniversário Contrato** - próximo aniversário (calculado a partir de `data_contrato`)
+- **Data Nascimento** - data de nascimento
+- **Próximo Aniversário** - próximo aniversário pessoal (calculado a partir de `data_nascimento`)
+- **Dia Pagamento** - dia de recebimento PJ (10, 20 ou 30), exibido apenas para PJ
 
-COMMENT ON COLUMN public.people.dia_pagamento IS 'Dia do mês para pagamento PJ (10, 20 ou 30)';
-```
+Funcionalidades:
+- Busca por nome/cargo/time
+- Filtros por time, modelo de contrato e dia de pagamento
+- Ordenação por todas as colunas
+- Exportar CSV
+- Highlight de aniversários próximos (próximos 30 dias)
+- Dados carregados da tabela `people` (já disponível via `allPeople` state ou query direta)
 
-#### 2. Atualizar Tipos (`src/lib/types.ts`)
-- Adicionar `dia_pagamento?: number` à interface `Person`
-- Adicionar `dia_pagamento?: number` à interface `PendingPerson`
+#### 2. Modificar `src/pages/VacationManagement.tsx`
 
-#### 3. Atualizar Formulário de Edição no Admin (`src/pages/Admin.tsx`)
-- Adicionar campo `dia_pagamento` ao `formData`
-- Exibir select com opções 10, 20 ou 30 **condicionalmente** quando `modelo_contrato === 'PJ'`
-- Incluir `dia_pagamento` no `handleSubmit` e `handleEdit`
-- Exibir dia de pagamento na tabela de pessoas (coluna condicional ou badge)
+- Adicionar `'summary'` ao array `tabValues`
+- Adicionar nova `TabsTrigger` "Resumo do Colaborador" nas versões mobile e desktop
+- Ajustar grid de `grid-cols-6` para `grid-cols-7`
+- Adicionar `case 'summary'` no `renderTabContent`
+- Importar o novo componente
 
-#### 4. Atualizar Formulário de Novo Colaborador (`src/components/NewCollaboratorForm.tsx`)
-- Adicionar campo `dia_pagamento` ao formulário
-- Exibir select condicionalmente quando modelo de contrato for PJ
+#### 3. Busca de dados
 
-#### 5. Atualizar Formulário de Aprovação de Pendente (`src/components/ApprovePendingCollaboratorDialog.tsx`)
-- Adicionar campo `dia_pagamento` ao formulário de aprovação/edição
+O componente fará query direta ao Supabase (`people` table) buscando `nome, email, cargo, sub_time, modelo_contrato, data_contrato, data_nascimento, dia_pagamento, ativo` para colaboradores ativos. Os dados `data_nascimento` e `dia_pagamento` já existem na tabela.
 
-#### 6. Atualizar `pending_people` (migração)
-```sql
-ALTER TABLE public.pending_people 
-ADD COLUMN dia_pagamento integer DEFAULT NULL;
-```
-
-#### 7. Atualizar função `approve_pending_person`
-Adicionar parâmetro `p_dia_pagamento` para que o valor seja copiado ao aprovar um cadastro pendente.
-
----
-
-### UI do Campo
-
-O select aparece apenas quando o modelo de contrato é PJ:
-
-```text
-Modelo de Contrato: [PJ ▼]
-Dia de Pagamento:   [10 ▼]  ← Opções: 10, 20, 30
-```
-
-Na tabela do Admin, exibir como badge junto ao modelo de contrato:
-```text
-PJ (dia 10)
-```
-
----
-
-### Arquivos a Modificar
+### Arquivos
 
 | Arquivo | Alteração |
 |---------|-----------|
-| Migração SQL | Adicionar coluna `dia_pagamento` em `people` e `pending_people` |
-| `src/lib/types.ts` | Adicionar campo nas interfaces |
-| `src/pages/Admin.tsx` | Campo no formulário + exibição na tabela |
-| `src/components/NewCollaboratorForm.tsx` | Campo condicional no formulário |
-| `src/components/ApprovePendingCollaboratorDialog.tsx` | Campo no formulário de aprovação |
-| Função `approve_pending_person` | Novo parâmetro |
+| `src/components/CollaboratorSummaryTable.tsx` | Novo componente com tabela de resumo |
+| `src/pages/VacationManagement.tsx` | Adicionar tab + import do componente |
 
