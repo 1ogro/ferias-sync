@@ -16,6 +16,7 @@ import { ApprovedVacationsExecutiveView } from "@/components/ApprovedVacationsEx
 import { ActiveAbsencesDashboard } from "@/components/ActiveAbsencesDashboard";
 import { HistoricalRequestForm } from "@/components/HistoricalRequestForm";
 import { SheetsSync } from "@/components/SheetsSync";
+import { CollaboratorSummaryTable } from "@/components/CollaboratorSummaryTable";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -149,7 +150,7 @@ const VacationManagement = () => {
   const initialTab = searchParams.get('tab') || 'vacation';
 
   // Tab values mapping for swipe navigation
-  const tabValues = ['vacation', 'medical', 'active', 'dashboard', 'historical', 'sheets'];
+  const tabValues = ['vacation', 'summary', 'medical', 'active', 'dashboard', 'historical', 'sheets'];
   
   // Estado para controlar a tab ativa (modo controlado)
   const [activeTab, setActiveTab] = useState(initialTab);
@@ -1144,6 +1145,13 @@ const VacationManagement = () => {
           </div>
         );
       
+      case 'summary':
+        return (
+          <div className="space-y-6 mt-6">
+            <CollaboratorSummaryTable />
+          </div>
+        );
+
       case 'sheets':
         return (
           <div className="mt-6">
@@ -1174,6 +1182,7 @@ const VacationManagement = () => {
             <ScrollArea className="w-full whitespace-nowrap">
               <TabsList className="inline-flex w-max">
                 <TabsTrigger value="vacation">Saldos de Férias</TabsTrigger>
+                <TabsTrigger value="summary">Resumo do Colaborador</TabsTrigger>
                 <TabsTrigger value="medical">Licenças Médicas</TabsTrigger>
                 <TabsTrigger value="active">Ausências Ativas</TabsTrigger>
                 <TabsTrigger value="dashboard">Dashboard Executivo</TabsTrigger>
@@ -1189,8 +1198,9 @@ const VacationManagement = () => {
           
           {/* Desktop: Grid layout */}
           <div className="hidden lg:block">
-            <TabsList className="grid w-full grid-cols-6">
+            <TabsList className="grid w-full grid-cols-7">
               <TabsTrigger value="vacation">Saldos de Férias</TabsTrigger>
+              <TabsTrigger value="summary">Resumo</TabsTrigger>
               <TabsTrigger value="medical">Licenças Médicas</TabsTrigger>
               <TabsTrigger value="active">Ausências Ativas</TabsTrigger>
               <TabsTrigger value="dashboard">Dashboard Executivo</TabsTrigger>
@@ -1644,6 +1654,11 @@ const VacationManagement = () => {
               </div>
               <HistoricalRequestForm onSuccess={() => {}} />
             </div>
+          </TabsContent>
+
+          {/* Collaborator Summary Tab */}
+          <TabsContent value="summary" className="space-y-6 hidden lg:block">
+            <CollaboratorSummaryTable />
           </TabsContent>
 
           {/* Google Sheets Sync Tab */}
