@@ -1,185 +1,76 @@
 
 
-## Plano: Adicionar Link para Página de Diagnóstico no Card do Figma
+## Plano: Adicionar Dia de Pagamento para Colaboradores PJ
 
 ### Objetivo
-Adicionar um botão/link para a página de diagnóstico de configuração do Figma OAuth (`/figma-diagnostic`) diretamente no card de integração do Figma na página de configurações (`/settings`).
+Adicionar um campo `dia_pagamento` à tabela `people` para controlar em qual data (10, 20 ou 30) cada colaborador PJ recebe o pagamento, baseado na data de emissão da nota fiscal.
 
 ---
 
-### Abordagem
+### Alterações
 
-Existem duas formas de implementar:
+#### 1. Migração de Banco de Dados
+Adicionar coluna `dia_pagamento` à tabela `people`:
 
-**Opção A - Modificar apenas Settings.tsx** (Recomendada)
-Adicionar um terceiro botão específico para o Figma diretamente no Settings.tsx, sem modificar o componente genérico IntegrationCard.
+```sql
+ALTER TABLE public.people 
+ADD COLUMN dia_pagamento integer DEFAULT NULL;
 
-**Opção B - Modificar IntegrationCard**
-Adicionar uma prop opcional para link extra em qualquer integration card.
-
-Vou seguir a **Opção A** por ser mais simples e focada no caso do Figma, que é o único que tem página de diagnóstico.
-
----
-
-### Alterações Necessárias
-
-**Arquivo:** `src/pages/Settings.tsx`
-
----
-
-### 1. Adicionar Import do Ícone
-
-Adicionar `Stethoscope` aos imports do lucide-react:
-
-```tsx
-import { Monitor, Bell, Table, RotateCcw, Save, Plug, Mail, Figma, Stethoscope } from "lucide-react";
+COMMENT ON COLUMN public.people.dia_pagamento IS 'Dia do mês para pagamento PJ (10, 20 ou 30)';
 ```
 
----
+#### 2. Atualizar Tipos (`src/lib/types.ts`)
+- Adicionar `dia_pagamento?: number` à interface `Person`
+- Adicionar `dia_pagamento?: number` à interface `PendingPerson`
 
-### 2. Adicionar Import do Link
+#### 3. Atualizar Formulário de Edição no Admin (`src/pages/Admin.tsx`)
+- Adicionar campo `dia_pagamento` ao `formData`
+- Exibir select com opções 10, 20 ou 30 **condicionalmente** quando `modelo_contrato === 'PJ'`
+- Incluir `dia_pagamento` no `handleSubmit` e `handleEdit`
+- Exibir dia de pagamento na tabela de pessoas (coluna condicional ou badge)
 
-Adicionar `Link` do react-router-dom:
+#### 4. Atualizar Formulário de Novo Colaborador (`src/components/NewCollaboratorForm.tsx`)
+- Adicionar campo `dia_pagamento` ao formulário
+- Exibir select condicionalmente quando modelo de contrato for PJ
 
-```tsx
-import { Link } from "react-router-dom";
+#### 5. Atualizar Formulário de Aprovação de Pendente (`src/components/ApprovePendingCollaboratorDialog.tsx`)
+- Adicionar campo `dia_pagamento` ao formulário de aprovação/edição
+
+#### 6. Atualizar `pending_people` (migração)
+```sql
+ALTER TABLE public.pending_people 
+ADD COLUMN dia_pagamento integer DEFAULT NULL;
 ```
 
----
-
-### 3. Substituir IntegrationCard do Figma por Card Customizado
-
-Substituir o `<IntegrationCard>` do Figma (linhas ~424-437) por uma versão expandida que inclua o botão de diagnóstico:
-
-```tsx
-{/* Figma OAuth - Card customizado com link para diagnóstico */}
-<Card>
-  <CardHeader>
-    <div className="flex items-start justify-between">
-      <div className="flex items-center gap-3">
-        <div className="text-primary">
-          <Figma className="w-6 h-6" />
-        </div>
-        <div>
-          <CardTitle>Figma OAuth</CardTitle>
-          <CardDescription className="mt-1">
-            Configure autenticação via Figma para login no sistema
-          </CardDescription>
-        </div>
-      </div>
-      {/* Status Badge */}
-      {integrationSettings?.figma_status === 'not_configured' && (
-        <Badge variant="outline">Não configurado</Badge>
-      )}
-      {integrationSettings?.figma_status === 'configured' && (
-        <Badge variant="secondary">Configurado</Badge>
-      )}
-      {integrationSettings?.figma_status === 'active' && (
-        <Badge className="bg-green-600">Ativo</Badge>
-      )}
-      {integrationSettings?.figma_status === 'error' && (
-        <Badge variant="destructive">Erro</Badge>
-      )}
-      {!integrationSettings?.figma_status && (
-        <Badge variant="outline">Não configurado</Badge>
-      )}
-    </div>
-  </CardHeader>
-  <CardContent>
-    <div className="space-y-4">
-      {integrationSettings?.figma_error_message && (
-        <div className="text-sm text-destructive bg-destructive/10 p-3 rounded-md">
-          <strong>Erro:</strong> {integrationSettings.figma_error_message}
-        </div>
-      )}
-
-      {integrationSettings?.figma_test_date && (
-        <div className="text-sm text-muted-foreground">
-          Último teste: {new Date(integrationSettings.figma_test_date).toLocaleString('pt-BR')}
-        </div>
-      )}
-
-      <div className="flex gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => {
-            setWizardType('figma');
-            setWizardOpen(true);
-          }}
-          className="flex-1"
-        >
-          <Settings className="w-4 h-4 mr-2" />
-          Configurar
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => testFigma()}
-          disabled={!integrationSettings?.figma_status || integrationSettings.figma_status === 'not_configured' || isTestingFigma}
-          className="flex-1"
-        >
-          <TestTube className="w-4 h-4 mr-2" />
-          {isTestingFigma ? 'Testando...' : 'Testar'}
-        </Button>
-      </div>
-      
-      {/* Novo: Botão de Diagnóstico */}
-      <Button
-        variant="ghost"
-        size="sm"
-        asChild
-        className="w-full text-muted-foreground hover:text-foreground"
-      >
-        <Link to="/figma-diagnostic">
-          <Stethoscope className="w-4 h-4 mr-2" />
-          Executar Diagnóstico Completo
-        </Link>
-      </Button>
-    </div>
-  </CardContent>
-</Card>
-```
+#### 7. Atualizar função `approve_pending_person`
+Adicionar parâmetro `p_dia_pagamento` para que o valor seja copiado ao aprovar um cadastro pendente.
 
 ---
 
-### Resultado Visual
+### UI do Campo
+
+O select aparece apenas quando o modelo de contrato é PJ:
 
 ```text
-┌─────────────────────────────────────────────────────┐
-│  🎨 Figma OAuth                      [Configurado]  │
-│  Configure autenticação via Figma para login...     │
-├─────────────────────────────────────────────────────┤
-│                                                     │
-│  Último teste: 27/01/2026, 10:30:00                 │
-│                                                     │
-│  ┌──────────────────┐  ┌──────────────────┐         │
-│  │ ⚙️ Configurar    │  │ 🧪 Testar        │         │
-│  └──────────────────┘  └──────────────────┘         │
-│                                                     │
-│  ┌─────────────────────────────────────────────┐    │
-│  │ 🩺 Executar Diagnóstico Completo            │    │
-│  └─────────────────────────────────────────────┘    │
-│                                                     │
-└─────────────────────────────────────────────────────┘
+Modelo de Contrato: [PJ ▼]
+Dia de Pagamento:   [10 ▼]  ← Opções: 10, 20, 30
+```
+
+Na tabela do Admin, exibir como badge junto ao modelo de contrato:
+```text
+PJ (dia 10)
 ```
 
 ---
 
-### Imports Necessários (Adicionais)
+### Arquivos a Modificar
 
-Adicionar ao arquivo Settings.tsx:
-- `Settings as SettingsIcon` (para evitar conflito com nome da página)
-- `TestTube` do lucide-react
-- `Link` do react-router-dom
-
----
-
-### Resumo das Alterações
-
-| Arquivo | Linha | Alteração |
-|---------|-------|-----------|
-| `src/pages/Settings.tsx` | ~17 | Adicionar import de `Stethoscope`, `TestTube` |
-| `src/pages/Settings.tsx` | Top | Adicionar import de `Link` do react-router-dom |
-| `src/pages/Settings.tsx` | ~424-437 | Substituir IntegrationCard do Figma por Card customizado com botão de diagnóstico |
+| Arquivo | Alteração |
+|---------|-----------|
+| Migração SQL | Adicionar coluna `dia_pagamento` em `people` e `pending_people` |
+| `src/lib/types.ts` | Adicionar campo nas interfaces |
+| `src/pages/Admin.tsx` | Campo no formulário + exibição na tabela |
+| `src/components/NewCollaboratorForm.tsx` | Campo condicional no formulário |
+| `src/components/ApprovePendingCollaboratorDialog.tsx` | Campo no formulário de aprovação |
+| Função `approve_pending_person` | Novo parâmetro |
 
