@@ -58,7 +58,7 @@ Deno.serve(async (req) => {
 
     const { data: callerPerson } = await adminClient
       .from("people")
-      .select("papel, is_admin")
+      .select("papel, is_admin, nome")
       .eq("id", callerProfile.person_id)
       .single();
 
