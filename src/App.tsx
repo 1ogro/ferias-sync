@@ -29,6 +29,7 @@ const HistoricalRequests = lazy(() => import("./pages/HistoricalRequests"));
 const Settings = lazy(() => import("./pages/Settings"));
 const FigmaCallback = lazy(() => import("./pages/FigmaCallback"));
 const FigmaDiagnostic = lazy(() => import("./pages/FigmaDiagnostic"));
+const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient();
