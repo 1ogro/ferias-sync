@@ -1,43 +1,39 @@
 
 
-## Plano: Dia de Pagamento no Cadastro e Perfil do Colaborador
+## Plan: Admin Password Reset & Auth Method Management
 
-### Objetivo
-1. Novos colaboradores PJ preenchem o dia de pagamento desejado durante o onboarding (ContractDateSetup)
-2. Colaboradores existentes visualizam seu dia de pagamento no perfil (ProfileModal) e podem solicitar alteração ao diretor
+### Overview
+Add capability for admin/director users to reset a user's password (send reset email) and clear their authentication identities, all from the Admin page. This requires a new edge function since these operations need the Supabase service role key.
 
----
+### Changes
 
-### Alterações
+#### 1. New Edge Function: `supabase/functions/admin-auth-management/index.ts`
+- Accepts actions: `reset_password` and `clear_identities`
+- Validates the caller is an admin using `has_role()` or checking `is_admin` on their people record
+- `reset_password`: calls `supabase.auth.admin.generateLink({ type: 'recovery', email })` or `resetPasswordForEmail` with service role
+- `clear_identities`: calls `supabase.auth.admin.deleteUser()` to remove the auth user entirely (keeping the `people` record), or selectively removes identities via admin API
+- Uses `SUPABASE_SERVICE_ROLE_KEY` secret (already exists)
 
-#### 1. Atualizar RPC `set_contract_data_for_current_user` (migração)
-Adicionar parâmetro `p_dia_pagamento` para salvar o dia de pagamento durante o onboarding:
+#### 2. Update `supabase/config.toml`
+- Add `[functions.admin-auth-management]` with `verify_jwt = false` (we validate in code)
 
-```sql
-CREATE OR REPLACE FUNCTION public.set_contract_data_for_current_user(p_date date, p_model text, p_dia_pagamento integer DEFAULT NULL)
--- adiciona SET dia_pagamento = p_dia_pagamento ao UPDATE
-```
+#### 3. Update `src/pages/Admin.tsx`
+- Add two action buttons per user row (in the actions column):
+  - "Resetar Senha" — sends password reset email via edge function
+  - "Zerar Autenticação" — clears auth identities via edge function (with confirmation dialog)
+- Both actions only visible to admin/director users
+- Show confirmation dialogs before destructive actions
 
-#### 2. `src/components/ContractDateSetup.tsx`
-- Adicionar estado `diaPagamento`
-- Exibir select com opções 10, 20, 30 **condicionalmente** quando `modeloContrato === 'PJ'`
-- Passar `p_dia_pagamento` na chamada RPC
+### Technical Details
+- The edge function looks up the `auth.users` entry by email (from the `people` record) using the admin client
+- For password reset: generates a recovery link and sends it to the user's email
+- For clearing auth: deletes the user from `auth.users` (cascade deletes profiles), keeping the `people` record. The user can then re-register with the same person record.
+- Admin validation: checks caller's JWT, looks up `is_admin` flag or `has_role('admin')`
 
-#### 3. `src/components/ProfileModal.tsx`
-- Exibir `dia_pagamento` como campo somente leitura para colaboradores PJ (badge com "Dia 10", "Dia 20" ou "Dia 30")
-- Adicionar botão "Solicitar alteração" que envia email ao diretor via edge function `send-notification-email` com tipo `PAYMENT_DAY_CHANGE_REQUEST`, incluindo o dia atual e o dia desejado (select com as 3 opções)
-
-#### 4. Atualizar edge function `send-notification-email`
-Adicionar tratamento para o novo tipo `PAYMENT_DAY_CHANGE_REQUEST`:
-- Busca email dos diretores
-- Envia email informando: colaborador X solicita alteração do dia de pagamento de Y para Z
-
-### Arquivos
-
-| Arquivo | Alteração |
-|---------|-----------|
-| Migração SQL | Atualizar `set_contract_data_for_current_user` com `p_dia_pagamento` |
-| `src/components/ContractDateSetup.tsx` | Campo condicional dia de pagamento para PJ |
-| `src/components/ProfileModal.tsx` | Exibir dia de pagamento (read-only) + botão solicitar alteração |
-| `supabase/functions/send-notification-email/index.ts` | Novo tipo de notificação para solicitação de alteração |
+### Files
+| File | Action |
+|------|--------|
+| `supabase/functions/admin-auth-management/index.ts` | Create |
+| `supabase/config.toml` | Modify — add function config |
+| `src/pages/Admin.tsx` | Modify — add auth management buttons |
 
