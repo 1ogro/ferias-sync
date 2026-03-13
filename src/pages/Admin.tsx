@@ -717,6 +717,13 @@ const Admin = () => {
                          {targetPerson.ativo ? "Ativo" : "Inativo"}
                        </Badge>
                      </TableCell>
+                     {isDirector && (
+                       <TableCell>
+                         <Badge variant={authenticatedPersonIds.has(targetPerson.id) ? "default" : "outline"}>
+                           {authenticatedPersonIds.has(targetPerson.id) ? "✓ Sim" : "✗ Não"}
+                         </Badge>
+                       </TableCell>
+                     )}
                      <TableCell>
                        <div className="flex gap-2">
                          <TooltipProvider>
