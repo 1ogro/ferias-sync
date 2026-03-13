@@ -1,43 +1,44 @@
 
 
-## Plano: Dia de Pagamento no Cadastro e Perfil do Colaborador
+## Plan: Password Reset + Link Multiple Auth Methods
 
-### Objetivo
-1. Novos colaboradores PJ preenchem o dia de pagamento desejado durante o onboarding (ContractDateSetup)
-2. Colaboradores existentes visualizam seu dia de pagamento no perfil (ProfileModal) e podem solicitar alteração ao diretor
+### What exists today
+- Login page (`/auth`) with email/password and Figma OAuth
+- No password reset flow at all (no forgot password link, no reset page)
+- No way for users to link additional auth methods to their account
+- ProfileModal exists but only edits name/email/birthday
 
----
+### Changes needed
 
-### Alterações
+#### 1. Forgot Password flow on Auth page
+- Add "Esqueceu a senha?" link below the password field in the login tab
+- Clicking it shows an inline form (or replaces login form) asking for email
+- Calls `supabase.auth.resetPasswordForEmail(email, { redirectTo: origin + '/reset-password' })`
+- Shows success toast
 
-#### 1. Atualizar RPC `set_contract_data_for_current_user` (migração)
-Adicionar parâmetro `p_dia_pagamento` para salvar o dia de pagamento durante o onboarding:
+#### 2. New `/reset-password` page
+- **File:** `src/pages/ResetPassword.tsx`
+- Public route (not behind ProtectedRoute)
+- Detects `type=recovery` in URL hash on mount
+- Shows form with new password + confirm password
+- Calls `supabase.auth.updateUser({ password })` to set new password
+- On success, redirects to `/auth` with success toast
 
-```sql
-CREATE OR REPLACE FUNCTION public.set_contract_data_for_current_user(p_date date, p_model text, p_dia_pagamento integer DEFAULT NULL)
--- adiciona SET dia_pagamento = p_dia_pagamento ao UPDATE
-```
+#### 3. Route registration
+- **File:** `src/App.tsx` — add `/reset-password` route (public, lazy-loaded)
 
-#### 2. `src/components/ContractDateSetup.tsx`
-- Adicionar estado `diaPagamento`
-- Exibir select com opções 10, 20, 30 **condicionalmente** quando `modeloContrato === 'PJ'`
-- Passar `p_dia_pagamento` na chamada RPC
+#### 4. Link/unlink auth identities in ProfileModal
+- **File:** `src/components/ProfileModal.tsx` — add a "Métodos de Login" section
+- Show current linked identities (from `user.identities`) with provider badges
+- If user has no `email` identity: show button "Adicionar login com senha" that expands a set-password form calling `supabase.auth.updateUser({ password })`
+- If Figma is enabled and user has no `figma` identity: show button "Vincular Figma" calling `signInWithFigma()` (Supabase auto-links when same email)
+- If user has multiple identities: allow unlinking non-primary ones via `supabase.auth.unlinkIdentity()`
 
-#### 3. `src/components/ProfileModal.tsx`
-- Exibir `dia_pagamento` como campo somente leitura para colaboradores PJ (badge com "Dia 10", "Dia 20" ou "Dia 30")
-- Adicionar botão "Solicitar alteração" que envia email ao diretor via edge function `send-notification-email` com tipo `PAYMENT_DAY_CHANGE_REQUEST`, incluindo o dia atual e o dia desejado (select com as 3 opções)
-
-#### 4. Atualizar edge function `send-notification-email`
-Adicionar tratamento para o novo tipo `PAYMENT_DAY_CHANGE_REQUEST`:
-- Busca email dos diretores
-- Envia email informando: colaborador X solicita alteração do dia de pagamento de Y para Z
-
-### Arquivos
-
-| Arquivo | Alteração |
-|---------|-----------|
-| Migração SQL | Atualizar `set_contract_data_for_current_user` com `p_dia_pagamento` |
-| `src/components/ContractDateSetup.tsx` | Campo condicional dia de pagamento para PJ |
-| `src/components/ProfileModal.tsx` | Exibir dia de pagamento (read-only) + botão solicitar alteração |
-| `supabase/functions/send-notification-email/index.ts` | Novo tipo de notificação para solicitação de alteração |
+### Files to create/modify
+| File | Action |
+|------|--------|
+| `src/pages/ResetPassword.tsx` | Create — password reset page |
+| `src/pages/Auth.tsx` | Modify — add forgot password link/flow |
+| `src/App.tsx` | Modify — add `/reset-password` route |
+| `src/components/ProfileModal.tsx` | Modify — add linked auth methods section |
 
