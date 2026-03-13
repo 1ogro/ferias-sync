@@ -6,6 +6,25 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+async function sendSlackNotification(text: string) {
+  try {
+    const slackToken = Deno.env.get("SLACK_BOT_TOKEN");
+    const slackChannel = Deno.env.get("SLACK_CHANNEL_APPROVALS");
+    if (!slackToken || !slackChannel) return;
+
+    await fetch("https://slack.com/api/chat.postMessage", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${slackToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ channel: slackChannel, text }),
+    });
+  } catch (e) {
+    console.error("Slack notification failed:", e);
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
