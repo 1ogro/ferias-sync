@@ -26,7 +26,8 @@ interface ProfileModalProps {
 
 export const ProfileModal = ({ open, onOpenChange }: ProfileModalProps) => {
   const { toast } = useToast();
-  const { person } = useAuth();
+  const { person, user, signInWithFigma } = useAuth();
+  const { settings: integrationSettings } = useIntegrations();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     nome: "",
@@ -37,6 +38,18 @@ export const ProfileModal = ({ open, onOpenChange }: ProfileModalProps) => {
   const [showChangeRequest, setShowChangeRequest] = useState(false);
   const [desiredPaymentDay, setDesiredPaymentDay] = useState<string>("");
   const [isRequestingChange, setIsRequestingChange] = useState(false);
+  const [showSetPassword, setShowSetPassword] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmNewPassword, setConfirmNewPassword] = useState("");
+  const [settingPassword, setSettingPassword] = useState(false);
+  const [unlinkingIdentity, setUnlinkingIdentity] = useState<string | null>(null);
+
+  const isFigmaEnabled = integrationSettings?.figma_enabled === true &&
+    (integrationSettings?.figma_status === 'active' || integrationSettings?.figma_status === 'configured');
+
+  const identities = user?.identities || [];
+  const hasEmailIdentity = identities.some(i => i.provider === 'email');
+  const hasFigmaIdentity = identities.some(i => i.provider === 'figma');
 
   useEffect(() => {
     if (person && open) {
