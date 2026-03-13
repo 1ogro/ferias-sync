@@ -113,6 +113,8 @@ const Admin = () => {
   const [submitting, setSubmitting] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [authActionLoading, setAuthActionLoading] = useState<string | null>(null);
+  const [clearAuthTarget, setClearAuthTarget] = useState<Person | null>(null);
   
    const [formData, setFormData] = useState<FormData>({
      id: '',
