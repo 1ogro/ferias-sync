@@ -71,7 +71,10 @@ import {
   UserPlus,
   FileCheck,
   Maximize2,
-  Minimize2
+  Minimize2,
+  KeyRound,
+  ShieldOff,
+  Loader2
 } from "lucide-react";
 
 interface FormData {
@@ -110,6 +113,8 @@ const Admin = () => {
   const [submitting, setSubmitting] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [authActionLoading, setAuthActionLoading] = useState<string | null>(null);
+  const [clearAuthTarget, setClearAuthTarget] = useState<Person | null>(null);
   
    const [formData, setFormData] = useState<FormData>({
      id: '',
@@ -321,6 +326,40 @@ const Admin = () => {
       });
     }
     setDeleteId(null);
+  };
+
+
+  const handleAdminAuthAction = async (personId: string, action: 'reset_password' | 'clear_identities') => {
+    setAuthActionLoading(`${action}_${personId}`);
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+      if (!token) throw new Error('Sessão não encontrada');
+
+      const response = await fetch(
+        `https://uhphxyhffpbnmsrlggbe.supabase.co/functions/v1/admin-auth-management`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify({ action, person_id: personId }),
+        }
+      );
+
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Erro desconhecido');
+
+      toast({ title: 'Sucesso', description: result.message });
+      if (action === 'clear_identities') {
+        setClearAuthTarget(null);
+      }
+    } catch (error: any) {
+      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+    } finally {
+      setAuthActionLoading(null);
+    }
   };
 
   const resetForm = () => {
@@ -729,8 +768,56 @@ const Admin = () => {
                                </AlertDialogAction>
                              </AlertDialogFooter>
                            </AlertDialogContent>
-                         </AlertDialog>
-                       </div>
+                          </AlertDialog>
+
+                          {isDirector && (
+                            <>
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => handleAdminAuthAction(targetPerson.id, 'reset_password')}
+                                      disabled={authActionLoading === `reset_password_${targetPerson.id}`}
+                                    >
+                                      {authActionLoading === `reset_password_${targetPerson.id}` ? (
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                      ) : (
+                                        <KeyRound className="h-4 w-4" />
+                                      )}
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p>Resetar senha (enviar email de recuperação)</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => setClearAuthTarget(targetPerson)}
+                                      disabled={authActionLoading === `clear_identities_${targetPerson.id}`}
+                                    >
+                                      {authActionLoading === `clear_identities_${targetPerson.id}` ? (
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                      ) : (
+                                        <ShieldOff className="h-4 w-4" />
+                                      )}
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p>Zerar autenticação (permite recadastro)</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            </>
+                          )}
+                        </div>
                      </TableCell>
                    </TableRow>
                  ))}
@@ -984,6 +1071,32 @@ const Admin = () => {
           />
         </DialogContent>
       </Dialog>
+
+      {/* Clear Auth Confirmation Dialog */}
+      <AlertDialog open={!!clearAuthTarget} onOpenChange={(open) => !open && setClearAuthTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Zerar Autenticação</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja zerar a autenticação de <strong>{clearAuthTarget?.nome}</strong>?
+              {"\n\n"}
+              Isso irá remover todos os métodos de login (senha, Figma, etc.) deste usuário. 
+              O registro na tabela de pessoas será mantido e o usuário poderá se recadastrar.
+              {"\n\n"}
+              Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={() => clearAuthTarget && handleAdminAuthAction(clearAuthTarget.id, 'clear_identities')}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Confirmar — Zerar Autenticação
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       </div>
     </div>
   );
