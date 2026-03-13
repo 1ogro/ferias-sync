@@ -131,6 +131,11 @@ Deno.serve(async (req) => {
         payload: { target_email: targetPerson.email, target_name: targetPerson.nome },
       });
 
+      // Slack notification (fire-and-forget)
+      sendSlackNotification(
+        `🔑 *Reset de Senha via Admin*\nAdmin *${callerPerson.nome}* enviou reset de senha para *${targetPerson.nome}* (${targetPerson.email})`
+      );
+
       return new Response(
         JSON.stringify({
           success: true,
