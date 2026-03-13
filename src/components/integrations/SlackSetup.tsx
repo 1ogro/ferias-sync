@@ -26,6 +26,8 @@ export function SlackSetup({ onSave, isSaving }: SlackSetupProps) {
 
     if (!channelId) {
       newErrors.channelId = 'ID do canal é obrigatório';
+    } else if (channelId.startsWith('xoxb-') || channelId.startsWith('xoxp-') || channelId.startsWith('xoxa-')) {
+      newErrors.channelId = 'Este campo é para o ID do canal, não para o token do bot';
     } else if (!channelId.startsWith('C') && !channelId.startsWith('#')) {
       newErrors.channelId = 'ID do canal deve começar com C ou #';
     }
