@@ -326,6 +326,42 @@ const Admin = () => {
     setDeleteId(null);
   };
 
+  const [authActionLoading, setAuthActionLoading] = useState<string | null>(null);
+  const [clearAuthTarget, setClearAuthTarget] = useState<Person | null>(null);
+
+  const handleAdminAuthAction = async (personId: string, action: 'reset_password' | 'clear_identities') => {
+    setAuthActionLoading(`${action}_${personId}`);
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+      if (!token) throw new Error('Sessão não encontrada');
+
+      const response = await fetch(
+        `https://uhphxyhffpbnmsrlggbe.supabase.co/functions/v1/admin-auth-management`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify({ action, person_id: personId }),
+        }
+      );
+
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Erro desconhecido');
+
+      toast({ title: 'Sucesso', description: result.message });
+      if (action === 'clear_identities') {
+        setClearAuthTarget(null);
+      }
+    } catch (error: any) {
+      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+    } finally {
+      setAuthActionLoading(null);
+    }
+  };
+
   const resetForm = () => {
     setFormData({
       id: '',
