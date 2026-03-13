@@ -7,12 +7,14 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { EnhancedCalendar } from "@/components/ui/enhanced-calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, Send } from "lucide-react";
+import { Separator } from "@/components/ui/separator";
+import { CalendarIcon, Send, Mail, Figma, KeyRound, Unlink, Plus } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
+import { useIntegrations } from "@/hooks/useIntegrations";
 import { supabase } from "@/integrations/supabase/client";
 import { Person } from "@/lib/types";
 import { formatDateToBRString, parseBRStringToDate, applyDateMask, isValidDateString, formatDateToYYYYMMDD } from "@/lib/dateUtils";
@@ -24,7 +26,8 @@ interface ProfileModalProps {
 
 export const ProfileModal = ({ open, onOpenChange }: ProfileModalProps) => {
   const { toast } = useToast();
-  const { person } = useAuth();
+  const { person, user, signInWithFigma } = useAuth();
+  const { settings: integrationSettings } = useIntegrations();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     nome: "",
@@ -35,6 +38,18 @@ export const ProfileModal = ({ open, onOpenChange }: ProfileModalProps) => {
   const [showChangeRequest, setShowChangeRequest] = useState(false);
   const [desiredPaymentDay, setDesiredPaymentDay] = useState<string>("");
   const [isRequestingChange, setIsRequestingChange] = useState(false);
+  const [showSetPassword, setShowSetPassword] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmNewPassword, setConfirmNewPassword] = useState("");
+  const [settingPassword, setSettingPassword] = useState(false);
+  const [unlinkingIdentity, setUnlinkingIdentity] = useState<string | null>(null);
+
+  const isFigmaEnabled = integrationSettings?.figma_enabled === true &&
+    (integrationSettings?.figma_status === 'active' || integrationSettings?.figma_status === 'configured');
+
+  const identities = user?.identities || [];
+  const hasEmailIdentity = identities.some(i => i.provider === 'email');
+  const hasFigmaIdentity = identities.some(i => i.provider === 'figma');
 
   useEffect(() => {
     if (person && open) {
@@ -271,6 +286,124 @@ export const ProfileModal = ({ open, onOpenChange }: ProfileModalProps) => {
               )}
             </div>
           )}
+
+          <Separator />
+
+          {/* Auth Methods Section */}
+          <div className="space-y-3">
+            <Label className="text-sm font-medium">Métodos de Login</Label>
+            
+            <div className="space-y-2">
+              {identities.map((identity) => {
+                const providerLabel = identity.provider === 'email' ? 'Email / Senha' : identity.provider === 'figma' ? 'Figma' : identity.provider;
+                const ProviderIcon = identity.provider === 'figma' ? Figma : Mail;
+                const canUnlink = identities.length > 1;
+
+                return (
+                  <div key={identity.id} className="flex items-center justify-between p-2 rounded-md border bg-muted/30">
+                    <div className="flex items-center gap-2">
+                      <ProviderIcon className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm">{providerLabel}</span>
+                      <Badge variant="secondary" className="text-xs">Vinculado</Badge>
+                    </div>
+                    {canUnlink && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        disabled={unlinkingIdentity === identity.id}
+                        onClick={async () => {
+                          setUnlinkingIdentity(identity.id);
+                          try {
+                            const { error } = await supabase.auth.unlinkIdentity(identity as any);
+                            if (error) throw error;
+                            toast({ title: "Desvinculado!", description: `Login via ${providerLabel} removido.` });
+                          } catch (err: any) {
+                            toast({ title: "Erro", description: err.message, variant: "destructive" });
+                          } finally {
+                            setUnlinkingIdentity(null);
+                          }
+                        }}
+                      >
+                        <Unlink className="h-3 w-3 mr-1" />
+                        {unlinkingIdentity === identity.id ? "..." : "Desvincular"}
+                      </Button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Add password login */}
+            {!hasEmailIdentity && (
+              <div className="space-y-2">
+                {!showSetPassword ? (
+                  <Button type="button" variant="outline" size="sm" onClick={() => setShowSetPassword(true)}>
+                    <Plus className="h-3 w-3 mr-1" />
+                    Adicionar login com senha
+                  </Button>
+                ) : (
+                  <div className="p-3 rounded-md border bg-muted/50 space-y-3">
+                    <div className="space-y-2">
+                      <Label className="text-xs">Nova senha</Label>
+                      <Input type="password" placeholder="••••••••" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs">Confirmar senha</Label>
+                      <Input type="password" placeholder="••••••••" value={confirmNewPassword} onChange={(e) => setConfirmNewPassword(e.target.value)} />
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        disabled={settingPassword || !newPassword || newPassword !== confirmNewPassword || newPassword.length < 6}
+                        onClick={async () => {
+                          setSettingPassword(true);
+                          try {
+                            const { error } = await supabase.auth.updateUser({ password: newPassword });
+                            if (error) throw error;
+                            toast({ title: "Senha definida!", description: "Agora você pode fazer login com email e senha." });
+                            setShowSetPassword(false);
+                            setNewPassword("");
+                            setConfirmNewPassword("");
+                          } catch (err: any) {
+                            toast({ title: "Erro", description: err.message, variant: "destructive" });
+                          } finally {
+                            setSettingPassword(false);
+                          }
+                        }}
+                      >
+                        {settingPassword ? "Salvando..." : "Definir senha"}
+                      </Button>
+                      <Button type="button" variant="ghost" size="sm" onClick={() => { setShowSetPassword(false); setNewPassword(""); setConfirmNewPassword(""); }}>
+                        Cancelar
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Link Figma */}
+            {isFigmaEnabled && !hasFigmaIdentity && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={async () => {
+                  try {
+                    const { error } = await signInWithFigma();
+                    if (error) throw error;
+                  } catch (err: any) {
+                    toast({ title: "Erro", description: err.message, variant: "destructive" });
+                  }
+                }}
+              >
+                <Figma className="h-3 w-3 mr-1" />
+                Vincular Figma
+              </Button>
+            )}
+          </div>
 
           <div className="flex justify-end gap-2 pt-4">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>

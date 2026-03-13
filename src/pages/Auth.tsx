@@ -30,6 +30,10 @@ export default function Auth() {
   const isFigmaEnabled = integrationSettings?.figma_enabled === true && 
     (integrationSettings?.figma_status === 'active' || integrationSettings?.figma_status === 'configured');
 
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotLoading, setForgotLoading] = useState(false);
+
   const [loginData, setLoginData] = useState({
     email: '',
     password: '',
@@ -261,6 +265,63 @@ export default function Auth() {
                       required
                     />
                   </div>
+                  <div className="text-right">
+                    <Button
+                      type="button"
+                      variant="link"
+                      className="px-0 text-xs text-muted-foreground"
+                      onClick={() => {
+                        setShowForgotPassword(true);
+                        setForgotEmail(loginData.email);
+                      }}
+                    >
+                      Esqueceu a senha?
+                    </Button>
+                  </div>
+
+                  {showForgotPassword && (
+                    <div className="p-3 rounded-md border bg-muted/50 space-y-3">
+                      <p className="text-sm font-medium">Recuperar senha</p>
+                      <div className="space-y-2">
+                        <Label htmlFor="forgot-email">Email da conta</Label>
+                        <Input
+                          id="forgot-email"
+                          type="email"
+                          placeholder="seu.email@exemplo.com"
+                          value={forgotEmail}
+                          onChange={(e) => setForgotEmail(e.target.value)}
+                        />
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          disabled={forgotLoading || !forgotEmail}
+                          onClick={async () => {
+                            setForgotLoading(true);
+                            try {
+                              const { error } = await supabase.auth.resetPasswordForEmail(forgotEmail, {
+                                redirectTo: `${window.location.origin}/reset-password`,
+                              });
+                              if (error) throw error;
+                              toast({ title: 'Email enviado!', description: 'Verifique sua caixa de entrada para redefinir a senha.' });
+                              setShowForgotPassword(false);
+                            } catch (err: any) {
+                              toast({ title: 'Erro', description: err.message, variant: 'destructive' });
+                            } finally {
+                              setForgotLoading(false);
+                            }
+                          }}
+                        >
+                          {forgotLoading ? 'Enviando...' : 'Enviar link'}
+                        </Button>
+                        <Button type="button" variant="ghost" size="sm" onClick={() => setShowForgotPassword(false)}>
+                          Cancelar
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
                   <Button type="submit" className="w-full" disabled={loading}>
                     {loading ? 'Entrando...' : 'Entrar'}
                   </Button>
