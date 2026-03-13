@@ -6,6 +6,25 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+async function sendSlackNotification(text: string) {
+  try {
+    const slackToken = Deno.env.get("SLACK_BOT_TOKEN");
+    const slackChannel = Deno.env.get("SLACK_CHANNEL_APPROVALS");
+    if (!slackToken || !slackChannel) return;
+
+    await fetch("https://slack.com/api/chat.postMessage", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${slackToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ channel: slackChannel, text }),
+    });
+  } catch (e) {
+    console.error("Slack notification failed:", e);
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -58,7 +77,7 @@ Deno.serve(async (req) => {
 
     const { data: callerPerson } = await adminClient
       .from("people")
-      .select("papel, is_admin")
+      .select("papel, is_admin, nome")
       .eq("id", callerProfile.person_id)
       .single();
 
@@ -131,6 +150,11 @@ Deno.serve(async (req) => {
         payload: { target_email: targetPerson.email, target_name: targetPerson.nome },
       });
 
+      // Slack notification (fire-and-forget)
+      sendSlackNotification(
+        `🔑 *Reset de Senha via Admin*\nAdmin *${callerPerson.nome}* enviou reset de senha para *${targetPerson.nome}* (${targetPerson.email})`
+      );
+
       return new Response(
         JSON.stringify({
           success: true,
@@ -178,6 +202,11 @@ Deno.serve(async (req) => {
           deleted_auth_user_id: authUser.id,
         },
       });
+
+      // Slack notification (fire-and-forget)
+      sendSlackNotification(
+        `🛡️ *Autenticação Zerada via Admin*\nAdmin *${callerPerson.nome}* zerou a autenticação de *${targetPerson.nome}* (${targetPerson.email})`
+      );
 
       return new Response(
         JSON.stringify({
