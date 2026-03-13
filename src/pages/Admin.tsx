@@ -71,7 +71,10 @@ import {
   UserPlus,
   FileCheck,
   Maximize2,
-  Minimize2
+  Minimize2,
+  KeyRound,
+  ShieldOff,
+  Loader2
 } from "lucide-react";
 
 interface FormData {
