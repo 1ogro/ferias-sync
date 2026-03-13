@@ -109,6 +109,7 @@ const Admin = () => {
   const { toast } = useToast();
   
   const [people, setPeople] = useState<Person[]>([]);
+  const [authenticatedPersonIds, setAuthenticatedPersonIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -209,13 +210,17 @@ const Admin = () => {
   const fetchPeople = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
-        .from('people')
-        .select('*')
-        .order('nome', { ascending: true });
+      const [peopleResult, profilesResult] = await Promise.all([
+        supabase.from('people').select('*').order('nome', { ascending: true }),
+        supabase.from('profiles').select('person_id'),
+      ]);
 
-      if (error) throw error;
-      setPeople((data || []).map(person => ({
+      if (peopleResult.error) throw peopleResult.error;
+      
+      const authIds = new Set((profilesResult.data || []).map(p => p.person_id));
+      setAuthenticatedPersonIds(authIds);
+      
+      setPeople((peopleResult.data || []).map(person => ({
         ...person,
         papel: person.papel as Papel,
         gestorId: person.gestor_id,
@@ -680,6 +685,7 @@ const Admin = () => {
                    <SortableHeader field="papel">Papel</SortableHeader>
                    <SortableHeader field="is_admin">Admin</SortableHeader>
                    <SortableHeader field="ativo">Status</SortableHeader>
+                   {isDirector && <TableHead>Auth</TableHead>}
                    <TableHead>Ações</TableHead>
                  </TableRow>
               </TableHeader>
@@ -711,6 +717,13 @@ const Admin = () => {
                          {targetPerson.ativo ? "Ativo" : "Inativo"}
                        </Badge>
                      </TableCell>
+                     {isDirector && (
+                       <TableCell>
+                         <Badge variant={authenticatedPersonIds.has(targetPerson.id) ? "default" : "outline"}>
+                           {authenticatedPersonIds.has(targetPerson.id) ? "✓ Sim" : "✗ Não"}
+                         </Badge>
+                       </TableCell>
+                     )}
                      <TableCell>
                        <div className="flex gap-2">
                          <TooltipProvider>
