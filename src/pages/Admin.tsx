@@ -210,13 +210,17 @@ const Admin = () => {
   const fetchPeople = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
-        .from('people')
-        .select('*')
-        .order('nome', { ascending: true });
+      const [peopleResult, profilesResult] = await Promise.all([
+        supabase.from('people').select('*').order('nome', { ascending: true }),
+        supabase.from('profiles').select('person_id'),
+      ]);
 
-      if (error) throw error;
-      setPeople((data || []).map(person => ({
+      if (peopleResult.error) throw peopleResult.error;
+      
+      const authIds = new Set((profilesResult.data || []).map(p => p.person_id));
+      setAuthenticatedPersonIds(authIds);
+      
+      setPeople((peopleResult.data || []).map(person => ({
         ...person,
         papel: person.papel as Papel,
         gestorId: person.gestor_id,
