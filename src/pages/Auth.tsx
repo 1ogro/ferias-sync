@@ -30,6 +30,10 @@ export default function Auth() {
   const isFigmaEnabled = integrationSettings?.figma_enabled === true && 
     (integrationSettings?.figma_status === 'active' || integrationSettings?.figma_status === 'configured');
 
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotLoading, setForgotLoading] = useState(false);
+
   const [loginData, setLoginData] = useState({
     email: '',
     password: '',
