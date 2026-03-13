@@ -265,9 +265,19 @@ export default function Auth() {
                       required
                     />
                   </div>
-                  <Button type="submit" className="w-full" disabled={loading}>
-                    {loading ? 'Entrando...' : 'Entrar'}
-                  </Button>
+                  <div className="text-right">
+                    <Button
+                      type="button"
+                      variant="link"
+                      className="px-0 text-xs text-muted-foreground"
+                      onClick={() => {
+                        setShowForgotPassword(true);
+                        setForgotEmail(loginData.email);
+                      }}
+                    >
+                      Esqueceu a senha?
+                    </Button>
+                  </div>
                   
                   {isFigmaEnabled && (
                     <>
