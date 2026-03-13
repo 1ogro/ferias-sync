@@ -109,6 +109,7 @@ const Admin = () => {
   const { toast } = useToast();
   
   const [people, setPeople] = useState<Person[]>([]);
+  const [authenticatedPersonIds, setAuthenticatedPersonIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
