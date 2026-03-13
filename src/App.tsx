@@ -84,6 +84,11 @@ const App = () => (
                 <FigmaDiagnostic />
               </Suspense>
             } />
+            <Route path="/reset-password" element={
+              <Suspense fallback={<PageLoader />}>
+                <ResetPassword />
+              </Suspense>
+            } />
             <Route path="/setup-profile" element={<SetupProfile />} />
             <Route path="/setup-contract" element={<ContractDateSetup />} />
             <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
