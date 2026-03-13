@@ -768,8 +768,56 @@ const Admin = () => {
                                </AlertDialogAction>
                              </AlertDialogFooter>
                            </AlertDialogContent>
-                         </AlertDialog>
-                       </div>
+                          </AlertDialog>
+
+                          {isDirector && (
+                            <>
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => handleAdminAuthAction(targetPerson.id, 'reset_password')}
+                                      disabled={authActionLoading === `reset_password_${targetPerson.id}`}
+                                    >
+                                      {authActionLoading === `reset_password_${targetPerson.id}` ? (
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                      ) : (
+                                        <KeyRound className="h-4 w-4" />
+                                      )}
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p>Resetar senha (enviar email de recuperação)</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => setClearAuthTarget(targetPerson)}
+                                      disabled={authActionLoading === `clear_identities_${targetPerson.id}`}
+                                    >
+                                      {authActionLoading === `clear_identities_${targetPerson.id}` ? (
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                      ) : (
+                                        <ShieldOff className="h-4 w-4" />
+                                      )}
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p>Zerar autenticação (permite recadastro)</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            </>
+                          )}
+                        </div>
                      </TableCell>
                    </TableRow>
                  ))}
