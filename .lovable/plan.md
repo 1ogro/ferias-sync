@@ -1,43 +1,22 @@
 
 
-## Plano: Dia de Pagamento no Cadastro e Perfil do Colaborador
+## Plan: Add Slack notifications for admin auth actions
 
-### Objetivo
-1. Novos colaboradores PJ preenchem o dia de pagamento desejado durante o onboarding (ContractDateSetup)
-2. Colaboradores existentes visualizam seu dia de pagamento no perfil (ProfileModal) e podem solicitar alteração ao diretor
+### What changes
+Modify `supabase/functions/admin-auth-management/index.ts` to send a Slack message to the approvals channel after each successful `reset_password` or `clear_identities` action.
 
----
+### Implementation
+- After the audit log insert for each action, send a Slack message using `SLACK_BOT_TOKEN` and `SLACK_CHANNEL_APPROVALS` (both secrets already exist)
+- Fetch the caller's name from the `people` table (already queried, just need to add `nome` to the select)
+- Message format:
+  - **Reset password**: "🔑 *Reset de Senha via Admin* — Admin **{caller}** enviou reset de senha para **{target}** ({email})"
+  - **Clear auth**: "🛡️ *Autenticação Zerada via Admin* — Admin **{caller}** zerou a autenticação de **{target}** ({email})"
+- Slack send is fire-and-forget (don't fail the main action if Slack fails)
 
-### Alterações
+### Files
+| File | Action |
+|------|--------|
+| `supabase/functions/admin-auth-management/index.ts` | Modify — add Slack notification after each action |
 
-#### 1. Atualizar RPC `set_contract_data_for_current_user` (migração)
-Adicionar parâmetro `p_dia_pagamento` para salvar o dia de pagamento durante o onboarding:
-
-```sql
-CREATE OR REPLACE FUNCTION public.set_contract_data_for_current_user(p_date date, p_model text, p_dia_pagamento integer DEFAULT NULL)
--- adiciona SET dia_pagamento = p_dia_pagamento ao UPDATE
-```
-
-#### 2. `src/components/ContractDateSetup.tsx`
-- Adicionar estado `diaPagamento`
-- Exibir select com opções 10, 20, 30 **condicionalmente** quando `modeloContrato === 'PJ'`
-- Passar `p_dia_pagamento` na chamada RPC
-
-#### 3. `src/components/ProfileModal.tsx`
-- Exibir `dia_pagamento` como campo somente leitura para colaboradores PJ (badge com "Dia 10", "Dia 20" ou "Dia 30")
-- Adicionar botão "Solicitar alteração" que envia email ao diretor via edge function `send-notification-email` com tipo `PAYMENT_DAY_CHANGE_REQUEST`, incluindo o dia atual e o dia desejado (select com as 3 opções)
-
-#### 4. Atualizar edge function `send-notification-email`
-Adicionar tratamento para o novo tipo `PAYMENT_DAY_CHANGE_REQUEST`:
-- Busca email dos diretores
-- Envia email informando: colaborador X solicita alteração do dia de pagamento de Y para Z
-
-### Arquivos
-
-| Arquivo | Alteração |
-|---------|-----------|
-| Migração SQL | Atualizar `set_contract_data_for_current_user` com `p_dia_pagamento` |
-| `src/components/ContractDateSetup.tsx` | Campo condicional dia de pagamento para PJ |
-| `src/components/ProfileModal.tsx` | Exibir dia de pagamento (read-only) + botão solicitar alteração |
-| `supabase/functions/send-notification-email/index.ts` | Novo tipo de notificação para solicitação de alteração |
+Single file change, ~30 lines added.
 
