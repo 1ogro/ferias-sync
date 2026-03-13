@@ -18,7 +18,6 @@ import { useIntegrations } from "@/hooks/useIntegrations";
 import { supabase } from "@/integrations/supabase/client";
 import { Person } from "@/lib/types";
 import { formatDateToBRString, parseBRStringToDate, applyDateMask, isValidDateString, formatDateToYYYYMMDD } from "@/lib/dateUtils";
-import { formatDateToBRString, parseBRStringToDate, applyDateMask, isValidDateString, formatDateToYYYYMMDD } from "@/lib/dateUtils";
 
 interface ProfileModalProps {
   open: boolean;
