@@ -328,8 +328,6 @@ const Admin = () => {
     setDeleteId(null);
   };
 
-  const [authActionLoading, setAuthActionLoading] = useState<string | null>(null);
-  const [clearAuthTarget, setClearAuthTarget] = useState<Person | null>(null);
 
   const handleAdminAuthAction = async (personId: string, action: 'reset_password' | 'clear_identities') => {
     setAuthActionLoading(`${action}_${personId}`);
