@@ -184,6 +184,11 @@ Deno.serve(async (req) => {
         },
       });
 
+      // Slack notification (fire-and-forget)
+      sendSlackNotification(
+        `🛡️ *Autenticação Zerada via Admin*\nAdmin *${callerPerson.nome}* zerou a autenticação de *${targetPerson.nome}* (${targetPerson.email})`
+      );
+
       return new Response(
         JSON.stringify({
           success: true,
