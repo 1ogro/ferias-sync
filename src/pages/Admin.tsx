@@ -1071,6 +1071,32 @@ const Admin = () => {
           />
         </DialogContent>
       </Dialog>
+
+      {/* Clear Auth Confirmation Dialog */}
+      <AlertDialog open={!!clearAuthTarget} onOpenChange={(open) => !open && setClearAuthTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Zerar Autenticação</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja zerar a autenticação de <strong>{clearAuthTarget?.nome}</strong>?
+              {"\n\n"}
+              Isso irá remover todos os métodos de login (senha, Figma, etc.) deste usuário. 
+              O registro na tabela de pessoas será mantido e o usuário poderá se recadastrar.
+              {"\n\n"}
+              Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={() => clearAuthTarget && handleAdminAuthAction(clearAuthTarget.id, 'clear_identities')}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Confirmar — Zerar Autenticação
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       </div>
     </div>
   );
