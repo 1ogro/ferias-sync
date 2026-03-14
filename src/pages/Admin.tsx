@@ -289,21 +289,27 @@ const Admin = () => {
     }
   };
 
-  const handleEdit = (person: Person) => {
+  const handleEdit = (personToEdit: Person) => {
+     setOriginalEditData({
+       papel: personToEdit.papel,
+       ativo: personToEdit.ativo,
+       nome: personToEdit.nome,
+       email: personToEdit.email,
+     });
      setFormData({
-       id: person.id,
-       nome: person.nome,
-       email: person.email,
-       cargo: person.cargo || '',
-       local: person.local || '',
-       subTime: person.subTime || '',
-       papel: person.papel,
-       is_admin: person.is_admin,
-       ativo: person.ativo,
-       gestorId: person.gestorId || '',
-       data_contrato: person.data_contrato || '',
-       modelo_contrato: person.modelo_contrato || '',
-       dia_pagamento: person.dia_pagamento?.toString() || ''
+       id: personToEdit.id,
+       nome: personToEdit.nome,
+       email: personToEdit.email,
+       cargo: personToEdit.cargo || '',
+       local: personToEdit.local || '',
+       subTime: personToEdit.subTime || '',
+       papel: personToEdit.papel,
+       is_admin: personToEdit.is_admin,
+       ativo: personToEdit.ativo,
+       gestorId: personToEdit.gestorId || '',
+       data_contrato: personToEdit.data_contrato || '',
+       modelo_contrato: personToEdit.modelo_contrato || '',
+       dia_pagamento: personToEdit.dia_pagamento?.toString() || ''
      });
     setIsDialogOpen(true);
   };
