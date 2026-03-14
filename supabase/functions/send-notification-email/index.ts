@@ -51,15 +51,68 @@ const handler = async (req: Request): Promise<Response> => {
     const notification: NotificationRequest = await req.json();
     console.log("Processing notification:", notification.type, "to:", notification.to);
 
+    const supabaseAdmin = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+    );
+
+    // For NEW_PENDING_PERSON, find all directors and send to each
+    if (notification.type === 'NEW_PENDING_PERSON') {
+      const { data: directors } = await supabaseAdmin
+        .from("people")
+        .select("id, email, nome")
+        .or("papel.eq.DIRETOR,is_admin.eq.true")
+        .eq("ativo", true);
+
+      if (!directors || directors.length === 0) {
+        console.log("No directors found to notify");
+        return new Response(JSON.stringify({ success: true, skipped: true, reason: 'no_directors' }), {
+          status: 200,
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+        });
+      }
+
+      const emailContent = generateEmailContent(notification);
+      const results = [];
+
+      for (const director of directors) {
+        // Check preferences
+        const { data: prefs } = await supabaseAdmin
+          .from("notification_preferences")
+          .select("admin_actions_email")
+          .eq("person_id", director.id)
+          .maybeSingle();
+
+        if (prefs && prefs.admin_actions_email === false) {
+          console.log(`Email skipped for director ${director.id}: preference disabled`);
+          continue;
+        }
+
+        try {
+          const emailResponse = await resend.emails.send({
+            from: "Sistema de Férias <onboarding@resend.dev>",
+            to: [director.email],
+            subject: emailContent.subject,
+            html: emailContent.html,
+          });
+          results.push({ director: director.id, success: true, id: emailResponse.data?.id });
+        } catch (emailErr: any) {
+          console.error(`Failed to send to director ${director.id}:`, emailErr);
+          results.push({ director: director.id, success: false, error: emailErr.message });
+        }
+      }
+
+      return new Response(JSON.stringify({ success: true, results }), {
+        status: 200,
+        headers: { "Content-Type": "application/json", ...corsHeaders },
+      });
+    }
+
     // Check user preferences if targetPersonId is provided
     if (notification.targetPersonId) {
       const prefColumn = getPreferenceColumn(notification.type);
       if (prefColumn) {
         try {
-          const supabaseAdmin = createClient(
-            Deno.env.get("SUPABASE_URL")!,
-            Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-          );
           const { data: prefs } = await supabaseAdmin
             .from("notification_preferences")
             .select(prefColumn)
@@ -83,7 +136,7 @@ const handler = async (req: Request): Promise<Response> => {
 
     const emailResponse = await resend.emails.send({
       from: "Sistema de Férias <onboarding@resend.dev>",
-      to: [notification.to],
+      to: [notification.to!],
       subject: emailContent.subject,
       html: emailContent.html,
     });
