@@ -219,7 +219,7 @@ const Admin = () => {
         supabase.from('people').select('*').order('nome', { ascending: true }),
         supabase.from('profiles').select('person_id'),
         supabase.from('audit_logs')
-          .select('entidade_id, created_at')
+          .select('entidade_id, created_at, payload')
           .eq('acao', 'ADMIN_SEND_INVITE')
           .order('created_at', { ascending: false }),
       ]);
