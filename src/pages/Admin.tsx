@@ -1217,6 +1217,28 @@ const Admin = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Send Invite Confirmation Dialog */}
+      <AlertDialog open={!!inviteTarget} onOpenChange={(open) => !open && setInviteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Enviar Convite de Conta</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja enviar um convite de criação de conta para <strong>{inviteTarget?.nome}</strong> ({inviteTarget?.email})?
+              {"\n\n"}
+              Um email será enviado com instruções para criar a senha e acessar o sistema.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={() => inviteTarget && handleAdminAuthAction(inviteTarget.id, 'send_invite')}
+            >
+              Confirmar — Enviar Convite
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       </div>
     </div>
   );
