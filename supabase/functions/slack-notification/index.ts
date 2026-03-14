@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const SLACK_BOT_TOKEN = Deno.env.get("SLACK_BOT_TOKEN");
 const SLACK_CHANNEL = Deno.env.get("SLACK_CHANNEL_APPROVALS");
@@ -17,6 +18,7 @@ interface SlackNotificationRequest {
   endDate: string;
   approverEmail?: string;
   comment?: string;
+  targetPersonId?: string;
 }
 
 const TIPO_EMOJI = {
@@ -26,6 +28,14 @@ const TIPO_EMOJI = {
   'LICENCA_MEDICA': '🏥',
 };
 
+// Map notification types to preference columns
+function getPreferenceColumn(type: string): string | null {
+  if (['NEW_REQUEST', 'APPROVAL', 'REJECTION', 'REQUEST_INFO'].includes(type)) {
+    return 'request_updates_slack';
+  }
+  return null;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -34,6 +44,33 @@ serve(async (req) => {
   try {
     const payload: SlackNotificationRequest = await req.json();
     console.log("Slack notification payload:", payload);
+
+    // Check user preferences if targetPersonId is provided
+    if (payload.targetPersonId) {
+      const prefColumn = getPreferenceColumn(payload.type);
+      if (prefColumn) {
+        try {
+          const supabaseAdmin = createClient(
+            Deno.env.get("SUPABASE_URL")!,
+            Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+          );
+          const { data: prefs } = await supabaseAdmin
+            .from("notification_preferences")
+            .select(prefColumn)
+            .eq("person_id", payload.targetPersonId)
+            .maybeSingle();
+
+          if (prefs && prefs[prefColumn] === false) {
+            console.log(`Slack notification skipped: user ${payload.targetPersonId} disabled ${prefColumn}`);
+            return new Response(JSON.stringify({ success: true, skipped: true, reason: 'user_preference' }), {
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            });
+          }
+        } catch (prefError) {
+          console.warn("Could not check notification preferences, sending anyway:", prefError);
+        }
+      }
+    }
 
     // Get Slack user ID from email (if provided)
     let slackUserId = null;
