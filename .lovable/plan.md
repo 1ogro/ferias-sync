@@ -1,43 +1,59 @@
 
 
-## Plano: Dia de Pagamento no Cadastro e Perfil do Colaborador
+## Plan: Enviar convites de criação de conta via Slack (além de email)
 
-### Objetivo
-1. Novos colaboradores PJ preenchem o dia de pagamento desejado durante o onboarding (ContractDateSetup)
-2. Colaboradores existentes visualizam seu dia de pagamento no perfil (ProfileModal) e podem solicitar alteração ao diretor
+### Resumo
+Para usuários não-DIRETOR, o convite de criação de conta será enviado de 3 formas:
+1. **Email** (via `inviteUserByEmail` — como já funciona)
+2. **DM no Slack** para o colaborador convidado com o link de criação de conta
+3. **Notificação no canal** de aprovações (já existe)
 
----
+Adicionalmente, o dialog de confirmação de convite terá opção para escolher enviar **apenas via Slack** (sem email), mantendo email como padrão.
 
-### Alterações
+### Arquivos a modificar
 
-#### 1. Atualizar RPC `set_contract_data_for_current_user` (migração)
-Adicionar parâmetro `p_dia_pagamento` para salvar o dia de pagamento durante o onboarding:
+#### 1. `supabase/functions/admin-auth-management/index.ts`
+- Aceitar novo parâmetro `invite_method: 'email' | 'slack' | 'both'` (default: `'both'`)
+- Quando `invite_method` inclui `'slack'`:
+  - Usar `users.lookupByEmail` na API do Slack para encontrar o Slack user ID do colaborador
+  - Enviar DM com link de criação de conta (usando `generateLink` ao invés de `inviteUserByEmail` quando o método é `slack`-only)
+  - Se o método é `'both'`, enviar email normalmente E também DM no Slack
+  - Se o método é `'email'`, manter comportamento atual
+- Quando target é DIRETOR, forçar método `'email'` (ignorar Slack)
+- Bloquear envio se `invite_method` inclui Slack mas o target não foi encontrado no Slack workspace
 
-```sql
-CREATE OR REPLACE FUNCTION public.set_contract_data_for_current_user(p_date date, p_model text, p_dia_pagamento integer DEFAULT NULL)
--- adiciona SET dia_pagamento = p_dia_pagamento ao UPDATE
+#### 2. `src/pages/Admin.tsx`
+- No dialog de confirmação de convite, adicionar seletor de método: "Email", "Slack" ou "Ambos"
+  - Default: "Ambos"
+  - Desabilitar opção Slack quando o target é DIRETOR
+- Passar `invite_method` no body da chamada à edge function
+- Atualizar texto descritivo do dialog com base na opção selecionada
+
+### Fluxo técnico
+
+```text
+Admin clica "Enviar Convite"
+       │
+       ▼
+Dialog com opções: [Email] [Slack] [Ambos]
+       │
+       ▼
+POST admin-auth-management
+  { action: "send_invite", person_id, invite_method }
+       │
+       ├─ email/both → inviteUserByEmail (gera link + envia email)
+       │
+       ├─ slack/both → Slack users.lookupByEmail → chat.postMessage (DM)
+       │    └─ Mensagem: "Você foi convidado para criar sua conta..."
+       │       com link gerado via generateLink()
+       │
+       └─ Canal Slack → notificação existente (sempre)
 ```
 
-#### 2. `src/components/ContractDateSetup.tsx`
-- Adicionar estado `diaPagamento`
-- Exibir select com opções 10, 20, 30 **condicionalmente** quando `modeloContrato === 'PJ'`
-- Passar `p_dia_pagamento` na chamada RPC
-
-#### 3. `src/components/ProfileModal.tsx`
-- Exibir `dia_pagamento` como campo somente leitura para colaboradores PJ (badge com "Dia 10", "Dia 20" ou "Dia 30")
-- Adicionar botão "Solicitar alteração" que envia email ao diretor via edge function `send-notification-email` com tipo `PAYMENT_DAY_CHANGE_REQUEST`, incluindo o dia atual e o dia desejado (select com as 3 opções)
-
-#### 4. Atualizar edge function `send-notification-email`
-Adicionar tratamento para o novo tipo `PAYMENT_DAY_CHANGE_REQUEST`:
-- Busca email dos diretores
-- Envia email informando: colaborador X solicita alteração do dia de pagamento de Y para Z
-
-### Arquivos
-
-| Arquivo | Alteração |
-|---------|-----------|
-| Migração SQL | Atualizar `set_contract_data_for_current_user` com `p_dia_pagamento` |
-| `src/components/ContractDateSetup.tsx` | Campo condicional dia de pagamento para PJ |
-| `src/components/ProfileModal.tsx` | Exibir dia de pagamento (read-only) + botão solicitar alteração |
-| `supabase/functions/send-notification-email/index.ts` | Novo tipo de notificação para solicitação de alteração |
+### Detalhes da DM Slack
+- Mensagem formatada com blocks do Slack contendo:
+  - Saudação personalizada com nome
+  - Botão/link para criação de conta
+  - Informação de quem enviou o convite
+- Se o email não é encontrado no Slack, retornar erro informativo e sugerir envio por email
 
