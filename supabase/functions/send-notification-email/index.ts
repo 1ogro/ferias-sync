@@ -10,8 +10,8 @@ const corsHeaders = {
 };
 
 interface NotificationRequest {
-  type: 'NEW_REQUEST' | 'APPROVAL_MANAGER' | 'APPROVAL_FINAL' | 'REJECTION' | 'REQUEST_INFO' | 'PAYMENT_DAY_CHANGE_REQUEST' | 'INVITE_ACCEPTED';
-  to: string;
+  type: 'NEW_REQUEST' | 'APPROVAL_MANAGER' | 'APPROVAL_FINAL' | 'REJECTION' | 'REQUEST_INFO' | 'PAYMENT_DAY_CHANGE_REQUEST' | 'INVITE_ACCEPTED' | 'NEW_PENDING_PERSON';
+  to?: string;
   requesterName: string;
   requestType?: string;
   startDate?: string;
@@ -28,6 +28,7 @@ interface NotificationRequest {
   targetPersonId?: string;
   collaboratorName?: string;
   collaboratorEmail?: string;
+  managerName?: string;
 }
 
 // Map notification types to preference columns
@@ -35,7 +36,7 @@ function getPreferenceColumn(type: string): string | null {
   if (['NEW_REQUEST', 'APPROVAL_MANAGER', 'APPROVAL_FINAL', 'REJECTION', 'REQUEST_INFO'].includes(type)) {
     return 'request_updates_email';
   }
-  if (type === 'PAYMENT_DAY_CHANGE_REQUEST' || type === 'INVITE_ACCEPTED') {
+  if (type === 'PAYMENT_DAY_CHANGE_REQUEST' || type === 'INVITE_ACCEPTED' || type === 'NEW_PENDING_PERSON') {
     return 'admin_actions_email';
   }
   return null;
@@ -50,15 +51,68 @@ const handler = async (req: Request): Promise<Response> => {
     const notification: NotificationRequest = await req.json();
     console.log("Processing notification:", notification.type, "to:", notification.to);
 
+    const supabaseAdmin = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+    );
+
+    // For NEW_PENDING_PERSON, find all directors and send to each
+    if (notification.type === 'NEW_PENDING_PERSON') {
+      const { data: directors } = await supabaseAdmin
+        .from("people")
+        .select("id, email, nome")
+        .or("papel.eq.DIRETOR,is_admin.eq.true")
+        .eq("ativo", true);
+
+      if (!directors || directors.length === 0) {
+        console.log("No directors found to notify");
+        return new Response(JSON.stringify({ success: true, skipped: true, reason: 'no_directors' }), {
+          status: 200,
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+        });
+      }
+
+      const emailContent = generateEmailContent(notification);
+      const results = [];
+
+      for (const director of directors) {
+        // Check preferences
+        const { data: prefs } = await supabaseAdmin
+          .from("notification_preferences")
+          .select("admin_actions_email")
+          .eq("person_id", director.id)
+          .maybeSingle();
+
+        if (prefs && prefs.admin_actions_email === false) {
+          console.log(`Email skipped for director ${director.id}: preference disabled`);
+          continue;
+        }
+
+        try {
+          const emailResponse = await resend.emails.send({
+            from: "Sistema de Férias <onboarding@resend.dev>",
+            to: [director.email],
+            subject: emailContent.subject,
+            html: emailContent.html,
+          });
+          results.push({ director: director.id, success: true, id: emailResponse.data?.id });
+        } catch (emailErr: any) {
+          console.error(`Failed to send to director ${director.id}:`, emailErr);
+          results.push({ director: director.id, success: false, error: emailErr.message });
+        }
+      }
+
+      return new Response(JSON.stringify({ success: true, results }), {
+        status: 200,
+        headers: { "Content-Type": "application/json", ...corsHeaders },
+      });
+    }
+
     // Check user preferences if targetPersonId is provided
     if (notification.targetPersonId) {
       const prefColumn = getPreferenceColumn(notification.type);
       if (prefColumn) {
         try {
-          const supabaseAdmin = createClient(
-            Deno.env.get("SUPABASE_URL")!,
-            Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-          );
           const { data: prefs } = await supabaseAdmin
             .from("notification_preferences")
             .select(prefColumn)
@@ -82,7 +136,7 @@ const handler = async (req: Request): Promise<Response> => {
 
     const emailResponse = await resend.emails.send({
       from: "Sistema de Férias <onboarding@resend.dev>",
-      to: [notification.to],
+      to: [notification.to!],
       subject: emailContent.subject,
       html: emailContent.html,
     });
@@ -257,9 +311,24 @@ function generateEmailContent(notification: NotificationRequest): { subject: str
             <p><strong>${notification.collaboratorName}</strong> (${notification.collaboratorEmail}) aceitou o convite e criou sua conta no sistema.</p>
             <p>O colaborador já pode acessar o sistema normalmente.</p>
             <br/>
+            <p style="color: #666; font-size: 12px;">Este é um email automático, por favor não responda.</p>
+          </div>
+        `,
+      };
+
+    case 'NEW_PENDING_PERSON':
+      return {
+        subject: `Novo cadastro pendente — ${notification.collaboratorName}`,
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2 style="color: #2563eb;">📋 Novo Cadastro Pendente</h2>
+            <p>Olá,</p>
+            <p>O gestor <strong>${notification.managerName}</strong> submeteu o cadastro de <strong>${notification.collaboratorName}</strong> (${notification.collaboratorEmail}) para aprovação.</p>
+            <p>Acesse o painel administrativo para revisar e aprovar o cadastro.</p>
+            <br/>
             <a href="${Deno.env.get('SUPABASE_URL')}" 
-               style="background-color: #16a34a; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">
-              Acessar Sistema
+               style="background-color: #2563eb; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">
+              Revisar Cadastro
             </a>
             <br/><br/>
             <p style="color: #666; font-size: 12px;">Este é um email automático, por favor não responda.</p>

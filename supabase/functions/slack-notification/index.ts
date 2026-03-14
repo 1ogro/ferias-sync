@@ -10,7 +10,7 @@ const corsHeaders = {
 };
 
 interface SlackNotificationRequest {
-  type: 'NEW_REQUEST' | 'APPROVAL' | 'REJECTION' | 'REQUEST_INFO' | 'PERSON_APPROVED' | 'PERSON_REJECTED' | 'INVITE_ACCEPTED';
+  type: 'NEW_REQUEST' | 'APPROVAL' | 'REJECTION' | 'REQUEST_INFO' | 'PERSON_APPROVED' | 'PERSON_REJECTED' | 'INVITE_ACCEPTED' | 'NEW_PENDING_PERSON';
   requestId?: string;
   requesterName?: string;
   requestType?: string;
@@ -23,6 +23,7 @@ interface SlackNotificationRequest {
   personEmail?: string;
   directorName?: string;
   rejectionReason?: string;
+  managerName?: string;
 }
 
 const TIPO_EMOJI = {
@@ -197,6 +198,17 @@ serve(async (req) => {
           text: {
             type: "mrkdwn",
             text: `*🎉 Convite Aceito*\n👤 *${payload.personName}* (${payload.personEmail}) aceitou o convite e criou sua conta no sistema.`,
+          },
+        },
+      ];
+    } else if (payload.type === 'NEW_PENDING_PERSON') {
+      text = `Novo Cadastro Pendente`;
+      blocks = [
+        {
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: `*📋 Novo Cadastro Pendente*\n👤 *${payload.managerName}* submeteu o cadastro de *${payload.personName}* (${payload.personEmail}) para aprovação.`,
           },
         },
       ];

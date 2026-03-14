@@ -112,6 +112,26 @@ export function NewCollaboratorForm({ onSuccess, onCancel }: NewCollaboratorForm
 
       if (error) throw error;
 
+      // Fire-and-forget: notify directors via email
+      supabase.functions.invoke('send-notification-email', {
+        body: {
+          type: 'NEW_PENDING_PERSON',
+          collaboratorName: formData.nome.trim(),
+          collaboratorEmail: formData.email.trim().toLowerCase(),
+          managerName: person.nome || 'Gestor',
+        },
+      }).catch(err => console.warn('Failed to send new pending person email:', err));
+
+      // Fire-and-forget: notify via Slack
+      supabase.functions.invoke('slack-notification', {
+        body: {
+          type: 'NEW_PENDING_PERSON',
+          personName: formData.nome.trim(),
+          personEmail: formData.email.trim().toLowerCase(),
+          managerName: person.nome || 'Gestor',
+        },
+      }).catch(err => console.warn('Failed to send new pending person slack:', err));
+
       toast({
         title: "Sucesso",
         description: "Cadastro submetido para aprovação do diretor",
