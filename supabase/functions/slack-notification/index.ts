@@ -201,17 +201,8 @@ serve(async (req) => {
         },
       ];
     }
-      text = `Colaborador Rejeitado`;
-      blocks = [
-        {
-          type: "section",
-          text: {
-            type: "mrkdwn",
-            text: `*❌ Colaborador Rejeitado*\n👤 *${payload.personName}* (${payload.personEmail})\n🔑 Rejeitado por: ${payload.directorName}${payload.rejectionReason ? `\n💬 Motivo: ${payload.rejectionReason}` : ''}`,
-          },
-        },
-      ];
-    }
+
+
 
     // Send message to channel or DM
     const target = slackUserId || SLACK_CHANNEL;
