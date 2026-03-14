@@ -24,7 +24,8 @@ const Settings = () => {
   const { toast } = useToast();
   const { settings, updateSettings, resetSettings } = useSettings();
   const { hasRole } = useAuth();
-  const { 
+  const { preferences: notifPrefs, isLoading: notifLoading, isSaving: notifSaving, updatePreference } = useNotificationPreferences();
+  const {
     settings: integrationSettings, 
     isLoading,
     testSlack, 
