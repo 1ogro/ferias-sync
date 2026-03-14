@@ -10,7 +10,7 @@ const corsHeaders = {
 };
 
 interface SlackNotificationRequest {
-  type: 'NEW_REQUEST' | 'APPROVAL' | 'REJECTION' | 'REQUEST_INFO' | 'PERSON_APPROVED' | 'PERSON_REJECTED';
+  type: 'NEW_REQUEST' | 'APPROVAL' | 'REJECTION' | 'REQUEST_INFO' | 'PERSON_APPROVED' | 'PERSON_REJECTED' | 'INVITE_ACCEPTED';
   requestId?: string;
   requesterName?: string;
   requestType?: string;
@@ -189,7 +189,20 @@ serve(async (req) => {
           },
         },
       ];
+    } else if (payload.type === 'INVITE_ACCEPTED') {
+      text = `Convite Aceito`;
+      blocks = [
+        {
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: `*🎉 Convite Aceito*\n👤 *${payload.personName}* (${payload.personEmail}) aceitou o convite e criou sua conta no sistema.`,
+          },
+        },
+      ];
     }
+
+
 
     // Send message to channel or DM
     const target = slackUserId || SLACK_CHANNEL;
