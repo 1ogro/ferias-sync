@@ -10,8 +10,8 @@ const corsHeaders = {
 };
 
 interface NotificationRequest {
-  type: 'NEW_REQUEST' | 'APPROVAL_MANAGER' | 'APPROVAL_FINAL' | 'REJECTION' | 'REQUEST_INFO' | 'PAYMENT_DAY_CHANGE_REQUEST' | 'INVITE_ACCEPTED';
-  to: string;
+  type: 'NEW_REQUEST' | 'APPROVAL_MANAGER' | 'APPROVAL_FINAL' | 'REJECTION' | 'REQUEST_INFO' | 'PAYMENT_DAY_CHANGE_REQUEST' | 'INVITE_ACCEPTED' | 'NEW_PENDING_PERSON';
+  to?: string;
   requesterName: string;
   requestType?: string;
   startDate?: string;
