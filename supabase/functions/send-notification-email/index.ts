@@ -10,7 +10,7 @@ const corsHeaders = {
 };
 
 interface NotificationRequest {
-  type: 'NEW_REQUEST' | 'APPROVAL_MANAGER' | 'APPROVAL_FINAL' | 'REJECTION' | 'REQUEST_INFO' | 'PAYMENT_DAY_CHANGE_REQUEST';
+  type: 'NEW_REQUEST' | 'APPROVAL_MANAGER' | 'APPROVAL_FINAL' | 'REJECTION' | 'REQUEST_INFO' | 'PAYMENT_DAY_CHANGE_REQUEST' | 'INVITE_ACCEPTED';
   to: string;
   requesterName: string;
   requestType?: string;
@@ -26,6 +26,8 @@ interface NotificationRequest {
   currentPaymentDay?: number;
   desiredPaymentDay?: number;
   targetPersonId?: string;
+  collaboratorName?: string;
+  collaboratorEmail?: string;
 }
 
 // Map notification types to preference columns
