@@ -1,31 +1,43 @@
 
 
-## Plan: Notificação Slack para aprovação/rejeição de colaboradores pendentes
+## Plano: Dia de Pagamento no Cadastro e Perfil do Colaborador
 
-### O que muda
-Enviar notificação no canal Slack de aprovações quando um diretor aprova ou rejeita um cadastro de colaborador pendente.
+### Objetivo
+1. Novos colaboradores PJ preenchem o dia de pagamento desejado durante o onboarding (ContractDateSetup)
+2. Colaboradores existentes visualizam seu dia de pagamento no perfil (ProfileModal) e podem solicitar alteração ao diretor
 
-### Implementação
+---
 
-#### 1. `supabase/functions/slack-notification/index.ts`
-- Expandir o type da interface para incluir `'PERSON_APPROVED' | 'PERSON_REJECTED'`
-- Adicionar campos opcionais: `personName`, `personEmail`, `directorName`, `rejectionReason`
-- Adicionar blocos de mensagem para os novos tipos:
-  - `PERSON_APPROVED`: "✅ *Colaborador Aprovado* — **{directorName}** aprovou o cadastro de **{personName}** ({email})"
-  - `PERSON_REJECTED`: "❌ *Colaborador Rejeitado* — **{directorName}** rejeitou o cadastro de **{personName}** ({email}). Motivo: {reason}"
+### Alterações
 
-#### 2. `src/components/ApprovePendingCollaboratorDialog.tsx`
-- Após aprovação bem-sucedida (`result?.success`), chamar `supabase.functions.invoke('slack-notification', ...)` com type `PERSON_APPROVED`, nome do colaborador, email e nome do diretor
-- Fire-and-forget (não bloquear o fluxo se falhar)
+#### 1. Atualizar RPC `set_contract_data_for_current_user` (migração)
+Adicionar parâmetro `p_dia_pagamento` para salvar o dia de pagamento durante o onboarding:
 
-#### 3. `src/components/PendingCollaboratorsList.tsx`
-- Após rejeição bem-sucedida (`result?.success`), chamar `supabase.functions.invoke('slack-notification', ...)` com type `PERSON_REJECTED`, nome, email, nome do diretor e motivo da rejeição
-- Fire-and-forget
+```sql
+CREATE OR REPLACE FUNCTION public.set_contract_data_for_current_user(p_date date, p_model text, p_dia_pagamento integer DEFAULT NULL)
+-- adiciona SET dia_pagamento = p_dia_pagamento ao UPDATE
+```
+
+#### 2. `src/components/ContractDateSetup.tsx`
+- Adicionar estado `diaPagamento`
+- Exibir select com opções 10, 20, 30 **condicionalmente** quando `modeloContrato === 'PJ'`
+- Passar `p_dia_pagamento` na chamada RPC
+
+#### 3. `src/components/ProfileModal.tsx`
+- Exibir `dia_pagamento` como campo somente leitura para colaboradores PJ (badge com "Dia 10", "Dia 20" ou "Dia 30")
+- Adicionar botão "Solicitar alteração" que envia email ao diretor via edge function `send-notification-email` com tipo `PAYMENT_DAY_CHANGE_REQUEST`, incluindo o dia atual e o dia desejado (select com as 3 opções)
+
+#### 4. Atualizar edge function `send-notification-email`
+Adicionar tratamento para o novo tipo `PAYMENT_DAY_CHANGE_REQUEST`:
+- Busca email dos diretores
+- Envia email informando: colaborador X solicita alteração do dia de pagamento de Y para Z
 
 ### Arquivos
-| Arquivo | Ação |
-|---------|------|
-| `supabase/functions/slack-notification/index.ts` | Modificar — adicionar tipos PERSON_APPROVED/REJECTED |
-| `src/components/ApprovePendingCollaboratorDialog.tsx` | Modificar — enviar notificação após aprovação |
-| `src/components/PendingCollaboratorsList.tsx` | Modificar — enviar notificação após rejeição |
+
+| Arquivo | Alteração |
+|---------|-----------|
+| Migração SQL | Atualizar `set_contract_data_for_current_user` com `p_dia_pagamento` |
+| `src/components/ContractDateSetup.tsx` | Campo condicional dia de pagamento para PJ |
+| `src/components/ProfileModal.tsx` | Exibir dia de pagamento (read-only) + botão solicitar alteração |
+| `supabase/functions/send-notification-email/index.ts` | Novo tipo de notificação para solicitação de alteração |
 

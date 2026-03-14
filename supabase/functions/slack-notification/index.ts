@@ -10,15 +10,19 @@ const corsHeaders = {
 };
 
 interface SlackNotificationRequest {
-  type: 'NEW_REQUEST' | 'APPROVAL' | 'REJECTION' | 'REQUEST_INFO';
-  requestId: string;
-  requesterName: string;
-  requestType: string;
-  startDate: string;
-  endDate: string;
+  type: 'NEW_REQUEST' | 'APPROVAL' | 'REJECTION' | 'REQUEST_INFO' | 'PERSON_APPROVED' | 'PERSON_REJECTED';
+  requestId?: string;
+  requesterName?: string;
+  requestType?: string;
+  startDate?: string;
+  endDate?: string;
   approverEmail?: string;
   comment?: string;
   targetPersonId?: string;
+  personName?: string;
+  personEmail?: string;
+  directorName?: string;
+  rejectionReason?: string;
 }
 
 const TIPO_EMOJI = {
@@ -160,6 +164,28 @@ serve(async (req) => {
           text: {
             type: "mrkdwn",
             text: `*📋 Informações Adicionais Solicitadas*\n👤 ${payload.requesterName}\n📅 ${payload.startDate} até ${payload.endDate}${payload.comment ? `\n💬 ${payload.comment}` : ''}`,
+          },
+        },
+      ];
+    } else if (payload.type === 'PERSON_APPROVED') {
+      text = `Colaborador Aprovado`;
+      blocks = [
+        {
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: `*✅ Colaborador Aprovado*\n👤 *${payload.personName}* (${payload.personEmail})\n🔑 Aprovado por: ${payload.directorName}`,
+          },
+        },
+      ];
+    } else if (payload.type === 'PERSON_REJECTED') {
+      text = `Colaborador Rejeitado`;
+      blocks = [
+        {
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: `*❌ Colaborador Rejeitado*\n👤 *${payload.personName}* (${payload.personEmail})\n🔑 Rejeitado por: ${payload.directorName}${payload.rejectionReason ? `\n💬 Motivo: ${payload.rejectionReason}` : ''}`,
           },
         },
       ];

@@ -86,6 +86,16 @@ export function ApprovePendingCollaboratorDialog({
 
       const result = data as any;
       if (result?.success) {
+        // Fire-and-forget Slack notification
+        supabase.functions.invoke('slack-notification', {
+          body: {
+            type: 'PERSON_APPROVED',
+            personName: formData.nome,
+            personEmail: formData.email,
+            directorName: person.nome,
+          },
+        }).catch((err) => console.warn('Slack notification failed:', err));
+
         toast({
           title: "Sucesso",
           description: "Colaborador aprovado e cadastrado com sucesso",
