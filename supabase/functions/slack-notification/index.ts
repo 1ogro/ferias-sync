@@ -10,7 +10,7 @@ const corsHeaders = {
 };
 
 interface SlackNotificationRequest {
-  type: 'NEW_REQUEST' | 'APPROVAL' | 'REJECTION' | 'REQUEST_INFO' | 'PERSON_APPROVED' | 'PERSON_REJECTED';
+  type: 'NEW_REQUEST' | 'APPROVAL' | 'REJECTION' | 'REQUEST_INFO' | 'PERSON_APPROVED' | 'PERSON_REJECTED' | 'INVITE_ACCEPTED';
   requestId?: string;
   requesterName?: string;
   requestType?: string;
