@@ -1,25 +1,43 @@
 
 
-## Plan: Permitir Gestores enviarem convites de conta
+## Plano: Dia de Pagamento no Cadastro e Perfil do Colaborador
 
-### Contexto
-Atualmente, apenas diretores/admins veem o botão de enviar convite e a edge function bloqueia gestores. Precisamos abrir o `send_invite` para gestores também.
+### Objetivo
+1. Novos colaboradores PJ preenchem o dia de pagamento desejado durante o onboarding (ContractDateSetup)
+2. Colaboradores existentes visualizam seu dia de pagamento no perfil (ProfileModal) e podem solicitar alteração ao diretor
 
-### Mudanças
+---
 
-#### 1. `supabase/functions/admin-auth-management/index.ts`
-- Mover a validação de papel para depois do parse do body
-- Para a action `send_invite`, permitir também `GESTOR`
-- Para as demais actions (`reset_password`, `clear_identities`, etc.), manter restrição a `DIRETOR`/admin
+### Alterações
 
-#### 2. `src/pages/Admin.tsx`
-- O bloco do botão de convite (ícone Mail, linhas ~915-937) está dentro de `{isDirector && (<>...</>)}` junto com outros botões de auth (reset, clear)
-- Extrair o botão de convite para fora do bloco `isDirector`, mostrando-o para qualquer usuário com `isDirector || isManager`
-- Os botões de reset password e clear identities continuam restritos a `isDirector`
+#### 1. Atualizar RPC `set_contract_data_for_current_user` (migração)
+Adicionar parâmetro `p_dia_pagamento` para salvar o dia de pagamento durante o onboarding:
+
+```sql
+CREATE OR REPLACE FUNCTION public.set_contract_data_for_current_user(p_date date, p_model text, p_dia_pagamento integer DEFAULT NULL)
+-- adiciona SET dia_pagamento = p_dia_pagamento ao UPDATE
+```
+
+#### 2. `src/components/ContractDateSetup.tsx`
+- Adicionar estado `diaPagamento`
+- Exibir select com opções 10, 20, 30 **condicionalmente** quando `modeloContrato === 'PJ'`
+- Passar `p_dia_pagamento` na chamada RPC
+
+#### 3. `src/components/ProfileModal.tsx`
+- Exibir `dia_pagamento` como campo somente leitura para colaboradores PJ (badge com "Dia 10", "Dia 20" ou "Dia 30")
+- Adicionar botão "Solicitar alteração" que envia email ao diretor via edge function `send-notification-email` com tipo `PAYMENT_DAY_CHANGE_REQUEST`, incluindo o dia atual e o dia desejado (select com as 3 opções)
+
+#### 4. Atualizar edge function `send-notification-email`
+Adicionar tratamento para o novo tipo `PAYMENT_DAY_CHANGE_REQUEST`:
+- Busca email dos diretores
+- Envia email informando: colaborador X solicita alteração do dia de pagamento de Y para Z
 
 ### Arquivos
-| Arquivo | Ação |
-|---------|------|
-| `supabase/functions/admin-auth-management/index.ts` | Modificar — permitir GESTOR no send_invite |
-| `src/pages/Admin.tsx` | Modificar — mostrar botão convite para gestores |
+
+| Arquivo | Alteração |
+|---------|-----------|
+| Migração SQL | Atualizar `set_contract_data_for_current_user` com `p_dia_pagamento` |
+| `src/components/ContractDateSetup.tsx` | Campo condicional dia de pagamento para PJ |
+| `src/components/ProfileModal.tsx` | Exibir dia de pagamento (read-only) + botão solicitar alteração |
+| `supabase/functions/send-notification-email/index.ts` | Novo tipo de notificação para solicitação de alteração |
 

@@ -768,7 +768,7 @@ const Admin = () => {
                    <SortableHeader field="papel">Papel</SortableHeader>
                    <SortableHeader field="is_admin">Admin</SortableHeader>
                    <SortableHeader field="ativo">Status</SortableHeader>
-                   {isDirector && <TableHead>Auth</TableHead>}
+                   {(isDirector || isManager) && <TableHead>Auth</TableHead>}
                    <TableHead>Ações</TableHead>
                  </TableRow>
               </TableHeader>
@@ -800,9 +800,9 @@ const Admin = () => {
                          {targetPerson.ativo ? "Ativo" : "Inativo"}
                        </Badge>
                      </TableCell>
-                     {isDirector && (
-                       <TableCell>
-                         <Badge variant={authenticatedPersonIds.has(targetPerson.id) ? "default" : "outline"}>
+                      {(isDirector || isManager) && (
+                        <TableCell>
+                          <Badge variant={authenticatedPersonIds.has(targetPerson.id) ? "default" : "outline"}>
                            {authenticatedPersonIds.has(targetPerson.id) ? "✓ Sim" : "✗ Não"}
                          </Badge>
                        </TableCell>
@@ -911,31 +911,31 @@ const Admin = () => {
                                   </TooltipContent>
                                 </Tooltip>
                               </TooltipProvider>
-
-                              {!authenticatedPersonIds.has(targetPerson.id) && (
-                                <TooltipProvider>
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => setInviteTarget(targetPerson)}
-                                        disabled={authActionLoading === `send_invite_${targetPerson.id}`}
-                                      >
-                                        {authActionLoading === `send_invite_${targetPerson.id}` ? (
-                                          <Loader2 className="h-4 w-4 animate-spin" />
-                                        ) : (
-                                          <Mail className="h-4 w-4" />
-                                        )}
-                                      </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent>
-                                      <p>Enviar convite de criação de conta</p>
-                                    </TooltipContent>
-                                  </Tooltip>
-                                </TooltipProvider>
-                              )}
                             </>
+                          )}
+
+                          {(isDirector || isManager) && !authenticatedPersonIds.has(targetPerson.id) && (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setInviteTarget(targetPerson)}
+                                    disabled={authActionLoading === `send_invite_${targetPerson.id}`}
+                                  >
+                                    {authActionLoading === `send_invite_${targetPerson.id}` ? (
+                                      <Loader2 className="h-4 w-4 animate-spin" />
+                                    ) : (
+                                      <Mail className="h-4 w-4" />
+                                    )}
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>Enviar convite de criação de conta</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
                           )}
                         </div>
                      </TableCell>
