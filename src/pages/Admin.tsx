@@ -814,13 +814,20 @@ const Admin = () => {
                          {targetPerson.ativo ? "Ativo" : "Inativo"}
                        </Badge>
                      </TableCell>
-                      {(isDirector || isManager) && (
-                        <TableCell>
-                          <Badge variant={authenticatedPersonIds.has(targetPerson.id) ? "default" : "outline"}>
-                           {authenticatedPersonIds.has(targetPerson.id) ? "✓ Sim" : "✗ Não"}
-                         </Badge>
-                       </TableCell>
-                     )}
+                       {(isDirector || isManager) && (
+                         <TableCell>
+                           <div className="flex flex-col gap-1">
+                             <Badge variant={authenticatedPersonIds.has(targetPerson.id) ? "default" : "outline"}>
+                              {authenticatedPersonIds.has(targetPerson.id) ? "✓ Sim" : "✗ Não"}
+                            </Badge>
+                            {inviteDates.has(targetPerson.id) && (
+                              <span className="text-xs text-muted-foreground">
+                                Convite: {inviteDates.get(targetPerson.id)}
+                              </span>
+                            )}
+                           </div>
+                        </TableCell>
+                      )}
                      <TableCell>
                        <div className="flex gap-2">
                          <TooltipProvider>
