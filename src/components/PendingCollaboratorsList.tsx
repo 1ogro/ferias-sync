@@ -122,6 +122,17 @@ export function PendingCollaboratorsList({ onCountChange }: PendingCollaborators
 
       const result = data as any;
       if (result?.success) {
+        // Fire-and-forget Slack notification
+        supabase.functions.invoke('slack-notification', {
+          body: {
+            type: 'PERSON_REJECTED',
+            personName: selectedForRejection.nome,
+            personEmail: selectedForRejection.email,
+            directorName: person.nome,
+            rejectionReason: rejectionReason.trim(),
+          },
+        }).catch((err) => console.warn('Slack notification failed:', err));
+
         toast({
           title: "Sucesso",
           description: "Cadastro rejeitado",

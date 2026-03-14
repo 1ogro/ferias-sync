@@ -167,6 +167,28 @@ serve(async (req) => {
           },
         },
       ];
+    } else if (payload.type === 'PERSON_APPROVED') {
+      text = `Colaborador Aprovado`;
+      blocks = [
+        {
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: `*✅ Colaborador Aprovado*\n👤 *${payload.personName}* (${payload.personEmail})\n🔑 Aprovado por: ${payload.directorName}`,
+          },
+        },
+      ];
+    } else if (payload.type === 'PERSON_REJECTED') {
+      text = `Colaborador Rejeitado`;
+      blocks = [
+        {
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: `*❌ Colaborador Rejeitado*\n👤 *${payload.personName}* (${payload.personEmail})\n🔑 Rejeitado por: ${payload.directorName}${payload.rejectionReason ? `\n💬 Motivo: ${payload.rejectionReason}` : ''}`,
+          },
+        },
+      ];
     }
 
     // Send message to channel or DM
