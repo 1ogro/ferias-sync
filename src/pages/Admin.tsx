@@ -119,6 +119,7 @@ const Admin = () => {
   const [authActionLoading, setAuthActionLoading] = useState<string | null>(null);
   const [clearAuthTarget, setClearAuthTarget] = useState<Person | null>(null);
   const [inviteTarget, setInviteTarget] = useState<Person | null>(null);
+  const [inviteMethod, setInviteMethod] = useState<'email' | 'slack' | 'both'>('both');
   const [originalEditData, setOriginalEditData] = useState<{ papel: string; ativo: boolean; nome: string; email: string } | null>(null);
   
    const [formData, setFormData] = useState<FormData>({
