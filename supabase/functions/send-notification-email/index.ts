@@ -10,7 +10,7 @@ const corsHeaders = {
 };
 
 interface NotificationRequest {
-  type: 'NEW_REQUEST' | 'APPROVAL_MANAGER' | 'APPROVAL_FINAL' | 'REJECTION' | 'REQUEST_INFO' | 'PAYMENT_DAY_CHANGE_REQUEST';
+  type: 'NEW_REQUEST' | 'APPROVAL_MANAGER' | 'APPROVAL_FINAL' | 'REJECTION' | 'REQUEST_INFO' | 'PAYMENT_DAY_CHANGE_REQUEST' | 'INVITE_ACCEPTED';
   to: string;
   requesterName: string;
   requestType?: string;
@@ -26,6 +26,8 @@ interface NotificationRequest {
   currentPaymentDay?: number;
   desiredPaymentDay?: number;
   targetPersonId?: string;
+  collaboratorName?: string;
+  collaboratorEmail?: string;
 }
 
 // Map notification types to preference columns
@@ -33,7 +35,7 @@ function getPreferenceColumn(type: string): string | null {
   if (['NEW_REQUEST', 'APPROVAL_MANAGER', 'APPROVAL_FINAL', 'REJECTION', 'REQUEST_INFO'].includes(type)) {
     return 'request_updates_email';
   }
-  if (type === 'PAYMENT_DAY_CHANGE_REQUEST') {
+  if (type === 'PAYMENT_DAY_CHANGE_REQUEST' || type === 'INVITE_ACCEPTED') {
     return 'admin_actions_email';
   }
   return null;
@@ -240,6 +242,26 @@ function generateEmailContent(notification: NotificationRequest): { subject: str
             </div>
             <p>Acesse o painel administrativo para realizar a alteração, se aprovada.</p>
             <br/>
+            <p style="color: #666; font-size: 12px;">Este é um email automático, por favor não responda.</p>
+          </div>
+        `,
+      };
+
+    case 'INVITE_ACCEPTED':
+      return {
+        subject: `Convite aceito — ${notification.collaboratorName} criou sua conta`,
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2 style="color: #16a34a;">🎉 Convite Aceito</h2>
+            <p>Olá,</p>
+            <p><strong>${notification.collaboratorName}</strong> (${notification.collaboratorEmail}) aceitou o convite e criou sua conta no sistema.</p>
+            <p>O colaborador já pode acessar o sistema normalmente.</p>
+            <br/>
+            <a href="${Deno.env.get('SUPABASE_URL')}" 
+               style="background-color: #16a34a; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">
+              Acessar Sistema
+            </a>
+            <br/><br/>
             <p style="color: #666; font-size: 12px;">Este é um email automático, por favor não responda.</p>
           </div>
         `,
