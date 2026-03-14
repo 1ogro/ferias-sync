@@ -311,9 +311,24 @@ function generateEmailContent(notification: NotificationRequest): { subject: str
             <p><strong>${notification.collaboratorName}</strong> (${notification.collaboratorEmail}) aceitou o convite e criou sua conta no sistema.</p>
             <p>O colaborador já pode acessar o sistema normalmente.</p>
             <br/>
+            <p style="color: #666; font-size: 12px;">Este é um email automático, por favor não responda.</p>
+          </div>
+        `,
+      };
+
+    case 'NEW_PENDING_PERSON':
+      return {
+        subject: `Novo cadastro pendente — ${notification.collaboratorName}`,
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2 style="color: #2563eb;">📋 Novo Cadastro Pendente</h2>
+            <p>Olá,</p>
+            <p>O gestor <strong>${notification.managerName}</strong> submeteu o cadastro de <strong>${notification.collaboratorName}</strong> (${notification.collaboratorEmail}) para aprovação.</p>
+            <p>Acesse o painel administrativo para revisar e aprovar o cadastro.</p>
+            <br/>
             <a href="${Deno.env.get('SUPABASE_URL')}" 
-               style="background-color: #16a34a; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">
-              Acessar Sistema
+               style="background-color: #2563eb; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">
+              Revisar Cadastro
             </a>
             <br/><br/>
             <p style="color: #666; font-size: 12px;">Este é um email automático, por favor não responda.</p>

@@ -201,6 +201,17 @@ serve(async (req) => {
           },
         },
       ];
+    } else if (payload.type === 'NEW_PENDING_PERSON') {
+      text = `Novo Cadastro Pendente`;
+      blocks = [
+        {
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: `*📋 Novo Cadastro Pendente*\n👤 *${payload.managerName}* submeteu o cadastro de *${payload.personName}* (${payload.personEmail}) para aprovação.`,
+          },
+        },
+      ];
     }
 
 
