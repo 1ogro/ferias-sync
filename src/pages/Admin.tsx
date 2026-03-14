@@ -229,11 +229,16 @@ const Admin = () => {
       const authIds = new Set((profilesResult.data || []).map(p => p.person_id));
       setAuthenticatedPersonIds(authIds);
 
-      // Build map of person_id → latest invite date
-      const dates = new Map<string, string>();
+      // Build map of person_id → latest invite date + method
+      const dates = new Map<string, { date: string; method: string }>();
       for (const log of inviteLogsResult.data || []) {
         if (!dates.has(log.entidade_id)) {
-          dates.set(log.entidade_id, new Date(log.created_at).toLocaleDateString('pt-BR'));
+          const payload = log.payload as Record<string, unknown> | null;
+          const method = (payload?.invite_method as string) || 'email';
+          dates.set(log.entidade_id, {
+            date: new Date(log.created_at).toLocaleDateString('pt-BR'),
+            method,
+          });
         }
       }
       setInviteDates(dates);
