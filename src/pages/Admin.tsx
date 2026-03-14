@@ -111,7 +111,7 @@ const Admin = () => {
   
   const [people, setPeople] = useState<Person[]>([]);
   const [authenticatedPersonIds, setAuthenticatedPersonIds] = useState<Set<string>>(new Set());
-  const [inviteDates, setInviteDates] = useState<Map<string, string>>(new Map());
+  const [inviteDates, setInviteDates] = useState<Map<string, { date: string; method: string }>>(new Map());
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -219,7 +219,7 @@ const Admin = () => {
         supabase.from('people').select('*').order('nome', { ascending: true }),
         supabase.from('profiles').select('person_id'),
         supabase.from('audit_logs')
-          .select('entidade_id, created_at')
+          .select('entidade_id, created_at, payload')
           .eq('acao', 'ADMIN_SEND_INVITE')
           .order('created_at', { ascending: false }),
       ]);
@@ -229,11 +229,16 @@ const Admin = () => {
       const authIds = new Set((profilesResult.data || []).map(p => p.person_id));
       setAuthenticatedPersonIds(authIds);
 
-      // Build map of person_id → latest invite date
-      const dates = new Map<string, string>();
+      // Build map of person_id → latest invite date + method
+      const dates = new Map<string, { date: string; method: string }>();
       for (const log of inviteLogsResult.data || []) {
         if (!dates.has(log.entidade_id)) {
-          dates.set(log.entidade_id, new Date(log.created_at).toLocaleDateString('pt-BR'));
+          const payload = log.payload as Record<string, unknown> | null;
+          const method = (payload?.invite_method as string) || 'email';
+          dates.set(log.entidade_id, {
+            date: new Date(log.created_at).toLocaleDateString('pt-BR'),
+            method,
+          });
         }
       }
       setInviteDates(dates);
@@ -826,11 +831,15 @@ const Admin = () => {
                              <Badge variant={authenticatedPersonIds.has(targetPerson.id) ? "default" : "outline"}>
                               {authenticatedPersonIds.has(targetPerson.id) ? "✓ Sim" : "✗ Não"}
                             </Badge>
-                            {inviteDates.has(targetPerson.id) && (
-                              <span className="text-xs text-muted-foreground">
-                                Convite: {inviteDates.get(targetPerson.id)}
-                              </span>
-                            )}
+                            {inviteDates.has(targetPerson.id) && (() => {
+                              const info = inviteDates.get(targetPerson.id)!;
+                              const methodLabel = info.method === 'both' ? '📧💬 Ambos' : info.method === 'slack' ? '💬 Slack' : '📧 Email';
+                              return (
+                                <span className="text-xs text-muted-foreground">
+                                  Convite: {info.date} · {methodLabel}
+                                </span>
+                              );
+                            })()}
                            </div>
                         </TableCell>
                       )}
