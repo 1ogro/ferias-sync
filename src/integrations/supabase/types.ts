@@ -253,6 +253,59 @@ export type Database = {
           },
         ]
       }
+      notification_preferences: {
+        Row: {
+          admin_actions_email: boolean
+          admin_actions_slack: boolean
+          birthday_email: boolean
+          birthday_slack: boolean
+          created_at: string
+          id: string
+          person_id: string
+          request_updates_email: boolean
+          request_updates_slack: boolean
+          system_alerts_email: boolean
+          system_alerts_slack: boolean
+          updated_at: string
+        }
+        Insert: {
+          admin_actions_email?: boolean
+          admin_actions_slack?: boolean
+          birthday_email?: boolean
+          birthday_slack?: boolean
+          created_at?: string
+          id?: string
+          person_id: string
+          request_updates_email?: boolean
+          request_updates_slack?: boolean
+          system_alerts_email?: boolean
+          system_alerts_slack?: boolean
+          updated_at?: string
+        }
+        Update: {
+          admin_actions_email?: boolean
+          admin_actions_slack?: boolean
+          birthday_email?: boolean
+          birthday_slack?: boolean
+          created_at?: string
+          id?: string
+          person_id?: string
+          request_updates_email?: boolean
+          request_updates_slack?: boolean
+          system_alerts_email?: boolean
+          system_alerts_slack?: boolean
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_preferences_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: true
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pending_people: {
         Row: {
           cargo: string | null
