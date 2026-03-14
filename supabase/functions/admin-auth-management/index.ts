@@ -218,6 +218,63 @@ Deno.serve(async (req) => {
       );
     }
 
+    if (action === "send_invite") {
+      // Check if email already has an auth user
+      const { data: authUsers } = await adminClient.auth.admin.listUsers();
+      const existingAuthUser = authUsers?.users?.find(
+        (u: any) => u.email === targetPerson.email
+      );
+
+      if (existingAuthUser) {
+        return new Response(
+          JSON.stringify({ error: "Este email já possui uma conta de autenticação ativa" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Send invite email
+      const { data: inviteData, error: inviteError } =
+        await adminClient.auth.admin.inviteUserByEmail(targetPerson.email);
+
+      if (inviteError) {
+        throw inviteError;
+      }
+
+      // Create profile linking auth user to person
+      if (inviteData?.user) {
+        await adminClient.from("profiles").upsert({
+          user_id: inviteData.user.id,
+          person_id: person_id,
+        }, { onConflict: "user_id" });
+      }
+
+      // Audit log
+      await adminClient.from("audit_logs").insert({
+        entidade: "auth",
+        entidade_id: person_id,
+        acao: "ADMIN_SEND_INVITE",
+        actor_id: callerProfile.person_id,
+        payload: {
+          target_email: targetPerson.email,
+          target_name: targetPerson.nome,
+          invited_auth_user_id: inviteData?.user?.id,
+        },
+      });
+
+      // Slack notification
+      sendSlackNotification(
+        `📩 *Convite Enviado* — Admin *${callerPerson.nome}* enviou convite de criação de conta para *${targetPerson.nome}* (${targetPerson.email})`
+      );
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: `Convite enviado para ${targetPerson.email}`,
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     if (action === "notify_admin_change") {
 
       const emojiMap: Record<string, string> = {
@@ -270,7 +327,7 @@ Deno.serve(async (req) => {
     }
 
     return new Response(
-      JSON.stringify({ error: "Ação inválida. Use reset_password, clear_identities ou notify_admin_change" }),
+      JSON.stringify({ error: "Ação inválida. Use reset_password, clear_identities, send_invite ou notify_admin_change" }),
       { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error: any) {

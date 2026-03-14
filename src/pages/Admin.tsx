@@ -74,6 +74,7 @@ import {
   Minimize2,
   KeyRound,
   ShieldOff,
+  Mail,
   Loader2
 } from "lucide-react";
 
@@ -411,7 +412,7 @@ const Admin = () => {
   };
 
 
-  const handleAdminAuthAction = async (personId: string, action: 'reset_password' | 'clear_identities') => {
+  const handleAdminAuthAction = async (personId: string, action: 'reset_password' | 'clear_identities' | 'send_invite') => {
     setAuthActionLoading(`${action}_${personId}`);
     try {
       const { data: sessionData } = await supabase.auth.getSession();
@@ -436,6 +437,9 @@ const Admin = () => {
       toast({ title: 'Sucesso', description: result.message });
       if (action === 'clear_identities') {
         setClearAuthTarget(null);
+      }
+      if (action === 'send_invite') {
+        fetchPeople();
       }
     } catch (error: any) {
       toast({ title: 'Erro', description: error.message, variant: 'destructive' });
@@ -905,6 +909,30 @@ const Admin = () => {
                                   </TooltipContent>
                                 </Tooltip>
                               </TooltipProvider>
+
+                              {!authenticatedPersonIds.has(targetPerson.id) && (
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => handleAdminAuthAction(targetPerson.id, 'send_invite')}
+                                        disabled={authActionLoading === `send_invite_${targetPerson.id}`}
+                                      >
+                                        {authActionLoading === `send_invite_${targetPerson.id}` ? (
+                                          <Loader2 className="h-4 w-4 animate-spin" />
+                                        ) : (
+                                          <Mail className="h-4 w-4" />
+                                        )}
+                                      </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                      <p>Enviar convite de criação de conta</p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                              )}
                             </>
                           )}
                         </div>
