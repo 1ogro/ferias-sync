@@ -1,43 +1,19 @@
 
 
-## Plano: Dia de Pagamento no Cadastro e Perfil do Colaborador
+## Plan: Mostrar data do último convite na coluna Auth
 
-### Objetivo
-1. Novos colaboradores PJ preenchem o dia de pagamento desejado durante o onboarding (ContractDateSetup)
-2. Colaboradores existentes visualizam seu dia de pagamento no perfil (ProfileModal) e podem solicitar alteração ao diretor
+### O que muda
+Na coluna "Auth" da tabela Admin, além do badge "✓ Sim" / "✗ Não", mostrar a data do último convite enviado (se houver) buscando do `audit_logs` com ação `ADMIN_SEND_INVITE`.
 
----
+### Implementação
 
-### Alterações
-
-#### 1. Atualizar RPC `set_contract_data_for_current_user` (migração)
-Adicionar parâmetro `p_dia_pagamento` para salvar o dia de pagamento durante o onboarding:
-
-```sql
-CREATE OR REPLACE FUNCTION public.set_contract_data_for_current_user(p_date date, p_model text, p_dia_pagamento integer DEFAULT NULL)
--- adiciona SET dia_pagamento = p_dia_pagamento ao UPDATE
-```
-
-#### 2. `src/components/ContractDateSetup.tsx`
-- Adicionar estado `diaPagamento`
-- Exibir select com opções 10, 20, 30 **condicionalmente** quando `modeloContrato === 'PJ'`
-- Passar `p_dia_pagamento` na chamada RPC
-
-#### 3. `src/components/ProfileModal.tsx`
-- Exibir `dia_pagamento` como campo somente leitura para colaboradores PJ (badge com "Dia 10", "Dia 20" ou "Dia 30")
-- Adicionar botão "Solicitar alteração" que envia email ao diretor via edge function `send-notification-email` com tipo `PAYMENT_DAY_CHANGE_REQUEST`, incluindo o dia atual e o dia desejado (select com as 3 opções)
-
-#### 4. Atualizar edge function `send-notification-email`
-Adicionar tratamento para o novo tipo `PAYMENT_DAY_CHANGE_REQUEST`:
-- Busca email dos diretores
-- Envia email informando: colaborador X solicita alteração do dia de pagamento de Y para Z
+#### `src/pages/Admin.tsx`
+1. **Novo estado**: `inviteDates` — `Map<string, string>` mapeando `person_id` → data formatada do último convite
+2. **No `fetchPeople`**: Adicionar query ao `audit_logs` filtrando `acao = 'ADMIN_SEND_INVITE'`, ordenando por `created_at` desc. Agrupar por `entidade_id` (person_id) pegando a data mais recente de cada um
+3. **Na célula Auth** (linhas ~803-808): Abaixo do badge existente, renderizar em texto pequeno (`text-xs text-muted-foreground`) a data do último convite, ex: "Convite: 14/03/2026"
 
 ### Arquivos
-
-| Arquivo | Alteração |
-|---------|-----------|
-| Migração SQL | Atualizar `set_contract_data_for_current_user` com `p_dia_pagamento` |
-| `src/components/ContractDateSetup.tsx` | Campo condicional dia de pagamento para PJ |
-| `src/components/ProfileModal.tsx` | Exibir dia de pagamento (read-only) + botão solicitar alteração |
-| `supabase/functions/send-notification-email/index.ts` | Novo tipo de notificação para solicitação de alteração |
+| Arquivo | Ação |
+|---------|------|
+| `src/pages/Admin.tsx` | Modificar — buscar datas de convite e exibir na coluna Auth |
 
