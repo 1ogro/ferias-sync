@@ -217,8 +217,62 @@ Deno.serve(async (req) => {
       );
     }
 
+    if (action === "notify_admin_change") {
+      const { change_type, target_name, target_email, details } = await req.json().catch(() => ({}));
+      // We already parsed req.json() above for action/person_id, so use the body values passed alongside
+      const body = { action, person_id, change_type, target_name, target_email, details };
+
+      const emojiMap: Record<string, string> = {
+        deactivation: "🚫",
+        reactivation: "✅",
+        role_change: "🔄",
+        deletion: "🗑️",
+      };
+      const titleMap: Record<string, string> = {
+        deactivation: "Usuário Desativado",
+        reactivation: "Usuário Reativado",
+        role_change: "Mudança de Papel",
+        deletion: "Usuário Excluído",
+      };
+
+      const emoji = emojiMap[change_type] || "ℹ️";
+      const title = titleMap[change_type] || "Ação Administrativa";
+      let message = `${emoji} *${title}*\nAdmin *${callerPerson.nome}*`;
+
+      if (change_type === "role_change" && details) {
+        message += ` alterou papel de *${target_name || targetPerson.nome}* de ${details.old_role} para ${details.new_role}`;
+      } else if (change_type === "deactivation") {
+        message += ` desativou *${target_name || targetPerson.nome}* (${target_email || targetPerson.email})`;
+      } else if (change_type === "reactivation") {
+        message += ` reativou *${target_name || targetPerson.nome}* (${target_email || targetPerson.email})`;
+      } else if (change_type === "deletion") {
+        message += ` excluiu *${target_name || targetPerson.nome}* (${target_email || targetPerson.email})`;
+      }
+
+      // Audit log
+      await adminClient.from("audit_logs").insert({
+        entidade: "people",
+        entidade_id: person_id,
+        acao: `ADMIN_${(change_type || "CHANGE").toUpperCase()}`,
+        actor_id: callerProfile.person_id,
+        payload: {
+          change_type,
+          target_name: target_name || targetPerson.nome,
+          target_email: target_email || targetPerson.email,
+          details,
+        },
+      });
+
+      sendSlackNotification(message);
+
+      return new Response(
+        JSON.stringify({ success: true, message: "Notificação enviada" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     return new Response(
-      JSON.stringify({ error: "Ação inválida. Use reset_password ou clear_identities" }),
+      JSON.stringify({ error: "Ação inválida. Use reset_password, clear_identities ou notify_admin_change" }),
       { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error: any) {
