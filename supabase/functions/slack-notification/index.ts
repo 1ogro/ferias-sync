@@ -10,15 +10,19 @@ const corsHeaders = {
 };
 
 interface SlackNotificationRequest {
-  type: 'NEW_REQUEST' | 'APPROVAL' | 'REJECTION' | 'REQUEST_INFO';
-  requestId: string;
-  requesterName: string;
-  requestType: string;
-  startDate: string;
-  endDate: string;
+  type: 'NEW_REQUEST' | 'APPROVAL' | 'REJECTION' | 'REQUEST_INFO' | 'PERSON_APPROVED' | 'PERSON_REJECTED';
+  requestId?: string;
+  requesterName?: string;
+  requestType?: string;
+  startDate?: string;
+  endDate?: string;
   approverEmail?: string;
   comment?: string;
   targetPersonId?: string;
+  personName?: string;
+  personEmail?: string;
+  directorName?: string;
+  rejectionReason?: string;
 }
 
 const TIPO_EMOJI = {
