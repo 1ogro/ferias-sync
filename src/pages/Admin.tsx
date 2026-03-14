@@ -74,6 +74,7 @@ import {
   Minimize2,
   KeyRound,
   ShieldOff,
+  Mail,
   Loader2
 } from "lucide-react";
 
