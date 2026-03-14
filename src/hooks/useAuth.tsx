@@ -54,6 +54,71 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
+  const checkInviteAccepted = async (personId: string, personName: string, personEmail: string) => {
+    try {
+      // Check if there's an ADMIN_SEND_INVITE for this person without a corresponding INVITE_ACCEPTED
+      const { data: inviteLog } = await supabase
+        .from('audit_logs')
+        .select('actor_id, entidade_id')
+        .eq('entidade', 'people')
+        .eq('acao', 'ADMIN_SEND_INVITE')
+        .eq('entidade_id', personId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (!inviteLog?.actor_id) return;
+
+      // Check if INVITE_ACCEPTED already exists
+      const { data: acceptedLog } = await supabase
+        .from('audit_logs')
+        .select('id')
+        .eq('entidade', 'people')
+        .eq('acao', 'INVITE_ACCEPTED')
+        .eq('entidade_id', personId)
+        .limit(1)
+        .maybeSingle();
+
+      if (acceptedLog) return; // Already processed
+
+      // Get the inviter's info
+      const { data: inviter } = await supabase
+        .from('people')
+        .select('nome, email')
+        .eq('id', inviteLog.actor_id)
+        .maybeSingle();
+
+      if (!inviter?.email) return;
+
+      // Record INVITE_ACCEPTED to prevent re-sending
+      await supabase
+        .from('audit_logs')
+        .insert({
+          entidade: 'people',
+          entidade_id: personId,
+          acao: 'INVITE_ACCEPTED',
+          actor_id: personId,
+          payload: { inviter_id: inviteLog.actor_id } as any,
+        });
+
+      // Send email notification (fire-and-forget)
+      supabase.functions.invoke('send-notification-email', {
+        body: {
+          type: 'INVITE_ACCEPTED',
+          to: inviter.email,
+          requesterName: inviter.nome,
+          collaboratorName: personName,
+          collaboratorEmail: personEmail,
+          targetPersonId: inviteLog.actor_id,
+        },
+      }).catch(err => console.warn('Failed to send invite accepted email:', err));
+
+      console.log('Invite accepted notification sent to', inviter.email);
+    } catch (error) {
+      console.warn('Error checking invite acceptance:', error);
+    }
+  };
+
   const fetchPersonData = async (userId?: string) => {
     const userIdToUse = userId || user?.id;
     if (!userIdToUse) return;
@@ -75,10 +140,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setPerson(null);
       } else if (profile?.people) {
         console.log('Profile found:', profile.people);
-        setPerson(profile.people as Person);
+        const personData = profile.people as Person;
+        setPerson(personData);
         
         // Fetch user roles after getting person data
         await fetchUserRoles(userIdToUse);
+
+        // Check if this is a first login after accepting an invite (fire-and-forget)
+        checkInviteAccepted(personData.id, personData.nome, personData.email);
       } else {
         console.log('No profile found for user');
         setPerson(null);

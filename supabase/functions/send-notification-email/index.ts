@@ -247,6 +247,26 @@ function generateEmailContent(notification: NotificationRequest): { subject: str
         `,
       };
 
+    case 'INVITE_ACCEPTED':
+      return {
+        subject: `Convite aceito — ${notification.collaboratorName} criou sua conta`,
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2 style="color: #16a34a;">🎉 Convite Aceito</h2>
+            <p>Olá,</p>
+            <p><strong>${notification.collaboratorName}</strong> (${notification.collaboratorEmail}) aceitou o convite e criou sua conta no sistema.</p>
+            <p>O colaborador já pode acessar o sistema normalmente.</p>
+            <br/>
+            <a href="${Deno.env.get('SUPABASE_URL')}" 
+               style="background-color: #16a34a; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">
+              Acessar Sistema
+            </a>
+            <br/><br/>
+            <p style="color: #666; font-size: 12px;">Este é um email automático, por favor não responda.</p>
+          </div>
+        `,
+      };
+
     default:
       return {
         subject: "Notificação do Sistema de Férias",
