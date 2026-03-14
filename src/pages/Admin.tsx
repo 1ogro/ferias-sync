@@ -768,7 +768,7 @@ const Admin = () => {
                    <SortableHeader field="papel">Papel</SortableHeader>
                    <SortableHeader field="is_admin">Admin</SortableHeader>
                    <SortableHeader field="ativo">Status</SortableHeader>
-                   {isDirector && <TableHead>Auth</TableHead>}
+                   {(isDirector || isManager) && <TableHead>Auth</TableHead>}
                    <TableHead>Ações</TableHead>
                  </TableRow>
               </TableHeader>
