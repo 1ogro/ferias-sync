@@ -116,6 +116,7 @@ const Admin = () => {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [authActionLoading, setAuthActionLoading] = useState<string | null>(null);
   const [clearAuthTarget, setClearAuthTarget] = useState<Person | null>(null);
+  const [originalEditData, setOriginalEditData] = useState<{ papel: string; ativo: boolean; nome: string; email: string } | null>(null);
   
    const [formData, setFormData] = useState<FormData>({
      id: '',
@@ -240,6 +241,37 @@ const Admin = () => {
     }
   };
 
+  const sendAdminNotification = async (params: {
+    change_type: string;
+    person_id: string;
+    target_name: string;
+    target_email: string;
+    details?: Record<string, string>;
+  }) => {
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+      if (!token) return;
+
+      await fetch(
+        `https://uhphxyhffpbnmsrlggbe.supabase.co/functions/v1/admin-auth-management`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            action: 'notify_admin_change',
+            ...params,
+          }),
+        }
+      );
+    } catch (e) {
+      console.error('Slack notification failed:', e);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
@@ -268,6 +300,34 @@ const Admin = () => {
         .eq('id', formData.id);
 
       if (error) throw error;
+
+      // Send Slack notifications for key changes (fire-and-forget)
+      if (originalEditData) {
+        if (originalEditData.ativo && !formData.ativo) {
+          sendAdminNotification({
+            change_type: 'deactivation',
+            person_id: formData.id,
+            target_name: formData.nome,
+            target_email: formData.email,
+          });
+        } else if (!originalEditData.ativo && formData.ativo) {
+          sendAdminNotification({
+            change_type: 'reactivation',
+            person_id: formData.id,
+            target_name: formData.nome,
+            target_email: formData.email,
+          });
+        }
+        if (originalEditData.papel !== formData.papel) {
+          sendAdminNotification({
+            change_type: 'role_change',
+            person_id: formData.id,
+            target_name: formData.nome,
+            target_email: formData.email,
+            details: { old_role: originalEditData.papel, new_role: formData.papel },
+          });
+        }
+      }
       
       toast({
         title: "Sucesso",
@@ -288,26 +348,33 @@ const Admin = () => {
     }
   };
 
-  const handleEdit = (person: Person) => {
+  const handleEdit = (personToEdit: Person) => {
+     setOriginalEditData({
+       papel: personToEdit.papel,
+       ativo: personToEdit.ativo,
+       nome: personToEdit.nome,
+       email: personToEdit.email,
+     });
      setFormData({
-       id: person.id,
-       nome: person.nome,
-       email: person.email,
-       cargo: person.cargo || '',
-       local: person.local || '',
-       subTime: person.subTime || '',
-       papel: person.papel,
-       is_admin: person.is_admin,
-       ativo: person.ativo,
-       gestorId: person.gestorId || '',
-       data_contrato: person.data_contrato || '',
-       modelo_contrato: person.modelo_contrato || '',
-       dia_pagamento: person.dia_pagamento?.toString() || ''
+       id: personToEdit.id,
+       nome: personToEdit.nome,
+       email: personToEdit.email,
+       cargo: personToEdit.cargo || '',
+       local: personToEdit.local || '',
+       subTime: personToEdit.subTime || '',
+       papel: personToEdit.papel,
+       is_admin: personToEdit.is_admin,
+       ativo: personToEdit.ativo,
+       gestorId: personToEdit.gestorId || '',
+       data_contrato: personToEdit.data_contrato || '',
+       modelo_contrato: personToEdit.modelo_contrato || '',
+       dia_pagamento: personToEdit.dia_pagamento?.toString() || ''
      });
     setIsDialogOpen(true);
   };
 
   const handleDelete = async (id: string) => {
+    const targetPerson = people.find(p => p.id === id);
     try {
       const { error } = await supabase
         .from('people')
@@ -315,6 +382,16 @@ const Admin = () => {
         .eq('id', id);
 
       if (error) throw error;
+
+      // Slack notification (fire-and-forget)
+      if (targetPerson) {
+        sendAdminNotification({
+          change_type: 'deletion',
+          person_id: id,
+          target_name: targetPerson.nome,
+          target_email: targetPerson.email,
+        });
+      }
 
       toast({
         title: "Sucesso",
