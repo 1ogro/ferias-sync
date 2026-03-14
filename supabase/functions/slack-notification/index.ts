@@ -23,6 +23,7 @@ interface SlackNotificationRequest {
   personEmail?: string;
   directorName?: string;
   rejectionReason?: string;
+  managerName?: string;
 }
 
 const TIPO_EMOJI = {
