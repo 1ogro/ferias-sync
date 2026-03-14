@@ -1246,20 +1246,58 @@ const Admin = () => {
       </AlertDialog>
 
       {/* Send Invite Confirmation Dialog */}
-      <AlertDialog open={!!inviteTarget} onOpenChange={(open) => !open && setInviteTarget(null)}>
+      <AlertDialog open={!!inviteTarget} onOpenChange={(open) => { if (!open) { setInviteTarget(null); setInviteMethod('both'); } }}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Enviar Convite de Conta</AlertDialogTitle>
-            <AlertDialogDescription>
-              Tem certeza que deseja enviar um convite de criação de conta para <strong>{inviteTarget?.nome}</strong> ({inviteTarget?.email})?
-              {"\n\n"}
-              Um email será enviado com instruções para criar a senha e acessar o sistema.
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                <p>
+                  Tem certeza que deseja enviar um convite de criação de conta para <strong>{inviteTarget?.nome}</strong> ({inviteTarget?.email})?
+                </p>
+                
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Método de envio</Label>
+                  <Select
+                    value={inviteTarget?.papel === 'DIRETOR' ? 'email' : inviteMethod}
+                    onValueChange={(v) => setInviteMethod(v as 'email' | 'slack' | 'both')}
+                    disabled={inviteTarget?.papel === 'DIRETOR'}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="both">📧 Email + 💬 Slack DM</SelectItem>
+                      <SelectItem value="email">📧 Apenas Email</SelectItem>
+                      <SelectItem value="slack">💬 Apenas Slack DM</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {inviteTarget?.papel === 'DIRETOR' && (
+                    <p className="text-xs text-muted-foreground">
+                      Convites para diretores são enviados apenas por email.
+                    </p>
+                  )}
+                </div>
+
+                <p className="text-xs text-muted-foreground">
+                  {(inviteTarget?.papel === 'DIRETOR' || inviteMethod === 'email') && 
+                    "Um email será enviado com instruções para criar a senha e acessar o sistema."}
+                  {inviteMethod === 'slack' && inviteTarget?.papel !== 'DIRETOR' &&
+                    "Uma mensagem direta será enviada no Slack com o link de criação de conta."}
+                  {inviteMethod === 'both' && inviteTarget?.papel !== 'DIRETOR' &&
+                    "Um email e uma mensagem direta no Slack serão enviados com o link de criação de conta."}
+                </p>
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction 
-              onClick={() => inviteTarget && handleAdminAuthAction(inviteTarget.id, 'send_invite')}
+              onClick={() => {
+                if (!inviteTarget) return;
+                const method = inviteTarget.papel === 'DIRETOR' ? 'email' : inviteMethod;
+                handleAdminAuthAction(inviteTarget.id, 'send_invite', method);
+              }}
             >
               Confirmar — Enviar Convite
             </AlertDialogAction>
