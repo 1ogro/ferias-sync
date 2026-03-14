@@ -25,6 +25,66 @@ async function sendSlackNotification(text: string) {
   }
 }
 
+async function sendSlackDM(
+  slackToken: string,
+  email: string,
+  blocks: any[],
+  fallbackText: string
+): Promise<{ ok: boolean; error?: string }> {
+  // Lookup Slack user by email
+  const lookupRes = await fetch(
+    `https://slack.com/api/users.lookupByEmail?email=${encodeURIComponent(email)}`,
+    {
+      headers: { Authorization: `Bearer ${slackToken}` },
+    }
+  );
+  const lookupData = await lookupRes.json();
+
+  if (!lookupData.ok) {
+    return { ok: false, error: `Usuário não encontrado no Slack para o email ${email}` };
+  }
+
+  const slackUserId = lookupData.user.id;
+
+  // Open DM conversation
+  const openRes = await fetch("https://slack.com/api/conversations.open", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${slackToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ users: slackUserId }),
+  });
+  const openData = await openRes.json();
+
+  if (!openData.ok) {
+    return { ok: false, error: `Erro ao abrir conversa Slack: ${openData.error}` };
+  }
+
+  const channelId = openData.channel.id;
+
+  // Send DM
+  const msgRes = await fetch("https://slack.com/api/chat.postMessage", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${slackToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      channel: channelId,
+      text: fallbackText,
+      blocks,
+    }),
+  });
+  const msgData = await msgRes.json();
+
+  if (!msgData.ok) {
+    return { ok: false, error: `Erro ao enviar DM Slack: ${msgData.error}` };
+  }
+
+  return { ok: true };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -89,7 +149,7 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json();
-    const { action, person_id, change_type, target_name, target_email, details } = body;
+    const { action, person_id, change_type, target_name, target_email, details, invite_method } = body;
 
     const isCallerDirectorOrAdmin =
       callerPerson.papel === "DIRETOR" ||
@@ -122,10 +182,10 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Get target person's email
+    // Get target person's email and role
     const { data: targetPerson } = await adminClient
       .from("people")
-      .select("email, nome")
+      .select("email, nome, papel")
       .eq("id", person_id)
       .single();
 
@@ -238,6 +298,11 @@ Deno.serve(async (req) => {
     }
 
     if (action === "send_invite") {
+      // Determine effective invite method
+      // For DIRETOR, force email-only
+      const isTargetDirector = targetPerson.papel === "DIRETOR";
+      const effectiveMethod: string = isTargetDirector ? "email" : (invite_method || "both");
+
       // Check if email already has an auth user
       const { data: authUsers } = await adminClient.auth.admin.listUsers();
       const existingAuthUser = authUsers?.users?.find(
@@ -251,20 +316,130 @@ Deno.serve(async (req) => {
         );
       }
 
-      // Send invite email
-      const { data: inviteData, error: inviteError } =
-        await adminClient.auth.admin.inviteUserByEmail(targetPerson.email);
+      const results: string[] = [];
+      let authUserId: string | undefined;
 
-      if (inviteError) {
-        throw inviteError;
+      // --- EMAIL (inviteUserByEmail) ---
+      if (effectiveMethod === "email" || effectiveMethod === "both") {
+        const { data: inviteData, error: inviteError } =
+          await adminClient.auth.admin.inviteUserByEmail(targetPerson.email);
+
+        if (inviteError) {
+          throw inviteError;
+        }
+
+        authUserId = inviteData?.user?.id;
+
+        // Create profile linking auth user to person
+        if (inviteData?.user) {
+          await adminClient.from("profiles").upsert({
+            user_id: inviteData.user.id,
+            person_id: person_id,
+          }, { onConflict: "user_id" });
+        }
+
+        results.push("email");
       }
 
-      // Create profile linking auth user to person
-      if (inviteData?.user) {
-        await adminClient.from("profiles").upsert({
-          user_id: inviteData.user.id,
-          person_id: person_id,
-        }, { onConflict: "user_id" });
+      // --- SLACK-ONLY: use generateLink instead of inviteUserByEmail ---
+      if (effectiveMethod === "slack") {
+        // Generate a signup/invite link without sending email
+        const { data: linkData, error: linkError } =
+          await adminClient.auth.admin.generateLink({
+            type: "invite",
+            email: targetPerson.email,
+          });
+
+        if (linkError) {
+          throw linkError;
+        }
+
+        authUserId = linkData?.user?.id;
+
+        // Create profile linking auth user to person
+        if (linkData?.user) {
+          await adminClient.from("profiles").upsert({
+            user_id: linkData.user.id,
+            person_id: person_id,
+          }, { onConflict: "user_id" });
+        }
+      }
+
+      // --- SLACK DM ---
+      if (effectiveMethod === "slack" || effectiveMethod === "both") {
+        const slackToken = Deno.env.get("SLACK_BOT_TOKEN");
+        if (!slackToken) {
+          if (effectiveMethod === "slack") {
+            return new Response(
+              JSON.stringify({ error: "SLACK_BOT_TOKEN não configurado. Não é possível enviar convite via Slack." }),
+              { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            );
+          }
+          // If 'both', email was already sent, just skip Slack
+          results.push("slack_skipped_no_token");
+        } else {
+          // Generate the invite link for the DM
+          let inviteLink: string | undefined;
+
+          // For 'both', we need to generate a separate link for the DM
+          // For 'slack', we already generated the link above
+          const { data: dmLinkData, error: dmLinkError } =
+            await adminClient.auth.admin.generateLink({
+              type: "invite",
+              email: targetPerson.email,
+            });
+
+          if (!dmLinkError && dmLinkData?.properties?.action_link) {
+            inviteLink = dmLinkData.properties.action_link;
+          }
+
+          const blocks = [
+            {
+              type: "section",
+              text: {
+                type: "mrkdwn",
+                text: `👋 Olá, *${targetPerson.nome}*!\n\nVocê foi convidado(a) por *${callerPerson.nome}* para criar sua conta no sistema de gestão de férias.`,
+              },
+            },
+            {
+              type: "section",
+              text: {
+                type: "mrkdwn",
+                text: inviteLink
+                  ? `Clique no link abaixo para configurar sua senha e acessar o sistema:\n\n<${inviteLink}|🔗 Criar minha conta>`
+                  : "Verifique seu email para o link de criação de conta.",
+              },
+            },
+            {
+              type: "context",
+              elements: [
+                {
+                  type: "mrkdwn",
+                  text: "📩 Este convite foi enviado pelo sistema de administração.",
+                },
+              ],
+            },
+          ];
+
+          const dmResult = await sendSlackDM(
+            slackToken,
+            targetPerson.email,
+            blocks,
+            `Olá ${targetPerson.nome}! Você foi convidado(a) para criar sua conta. ${inviteLink || "Verifique seu email."}`
+          );
+
+          if (dmResult.ok) {
+            results.push("slack");
+          } else {
+            if (effectiveMethod === "slack") {
+              return new Response(
+                JSON.stringify({ error: dmResult.error }),
+                { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+              );
+            }
+            results.push(`slack_failed: ${dmResult.error}`);
+          }
+        }
       }
 
       // Audit log
@@ -276,19 +451,30 @@ Deno.serve(async (req) => {
         payload: {
           target_email: targetPerson.email,
           target_name: targetPerson.nome,
-          invited_auth_user_id: inviteData?.user?.id,
+          invited_auth_user_id: authUserId,
+          invite_method: effectiveMethod,
+          results,
         },
       });
 
-      // Slack notification
+      // Channel notification (always)
+      const methodLabel = effectiveMethod === "both" ? "Email + Slack" : effectiveMethod === "slack" ? "Slack DM" : "Email";
       sendSlackNotification(
-        `📩 *Convite Enviado* — Admin *${callerPerson.nome}* enviou convite de criação de conta para *${targetPerson.nome}* (${targetPerson.email})`
+        `📩 *Convite Enviado (${methodLabel})* — Admin *${callerPerson.nome}* enviou convite de criação de conta para *${targetPerson.nome}* (${targetPerson.email})`
       );
+
+      const successParts: string[] = [];
+      if (results.includes("email")) successParts.push("por email");
+      if (results.includes("slack")) successParts.push("via Slack DM");
+      if (effectiveMethod === "slack" && !results.includes("slack_failed")) {
+        successParts.push("via Slack DM");
+      }
 
       return new Response(
         JSON.stringify({
           success: true,
-          message: `Convite enviado para ${targetPerson.email}`,
+          message: `Convite enviado ${successParts.length > 0 ? successParts.join(" e ") : ""} para ${targetPerson.email}`,
+          results,
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );

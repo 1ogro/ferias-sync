@@ -119,6 +119,7 @@ const Admin = () => {
   const [authActionLoading, setAuthActionLoading] = useState<string | null>(null);
   const [clearAuthTarget, setClearAuthTarget] = useState<Person | null>(null);
   const [inviteTarget, setInviteTarget] = useState<Person | null>(null);
+  const [inviteMethod, setInviteMethod] = useState<'email' | 'slack' | 'both'>('both');
   const [originalEditData, setOriginalEditData] = useState<{ papel: string; ativo: boolean; nome: string; email: string } | null>(null);
   
    const [formData, setFormData] = useState<FormData>({
@@ -427,12 +428,17 @@ const Admin = () => {
   };
 
 
-  const handleAdminAuthAction = async (personId: string, action: 'reset_password' | 'clear_identities' | 'send_invite') => {
+  const handleAdminAuthAction = async (personId: string, action: 'reset_password' | 'clear_identities' | 'send_invite', method?: 'email' | 'slack' | 'both') => {
     setAuthActionLoading(`${action}_${personId}`);
     try {
       const { data: sessionData } = await supabase.auth.getSession();
       const token = sessionData.session?.access_token;
       if (!token) throw new Error('Sessão não encontrada');
+
+      const bodyPayload: Record<string, string> = { action, person_id: personId };
+      if (action === 'send_invite' && method) {
+        bodyPayload.invite_method = method;
+      }
 
       const response = await fetch(
         `https://uhphxyhffpbnmsrlggbe.supabase.co/functions/v1/admin-auth-management`,
@@ -442,7 +448,7 @@ const Admin = () => {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${token}`,
           },
-          body: JSON.stringify({ action, person_id: personId }),
+          body: JSON.stringify(bodyPayload),
         }
       );
 
@@ -1240,20 +1246,58 @@ const Admin = () => {
       </AlertDialog>
 
       {/* Send Invite Confirmation Dialog */}
-      <AlertDialog open={!!inviteTarget} onOpenChange={(open) => !open && setInviteTarget(null)}>
+      <AlertDialog open={!!inviteTarget} onOpenChange={(open) => { if (!open) { setInviteTarget(null); setInviteMethod('both'); } }}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Enviar Convite de Conta</AlertDialogTitle>
-            <AlertDialogDescription>
-              Tem certeza que deseja enviar um convite de criação de conta para <strong>{inviteTarget?.nome}</strong> ({inviteTarget?.email})?
-              {"\n\n"}
-              Um email será enviado com instruções para criar a senha e acessar o sistema.
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                <p>
+                  Tem certeza que deseja enviar um convite de criação de conta para <strong>{inviteTarget?.nome}</strong> ({inviteTarget?.email})?
+                </p>
+                
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Método de envio</Label>
+                  <Select
+                    value={inviteTarget?.papel === 'DIRETOR' ? 'email' : inviteMethod}
+                    onValueChange={(v) => setInviteMethod(v as 'email' | 'slack' | 'both')}
+                    disabled={inviteTarget?.papel === 'DIRETOR'}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="both">📧 Email + 💬 Slack DM</SelectItem>
+                      <SelectItem value="email">📧 Apenas Email</SelectItem>
+                      <SelectItem value="slack">💬 Apenas Slack DM</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {inviteTarget?.papel === 'DIRETOR' && (
+                    <p className="text-xs text-muted-foreground">
+                      Convites para diretores são enviados apenas por email.
+                    </p>
+                  )}
+                </div>
+
+                <p className="text-xs text-muted-foreground">
+                  {(inviteTarget?.papel === 'DIRETOR' || inviteMethod === 'email') && 
+                    "Um email será enviado com instruções para criar a senha e acessar o sistema."}
+                  {inviteMethod === 'slack' && inviteTarget?.papel !== 'DIRETOR' &&
+                    "Uma mensagem direta será enviada no Slack com o link de criação de conta."}
+                  {inviteMethod === 'both' && inviteTarget?.papel !== 'DIRETOR' &&
+                    "Um email e uma mensagem direta no Slack serão enviados com o link de criação de conta."}
+                </p>
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction 
-              onClick={() => inviteTarget && handleAdminAuthAction(inviteTarget.id, 'send_invite')}
+              onClick={() => {
+                if (!inviteTarget) return;
+                const method = inviteTarget.papel === 'DIRETOR' ? 'email' : inviteMethod;
+                handleAdminAuthAction(inviteTarget.id, 'send_invite', method);
+              }}
             >
               Confirmar — Enviar Convite
             </AlertDialogAction>
