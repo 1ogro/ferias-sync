@@ -111,7 +111,7 @@ const Admin = () => {
   
   const [people, setPeople] = useState<Person[]>([]);
   const [authenticatedPersonIds, setAuthenticatedPersonIds] = useState<Set<string>>(new Set());
-  const [inviteDates, setInviteDates] = useState<Map<string, { date: string; method: string }>>(new Map());
+  const [inviteDates, setInviteDates] = useState<Map<string, { date: string; method: string; results: string[] }>>(new Map());
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
