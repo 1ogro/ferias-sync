@@ -911,31 +911,31 @@ const Admin = () => {
                                   </TooltipContent>
                                 </Tooltip>
                               </TooltipProvider>
-
-                              {!authenticatedPersonIds.has(targetPerson.id) && (
-                                <TooltipProvider>
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => setInviteTarget(targetPerson)}
-                                        disabled={authActionLoading === `send_invite_${targetPerson.id}`}
-                                      >
-                                        {authActionLoading === `send_invite_${targetPerson.id}` ? (
-                                          <Loader2 className="h-4 w-4 animate-spin" />
-                                        ) : (
-                                          <Mail className="h-4 w-4" />
-                                        )}
-                                      </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent>
-                                      <p>Enviar convite de criação de conta</p>
-                                    </TooltipContent>
-                                  </Tooltip>
-                                </TooltipProvider>
-                              )}
                             </>
+                          )}
+
+                          {(isDirector || isManager) && !authenticatedPersonIds.has(targetPerson.id) && (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setInviteTarget(targetPerson)}
+                                    disabled={authActionLoading === `send_invite_${targetPerson.id}`}
+                                  >
+                                    {authActionLoading === `send_invite_${targetPerson.id}` ? (
+                                      <Loader2 className="h-4 w-4 animate-spin" />
+                                    ) : (
+                                      <Mail className="h-4 w-4" />
+                                    )}
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>Enviar convite de criação de conta</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
                           )}
                         </div>
                      </TableCell>

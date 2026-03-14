@@ -81,20 +81,39 @@ Deno.serve(async (req) => {
       .eq("id", callerProfile.person_id)
       .single();
 
-    if (
-      !callerPerson ||
-      (callerPerson.papel !== "DIRETOR" &&
-        callerPerson.papel !== "ADMIN" &&
-        !callerPerson.is_admin)
-    ) {
+    if (!callerPerson) {
       return new Response(
-        JSON.stringify({ error: "Apenas diretores/admins podem realizar esta ação" }),
+        JSON.stringify({ error: "Dados do usuário não encontrados" }),
         { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
     const body = await req.json();
     const { action, person_id, change_type, target_name, target_email, details } = body;
+
+    const isCallerDirectorOrAdmin =
+      callerPerson.papel === "DIRETOR" ||
+      callerPerson.papel === "ADMIN" ||
+      callerPerson.is_admin;
+
+    const isCallerManager = callerPerson.papel === "GESTOR";
+
+    // For send_invite, allow managers too; for all other actions, require director/admin
+    if (action === "send_invite") {
+      if (!isCallerDirectorOrAdmin && !isCallerManager) {
+        return new Response(
+          JSON.stringify({ error: "Apenas gestores, diretores ou admins podem enviar convites" }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    } else {
+      if (!isCallerDirectorOrAdmin) {
+        return new Response(
+          JSON.stringify({ error: "Apenas diretores/admins podem realizar esta ação" }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    }
 
     if (!action || !person_id) {
       return new Response(
