@@ -374,6 +374,7 @@ const Admin = () => {
   };
 
   const handleDelete = async (id: string) => {
+    const targetPerson = people.find(p => p.id === id);
     try {
       const { error } = await supabase
         .from('people')
@@ -381,6 +382,16 @@ const Admin = () => {
         .eq('id', id);
 
       if (error) throw error;
+
+      // Slack notification (fire-and-forget)
+      if (targetPerson) {
+        sendAdminNotification({
+          change_type: 'deletion',
+          person_id: id,
+          target_name: targetPerson.nome,
+          target_email: targetPerson.email,
+        });
+      }
 
       toast({
         title: "Sucesso",
