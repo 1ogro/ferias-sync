@@ -219,9 +219,6 @@ Deno.serve(async (req) => {
     }
 
     if (action === "notify_admin_change") {
-      const { change_type, target_name, target_email, details } = await req.json().catch(() => ({}));
-      // We already parsed req.json() above for action/person_id, so use the body values passed alongside
-      const body = { action, person_id, change_type, target_name, target_email, details };
 
       const emojiMap: Record<string, string> = {
         deactivation: "🚫",
