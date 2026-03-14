@@ -111,6 +111,7 @@ const Admin = () => {
   
   const [people, setPeople] = useState<Person[]>([]);
   const [authenticatedPersonIds, setAuthenticatedPersonIds] = useState<Set<string>>(new Set());
+  const [inviteDates, setInviteDates] = useState<Map<string, string>>(new Map());
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -213,15 +214,28 @@ const Admin = () => {
   const fetchPeople = async () => {
     try {
       setLoading(true);
-      const [peopleResult, profilesResult] = await Promise.all([
+      const [peopleResult, profilesResult, inviteLogsResult] = await Promise.all([
         supabase.from('people').select('*').order('nome', { ascending: true }),
         supabase.from('profiles').select('person_id'),
+        supabase.from('audit_logs')
+          .select('entidade_id, created_at')
+          .eq('acao', 'ADMIN_SEND_INVITE')
+          .order('created_at', { ascending: false }),
       ]);
 
       if (peopleResult.error) throw peopleResult.error;
       
       const authIds = new Set((profilesResult.data || []).map(p => p.person_id));
       setAuthenticatedPersonIds(authIds);
+
+      // Build map of person_id → latest invite date
+      const dates = new Map<string, string>();
+      for (const log of inviteLogsResult.data || []) {
+        if (!dates.has(log.entidade_id)) {
+          dates.set(log.entidade_id, new Date(log.created_at).toLocaleDateString('pt-BR'));
+        }
+      }
+      setInviteDates(dates);
       
       setPeople((peopleResult.data || []).map(person => ({
         ...person,
@@ -800,13 +814,20 @@ const Admin = () => {
                          {targetPerson.ativo ? "Ativo" : "Inativo"}
                        </Badge>
                      </TableCell>
-                      {(isDirector || isManager) && (
-                        <TableCell>
-                          <Badge variant={authenticatedPersonIds.has(targetPerson.id) ? "default" : "outline"}>
-                           {authenticatedPersonIds.has(targetPerson.id) ? "✓ Sim" : "✗ Não"}
-                         </Badge>
-                       </TableCell>
-                     )}
+                       {(isDirector || isManager) && (
+                         <TableCell>
+                           <div className="flex flex-col gap-1">
+                             <Badge variant={authenticatedPersonIds.has(targetPerson.id) ? "default" : "outline"}>
+                              {authenticatedPersonIds.has(targetPerson.id) ? "✓ Sim" : "✗ Não"}
+                            </Badge>
+                            {inviteDates.has(targetPerson.id) && (
+                              <span className="text-xs text-muted-foreground">
+                                Convite: {inviteDates.get(targetPerson.id)}
+                              </span>
+                            )}
+                           </div>
+                        </TableCell>
+                      )}
                      <TableCell>
                        <div className="flex gap-2">
                          <TooltipProvider>
