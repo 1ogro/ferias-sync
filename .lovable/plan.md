@@ -1,43 +1,31 @@
 
 
-## Plano: Dia de Pagamento no Cadastro e Perfil do Colaborador
+## Plan: Notificar gestor por email quando convite for aceito
 
-### Objetivo
-1. Novos colaboradores PJ preenchem o dia de pagamento desejado durante o onboarding (ContractDateSetup)
-2. Colaboradores existentes visualizam seu dia de pagamento no perfil (ProfileModal) e podem solicitar alteração ao diretor
+### Contexto
+Quando um gestor/diretor envia convite via `admin-auth-management` (action `send_invite`), o `actor_id` fica registrado no `audit_logs` com ação `ADMIN_SEND_INVITE`. Quando o colaborador aceita o convite e faz login, precisamos detectar isso e enviar email ao remetente do convite.
 
----
+### Abordagem
+Detectar no frontend (`useAuth.tsx`) quando um usuário faz login pela primeira vez após aceitar um convite. Verificar no `audit_logs` se existe um registro `ADMIN_SEND_INVITE` para aquele `person_id` sem um correspondente `INVITE_ACCEPTED`. Se sim, disparar a notificação por email (fire-and-forget) e registrar `INVITE_ACCEPTED` no audit_logs.
 
-### Alterações
+### Implementação
 
-#### 1. Atualizar RPC `set_contract_data_for_current_user` (migração)
-Adicionar parâmetro `p_dia_pagamento` para salvar o dia de pagamento durante o onboarding:
+#### 1. `supabase/functions/send-notification-email/index.ts`
+- Adicionar tipo `INVITE_ACCEPTED` à interface `NotificationRequest`
+- Adicionar campos opcionais: `collaboratorName`, `collaboratorEmail`
+- Gerar template de email:
+  - Assunto: "Convite aceito — {nome} criou sua conta"
+  - Corpo: "{collaboratorName} ({email}) aceitou o convite e criou sua conta no sistema"
 
-```sql
-CREATE OR REPLACE FUNCTION public.set_contract_data_for_current_user(p_date date, p_model text, p_dia_pagamento integer DEFAULT NULL)
--- adiciona SET dia_pagamento = p_dia_pagamento ao UPDATE
-```
-
-#### 2. `src/components/ContractDateSetup.tsx`
-- Adicionar estado `diaPagamento`
-- Exibir select com opções 10, 20, 30 **condicionalmente** quando `modeloContrato === 'PJ'`
-- Passar `p_dia_pagamento` na chamada RPC
-
-#### 3. `src/components/ProfileModal.tsx`
-- Exibir `dia_pagamento` como campo somente leitura para colaboradores PJ (badge com "Dia 10", "Dia 20" ou "Dia 30")
-- Adicionar botão "Solicitar alteração" que envia email ao diretor via edge function `send-notification-email` com tipo `PAYMENT_DAY_CHANGE_REQUEST`, incluindo o dia atual e o dia desejado (select com as 3 opções)
-
-#### 4. Atualizar edge function `send-notification-email`
-Adicionar tratamento para o novo tipo `PAYMENT_DAY_CHANGE_REQUEST`:
-- Busca email dos diretores
-- Envia email informando: colaborador X solicita alteração do dia de pagamento de Y para Z
+#### 2. `src/hooks/useAuth.tsx`
+- Após `fetchPersonData` carregar o `person` com sucesso, verificar (uma vez por sessão) se existe `ADMIN_SEND_INVITE` no `audit_logs` para esse `person_id` sem `INVITE_ACCEPTED`
+- Se encontrar, buscar o `actor_id` (quem enviou o convite), buscar nome/email do actor em `people`, e invocar `send-notification-email` com tipo `INVITE_ACCEPTED`
+- Inserir registro `INVITE_ACCEPTED` no `audit_logs` para evitar reenvio
+- Tudo fire-and-forget, não bloqueia login
 
 ### Arquivos
-
-| Arquivo | Alteração |
-|---------|-----------|
-| Migração SQL | Atualizar `set_contract_data_for_current_user` com `p_dia_pagamento` |
-| `src/components/ContractDateSetup.tsx` | Campo condicional dia de pagamento para PJ |
-| `src/components/ProfileModal.tsx` | Exibir dia de pagamento (read-only) + botão solicitar alteração |
-| `supabase/functions/send-notification-email/index.ts` | Novo tipo de notificação para solicitação de alteração |
+| Arquivo | Ação |
+|---------|------|
+| `supabase/functions/send-notification-email/index.ts` | Adicionar tipo INVITE_ACCEPTED |
+| `src/hooks/useAuth.tsx` | Adicionar verificação de convite aceito após login |
 
