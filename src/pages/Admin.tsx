@@ -428,12 +428,17 @@ const Admin = () => {
   };
 
 
-  const handleAdminAuthAction = async (personId: string, action: 'reset_password' | 'clear_identities' | 'send_invite') => {
+  const handleAdminAuthAction = async (personId: string, action: 'reset_password' | 'clear_identities' | 'send_invite', method?: 'email' | 'slack' | 'both') => {
     setAuthActionLoading(`${action}_${personId}`);
     try {
       const { data: sessionData } = await supabase.auth.getSession();
       const token = sessionData.session?.access_token;
       if (!token) throw new Error('Sessão não encontrada');
+
+      const bodyPayload: Record<string, string> = { action, person_id: personId };
+      if (action === 'send_invite' && method) {
+        bodyPayload.invite_method = method;
+      }
 
       const response = await fetch(
         `https://uhphxyhffpbnmsrlggbe.supabase.co/functions/v1/admin-auth-management`,
@@ -443,7 +448,7 @@ const Admin = () => {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${token}`,
           },
-          body: JSON.stringify({ action, person_id: personId }),
+          body: JSON.stringify(bodyPayload),
         }
       );
 
