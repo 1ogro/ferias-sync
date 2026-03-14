@@ -299,9 +299,7 @@ Deno.serve(async (req) => {
 
     if (action === "send_invite") {
       // Determine effective invite method
-      // For DIRETOR, force email-only
-      const isTargetDirector = targetPerson.papel === "DIRETOR";
-      const effectiveMethod: string = isTargetDirector ? "email" : (invite_method || "both");
+      const effectiveMethod: string = invite_method || "both";
 
       // Check if email already has an auth user
       const { data: authUsers } = await adminClient.auth.admin.listUsers();

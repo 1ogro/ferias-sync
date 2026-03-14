@@ -1298,8 +1298,7 @@ const Admin = () => {
             <AlertDialogAction 
               onClick={() => {
                 if (!inviteTarget) return;
-                const method = inviteTarget.papel === 'DIRETOR' ? 'email' : inviteMethod;
-                handleAdminAuthAction(inviteTarget.id, 'send_invite', method);
+                handleAdminAuthAction(inviteTarget.id, 'send_invite', inviteMethod);
               }}
             >
               Confirmar — Enviar Convite
