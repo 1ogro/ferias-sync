@@ -12,6 +12,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { useSettings } from "@/hooks/useSettings";
 import { useAuth } from "@/hooks/useAuth";
 import { useIntegrations } from "@/hooks/useIntegrations";
+import { useNotificationPreferences } from "@/hooks/useNotificationPreferences";
 import { IntegrationCard } from "@/components/integrations/IntegrationCard";
 import { IntegrationsWizard } from "@/components/integrations/IntegrationsWizard";
 import { Monitor, Bell, Table, RotateCcw, Save, Plug, Mail, Figma, Stethoscope, Settings as SettingsIcon, TestTube } from "lucide-react";
