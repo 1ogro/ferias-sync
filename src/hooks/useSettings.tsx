@@ -5,11 +5,6 @@ export interface Settings {
   compactMode: boolean;
   animations: boolean;
   
-  // Notifications
-  birthdayNotifications: boolean;
-  requestReminders: boolean;
-  systemAlerts: boolean;
-  
   // Display
   itemsPerPage: number;
   dateFormat: string;
@@ -23,9 +18,6 @@ export interface Settings {
 const defaultSettings: Settings = {
   compactMode: false,
   animations: true,
-  birthdayNotifications: true,
-  requestReminders: true,
-  systemAlerts: true,
   itemsPerPage: 10,
   dateFormat: "dd/MM/yyyy",
   showTooltips: true,

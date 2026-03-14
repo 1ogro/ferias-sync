@@ -12,6 +12,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { useSettings } from "@/hooks/useSettings";
 import { useAuth } from "@/hooks/useAuth";
 import { useIntegrations } from "@/hooks/useIntegrations";
+import { useNotificationPreferences } from "@/hooks/useNotificationPreferences";
 import { IntegrationCard } from "@/components/integrations/IntegrationCard";
 import { IntegrationsWizard } from "@/components/integrations/IntegrationsWizard";
 import { Monitor, Bell, Table, RotateCcw, Save, Plug, Mail, Figma, Stethoscope, Settings as SettingsIcon, TestTube } from "lucide-react";
@@ -23,7 +24,8 @@ const Settings = () => {
   const { toast } = useToast();
   const { settings, updateSettings, resetSettings } = useSettings();
   const { hasRole } = useAuth();
-  const { 
+  const { preferences: notifPrefs, isLoading: notifLoading, isSaving: notifSaving, updatePreference } = useNotificationPreferences();
+  const {
     settings: integrationSettings, 
     isLoading,
     testSlack, 
@@ -169,51 +171,118 @@ const Settings = () => {
                 <CardHeader>
                   <CardTitle>Notificações</CardTitle>
                   <CardDescription>
-                    Configure quando e como receber notificações do sistema
+                    Escolha os canais de notificação para cada tipo de evento
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-6">
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-0.5">
-                      <Label htmlFor="birthday-notifications">Notificações de aniversário</Label>
-                      <p className="text-sm text-muted-foreground">
-                        Receba alertas sobre aniversários da equipe
-                      </p>
-                    </div>
-                    <Switch
-                      id="birthday-notifications"
-                      checked={settings.birthdayNotifications}
-                      onCheckedChange={(checked) => handleSettingChange('birthdayNotifications', checked)}
-                    />
-                  </div>
+                <CardContent>
+                  {notifLoading ? (
+                    <p className="text-sm text-muted-foreground py-4">Carregando preferências...</p>
+                  ) : (
+                    <div className="space-y-1">
+                      {/* Header */}
+                      <div className="grid grid-cols-[1fr_80px_80px] gap-4 items-center pb-3 border-b">
+                        <span className="text-sm font-medium text-muted-foreground">Tipo de notificação</span>
+                        <span className="text-sm font-medium text-muted-foreground text-center flex items-center justify-center gap-1">
+                          <Mail className="w-3.5 h-3.5" /> Email
+                        </span>
+                        <span className="text-sm font-medium text-muted-foreground text-center flex items-center justify-center gap-1">
+                          <MessageSquare className="w-3.5 h-3.5" /> Slack
+                        </span>
+                      </div>
 
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-0.5">
-                      <Label htmlFor="request-reminders">Lembretes de solicitações</Label>
-                      <p className="text-sm text-muted-foreground">
-                        Notificações sobre solicitações pendentes
-                      </p>
-                    </div>
-                    <Switch
-                      id="request-reminders"
-                      checked={settings.requestReminders}
-                      onCheckedChange={(checked) => handleSettingChange('requestReminders', checked)}
-                    />
-                  </div>
+                      {/* Birthday */}
+                      <div className="grid grid-cols-[1fr_80px_80px] gap-4 items-center py-3 border-b">
+                        <div>
+                          <Label>Aniversários</Label>
+                          <p className="text-sm text-muted-foreground">Alertas sobre aniversários da equipe</p>
+                        </div>
+                        <div className="flex justify-center">
+                          <Switch
+                            checked={notifPrefs.birthday_email}
+                            onCheckedChange={(v) => updatePreference('birthday_email', v)}
+                            disabled={notifSaving}
+                          />
+                        </div>
+                        <div className="flex justify-center">
+                          <Switch
+                            checked={notifPrefs.birthday_slack}
+                            onCheckedChange={(v) => updatePreference('birthday_slack', v)}
+                            disabled={notifSaving}
+                          />
+                        </div>
+                      </div>
 
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-0.5">
-                      <Label htmlFor="system-alerts">Alertas do sistema</Label>
-                      <p className="text-sm text-muted-foreground">
-                        Receba notificações sobre atualizações importantes
-                      </p>
+                      {/* Request updates */}
+                      <div className="grid grid-cols-[1fr_80px_80px] gap-4 items-center py-3 border-b">
+                        <div>
+                          <Label>Atualizações de solicitações</Label>
+                          <p className="text-sm text-muted-foreground">Aprovações, rejeições e solicitação de informações</p>
+                        </div>
+                        <div className="flex justify-center">
+                          <Switch
+                            checked={notifPrefs.request_updates_email}
+                            onCheckedChange={(v) => updatePreference('request_updates_email', v)}
+                            disabled={notifSaving}
+                          />
+                        </div>
+                        <div className="flex justify-center">
+                          <Switch
+                            checked={notifPrefs.request_updates_slack}
+                            onCheckedChange={(v) => updatePreference('request_updates_slack', v)}
+                            disabled={notifSaving}
+                          />
+                        </div>
+                      </div>
+
+                      {/* System alerts */}
+                      <div className="grid grid-cols-[1fr_80px_80px] gap-4 items-center py-3 border-b">
+                        <div>
+                          <Label>Alertas do sistema</Label>
+                          <p className="text-sm text-muted-foreground">Notificações sobre atualizações importantes</p>
+                        </div>
+                        <div className="flex justify-center">
+                          <Switch
+                            checked={notifPrefs.system_alerts_email}
+                            onCheckedChange={(v) => updatePreference('system_alerts_email', v)}
+                            disabled={notifSaving}
+                          />
+                        </div>
+                        <div className="flex justify-center">
+                          <Switch
+                            checked={notifPrefs.system_alerts_slack}
+                            onCheckedChange={(v) => updatePreference('system_alerts_slack', v)}
+                            disabled={notifSaving}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Admin actions */}
+                      <div className="grid grid-cols-[1fr_80px_80px] gap-4 items-center py-3">
+                        <div>
+                          <Label>Ações administrativas</Label>
+                          <p className="text-sm text-muted-foreground">Desativações, mudanças de papel e exclusões</p>
+                        </div>
+                        <div className="flex justify-center">
+                          <Switch
+                            checked={notifPrefs.admin_actions_email}
+                            onCheckedChange={(v) => updatePreference('admin_actions_email', v)}
+                            disabled={notifSaving}
+                          />
+                        </div>
+                        <div className="flex justify-center">
+                          <Switch
+                            checked={notifPrefs.admin_actions_slack}
+                            onCheckedChange={(v) => updatePreference('admin_actions_slack', v)}
+                            disabled={notifSaving}
+                          />
+                        </div>
+                      </div>
+
+                      {notifSaving && (
+                        <p className="text-xs text-muted-foreground pt-2">Salvando...</p>
+                      )}
                     </div>
-                    <Switch
-                      id="system-alerts"
-                      checked={settings.systemAlerts}
-                      onCheckedChange={(checked) => handleSettingChange('systemAlerts', checked)}
-                    />
-                  </div>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>

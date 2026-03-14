@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
-import { useSettings } from "@/hooks/useSettings";
 import { supabase } from "@/integrations/supabase/client";
 import { Person, Papel } from "@/lib/types";
 import { isBirthdayToday } from "@/lib/dateUtils";
@@ -10,7 +9,6 @@ import { Cake } from "lucide-react";
 export const useBirthdayNotifications = () => {
   const { toast } = useToast();
   const { person } = useAuth();
-  const { settings } = useSettings();
   const [hasCheckedToday, setHasCheckedToday] = useState(false);
 
   useEffect(() => {
@@ -19,11 +17,8 @@ export const useBirthdayNotifications = () => {
       return;
     }
 
-    // Check if birthday notifications are enabled in settings
-    if (!settings.birthdayNotifications) {
-      return;
-    }
-
+    // Birthday notifications are now controlled via notification_preferences table
+    // This hook always checks — the DB preferences control email/slack delivery
     // Check if we already showed notification today
     const today = new Date().toDateString();
     const lastCheck = localStorage.getItem('birthday-check-date');
@@ -34,7 +29,7 @@ export const useBirthdayNotifications = () => {
     }
 
     checkTeamBirthdays();
-  }, [person, settings.birthdayNotifications]);
+  }, [person]);
 
   const checkTeamBirthdays = async () => {
     if (!person) return;
