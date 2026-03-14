@@ -918,7 +918,7 @@ const Admin = () => {
                                       <Button
                                         variant="outline"
                                         size="sm"
-                                        onClick={() => handleAdminAuthAction(targetPerson.id, 'send_invite')}
+                                        onClick={() => setInviteTarget(targetPerson)}
                                         disabled={authActionLoading === `send_invite_${targetPerson.id}`}
                                       >
                                         {authActionLoading === `send_invite_${targetPerson.id}` ? (
