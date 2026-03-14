@@ -1268,9 +1268,8 @@ const Admin = () => {
                 <div className="space-y-2">
                   <Label className="text-sm font-medium">Método de envio</Label>
                   <Select
-                    value={inviteTarget?.papel === 'DIRETOR' ? 'email' : inviteMethod}
+                    value={inviteMethod}
                     onValueChange={(v) => setInviteMethod(v as 'email' | 'slack' | 'both')}
-                    disabled={inviteTarget?.papel === 'DIRETOR'}
                   >
                     <SelectTrigger className="w-full">
                       <SelectValue />
@@ -1281,19 +1280,14 @@ const Admin = () => {
                       <SelectItem value="slack">💬 Apenas Slack DM</SelectItem>
                     </SelectContent>
                   </Select>
-                  {inviteTarget?.papel === 'DIRETOR' && (
-                    <p className="text-xs text-muted-foreground">
-                      Convites para diretores são enviados apenas por email.
-                    </p>
-                  )}
                 </div>
 
                 <p className="text-xs text-muted-foreground">
-                  {(inviteTarget?.papel === 'DIRETOR' || inviteMethod === 'email') && 
+                  {inviteMethod === 'email' && 
                     "Um email será enviado com instruções para criar a senha e acessar o sistema."}
-                  {inviteMethod === 'slack' && inviteTarget?.papel !== 'DIRETOR' &&
+                  {inviteMethod === 'slack' &&
                     "Uma mensagem direta será enviada no Slack com o link de criação de conta."}
-                  {inviteMethod === 'both' && inviteTarget?.papel !== 'DIRETOR' &&
+                  {inviteMethod === 'both' &&
                     "Um email e uma mensagem direta no Slack serão enviados com o link de criação de conta."}
                 </p>
               </div>
@@ -1304,8 +1298,7 @@ const Admin = () => {
             <AlertDialogAction 
               onClick={() => {
                 if (!inviteTarget) return;
-                const method = inviteTarget.papel === 'DIRETOR' ? 'email' : inviteMethod;
-                handleAdminAuthAction(inviteTarget.id, 'send_invite', method);
+                handleAdminAuthAction(inviteTarget.id, 'send_invite', inviteMethod);
               }}
             >
               Confirmar — Enviar Convite
