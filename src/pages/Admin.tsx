@@ -111,7 +111,7 @@ const Admin = () => {
   
   const [people, setPeople] = useState<Person[]>([]);
   const [authenticatedPersonIds, setAuthenticatedPersonIds] = useState<Set<string>>(new Set());
-  const [inviteDates, setInviteDates] = useState<Map<string, { date: string; method: string }>>(new Map());
+  const [inviteDates, setInviteDates] = useState<Map<string, { date: string; method: string; results: string[] }>>(new Map());
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -230,14 +230,16 @@ const Admin = () => {
       setAuthenticatedPersonIds(authIds);
 
       // Build map of person_id → latest invite date + method
-      const dates = new Map<string, { date: string; method: string }>();
+      const dates = new Map<string, { date: string; method: string; results: string[] }>();
       for (const log of inviteLogsResult.data || []) {
         if (!dates.has(log.entidade_id)) {
           const payload = log.payload as Record<string, unknown> | null;
           const method = (payload?.invite_method as string) || 'email';
+          const results = (payload?.results as string[]) || [];
           dates.set(log.entidade_id, {
             date: new Date(log.created_at).toLocaleDateString('pt-BR'),
             method,
+            results,
           });
         }
       }
@@ -831,15 +833,40 @@ const Admin = () => {
                              <Badge variant={authenticatedPersonIds.has(targetPerson.id) ? "default" : "outline"}>
                               {authenticatedPersonIds.has(targetPerson.id) ? "✓ Sim" : "✗ Não"}
                             </Badge>
-                            {inviteDates.has(targetPerson.id) && (() => {
-                              const info = inviteDates.get(targetPerson.id)!;
-                              const methodLabel = info.method === 'both' ? '📧💬 Ambos' : info.method === 'slack' ? '💬 Slack' : '📧 Email';
-                              return (
-                                <span className="text-xs text-muted-foreground">
-                                  Convite: {info.date} · {methodLabel}
-                                </span>
-                              );
-                            })()}
+                             {inviteDates.has(targetPerson.id) && (() => {
+                               const info = inviteDates.get(targetPerson.id)!;
+                               const methodLabel = info.method === 'both' ? '📧💬 Ambos' : info.method === 'slack' ? '💬 Slack' : '📧 Email';
+                               
+                               // Determine Slack delivery status
+                               const slackFailed = info.results.some(r => r.startsWith('slack_failed'));
+                               const slackSkipped = info.results.includes('slack_skipped_no_token');
+                               const slackSent = info.results.includes('slack');
+                               const emailSent = info.results.includes('email');
+                               
+                               const hasSlackIssue = (info.method === 'slack' || info.method === 'both') && (slackFailed || slackSkipped);
+                               const slackFailReason = slackFailed 
+                                 ? info.results.find(r => r.startsWith('slack_failed'))?.replace('slack_failed: ', '') || 'Erro'
+                                 : slackSkipped ? 'Token não configurado' : '';
+                               
+                               return (
+                                 <div className="flex flex-col gap-0.5">
+                                   <span className="text-xs text-muted-foreground">
+                                     Convite: {info.date} · {methodLabel}
+                                   </span>
+                                   {emailSent && (
+                                     <span className="text-xs text-green-600 dark:text-green-400">✓ Email enviado</span>
+                                   )}
+                                   {slackSent && (
+                                     <span className="text-xs text-green-600 dark:text-green-400">✓ Slack entregue</span>
+                                   )}
+                                   {hasSlackIssue && (
+                                     <span className="text-xs text-destructive" title={slackFailReason}>
+                                       ✗ Slack: {slackFailReason.includes('not_found') ? 'Usuário não encontrado' : slackFailReason}
+                                     </span>
+                                   )}
+                                 </div>
+                               );
+                             })()}
                            </div>
                         </TableCell>
                       )}
