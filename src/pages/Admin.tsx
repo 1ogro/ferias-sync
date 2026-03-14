@@ -117,6 +117,7 @@ const Admin = () => {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [authActionLoading, setAuthActionLoading] = useState<string | null>(null);
   const [clearAuthTarget, setClearAuthTarget] = useState<Person | null>(null);
+  const [inviteTarget, setInviteTarget] = useState<Person | null>(null);
   const [originalEditData, setOriginalEditData] = useState<{ papel: string; ativo: boolean; nome: string; email: string } | null>(null);
   
    const [formData, setFormData] = useState<FormData>({
@@ -439,6 +440,7 @@ const Admin = () => {
         setClearAuthTarget(null);
       }
       if (action === 'send_invite') {
+        setInviteTarget(null);
         fetchPeople();
       }
     } catch (error: any) {
@@ -917,7 +919,7 @@ const Admin = () => {
                                       <Button
                                         variant="outline"
                                         size="sm"
-                                        onClick={() => handleAdminAuthAction(targetPerson.id, 'send_invite')}
+                                        onClick={() => setInviteTarget(targetPerson)}
                                         disabled={authActionLoading === `send_invite_${targetPerson.id}`}
                                       >
                                         {authActionLoading === `send_invite_${targetPerson.id}` ? (
@@ -1211,6 +1213,28 @@ const Admin = () => {
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Confirmar — Zerar Autenticação
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Send Invite Confirmation Dialog */}
+      <AlertDialog open={!!inviteTarget} onOpenChange={(open) => !open && setInviteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Enviar Convite de Conta</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja enviar um convite de criação de conta para <strong>{inviteTarget?.nome}</strong> ({inviteTarget?.email})?
+              {"\n\n"}
+              Um email será enviado com instruções para criar a senha e acessar o sistema.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={() => inviteTarget && handleAdminAuthAction(inviteTarget.id, 'send_invite')}
+            >
+              Confirmar — Enviar Convite
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
