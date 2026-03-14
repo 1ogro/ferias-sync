@@ -189,6 +189,28 @@ serve(async (req) => {
           },
         },
       ];
+    } else if (payload.type === 'INVITE_ACCEPTED') {
+      text = `Convite Aceito`;
+      blocks = [
+        {
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: `*🎉 Convite Aceito*\n👤 *${payload.personName}* (${payload.personEmail}) aceitou o convite e criou sua conta no sistema.`,
+          },
+        },
+      ];
+    }
+      text = `Colaborador Rejeitado`;
+      blocks = [
+        {
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: `*❌ Colaborador Rejeitado*\n👤 *${payload.personName}* (${payload.personEmail})\n🔑 Rejeitado por: ${payload.directorName}${payload.rejectionReason ? `\n💬 Motivo: ${payload.rejectionReason}` : ''}`,
+          },
+        },
+      ];
     }
 
     // Send message to channel or DM

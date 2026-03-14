@@ -113,7 +113,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         },
       }).catch(err => console.warn('Failed to send invite accepted email:', err));
 
-      console.log('Invite accepted notification sent to', inviter.email);
+      // Send Slack notification (fire-and-forget)
+      supabase.functions.invoke('slack-notification', {
+        body: {
+          type: 'INVITE_ACCEPTED',
+          personName: personName,
+          personEmail: personEmail,
+          targetPersonId: inviteLog.actor_id,
+        },
+      }).catch(err => console.warn('Failed to send invite accepted slack:', err));
+
+      console.log('Invite accepted notifications sent for', personEmail);
     } catch (error) {
       console.warn('Error checking invite acceptance:', error);
     }
