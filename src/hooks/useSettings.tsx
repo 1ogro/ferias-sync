@@ -5,11 +5,6 @@ export interface Settings {
   compactMode: boolean;
   animations: boolean;
   
-  // Notifications
-  birthdayNotifications: boolean;
-  requestReminders: boolean;
-  systemAlerts: boolean;
-  
   // Display
   itemsPerPage: number;
   dateFormat: string;
