@@ -831,11 +831,15 @@ const Admin = () => {
                              <Badge variant={authenticatedPersonIds.has(targetPerson.id) ? "default" : "outline"}>
                               {authenticatedPersonIds.has(targetPerson.id) ? "✓ Sim" : "✗ Não"}
                             </Badge>
-                            {inviteDates.has(targetPerson.id) && (
-                              <span className="text-xs text-muted-foreground">
-                                Convite: {inviteDates.get(targetPerson.id)}
-                              </span>
-                            )}
+                            {inviteDates.has(targetPerson.id) && (() => {
+                              const info = inviteDates.get(targetPerson.id)!;
+                              const methodLabel = info.method === 'both' ? '📧💬 Ambos' : info.method === 'slack' ? '💬 Slack' : '📧 Email';
+                              return (
+                                <span className="text-xs text-muted-foreground">
+                                  Convite: {info.date} · {methodLabel}
+                                </span>
+                              );
+                            })()}
                            </div>
                         </TableCell>
                       )}
