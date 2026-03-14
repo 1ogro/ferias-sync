@@ -116,6 +116,7 @@ const Admin = () => {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [authActionLoading, setAuthActionLoading] = useState<string | null>(null);
   const [clearAuthTarget, setClearAuthTarget] = useState<Person | null>(null);
+  const [originalEditData, setOriginalEditData] = useState<{ papel: string; ativo: boolean; nome: string; email: string } | null>(null);
   
    const [formData, setFormData] = useState<FormData>({
      id: '',
