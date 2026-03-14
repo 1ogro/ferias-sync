@@ -214,15 +214,28 @@ const Admin = () => {
   const fetchPeople = async () => {
     try {
       setLoading(true);
-      const [peopleResult, profilesResult] = await Promise.all([
+      const [peopleResult, profilesResult, inviteLogsResult] = await Promise.all([
         supabase.from('people').select('*').order('nome', { ascending: true }),
         supabase.from('profiles').select('person_id'),
+        supabase.from('audit_logs')
+          .select('entidade_id, created_at')
+          .eq('acao', 'ADMIN_SEND_INVITE')
+          .order('created_at', { ascending: false }),
       ]);
 
       if (peopleResult.error) throw peopleResult.error;
       
       const authIds = new Set((profilesResult.data || []).map(p => p.person_id));
       setAuthenticatedPersonIds(authIds);
+
+      // Build map of person_id → latest invite date
+      const dates = new Map<string, string>();
+      for (const log of inviteLogsResult.data || []) {
+        if (!dates.has(log.entidade_id)) {
+          dates.set(log.entidade_id, new Date(log.created_at).toLocaleDateString('pt-BR'));
+        }
+      }
+      setInviteDates(dates);
       
       setPeople((peopleResult.data || []).map(person => ({
         ...person,
