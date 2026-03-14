@@ -9,7 +9,6 @@ import { Cake } from "lucide-react";
 export const useBirthdayNotifications = () => {
   const { toast } = useToast();
   const { person } = useAuth();
-  const { settings } = useSettings();
   const [hasCheckedToday, setHasCheckedToday] = useState(false);
 
   useEffect(() => {
