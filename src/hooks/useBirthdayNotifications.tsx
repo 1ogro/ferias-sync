@@ -17,11 +17,8 @@ export const useBirthdayNotifications = () => {
       return;
     }
 
-    // Check if birthday notifications are enabled in settings
-    if (!settings.birthdayNotifications) {
-      return;
-    }
-
+    // Birthday notifications are now controlled via notification_preferences table
+    // This hook always checks — the DB preferences control email/slack delivery
     // Check if we already showed notification today
     const today = new Date().toDateString();
     const lastCheck = localStorage.getItem('birthday-check-date');
