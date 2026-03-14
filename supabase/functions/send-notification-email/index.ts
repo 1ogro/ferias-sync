@@ -35,7 +35,7 @@ function getPreferenceColumn(type: string): string | null {
   if (['NEW_REQUEST', 'APPROVAL_MANAGER', 'APPROVAL_FINAL', 'REJECTION', 'REQUEST_INFO'].includes(type)) {
     return 'request_updates_email';
   }
-  if (type === 'PAYMENT_DAY_CHANGE_REQUEST') {
+  if (type === 'PAYMENT_DAY_CHANGE_REQUEST' || type === 'INVITE_ACCEPTED') {
     return 'admin_actions_email';
   }
   return null;
