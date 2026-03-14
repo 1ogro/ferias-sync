@@ -327,7 +327,7 @@ Deno.serve(async (req) => {
     }
 
     return new Response(
-      JSON.stringify({ error: "Ação inválida. Use reset_password, clear_identities ou notify_admin_change" }),
+      JSON.stringify({ error: "Ação inválida. Use reset_password, clear_identities, send_invite ou notify_admin_change" }),
       { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error: any) {

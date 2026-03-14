@@ -412,7 +412,7 @@ const Admin = () => {
   };
 
 
-  const handleAdminAuthAction = async (personId: string, action: 'reset_password' | 'clear_identities') => {
+  const handleAdminAuthAction = async (personId: string, action: 'reset_password' | 'clear_identities' | 'send_invite') => {
     setAuthActionLoading(`${action}_${personId}`);
     try {
       const { data: sessionData } = await supabase.auth.getSession();
@@ -437,6 +437,9 @@ const Admin = () => {
       toast({ title: 'Sucesso', description: result.message });
       if (action === 'clear_identities') {
         setClearAuthTarget(null);
+      }
+      if (action === 'send_invite') {
+        fetchPeople();
       }
     } catch (error: any) {
       toast({ title: 'Erro', description: error.message, variant: 'destructive' });
