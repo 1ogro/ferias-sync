@@ -28,6 +28,7 @@ interface NotificationRequest {
   targetPersonId?: string;
   collaboratorName?: string;
   collaboratorEmail?: string;
+  managerName?: string;
 }
 
 // Map notification types to preference columns
