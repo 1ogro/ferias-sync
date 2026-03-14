@@ -440,6 +440,7 @@ const Admin = () => {
         setClearAuthTarget(null);
       }
       if (action === 'send_invite') {
+        setInviteTarget(null);
         fetchPeople();
       }
     } catch (error: any) {
