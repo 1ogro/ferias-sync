@@ -230,14 +230,16 @@ const Admin = () => {
       setAuthenticatedPersonIds(authIds);
 
       // Build map of person_id → latest invite date + method
-      const dates = new Map<string, { date: string; method: string }>();
+      const dates = new Map<string, { date: string; method: string; results: string[] }>();
       for (const log of inviteLogsResult.data || []) {
         if (!dates.has(log.entidade_id)) {
           const payload = log.payload as Record<string, unknown> | null;
           const method = (payload?.invite_method as string) || 'email';
+          const results = (payload?.results as string[]) || [];
           dates.set(log.entidade_id, {
             date: new Date(log.created_at).toLocaleDateString('pt-BR'),
             method,
+            results,
           });
         }
       }
