@@ -29,7 +29,7 @@ export const useBirthdayNotifications = () => {
     }
 
     checkTeamBirthdays();
-  }, [person, settings.birthdayNotifications]);
+  }, [person]);
 
   const checkTeamBirthdays = async () => {
     if (!person) return;

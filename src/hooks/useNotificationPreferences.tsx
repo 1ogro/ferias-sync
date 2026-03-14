@@ -25,7 +25,8 @@ const defaultPreferences: NotificationPreferences = {
 };
 
 export function useNotificationPreferences() {
-  const { personId } = useAuth();
+  const { person } = useAuth();
+  const personId = person?.id;
   const [preferences, setPreferences] = useState<NotificationPreferences>(defaultPreferences);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
