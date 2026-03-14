@@ -241,6 +241,37 @@ const Admin = () => {
     }
   };
 
+  const sendAdminNotification = async (params: {
+    change_type: string;
+    person_id: string;
+    target_name: string;
+    target_email: string;
+    details?: Record<string, string>;
+  }) => {
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+      if (!token) return;
+
+      await fetch(
+        `https://uhphxyhffpbnmsrlggbe.supabase.co/functions/v1/admin-auth-management`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            action: 'notify_admin_change',
+            ...params,
+          }),
+        }
+      );
+    } catch (e) {
+      console.error('Slack notification failed:', e);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
@@ -269,6 +300,34 @@ const Admin = () => {
         .eq('id', formData.id);
 
       if (error) throw error;
+
+      // Send Slack notifications for key changes (fire-and-forget)
+      if (originalEditData) {
+        if (originalEditData.ativo && !formData.ativo) {
+          sendAdminNotification({
+            change_type: 'deactivation',
+            person_id: formData.id,
+            target_name: formData.nome,
+            target_email: formData.email,
+          });
+        } else if (!originalEditData.ativo && formData.ativo) {
+          sendAdminNotification({
+            change_type: 'reactivation',
+            person_id: formData.id,
+            target_name: formData.nome,
+            target_email: formData.email,
+          });
+        }
+        if (originalEditData.papel !== formData.papel) {
+          sendAdminNotification({
+            change_type: 'role_change',
+            person_id: formData.id,
+            target_name: formData.nome,
+            target_email: formData.email,
+            details: { old_role: originalEditData.papel, new_role: formData.papel },
+          });
+        }
+      }
       
       toast({
         title: "Sucesso",
