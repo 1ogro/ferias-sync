@@ -122,8 +122,8 @@ export function CollaboratorSummaryTable() {
           case "nome": aVal = a.nome.toLowerCase(); bVal = b.nome.toLowerCase(); break;
           case "modelo_contrato": aVal = a.modelo_contrato || ""; bVal = b.modelo_contrato || ""; break;
           case "data_contrato":
-            aVal = a.data_contrato ? new Date(a.data_contrato).getTime() : 0;
-            bVal = b.data_contrato ? new Date(b.data_contrato).getTime() : 0;
+            aVal = a.data_contrato ? parseDateSafely(a.data_contrato).getTime() : 0;
+            bVal = b.data_contrato ? parseDateSafely(b.data_contrato).getTime() : 0;
             break;
           case "aniv_contrato":
             aVal = getNextAnniversary(a.data_contrato)?.getTime() || Infinity;
