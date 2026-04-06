@@ -1135,7 +1135,7 @@ const VacationManagement = () => {
       case 'active':
         return (
           <div className="space-y-6 mt-6">
-            <ActiveAbsencesDashboard />
+            <ActiveAbsencesDashboard teamIds={isManager && !isDirectorOrAdmin ? teamMemberIds : undefined} />
           </div>
         );
       
@@ -1153,7 +1153,7 @@ const VacationManagement = () => {
               </TabsContent>
               
               <TabsContent value="vacations" className="mt-6">
-                <ApprovedVacationsExecutiveView />
+                <ApprovedVacationsExecutiveView teamIds={isManager && !isDirectorOrAdmin ? teamMemberIds : undefined} />
               </TabsContent>
             </Tabs>
           </div>
