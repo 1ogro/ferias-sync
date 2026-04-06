@@ -317,13 +317,18 @@ const Admin = () => {
         dia_pagamento: formData.dia_pagamento ? parseInt(formData.dia_pagamento) : null
       };
 
-      // Only allow editing existing users
-      const { error } = await supabase
+      // Only allow editing existing users — use .select() to confirm RLS allowed it
+      const { data: updatedRows, error } = await supabase
         .from('people')
         .update(data)
-        .eq('id', formData.id);
+        .eq('id', formData.id)
+        .select();
 
       if (error) throw error;
+
+      if (!updatedRows || updatedRows.length === 0) {
+        throw new Error('Sem permissão para alterar este registro. Verifique suas permissões de administrador.');
+      }
 
       // Send Slack notifications for key changes (fire-and-forget)
       if (originalEditData) {
