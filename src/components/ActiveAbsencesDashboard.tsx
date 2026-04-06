@@ -26,6 +26,7 @@ import { ptBR } from "date-fns/locale";
 
 interface ActiveAbsence {
   id: string;
+  requester_id: string;
   requester_name: string;
   requester_cargo: string;
   requester_sub_time: string;
