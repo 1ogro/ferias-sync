@@ -308,7 +308,7 @@ export function CollaboratorSummaryTable() {
                         </TableCell>
                         <TableCell>
                           {person.data_contrato
-                            ? format(new Date(person.data_contrato), "dd/MM/yyyy")
+                            ? formatDateSafe(person.data_contrato, "dd/MM/yyyy")
                             : <span className="text-muted-foreground">-</span>}
                         </TableCell>
                         <TableCell>
