@@ -198,11 +198,6 @@ const VacationManagement = () => {
     }
   }, [activeTab, emblaApi]);
 
-  // Check if user is authorized (DIRETOR, ADMIN, or GESTOR)
-  if (!person || (person.papel !== 'DIRETOR' && person.papel !== 'GESTOR' && !person.is_admin)) {
-    return <Navigate to="/" replace />;
-  }
-
   // Fetch team member IDs for manager view
   const [teamMemberIds, setTeamMemberIds] = useState<string[]>([]);
   
@@ -225,6 +220,11 @@ const VacationManagement = () => {
       fetchVacationData();
     }
   }, [selectedYear]);
+
+  // Check if user is authorized (DIRETOR, ADMIN, or GESTOR)
+  if (!person || (person.papel !== 'DIRETOR' && person.papel !== 'GESTOR' && !person.is_admin)) {
+    return <Navigate to="/" replace />;
+  }
 
   const fetchVacationData = async () => {
     setLoading(true);
