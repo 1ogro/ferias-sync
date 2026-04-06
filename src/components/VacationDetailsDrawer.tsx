@@ -10,7 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { format } from "date-fns";
+import { formatDateSafe } from "@/lib/dateUtils";
 import { ModeloContrato, MODELO_CONTRATO_LABELS } from "@/lib/types";
 import { 
   User, 
