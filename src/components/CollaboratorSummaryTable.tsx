@@ -13,6 +13,7 @@ import {
 import { Search, Download, ArrowUpDown, ArrowUp, ArrowDown, Gift, Cake, X } from "lucide-react";
 import { format, differenceInDays, addYears, isBefore, isAfter, startOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { parseDateSafely, formatDateSafe } from "@/lib/dateUtils";
 
 interface CollaboratorSummary {
   id: string;
