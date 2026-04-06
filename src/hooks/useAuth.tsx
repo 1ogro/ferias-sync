@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState, useRef, useCallback } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { Person } from '@/lib/types';
@@ -31,6 +31,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [contractDateChecked, setContractDateChecked] = useState(false);
   const [userRoles, setUserRoles] = useState<string[]>([]);
 
+  // Refs to prevent duplicate fetches and stale closures
+  const fetchingRef = useRef(false);
+  const loadedUserIdRef = useRef<string | null>(null);
+  const mountedRef = useRef(true);
+
   const fetchUserRoles = async (userId: string) => {
     try {
       console.log('Fetching user roles for user:', userId);
@@ -42,21 +47,20 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
       if (error) {
         console.error('Error fetching user roles:', error);
-        setUserRoles([]);
+        if (mountedRef.current) setUserRoles([]);
       } else {
         const roles = (data as any)?.map((r: any) => r.role) || [];
         console.log('User roles:', roles);
-        setUserRoles(roles);
+        if (mountedRef.current) setUserRoles(roles);
       }
     } catch (error) {
       console.error('Error fetching user roles:', error);
-      setUserRoles([]);
+      if (mountedRef.current) setUserRoles([]);
     }
   };
 
   const checkInviteAccepted = async (personId: string, personName: string, personEmail: string) => {
     try {
-      // Check if there's an ADMIN_SEND_INVITE for this person without a corresponding INVITE_ACCEPTED
       const { data: inviteLog } = await supabase
         .from('audit_logs')
         .select('actor_id, entidade_id')
@@ -69,7 +73,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
       if (!inviteLog?.actor_id) return;
 
-      // Check if INVITE_ACCEPTED already exists
       const { data: acceptedLog } = await supabase
         .from('audit_logs')
         .select('id')
@@ -79,9 +82,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         .limit(1)
         .maybeSingle();
 
-      if (acceptedLog) return; // Already processed
+      if (acceptedLog) return;
 
-      // Get the inviter's info
       const { data: inviter } = await supabase
         .from('people')
         .select('nome, email')
@@ -90,7 +92,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
       if (!inviter?.email) return;
 
-      // Record INVITE_ACCEPTED to prevent re-sending
       await supabase
         .from('audit_logs')
         .insert({
@@ -101,7 +102,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           payload: { inviter_id: inviteLog.actor_id } as any,
         });
 
-      // Send email notification (fire-and-forget)
       supabase.functions.invoke('send-notification-email', {
         body: {
           type: 'INVITE_ACCEPTED',
@@ -113,7 +113,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         },
       }).catch(err => console.warn('Failed to send invite accepted email:', err));
 
-      // Send Slack notification (fire-and-forget)
       supabase.functions.invoke('slack-notification', {
         body: {
           type: 'INVITE_ACCEPTED',
@@ -129,9 +128,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
-  const fetchPersonData = async (userId?: string) => {
+  const fetchPersonData = useCallback(async (userId?: string) => {
     const userIdToUse = userId || user?.id;
     if (!userIdToUse) return;
+
+    // Prevent duplicate concurrent fetches for the same user
+    if (fetchingRef.current && loadedUserIdRef.current === userIdToUse) {
+      console.log('fetchPersonData already in progress for:', userIdToUse);
+      return;
+    }
+
+    fetchingRef.current = true;
+    loadedUserIdRef.current = userIdToUse;
     
     try {
       console.log('Fetching person data for user:', userIdToUse);
@@ -145,6 +153,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         .eq('user_id', userIdToUse)
         .maybeSingle();
 
+      if (!mountedRef.current) return;
+
       if (error) {
         console.error('Error fetching profile:', error);
         setPerson(null);
@@ -153,10 +163,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         const personData = profile.people as Person;
         setPerson(personData);
         
-        // Fetch user roles after getting person data
         await fetchUserRoles(userIdToUse);
 
-        // Check if this is a first login after accepting an invite (fire-and-forget)
         checkInviteAccepted(personData.id, personData.nome, personData.email);
       } else {
         console.log('No profile found for user');
@@ -164,46 +172,58 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       }
     } catch (error) {
       console.error('Error fetching person data:', error);
-      setPerson(null);
+      if (mountedRef.current) setPerson(null);
     } finally {
-      setProfileChecked(true);
-      setContractDateChecked(true);
-      setLoading(false);
+      fetchingRef.current = false;
+      if (mountedRef.current) {
+        setProfileChecked(true);
+        setContractDateChecked(true);
+        setLoading(false);
+      }
     }
-  };
+  }, [user?.id]);
 
   const hasRole = (role: string) => {
     return userRoles.includes(role);
   };
 
   useEffect(() => {
-    let mounted = true;
-    let timeoutId: NodeJS.Timeout;
+    mountedRef.current = true;
+    let initialSessionHandled = false;
     
-    // Set up auth state listener
+    // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        if (!mounted) return;
+        if (!mountedRef.current) return;
+        
+        console.log('Auth state change:', event);
         
         setSession(session);
         setUser(session?.user ?? null);
         
         if (session?.user) {
+          // If this is the INITIAL_SESSION event and initializeAuth already handled it, skip
+          if (event === 'INITIAL_SESSION' && initialSessionHandled) {
+            return;
+          }
+          // For sign in/token refresh, always fetch (but dedup protects us)
           fetchPersonData(session.user.id);
         } else {
           setPerson(null);
+          setUserRoles([]);
           setProfileChecked(true);
+          setContractDateChecked(true);
           setLoading(false);
         }
       }
     );
 
-    // Get initial session with timeout
+    // Get initial session
     const initializeAuth = async () => {
       try {
         const { data: { session }, error } = await supabase.auth.getSession();
         
-        if (!mounted) return;
+        if (!mountedRef.current) return;
         
         if (error) {
           console.error('Auth initialization error:', error);
@@ -213,6 +233,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           return;
         }
         
+        initialSessionHandled = true;
         setSession(session);
         setUser(session?.user ?? null);
         
@@ -225,7 +246,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         }
       } catch (error) {
         console.error('Failed to initialize auth:', error);
-        if (mounted) {
+        if (mountedRef.current) {
           setLoading(false);
           setProfileChecked(true);
           setContractDateChecked(true);
@@ -233,21 +254,21 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       }
     };
 
-    // Set timeout for auth initialization
-    timeoutId = setTimeout(() => {
-      if (mounted && loading) {
-        console.warn('Auth initialization timeout');
+    // Timeout uses ref-based check to avoid stale closure
+    const timeoutId = setTimeout(() => {
+      if (mountedRef.current && !loadedUserIdRef.current) {
+        console.warn('Auth initialization timeout - no profile loaded yet');
         setLoading(false);
         setProfileChecked(true);
         setContractDateChecked(true);
       }
-    }, 10000); // 10 second timeout
+    }, 10000);
 
     initializeAuth();
 
     return () => {
-      mounted = false;
-      if (timeoutId) clearTimeout(timeoutId);
+      mountedRef.current = false;
+      clearTimeout(timeoutId);
       subscription.unsubscribe();
     };
   }, []);
@@ -272,7 +293,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     });
 
     if (!error && data.user) {
-      // Create profile linking user to person
       const { error: profileError } = await supabase
         .from('profiles')
         .insert({
@@ -302,6 +322,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const signOut = async () => {
+    loadedUserIdRef.current = null;
+    fetchingRef.current = false;
     await supabase.auth.signOut();
     setPerson(null);
     setUserRoles([]);
@@ -327,7 +349,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         return { error };
       }
 
-      // Fetch person data after creating profile
+      loadedUserIdRef.current = null; // allow re-fetch
       await fetchPersonData(user.id);
       return { error: null };
     } catch (error) {
