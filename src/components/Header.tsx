@@ -2,11 +2,12 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Calendar, Menu, Bell, User, Users, Settings, LogOut, Shield } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { ProfileModal } from "./ProfileModal";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
 interface HeaderProps {
@@ -15,7 +16,7 @@ interface HeaderProps {
 
 export const Header = ({ showNavigation = true }: HeaderProps) => {
   const location = useLocation();
-  const { person, signOut, user } = useAuth();
+  const { person, signOut, user, loading, profileChecked } = useAuth();
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [activeAbsencesCount, setActiveAbsencesCount] = useState(0);
@@ -29,7 +30,6 @@ export const Header = ({ showNavigation = true }: HeaderProps) => {
         const today = new Date().toISOString().split('T')[0];
 
         if (person.papel === 'GESTOR' && !person.is_admin) {
-          // Get team member IDs first
           const { data: teamMembers } = await supabase
             .from('people')
             .select('id')
@@ -53,7 +53,6 @@ export const Header = ({ showNavigation = true }: HeaderProps) => {
 
           setActiveAbsencesCount(count || 0);
         } else {
-          // Directors/admins see all active absences
           const { count } = await supabase
             .from('requests')
             .select('id', { count: 'exact', head: true })
@@ -80,10 +79,19 @@ export const Header = ({ showNavigation = true }: HeaderProps) => {
     { name: "Administração", href: "/admin", icon: Shield, isAdmin: true },
   ];
 
-  const filteredNavigation = navigation.filter(item => {
-    if (item.isAdmin) return person?.is_admin;
-    return !item.roles || item.roles.includes(person?.papel || '');
-  });
+  // Only filter navigation when profile is fully loaded
+  const isProfileReady = !loading && profileChecked && !!person;
+
+  const filteredNavigation = useMemo(() => {
+    if (!isProfileReady) {
+      // While loading, show only items without role restrictions
+      return navigation.filter(item => !item.roles && !item.isAdmin);
+    }
+    return navigation.filter(item => {
+      if (item.isAdmin) return person?.is_admin;
+      return !item.roles || item.roles.includes(person?.papel || '');
+    });
+  }, [isProfileReady, person?.papel, person?.is_admin]);
 
   const getPapelColor = (papel: string) => {
     switch (papel) {
@@ -97,6 +105,14 @@ export const Header = ({ showNavigation = true }: HeaderProps) => {
   const handleSignOut = async () => {
     await signOut();
   };
+
+  // Skeleton placeholders shown while auth is resolving
+  const navSkeletons = !isProfileReady && showNavigation ? (
+    <>
+      <Skeleton className="h-8 w-28 rounded-md" />
+      <Skeleton className="h-8 w-24 rounded-md" />
+    </>
+  ) : null;
 
   return (
     <>
@@ -135,12 +151,13 @@ export const Header = ({ showNavigation = true }: HeaderProps) => {
                       </Link>
                     );
                   })}
+                  {navSkeletons}
                 </nav>
               )}
             </div>
 
             <div className="flex items-center gap-4">
-              {/* Menu Mobile - visível apenas em telas pequenas */}
+              {/* Menu Mobile */}
               {showNavigation && (
                 <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
                   <SheetTrigger asChild>
@@ -177,9 +194,14 @@ export const Header = ({ showNavigation = true }: HeaderProps) => {
                           </Link>
                         );
                       })}
+                      {!isProfileReady && (
+                        <>
+                          <Skeleton className="h-10 w-full rounded-md" />
+                          <Skeleton className="h-10 w-full rounded-md" />
+                        </>
+                      )}
                     </nav>
                     
-                    {/* Informações do usuário no drawer */}
                     <div className="absolute bottom-6 left-6 right-6">
                       <div className="flex items-center gap-3 p-3 bg-muted rounded-md">
                         <User className="w-5 h-5" />
