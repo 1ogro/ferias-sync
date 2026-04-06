@@ -1,43 +1,51 @@
 
 
-## Plano: Dia de Pagamento no Cadastro e Perfil do Colaborador
+## Plan: Dar acesso de Gestor às abas de time no Gestão de Férias
 
-### Objetivo
-1. Novos colaboradores PJ preenchem o dia de pagamento desejado durante o onboarding (ContractDateSetup)
-2. Colaboradores existentes visualizam seu dia de pagamento no perfil (ProfileModal) e podem solicitar alteração ao diretor
+### Resumo
+Gestores poderão acessar a página `/vacation-management` com uma versão reduzida: apenas as abas relevantes ao seu time (Férias Aprovadas, Capacidade do Time, Ausências Ativas, Licenças Médicas). Dados serão filtrados automaticamente para mostrar apenas colaboradores do time do gestor.
 
----
+### Mudanças
 
-### Alterações
+#### 1. `src/pages/VacationManagement.tsx`
+- **Acesso**: Alterar guard de `person.papel !== 'DIRETOR' && !person.is_admin` para incluir `GESTOR`
+- **Tabs condicionais**: Gestores veem apenas: `active` (Ausências Ativas), `dashboard` (Dashboard com Capacidade + Férias Aprovadas), `medical` (Licenças Médicas). Diretores/admins continuam vendo todas as 7 tabs
+- **Dados filtrados**: Para gestores, o fetch de dados filtra por `gestor_id = person.id` (apenas subordinados diretos)
 
-#### 1. Atualizar RPC `set_contract_data_for_current_user` (migração)
-Adicionar parâmetro `p_dia_pagamento` para salvar o dia de pagamento durante o onboarding:
+#### 2. `src/components/ApprovedVacationsExecutiveView.tsx`
+- Aceitar prop opcional `managerId?: string`
+- Quando `managerId` presente, filtrar resultados client-side por `requester_id` pertencente ao time do gestor (usando lista de IDs dos subordinados)
+- Alternativa: buscar IDs dos subordinados e filtrar na query com `.in('requester_id', teamIds)`
 
-```sql
-CREATE OR REPLACE FUNCTION public.set_contract_data_for_current_user(p_date date, p_model text, p_dia_pagamento integer DEFAULT NULL)
--- adiciona SET dia_pagamento = p_dia_pagamento ao UPDATE
+#### 3. `src/components/ActiveAbsencesDashboard.tsx`
+- Aceitar prop opcional `managerId?: string`
+- Quando presente, filtrar ausências para mostrar apenas pessoas do time
+
+#### 4. `src/components/TeamCapacityDashboard.tsx`
+- Já busca dados via RLS (alertas de capacidade). Gestor já tem acesso via RLS se `sub_time` bate. Verificar se funciona sem mudanças; se não, adicionar prop de filtragem.
+
+#### 5. `src/components/MedicalLeaveList.tsx`
+- RLS já permite gestores verem licenças médicas de subordinados. Componente já deve funcionar. Verificar e ajustar se necessário.
+
+#### 6. `src/components/Header.tsx`
+- Adicionar link para `/vacation-management` visível para gestores (atualmente só aparece para admins/diretores via navegação interna ou link direto)
+
+### RLS
+As policies existentes nas tabelas `requests` e `medical_leaves` já permitem que gestores vejam dados dos subordinados diretos. Nenhuma migração de banco necessária.
+
+### Fluxo
+
+```text
+Gestor acessa /vacation-management
+       │
+       ▼
+  Vê apenas 3-4 tabs (escopo do time):
+  ┌──────────────────────────────────────────┐
+  │ Ausências Ativas │ Dashboard │ Licenças  │
+  └──────────────────────────────────────────┘
+       │
+       ▼
+  Dados filtrados por gestor_id = person.id
+  (apenas subordinados diretos)
 ```
-
-#### 2. `src/components/ContractDateSetup.tsx`
-- Adicionar estado `diaPagamento`
-- Exibir select com opções 10, 20, 30 **condicionalmente** quando `modeloContrato === 'PJ'`
-- Passar `p_dia_pagamento` na chamada RPC
-
-#### 3. `src/components/ProfileModal.tsx`
-- Exibir `dia_pagamento` como campo somente leitura para colaboradores PJ (badge com "Dia 10", "Dia 20" ou "Dia 30")
-- Adicionar botão "Solicitar alteração" que envia email ao diretor via edge function `send-notification-email` com tipo `PAYMENT_DAY_CHANGE_REQUEST`, incluindo o dia atual e o dia desejado (select com as 3 opções)
-
-#### 4. Atualizar edge function `send-notification-email`
-Adicionar tratamento para o novo tipo `PAYMENT_DAY_CHANGE_REQUEST`:
-- Busca email dos diretores
-- Envia email informando: colaborador X solicita alteração do dia de pagamento de Y para Z
-
-### Arquivos
-
-| Arquivo | Alteração |
-|---------|-----------|
-| Migração SQL | Atualizar `set_contract_data_for_current_user` com `p_dia_pagamento` |
-| `src/components/ContractDateSetup.tsx` | Campo condicional dia de pagamento para PJ |
-| `src/components/ProfileModal.tsx` | Exibir dia de pagamento (read-only) + botão solicitar alteração |
-| `supabase/functions/send-notification-email/index.ts` | Novo tipo de notificação para solicitação de alteração |
 
