@@ -54,7 +54,11 @@ interface FilterOptions {
   teams: string[];
 }
 
-export function ApprovedVacationsExecutiveView() {
+interface ApprovedVacationsExecutiveViewProps {
+  teamIds?: string[];
+}
+
+export function ApprovedVacationsExecutiveView({ teamIds }: ApprovedVacationsExecutiveViewProps) {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [vacations, setVacations] = useState<ApprovedVacation[]>([]);
@@ -145,15 +149,20 @@ export function ApprovedVacationsExecutiveView() {
         };
       }) || [];
 
-      setVacations(processedVacations);
+      // Filter by team if teamIds provided (manager view)
+      const finalVacations = teamIds 
+        ? processedVacations.filter(v => teamIds.includes(v.requester_id))
+        : processedVacations;
+
+      setVacations(finalVacations);
 
       // Extrair opções de filtro
       const uniqueManagers = Array.from(
-        new Set(processedVacations.map(v => v.approver_name))
+        new Set(finalVacations.map(v => v.approver_name))
       ).map(name => ({ id: name, name }));
       
       const uniqueTeams = Array.from(
-        new Set(processedVacations.map(v => v.requester_sub_time).filter(Boolean))
+        new Set(finalVacations.map(v => v.requester_sub_time).filter(Boolean))
       );
 
       setFilterOptions({

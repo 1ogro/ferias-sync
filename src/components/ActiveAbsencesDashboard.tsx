@@ -26,6 +26,7 @@ import { ptBR } from "date-fns/locale";
 
 interface ActiveAbsence {
   id: string;
+  requester_id: string;
   requester_name: string;
   requester_cargo: string;
   requester_sub_time: string;
@@ -35,7 +36,11 @@ interface ActiveAbsence {
   dias_restantes: number;
 }
 
-export function ActiveAbsencesDashboard() {
+interface ActiveAbsencesDashboardProps {
+  teamIds?: string[];
+}
+
+export function ActiveAbsencesDashboard({ teamIds }: ActiveAbsencesDashboardProps) {
   const { user } = useAuth();
   const [activeAbsences, setActiveAbsences] = useState<ActiveAbsence[]>([]);
   const [loading, setLoading] = useState(true);
@@ -57,6 +62,7 @@ export function ActiveAbsencesDashboard() {
         .from('requests')
         .select(`
           id,
+          requester_id,
           inicio,
           fim,
           tipo,
@@ -74,11 +80,12 @@ export function ActiveAbsencesDashboard() {
 
       if (error) throw error;
 
-      const processedAbsences: ActiveAbsence[] = data?.map(absence => {
+      const allAbsences: ActiveAbsence[] = data?.map(absence => {
         const daysRemaining = differenceInDays(parseDateSafely(absence.fim), new Date());
         
         return {
           id: absence.id,
+          requester_id: absence.requester_id,
           requester_name: absence.people?.nome || 'N/A',
           requester_cargo: absence.people?.cargo || 'N/A',
           requester_sub_time: absence.people?.sub_time || 'N/A',
@@ -88,6 +95,11 @@ export function ActiveAbsencesDashboard() {
           dias_restantes: daysRemaining
         };
       }) || [];
+
+      // Filter by team if teamIds provided (manager view)
+      const processedAbsences = teamIds 
+        ? allAbsences.filter(a => teamIds.includes(a.requester_id))
+        : allAbsences;
 
       setActiveAbsences(processedAbsences);
     } catch (error) {

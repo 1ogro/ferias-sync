@@ -147,10 +147,20 @@ const VacationManagement = () => {
   
   // Get tab from URL query params
   const [searchParams] = useSearchParams();
-  const initialTab = searchParams.get('tab') || 'vacation';
+  
+  // Determine role-based access
+  const isManager = person?.papel === 'GESTOR';
+  const isDirectorOrAdmin = person?.papel === 'DIRETOR' || person?.is_admin;
+  
+  // Manager-specific tabs
+  const managerTabs = ['active', 'dashboard', 'medical'];
+  const allTabs = ['vacation', 'summary', 'medical', 'active', 'dashboard', 'historical', 'sheets'];
+  const availableTabs = isManager && !isDirectorOrAdmin ? managerTabs : allTabs;
+  
+  const initialTab = searchParams.get('tab') || (isManager && !isDirectorOrAdmin ? 'active' : 'vacation');
 
   // Tab values mapping for swipe navigation
-  const tabValues = ['vacation', 'summary', 'medical', 'active', 'dashboard', 'historical', 'sheets'];
+  const tabValues = availableTabs;
   
   // Estado para controlar a tab ativa (modo controlado)
   const [activeTab, setActiveTab] = useState(initialTab);
@@ -188,14 +198,33 @@ const VacationManagement = () => {
     }
   }, [activeTab, emblaApi]);
 
-  // Check if user is authorized (DIRETOR or ADMIN)
-  if (!person || (person.papel !== 'DIRETOR' && !person.is_admin)) {
-    return <Navigate to="/" replace />;
-  }
+  // Fetch team member IDs for manager view
+  const [teamMemberIds, setTeamMemberIds] = useState<string[]>([]);
+  
+  useEffect(() => {
+    if (isManager && !isDirectorOrAdmin && person) {
+      const fetchTeamMembers = async () => {
+        const { data } = await supabase
+          .from('people')
+          .select('id')
+          .eq('gestor_id', person.id)
+          .eq('ativo', true);
+        setTeamMemberIds(data?.map(p => p.id) || []);
+      };
+      fetchTeamMembers();
+    }
+  }, [person]);
 
   useEffect(() => {
-    fetchVacationData();
+    if (isDirectorOrAdmin) {
+      fetchVacationData();
+    }
   }, [selectedYear]);
+
+  // Check if user is authorized (DIRETOR, ADMIN, or GESTOR)
+  if (!person || (person.papel !== 'DIRETOR' && person.papel !== 'GESTOR' && !person.is_admin)) {
+    return <Navigate to="/" replace />;
+  }
 
   const fetchVacationData = async () => {
     setLoading(true);
@@ -1106,7 +1135,7 @@ const VacationManagement = () => {
       case 'active':
         return (
           <div className="space-y-6 mt-6">
-            <ActiveAbsencesDashboard />
+            <ActiveAbsencesDashboard teamIds={isManager && !isDirectorOrAdmin ? teamMemberIds : undefined} />
           </div>
         );
       
@@ -1124,7 +1153,7 @@ const VacationManagement = () => {
               </TabsContent>
               
               <TabsContent value="vacations" className="mt-6">
-                <ApprovedVacationsExecutiveView />
+                <ApprovedVacationsExecutiveView teamIds={isManager && !isDirectorOrAdmin ? teamMemberIds : undefined} />
               </TabsContent>
             </Tabs>
           </div>
@@ -1171,8 +1200,14 @@ const VacationManagement = () => {
         {/* Header */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-3xl font-bold">Gestão de Recursos Humanos</h1>
-            <p className="text-muted-foreground">Gerencie férias, licenças médicas e capacidade de times</p>
+            <h1 className="text-3xl font-bold">
+              {isManager && !isDirectorOrAdmin ? 'Gestão do Time' : 'Gestão de Recursos Humanos'}
+            </h1>
+            <p className="text-muted-foreground">
+              {isManager && !isDirectorOrAdmin 
+                ? 'Acompanhe férias, ausências e licenças do seu time'
+                : 'Gerencie férias, licenças médicas e capacidade de times'}
+            </p>
           </div>
         </div>
 
@@ -1181,16 +1216,18 @@ const VacationManagement = () => {
           <div className="block lg:hidden">
             <ScrollArea className="w-full whitespace-nowrap">
               <TabsList className="inline-flex w-max">
-                <TabsTrigger value="vacation">Saldos de Férias</TabsTrigger>
-                <TabsTrigger value="summary">Resumo do Colaborador</TabsTrigger>
-                <TabsTrigger value="medical">Licenças Médicas</TabsTrigger>
-                <TabsTrigger value="active">Ausências Ativas</TabsTrigger>
-                <TabsTrigger value="dashboard">Dashboard Executivo</TabsTrigger>
-                <TabsTrigger value="historical" className="flex items-center gap-2">
-                  <History className="w-4 h-4" />
-                  Regularização
-                </TabsTrigger>
-                <TabsTrigger value="sheets">Google Sheets</TabsTrigger>
+                {availableTabs.includes('vacation') && <TabsTrigger value="vacation">Saldos de Férias</TabsTrigger>}
+                {availableTabs.includes('summary') && <TabsTrigger value="summary">Resumo do Colaborador</TabsTrigger>}
+                {availableTabs.includes('medical') && <TabsTrigger value="medical">Licenças Médicas</TabsTrigger>}
+                {availableTabs.includes('active') && <TabsTrigger value="active">Ausências Ativas</TabsTrigger>}
+                {availableTabs.includes('dashboard') && <TabsTrigger value="dashboard">Dashboard</TabsTrigger>}
+                {availableTabs.includes('historical') && (
+                  <TabsTrigger value="historical" className="flex items-center gap-2">
+                    <History className="w-4 h-4" />
+                    Regularização
+                  </TabsTrigger>
+                )}
+                {availableTabs.includes('sheets') && <TabsTrigger value="sheets">Google Sheets</TabsTrigger>}
               </TabsList>
               <ScrollBar orientation="horizontal" />
             </ScrollArea>
@@ -1198,21 +1235,23 @@ const VacationManagement = () => {
           
           {/* Desktop: Grid layout */}
           <div className="hidden lg:block">
-            <TabsList className="grid w-full grid-cols-7">
-              <TabsTrigger value="vacation">Saldos de Férias</TabsTrigger>
-              <TabsTrigger value="summary">Resumo</TabsTrigger>
-              <TabsTrigger value="medical">Licenças Médicas</TabsTrigger>
-              <TabsTrigger value="active">Ausências Ativas</TabsTrigger>
-              <TabsTrigger value="dashboard">Dashboard Executivo</TabsTrigger>
-              <TabsTrigger value="historical" className="flex items-center gap-2">
-                <History className="w-4 h-4" />
-                Regularização
-              </TabsTrigger>
-              <TabsTrigger value="sheets">Google Sheets</TabsTrigger>
+            <TabsList className={`grid w-full grid-cols-${availableTabs.length}`}>
+              {availableTabs.includes('vacation') && <TabsTrigger value="vacation">Saldos de Férias</TabsTrigger>}
+              {availableTabs.includes('summary') && <TabsTrigger value="summary">Resumo</TabsTrigger>}
+              {availableTabs.includes('medical') && <TabsTrigger value="medical">Licenças Médicas</TabsTrigger>}
+              {availableTabs.includes('active') && <TabsTrigger value="active">Ausências Ativas</TabsTrigger>}
+              {availableTabs.includes('dashboard') && <TabsTrigger value="dashboard">Dashboard</TabsTrigger>}
+              {availableTabs.includes('historical') && (
+                <TabsTrigger value="historical" className="flex items-center gap-2">
+                  <History className="w-4 h-4" />
+                  Regularização
+                </TabsTrigger>
+              )}
+              {availableTabs.includes('sheets') && <TabsTrigger value="sheets">Google Sheets</TabsTrigger>}
             </TabsList>
           </div>
 
-          {/* Vacation Management Tab */}
+          {/* Vacation Management Tab - only for directors/admins */}
           <TabsContent value="vacation" className="space-y-6 hidden lg:block">
             {/* Statistics */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
