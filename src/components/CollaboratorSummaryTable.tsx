@@ -29,7 +29,7 @@ interface CollaboratorSummary {
 
 function getNextAnniversary(dateStr: string | null): Date | null {
   if (!dateStr) return null;
-  const date = new Date(dateStr);
+  const date = parseDateSafely(dateStr);
   const today = startOfDay(new Date());
   const thisYear = today.getFullYear();
   
