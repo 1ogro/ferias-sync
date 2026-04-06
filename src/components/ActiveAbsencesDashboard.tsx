@@ -78,11 +78,12 @@ export function ActiveAbsencesDashboard({ teamIds }: ActiveAbsencesDashboardProp
 
       if (error) throw error;
 
-      const processedAbsences: ActiveAbsence[] = data?.map(absence => {
+      const allAbsences: ActiveAbsence[] = data?.map(absence => {
         const daysRemaining = differenceInDays(parseDateSafely(absence.fim), new Date());
         
         return {
           id: absence.id,
+          requester_id: absence.requester_id,
           requester_name: absence.people?.nome || 'N/A',
           requester_cargo: absence.people?.cargo || 'N/A',
           requester_sub_time: absence.people?.sub_time || 'N/A',
@@ -92,6 +93,11 @@ export function ActiveAbsencesDashboard({ teamIds }: ActiveAbsencesDashboardProp
           dias_restantes: daysRemaining
         };
       }) || [];
+
+      // Filter by team if teamIds provided (manager view)
+      const processedAbsences = teamIds 
+        ? allAbsences.filter(a => teamIds.includes(a.requester_id))
+        : allAbsences;
 
       setActiveAbsences(processedAbsences);
     } catch (error) {
