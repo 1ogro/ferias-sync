@@ -525,8 +525,8 @@ export const TeamCapacityDashboard = () => {
                     <div className="text-sm">
                       <div className="flex items-center gap-2 mb-1">
                         <Calendar className="h-3 w-3" />
-                        Período: {format(new Date(alert.period_start), "dd/MM/yyyy", { locale: ptBR })} até{" "}
-                        {format(new Date(alert.period_end), "dd/MM/yyyy", { locale: ptBR })}
+                      Período: {formatDateSafe(alert.period_start, "dd/MM/yyyy", { locale: ptBR })} até{" "}
+                        {formatDateSafe(alert.period_end, "dd/MM/yyyy", { locale: ptBR })}
                       </div>
                       <div className="text-xs text-muted-foreground">
                         Capacidade reduzida devido a licenças médicas

@@ -174,9 +174,9 @@ export const MedicalLeaveList = ({ onRefresh }: MedicalLeaveListProps) => {
                       <div className="flex items-center gap-2">
                         <Calendar className="h-4 w-4" />
                         <div>
-                          <div>{format(new Date(leave.start_date), "dd/MM/yyyy", { locale: ptBR })}</div>
+                          <div>{formatDateSafe(leave.start_date, "dd/MM/yyyy", { locale: ptBR })}</div>
                           <div className="text-sm text-muted-foreground">
-                            até {format(new Date(leave.end_date), "dd/MM/yyyy", { locale: ptBR })}
+                            até {formatDateSafe(leave.end_date, "dd/MM/yyyy", { locale: ptBR })}
                           </div>
                         </div>
                       </div>

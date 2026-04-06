@@ -323,7 +323,7 @@ export function CollaboratorSummaryTable() {
                         </TableCell>
                         <TableCell>
                           {person.data_nascimento
-                            ? format(new Date(person.data_nascimento), "dd/MM/yyyy")
+                            ? formatDateSafe(person.data_nascimento, "dd/MM/yyyy")
                             : <span className="text-muted-foreground">-</span>}
                         </TableCell>
                         <TableCell>

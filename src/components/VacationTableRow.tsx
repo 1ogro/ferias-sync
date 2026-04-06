@@ -150,7 +150,7 @@ export function VacationTableRow({
       </TableCell>
       <TableCell>
         {item.person.data_contrato ? (
-          <span className="text-sm">{format(new Date(item.person.data_contrato), "dd/MM/yyyy")}</span>
+          <span className="text-sm">{formatDateSafe(item.person.data_contrato, "dd/MM/yyyy")}</span>
         ) : (
           <span className="text-destructive text-sm font-medium">Não definida</span>
         )}
