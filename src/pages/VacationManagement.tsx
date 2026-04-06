@@ -1200,8 +1200,14 @@ const VacationManagement = () => {
         {/* Header */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-3xl font-bold">Gestão de Recursos Humanos</h1>
-            <p className="text-muted-foreground">Gerencie férias, licenças médicas e capacidade de times</p>
+            <h1 className="text-3xl font-bold">
+              {isManager && !isDirectorOrAdmin ? 'Gestão do Time' : 'Gestão de Recursos Humanos'}
+            </h1>
+            <p className="text-muted-foreground">
+              {isManager && !isDirectorOrAdmin 
+                ? 'Acompanhe férias, ausências e licenças do seu time'
+                : 'Gerencie férias, licenças médicas e capacidade de times'}
+            </p>
           </div>
         </div>
 
