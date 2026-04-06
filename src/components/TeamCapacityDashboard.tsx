@@ -485,8 +485,8 @@ export const TeamCapacityDashboard = () => {
           title={requireJustification ? "⚠️ EXCLUSÃO ADMINISTRATIVA" : "Confirmar Exclusão"}
           description={
             requireJustification
-              ? `Colaborador: ${selectedAbsence.requester.nome}\nPeríodo: ${format(new Date(selectedAbsence.inicio), "dd/MM/yyyy")} - ${format(new Date(selectedAbsence.fim), "dd/MM/yyyy")}\n\nEsta ação NÃO pode ser desfeita!`
-              : `Tem certeza que deseja excluir esta solicitação?\n\nPeríodo: ${format(new Date(selectedAbsence.inicio), "dd/MM/yyyy")} - ${format(new Date(selectedAbsence.fim), "dd/MM/yyyy")}`
+              ? `Colaborador: ${selectedAbsence.requester.nome}\nPeríodo: ${formatDateSafe(selectedAbsence.inicio, "dd/MM/yyyy")} - ${formatDateSafe(selectedAbsence.fim, "dd/MM/yyyy")}\n\nEsta ação NÃO pode ser desfeita!`
+              : `Tem certeza que deseja excluir esta solicitação?\n\nPeríodo: ${formatDateSafe(selectedAbsence.inicio, "dd/MM/yyyy")} - ${formatDateSafe(selectedAbsence.fim, "dd/MM/yyyy")}`
           }
           requireJustification={requireJustification}
           isAdminDeletion={requireJustification}
