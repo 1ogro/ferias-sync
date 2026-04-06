@@ -149,7 +149,12 @@ export function ApprovedVacationsExecutiveView({ teamIds }: ApprovedVacationsExe
         };
       }) || [];
 
-      setVacations(processedVacations);
+      // Filter by team if teamIds provided (manager view)
+      const finalVacations = teamIds 
+        ? processedVacations.filter(v => teamIds.includes(v.requester_id))
+        : processedVacations;
+
+      setVacations(finalVacations);
 
       // Extrair opções de filtro
       const uniqueManagers = Array.from(
