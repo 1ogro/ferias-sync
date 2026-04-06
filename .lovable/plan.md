@@ -1,42 +1,28 @@
 
-Objetivo: corrigir a exibição do menu "Gestão do Time" para todos os usuários com papel `GESTOR`.
 
-Diagnóstico já confirmado
-- O link já existe em `src/components/Header.tsx` com permissão para `GESTOR` e `DIRETOR`.
-- No banco, os gestores listados têm `profiles.user_id` vinculado corretamente e `papel = 'GESTOR'`.
-- Então o problema mais provável não é cadastro nem RLS; é o fluxo de carregamento de autenticação/perfil no frontend.
+## Plano: Corrigir sincronização entre `is_admin` e `user_roles`
 
-Causa provável
-- `Header.tsx` filtra os itens pelo `person?.papel` imediatamente.
-- `useAuth.tsx` faz inicialização duplicada (`getSession` + `onAuthStateChange`), repete `fetchPersonData` e ainda tem um timeout que pode disparar com estado stale.
-- Resultado: o header pode decidir a navegação antes de o perfil do usuário estar estável, escondendo o menu de role.
+### Causa raiz
+A RLS da tabela `people` usa `is_current_user_admin()` → `has_role(auth.uid(), 'admin')` → consulta `user_roles`. Porém, vários usuários com `is_admin = true` na tabela `people` não têm registro correspondente em `user_roles`. Isso faz com que o UPDATE seja silenciosamente rejeitado pelo banco.
 
-Implementação
-1. Ajustar `src/hooks/useAuth.tsx`
-- Consolidar o fluxo de inicialização para evitar chamadas duplicadas de `fetchPersonData`.
-- Corrigir o timeout de autenticação para não usar `loading` stale e cancelá-lo quando o perfil já tiver carregado.
-- Garantir um estado confiável de “auth/profile pronto”.
+### Mudanças
 
-2. Ajustar `src/components/Header.tsx`
-- Consumir `loading`, `profileChecked` e `contractDateChecked` do `useAuth`.
-- Não aplicar filtro de role enquanto o auth ainda estiver resolvendo.
-- Só montar `filteredNavigation` quando o `person` estiver carregado.
-- Manter a regra de visibilidade do link separada da lógica do badge de ausências.
+#### 1. Migração: Sincronizar dados existentes
+- Inserir na `user_roles` um registro `admin` para cada usuário que tem `is_admin = true` em `people` e já possui um `profile` vinculado, mas não tem entrada em `user_roles`.
 
-3. Blindar a UX
-- Exibir placeholder/skeleton de navegação durante o carregamento, em vez de esconder links por falta temporária de `person`.
-- Aplicar a mesma lógica tanto no menu desktop quanto no mobile.
+#### 2. Migração: Criar trigger de sincronização automática
+- Criar um trigger na tabela `people` que, ao alterar `is_admin` de `false` para `true`, insere automaticamente o role `admin` em `user_roles` (e remove quando volta para `false`).
+- Isso garante que futuras alterações de `is_admin` mantenham as duas tabelas sincronizadas.
 
-Arquivos a alterar
-- `src/hooks/useAuth.tsx`
-- `src/components/Header.tsx`
+#### 3. Código: Validar resultado do UPDATE no frontend
+- No componente Admin (onde gestores/diretores alteram papéis), verificar se o `UPDATE` retornou dados antes de inserir o log de auditoria.
+- Se o UPDATE falhou (RLS bloqueou), exibir toast de erro em vez de sucesso.
 
-Sem mudanças de banco
-- Nenhuma migração ou ajuste de RLS é necessária.
+### Arquivos a alterar
+- Nova migração SQL (sync `user_roles` + trigger)
+- `src/pages/Admin.tsx` — validar retorno do UPDATE antes de logar auditoria
 
-Validação
-- Testar login com pelo menos 3 usuários `GESTOR` da lista.
-- Confirmar que o menu aparece no desktop e no mobile.
-- Confirmar que o link aparece mesmo para gestor sem subordinados.
-- Confirmar que `COLABORADOR` não vê o menu.
-- Confirmar que os logs deixam de mostrar múltiplos fetches repetidos e o `Auth initialization timeout` indevido.
+### Impacto
+- Vinicius Cruz e outros admins sem `user_roles` passarão a ter permissões efetivas imediatamente.
+- Alterações futuras de `is_admin` serão refletidas automaticamente.
+
