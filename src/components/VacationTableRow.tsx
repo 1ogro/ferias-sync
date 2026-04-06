@@ -14,7 +14,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Edit, CalendarDays, RotateCcw, AlertTriangle, CheckCircle, MoreVertical, Eye } from "lucide-react";
-import { format } from "date-fns";
+import { formatDateSafe } from "@/lib/dateUtils";
 import { ModeloContrato, MODELO_CONTRATO_LABELS } from "@/lib/types";
 import { useIsMobile } from "@/hooks/use-mobile";
 
