@@ -203,6 +203,23 @@ const VacationManagement = () => {
     return <Navigate to="/" replace />;
   }
 
+  // Fetch team member IDs for manager view
+  const [teamMemberIds, setTeamMemberIds] = useState<string[]>([]);
+  
+  useEffect(() => {
+    if (isManager && !isDirectorOrAdmin && person) {
+      const fetchTeamMembers = async () => {
+        const { data } = await supabase
+          .from('people')
+          .select('id')
+          .eq('gestor_id', person.id)
+          .eq('ativo', true);
+        setTeamMemberIds(data?.map(p => p.id) || []);
+      };
+      fetchTeamMembers();
+    }
+  }, [person]);
+
   useEffect(() => {
     if (isDirectorOrAdmin) {
       fetchVacationData();
