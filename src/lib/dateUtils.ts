@@ -274,6 +274,18 @@ export function validateDayOffEligibility(
 /**
  * Gets month names in Portuguese
  */
+/**
+ * Safely formats a date-only string (YYYY-MM-DD) using local timezone.
+ * Prevents the common off-by-one-day bug caused by UTC parsing.
+ * Use this instead of format(new Date(dateStr), ...) for date-only columns.
+ */
+export function formatDateSafe(dateStr: string | Date | null | undefined, formatStr: string, options?: { locale?: typeof ptBR }): string {
+  if (!dateStr) return "";
+  if (dateStr instanceof Date) return format(dateStr, formatStr, options);
+  const date = parseDateSafely(dateStr);
+  return format(date, formatStr, options);
+}
+
 export const MONTH_NAMES = [
   "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
   "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"

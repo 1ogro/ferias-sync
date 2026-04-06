@@ -6,6 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { AlertTriangle, Calendar, User, CheckCircle, XCircle } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { formatDateSafe } from "@/lib/dateUtils";
 import { getActiveMedicalLeaves, endMedicalLeave } from "@/lib/medicalLeaveUtils";
 import { MedicalLeave } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
@@ -173,9 +174,9 @@ export const MedicalLeaveList = ({ onRefresh }: MedicalLeaveListProps) => {
                       <div className="flex items-center gap-2">
                         <Calendar className="h-4 w-4" />
                         <div>
-                          <div>{format(new Date(leave.start_date), "dd/MM/yyyy", { locale: ptBR })}</div>
+                          <div>{formatDateSafe(leave.start_date, "dd/MM/yyyy", { locale: ptBR })}</div>
                           <div className="text-sm text-muted-foreground">
-                            até {format(new Date(leave.end_date), "dd/MM/yyyy", { locale: ptBR })}
+                            até {formatDateSafe(leave.end_date, "dd/MM/yyyy", { locale: ptBR })}
                           </div>
                         </div>
                       </div>

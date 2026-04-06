@@ -32,6 +32,7 @@ import { Person } from "@/lib/types";
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { formatDateSafe } from "@/lib/dateUtils";
 
 interface ApprovedVacation {
   id: string;
@@ -756,7 +757,7 @@ export function ApprovedVacationsExecutiveView({ teamIds }: ApprovedVacationsExe
           onOpenChange={setDeletionDialogOpen}
           onConfirm={confirmDelete}
           title="⚠️ EXCLUSÃO ADMINISTRATIVA"
-          description={`Colaborador: ${selectedVacation.requester_name}\nPeríodo: ${format(new Date(selectedVacation.start_date), "dd/MM/yyyy")} - ${format(new Date(selectedVacation.end_date), "dd/MM/yyyy")}\n\nEsta ação NÃO pode ser desfeita!`}
+          description={`Colaborador: ${selectedVacation.requester_name}\nPeríodo: ${formatDateSafe(selectedVacation.start_date, "dd/MM/yyyy")} - ${formatDateSafe(selectedVacation.end_date, "dd/MM/yyyy")}\n\nEsta ação NÃO pode ser desfeita!`}
           requireJustification={true}
           isAdminDeletion={true}
         />

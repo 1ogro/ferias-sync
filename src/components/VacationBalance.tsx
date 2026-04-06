@@ -4,8 +4,8 @@ import { Badge } from '@/components/ui/badge';
 import { Calendar, Clock, User } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { getVacationBalance, VacationBalance as VacationBalanceType } from '@/lib/vacationUtils';
-import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { formatDateSafe } from '@/lib/dateUtils';
 import { cn } from '@/lib/utils';
 
 interface VacationBalanceProps {
@@ -132,7 +132,7 @@ export function VacationBalance({ className }: VacationBalanceProps) {
             <div className="flex justify-between items-center mt-2">
               <span className="text-sm text-muted-foreground">Próximo acúmulo:</span>
               <span className="font-medium text-sm">
-                {format(new Date(balance.contract_anniversary), "dd/MM/yyyy", { locale: ptBR })}
+                {formatDateSafe(balance.contract_anniversary, "dd/MM/yyyy", { locale: ptBR })}
               </span>
             </div>
           )}

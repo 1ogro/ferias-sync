@@ -13,6 +13,7 @@ import {
 import { Search, Download, ArrowUpDown, ArrowUp, ArrowDown, Gift, Cake, X } from "lucide-react";
 import { format, differenceInDays, addYears, isBefore, isAfter, startOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { parseDateSafely, formatDateSafe } from "@/lib/dateUtils";
 
 interface CollaboratorSummary {
   id: string;
@@ -28,7 +29,7 @@ interface CollaboratorSummary {
 
 function getNextAnniversary(dateStr: string | null): Date | null {
   if (!dateStr) return null;
-  const date = new Date(dateStr);
+  const date = parseDateSafely(dateStr);
   const today = startOfDay(new Date());
   const thisYear = today.getFullYear();
   
@@ -121,16 +122,16 @@ export function CollaboratorSummaryTable() {
           case "nome": aVal = a.nome.toLowerCase(); bVal = b.nome.toLowerCase(); break;
           case "modelo_contrato": aVal = a.modelo_contrato || ""; bVal = b.modelo_contrato || ""; break;
           case "data_contrato":
-            aVal = a.data_contrato ? new Date(a.data_contrato).getTime() : 0;
-            bVal = b.data_contrato ? new Date(b.data_contrato).getTime() : 0;
+            aVal = a.data_contrato ? parseDateSafely(a.data_contrato).getTime() : 0;
+            bVal = b.data_contrato ? parseDateSafely(b.data_contrato).getTime() : 0;
             break;
           case "aniv_contrato":
             aVal = getNextAnniversary(a.data_contrato)?.getTime() || Infinity;
             bVal = getNextAnniversary(b.data_contrato)?.getTime() || Infinity;
             break;
           case "data_nascimento":
-            aVal = a.data_nascimento ? new Date(a.data_nascimento).getTime() : 0;
-            bVal = b.data_nascimento ? new Date(b.data_nascimento).getTime() : 0;
+            aVal = a.data_nascimento ? parseDateSafely(a.data_nascimento).getTime() : 0;
+            bVal = b.data_nascimento ? parseDateSafely(b.data_nascimento).getTime() : 0;
             break;
           case "aniv_pessoal":
             aVal = getNextAnniversary(a.data_nascimento)?.getTime() || Infinity;
@@ -159,9 +160,9 @@ export function CollaboratorSummaryTable() {
       return [
         p.nome,
         CONTRACT_LABELS[p.modelo_contrato || "CLT"] || p.modelo_contrato || "-",
-        p.data_contrato ? format(new Date(p.data_contrato), "dd/MM/yyyy") : "-",
+        p.data_contrato ? formatDateSafe(p.data_contrato, "dd/MM/yyyy") : "-",
         anivContrato ? format(anivContrato, "dd/MM/yyyy") : "-",
-        p.data_nascimento ? format(new Date(p.data_nascimento), "dd/MM/yyyy") : "-",
+        p.data_nascimento ? formatDateSafe(p.data_nascimento, "dd/MM/yyyy") : "-",
         anivPessoal ? format(anivPessoal, "dd/MM/yyyy") : "-",
         p.modelo_contrato === "PJ" && p.dia_pagamento ? `Dia ${p.dia_pagamento}` : "-",
         p.sub_time || "-",
@@ -307,7 +308,7 @@ export function CollaboratorSummaryTable() {
                         </TableCell>
                         <TableCell>
                           {person.data_contrato
-                            ? format(new Date(person.data_contrato), "dd/MM/yyyy")
+                            ? formatDateSafe(person.data_contrato, "dd/MM/yyyy")
                             : <span className="text-muted-foreground">-</span>}
                         </TableCell>
                         <TableCell>
@@ -322,7 +323,7 @@ export function CollaboratorSummaryTable() {
                         </TableCell>
                         <TableCell>
                           {person.data_nascimento
-                            ? format(new Date(person.data_nascimento), "dd/MM/yyyy")
+                            ? formatDateSafe(person.data_nascimento, "dd/MM/yyyy")
                             : <span className="text-muted-foreground">-</span>}
                         </TableCell>
                         <TableCell>

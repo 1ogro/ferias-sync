@@ -10,7 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { format } from "date-fns";
+import { formatDateSafe } from "@/lib/dateUtils";
 import { ModeloContrato, MODELO_CONTRATO_LABELS } from "@/lib/types";
 import { 
   User, 
@@ -147,7 +147,7 @@ export function VacationDetailsDrawer({
               <div>
                 <p className="text-xs text-muted-foreground">Data de Contrato</p>
                 {item.person.data_contrato ? (
-                  <p className="text-sm font-medium">{format(new Date(item.person.data_contrato), "dd/MM/yyyy")}</p>
+                  <p className="text-sm font-medium">{formatDateSafe(item.person.data_contrato, "dd/MM/yyyy")}</p>
                 ) : (
                   <Badge variant="destructive" className="mt-1">Não definida</Badge>
                 )}

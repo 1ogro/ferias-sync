@@ -11,6 +11,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { formatDateSafe } from "@/lib/dateUtils";
 import { DeletionDialog } from "@/components/DeletionDialog";
 
 interface PlannedAbsence {
@@ -441,7 +442,7 @@ export const TeamCapacityDashboard = () => {
                           return <Badge variant={variant} className="text-xs">{label}</Badge>;
                         })()}
                         <div className="text-xs text-muted-foreground mt-1">
-                          {format(new Date(absence.inicio), "dd/MM", { locale: ptBR })} - {format(new Date(absence.fim), "dd/MM", { locale: ptBR })}
+                          {formatDateSafe(absence.inicio, "dd/MM", { locale: ptBR })} - {formatDateSafe(absence.fim, "dd/MM", { locale: ptBR })}
                         </div>
                       </div>
                       <div className="flex items-center gap-1">
@@ -484,8 +485,8 @@ export const TeamCapacityDashboard = () => {
           title={requireJustification ? "⚠️ EXCLUSÃO ADMINISTRATIVA" : "Confirmar Exclusão"}
           description={
             requireJustification
-              ? `Colaborador: ${selectedAbsence.requester.nome}\nPeríodo: ${format(new Date(selectedAbsence.inicio), "dd/MM/yyyy")} - ${format(new Date(selectedAbsence.fim), "dd/MM/yyyy")}\n\nEsta ação NÃO pode ser desfeita!`
-              : `Tem certeza que deseja excluir esta solicitação?\n\nPeríodo: ${format(new Date(selectedAbsence.inicio), "dd/MM/yyyy")} - ${format(new Date(selectedAbsence.fim), "dd/MM/yyyy")}`
+              ? `Colaborador: ${selectedAbsence.requester.nome}\nPeríodo: ${formatDateSafe(selectedAbsence.inicio, "dd/MM/yyyy")} - ${formatDateSafe(selectedAbsence.fim, "dd/MM/yyyy")}\n\nEsta ação NÃO pode ser desfeita!`
+              : `Tem certeza que deseja excluir esta solicitação?\n\nPeríodo: ${formatDateSafe(selectedAbsence.inicio, "dd/MM/yyyy")} - ${formatDateSafe(selectedAbsence.fim, "dd/MM/yyyy")}`
           }
           requireJustification={requireJustification}
           isAdminDeletion={requireJustification}
@@ -524,8 +525,8 @@ export const TeamCapacityDashboard = () => {
                     <div className="text-sm">
                       <div className="flex items-center gap-2 mb-1">
                         <Calendar className="h-3 w-3" />
-                        Período: {format(new Date(alert.period_start), "dd/MM/yyyy", { locale: ptBR })} até{" "}
-                        {format(new Date(alert.period_end), "dd/MM/yyyy", { locale: ptBR })}
+                      Período: {formatDateSafe(alert.period_start, "dd/MM/yyyy", { locale: ptBR })} até{" "}
+                        {formatDateSafe(alert.period_end, "dd/MM/yyyy", { locale: ptBR })}
                       </div>
                       <div className="text-xs text-muted-foreground">
                         Capacidade reduzida devido a licenças médicas
