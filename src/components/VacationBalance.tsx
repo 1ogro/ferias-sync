@@ -4,8 +4,8 @@ import { Badge } from '@/components/ui/badge';
 import { Calendar, Clock, User } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { getVacationBalance, VacationBalance as VacationBalanceType } from '@/lib/vacationUtils';
-import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { formatDateSafe } from '@/lib/dateUtils';
 import { cn } from '@/lib/utils';
 
 interface VacationBalanceProps {
