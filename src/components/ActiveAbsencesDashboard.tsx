@@ -35,7 +35,11 @@ interface ActiveAbsence {
   dias_restantes: number;
 }
 
-export function ActiveAbsencesDashboard() {
+interface ActiveAbsencesDashboardProps {
+  teamIds?: string[];
+}
+
+export function ActiveAbsencesDashboard({ teamIds }: ActiveAbsencesDashboardProps) {
   const { user } = useAuth();
   const [activeAbsences, setActiveAbsences] = useState<ActiveAbsence[]>([]);
   const [loading, setLoading] = useState(true);
