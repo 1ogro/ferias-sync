@@ -1216,16 +1216,18 @@ const VacationManagement = () => {
           <div className="block lg:hidden">
             <ScrollArea className="w-full whitespace-nowrap">
               <TabsList className="inline-flex w-max">
-                <TabsTrigger value="vacation">Saldos de Férias</TabsTrigger>
-                <TabsTrigger value="summary">Resumo do Colaborador</TabsTrigger>
-                <TabsTrigger value="medical">Licenças Médicas</TabsTrigger>
-                <TabsTrigger value="active">Ausências Ativas</TabsTrigger>
-                <TabsTrigger value="dashboard">Dashboard Executivo</TabsTrigger>
-                <TabsTrigger value="historical" className="flex items-center gap-2">
-                  <History className="w-4 h-4" />
-                  Regularização
-                </TabsTrigger>
-                <TabsTrigger value="sheets">Google Sheets</TabsTrigger>
+                {availableTabs.includes('vacation') && <TabsTrigger value="vacation">Saldos de Férias</TabsTrigger>}
+                {availableTabs.includes('summary') && <TabsTrigger value="summary">Resumo do Colaborador</TabsTrigger>}
+                {availableTabs.includes('medical') && <TabsTrigger value="medical">Licenças Médicas</TabsTrigger>}
+                {availableTabs.includes('active') && <TabsTrigger value="active">Ausências Ativas</TabsTrigger>}
+                {availableTabs.includes('dashboard') && <TabsTrigger value="dashboard">Dashboard</TabsTrigger>}
+                {availableTabs.includes('historical') && (
+                  <TabsTrigger value="historical" className="flex items-center gap-2">
+                    <History className="w-4 h-4" />
+                    Regularização
+                  </TabsTrigger>
+                )}
+                {availableTabs.includes('sheets') && <TabsTrigger value="sheets">Google Sheets</TabsTrigger>}
               </TabsList>
               <ScrollBar orientation="horizontal" />
             </ScrollArea>
@@ -1233,21 +1235,23 @@ const VacationManagement = () => {
           
           {/* Desktop: Grid layout */}
           <div className="hidden lg:block">
-            <TabsList className="grid w-full grid-cols-7">
-              <TabsTrigger value="vacation">Saldos de Férias</TabsTrigger>
-              <TabsTrigger value="summary">Resumo</TabsTrigger>
-              <TabsTrigger value="medical">Licenças Médicas</TabsTrigger>
-              <TabsTrigger value="active">Ausências Ativas</TabsTrigger>
-              <TabsTrigger value="dashboard">Dashboard Executivo</TabsTrigger>
-              <TabsTrigger value="historical" className="flex items-center gap-2">
-                <History className="w-4 h-4" />
-                Regularização
-              </TabsTrigger>
-              <TabsTrigger value="sheets">Google Sheets</TabsTrigger>
+            <TabsList className={`grid w-full grid-cols-${availableTabs.length}`}>
+              {availableTabs.includes('vacation') && <TabsTrigger value="vacation">Saldos de Férias</TabsTrigger>}
+              {availableTabs.includes('summary') && <TabsTrigger value="summary">Resumo</TabsTrigger>}
+              {availableTabs.includes('medical') && <TabsTrigger value="medical">Licenças Médicas</TabsTrigger>}
+              {availableTabs.includes('active') && <TabsTrigger value="active">Ausências Ativas</TabsTrigger>}
+              {availableTabs.includes('dashboard') && <TabsTrigger value="dashboard">Dashboard</TabsTrigger>}
+              {availableTabs.includes('historical') && (
+                <TabsTrigger value="historical" className="flex items-center gap-2">
+                  <History className="w-4 h-4" />
+                  Regularização
+                </TabsTrigger>
+              )}
+              {availableTabs.includes('sheets') && <TabsTrigger value="sheets">Google Sheets</TabsTrigger>}
             </TabsList>
           </div>
 
-          {/* Vacation Management Tab */}
+          {/* Vacation Management Tab - only for directors/admins */}
           <TabsContent value="vacation" className="space-y-6 hidden lg:block">
             {/* Statistics */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
