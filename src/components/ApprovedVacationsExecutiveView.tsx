@@ -158,11 +158,11 @@ export function ApprovedVacationsExecutiveView({ teamIds }: ApprovedVacationsExe
 
       // Extrair opções de filtro
       const uniqueManagers = Array.from(
-        new Set(processedVacations.map(v => v.approver_name))
+        new Set(finalVacations.map(v => v.approver_name))
       ).map(name => ({ id: name, name }));
       
       const uniqueTeams = Array.from(
-        new Set(processedVacations.map(v => v.requester_sub_time).filter(Boolean))
+        new Set(finalVacations.map(v => v.requester_sub_time).filter(Boolean))
       );
 
       setFilterOptions({
