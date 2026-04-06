@@ -160,9 +160,9 @@ export function CollaboratorSummaryTable() {
       return [
         p.nome,
         CONTRACT_LABELS[p.modelo_contrato || "CLT"] || p.modelo_contrato || "-",
-        p.data_contrato ? format(new Date(p.data_contrato), "dd/MM/yyyy") : "-",
+        p.data_contrato ? formatDateSafe(p.data_contrato, "dd/MM/yyyy") : "-",
         anivContrato ? format(anivContrato, "dd/MM/yyyy") : "-",
-        p.data_nascimento ? format(new Date(p.data_nascimento), "dd/MM/yyyy") : "-",
+        p.data_nascimento ? formatDateSafe(p.data_nascimento, "dd/MM/yyyy") : "-",
         anivPessoal ? format(anivPessoal, "dd/MM/yyyy") : "-",
         p.modelo_contrato === "PJ" && p.dia_pagamento ? `Dia ${p.dia_pagamento}` : "-",
         p.sub_time || "-",
