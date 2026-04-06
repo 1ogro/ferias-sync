@@ -442,7 +442,7 @@ export const TeamCapacityDashboard = () => {
                           return <Badge variant={variant} className="text-xs">{label}</Badge>;
                         })()}
                         <div className="text-xs text-muted-foreground mt-1">
-                          {format(new Date(absence.inicio), "dd/MM", { locale: ptBR })} - {format(new Date(absence.fim), "dd/MM", { locale: ptBR })}
+                          {formatDateSafe(absence.inicio, "dd/MM", { locale: ptBR })} - {formatDateSafe(absence.fim, "dd/MM", { locale: ptBR })}
                         </div>
                       </div>
                       <div className="flex items-center gap-1">
