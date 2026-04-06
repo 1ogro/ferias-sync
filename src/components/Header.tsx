@@ -6,7 +6,8 @@ import { Calendar, Menu, Bell, User, Users, Settings, LogOut, Shield } from "luc
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { ProfileModal } from "./ProfileModal";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
 
 interface HeaderProps {
   showNavigation?: boolean;
@@ -14,15 +15,68 @@ interface HeaderProps {
 
 export const Header = ({ showNavigation = true }: HeaderProps) => {
   const location = useLocation();
-  const { person, signOut } = useAuth();
+  const { person, signOut, user } = useAuth();
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [activeAbsencesCount, setActiveAbsencesCount] = useState(0);
+
+  // Fetch active absences count for managers
+  useEffect(() => {
+    if (!person || !user || (person.papel !== 'GESTOR' && person.papel !== 'DIRETOR' && !person.is_admin)) return;
+
+    const fetchActiveAbsences = async () => {
+      try {
+        const today = new Date().toISOString().split('T')[0];
+
+        if (person.papel === 'GESTOR' && !person.is_admin) {
+          // Get team member IDs first
+          const { data: teamMembers } = await supabase
+            .from('people')
+            .select('id')
+            .eq('gestor_id', person.id)
+            .eq('ativo', true);
+
+          const teamIds = teamMembers?.map(p => p.id) || [];
+          if (teamIds.length === 0) {
+            setActiveAbsencesCount(0);
+            return;
+          }
+
+          const { count } = await supabase
+            .from('requests')
+            .select('id', { count: 'exact', head: true })
+            .in('status', ['APROVADO_FINAL', 'REALIZADO'])
+            .in('tipo', ['FERIAS', 'LICENCA_MATERNIDADE', 'LICENCA_MEDICA', 'DAY_OFF'])
+            .lte('inicio', today)
+            .gte('fim', today)
+            .in('requester_id', teamIds);
+
+          setActiveAbsencesCount(count || 0);
+        } else {
+          // Directors/admins see all active absences
+          const { count } = await supabase
+            .from('requests')
+            .select('id', { count: 'exact', head: true })
+            .in('status', ['APROVADO_FINAL', 'REALIZADO'])
+            .in('tipo', ['FERIAS', 'LICENCA_MATERNIDADE', 'LICENCA_MEDICA', 'DAY_OFF'])
+            .lte('inicio', today)
+            .gte('fim', today);
+
+          setActiveAbsencesCount(count || 0);
+        }
+      } catch (error) {
+        console.error('Error fetching active absences count:', error);
+      }
+    };
+
+    fetchActiveAbsences();
+  }, [person, user]);
 
   const navigation = [
     { name: "Dashboard", href: "/", icon: Calendar },
     { name: "Nova Solicitação", href: "/new-request", icon: Menu },
     { name: "Caixa de Entrada", href: "/inbox", icon: Bell, roles: ['GESTOR', 'DIRETOR'] },
-    { name: "Gestão do Time", href: "/vacation-management", icon: Users, roles: ['GESTOR', 'DIRETOR'] },
+    { name: "Gestão do Time", href: "/vacation-management", icon: Users, roles: ['GESTOR', 'DIRETOR'], showBadge: true },
     { name: "Administração", href: "/admin", icon: Shield, isAdmin: true },
   ];
 
@@ -65,7 +119,7 @@ export const Header = ({ showNavigation = true }: HeaderProps) => {
                       <Link
                         key={item.name}
                         to={item.href}
-                        className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                        className={`relative flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
                           isActive
                             ? "bg-primary/10 text-primary"
                             : "text-muted-foreground hover:text-foreground hover:bg-accent"
@@ -73,6 +127,11 @@ export const Header = ({ showNavigation = true }: HeaderProps) => {
                       >
                         <item.icon className="w-4 h-4" />
                         {item.name}
+                        {item.showBadge && activeAbsencesCount > 0 && (
+                          <span className="inline-flex items-center justify-center min-w-5 h-5 px-1.5 text-xs font-bold text-primary-foreground bg-destructive rounded-full">
+                            {activeAbsencesCount}
+                          </span>
+                        )}
                       </Link>
                     );
                   })}
@@ -109,7 +168,12 @@ export const Header = ({ showNavigation = true }: HeaderProps) => {
                             }`}
                           >
                             <item.icon className="w-5 h-5" />
-                            {item.name}
+                            <span className="flex-1">{item.name}</span>
+                            {item.showBadge && activeAbsencesCount > 0 && (
+                              <span className="inline-flex items-center justify-center min-w-5 h-5 px-1.5 text-xs font-bold text-primary-foreground bg-destructive rounded-full">
+                                {activeAbsencesCount}
+                              </span>
+                            )}
                           </Link>
                         );
                       })}
