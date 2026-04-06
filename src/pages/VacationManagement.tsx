@@ -147,10 +147,20 @@ const VacationManagement = () => {
   
   // Get tab from URL query params
   const [searchParams] = useSearchParams();
-  const initialTab = searchParams.get('tab') || 'vacation';
+  
+  // Determine role-based access
+  const isManager = person?.papel === 'GESTOR';
+  const isDirectorOrAdmin = person?.papel === 'DIRETOR' || person?.is_admin;
+  
+  // Manager-specific tabs
+  const managerTabs = ['active', 'dashboard', 'medical'];
+  const allTabs = ['vacation', 'summary', 'medical', 'active', 'dashboard', 'historical', 'sheets'];
+  const availableTabs = isManager && !isDirectorOrAdmin ? managerTabs : allTabs;
+  
+  const initialTab = searchParams.get('tab') || (isManager && !isDirectorOrAdmin ? 'active' : 'vacation');
 
   // Tab values mapping for swipe navigation
-  const tabValues = ['vacation', 'summary', 'medical', 'active', 'dashboard', 'historical', 'sheets'];
+  const tabValues = availableTabs;
   
   // Estado para controlar a tab ativa (modo controlado)
   const [activeTab, setActiveTab] = useState(initialTab);
@@ -188,13 +198,15 @@ const VacationManagement = () => {
     }
   }, [activeTab, emblaApi]);
 
-  // Check if user is authorized (DIRETOR or ADMIN)
-  if (!person || (person.papel !== 'DIRETOR' && !person.is_admin)) {
+  // Check if user is authorized (DIRETOR, ADMIN, or GESTOR)
+  if (!person || (person.papel !== 'DIRETOR' && person.papel !== 'GESTOR' && !person.is_admin)) {
     return <Navigate to="/" replace />;
   }
 
   useEffect(() => {
-    fetchVacationData();
+    if (isDirectorOrAdmin) {
+      fetchVacationData();
+    }
   }, [selectedYear]);
 
   const fetchVacationData = async () => {

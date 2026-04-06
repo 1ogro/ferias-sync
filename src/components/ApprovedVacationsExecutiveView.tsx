@@ -54,7 +54,11 @@ interface FilterOptions {
   teams: string[];
 }
 
-export function ApprovedVacationsExecutiveView() {
+interface ApprovedVacationsExecutiveViewProps {
+  teamIds?: string[];
+}
+
+export function ApprovedVacationsExecutiveView({ teamIds }: ApprovedVacationsExecutiveViewProps) {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [vacations, setVacations] = useState<ApprovedVacation[]>([]);

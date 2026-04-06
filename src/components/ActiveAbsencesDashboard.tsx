@@ -62,6 +62,7 @@ export function ActiveAbsencesDashboard({ teamIds }: ActiveAbsencesDashboardProp
         .from('requests')
         .select(`
           id,
+          requester_id,
           inicio,
           fim,
           tipo,
