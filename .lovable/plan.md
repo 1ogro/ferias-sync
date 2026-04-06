@@ -1,51 +1,42 @@
 
+Objetivo: corrigir a exibição do menu "Gestão do Time" para todos os usuários com papel `GESTOR`.
 
-## Plan: Dar acesso de Gestor às abas de time no Gestão de Férias
+Diagnóstico já confirmado
+- O link já existe em `src/components/Header.tsx` com permissão para `GESTOR` e `DIRETOR`.
+- No banco, os gestores listados têm `profiles.user_id` vinculado corretamente e `papel = 'GESTOR'`.
+- Então o problema mais provável não é cadastro nem RLS; é o fluxo de carregamento de autenticação/perfil no frontend.
 
-### Resumo
-Gestores poderão acessar a página `/vacation-management` com uma versão reduzida: apenas as abas relevantes ao seu time (Férias Aprovadas, Capacidade do Time, Ausências Ativas, Licenças Médicas). Dados serão filtrados automaticamente para mostrar apenas colaboradores do time do gestor.
+Causa provável
+- `Header.tsx` filtra os itens pelo `person?.papel` imediatamente.
+- `useAuth.tsx` faz inicialização duplicada (`getSession` + `onAuthStateChange`), repete `fetchPersonData` e ainda tem um timeout que pode disparar com estado stale.
+- Resultado: o header pode decidir a navegação antes de o perfil do usuário estar estável, escondendo o menu de role.
 
-### Mudanças
+Implementação
+1. Ajustar `src/hooks/useAuth.tsx`
+- Consolidar o fluxo de inicialização para evitar chamadas duplicadas de `fetchPersonData`.
+- Corrigir o timeout de autenticação para não usar `loading` stale e cancelá-lo quando o perfil já tiver carregado.
+- Garantir um estado confiável de “auth/profile pronto”.
 
-#### 1. `src/pages/VacationManagement.tsx`
-- **Acesso**: Alterar guard de `person.papel !== 'DIRETOR' && !person.is_admin` para incluir `GESTOR`
-- **Tabs condicionais**: Gestores veem apenas: `active` (Ausências Ativas), `dashboard` (Dashboard com Capacidade + Férias Aprovadas), `medical` (Licenças Médicas). Diretores/admins continuam vendo todas as 7 tabs
-- **Dados filtrados**: Para gestores, o fetch de dados filtra por `gestor_id = person.id` (apenas subordinados diretos)
+2. Ajustar `src/components/Header.tsx`
+- Consumir `loading`, `profileChecked` e `contractDateChecked` do `useAuth`.
+- Não aplicar filtro de role enquanto o auth ainda estiver resolvendo.
+- Só montar `filteredNavigation` quando o `person` estiver carregado.
+- Manter a regra de visibilidade do link separada da lógica do badge de ausências.
 
-#### 2. `src/components/ApprovedVacationsExecutiveView.tsx`
-- Aceitar prop opcional `managerId?: string`
-- Quando `managerId` presente, filtrar resultados client-side por `requester_id` pertencente ao time do gestor (usando lista de IDs dos subordinados)
-- Alternativa: buscar IDs dos subordinados e filtrar na query com `.in('requester_id', teamIds)`
+3. Blindar a UX
+- Exibir placeholder/skeleton de navegação durante o carregamento, em vez de esconder links por falta temporária de `person`.
+- Aplicar a mesma lógica tanto no menu desktop quanto no mobile.
 
-#### 3. `src/components/ActiveAbsencesDashboard.tsx`
-- Aceitar prop opcional `managerId?: string`
-- Quando presente, filtrar ausências para mostrar apenas pessoas do time
+Arquivos a alterar
+- `src/hooks/useAuth.tsx`
+- `src/components/Header.tsx`
 
-#### 4. `src/components/TeamCapacityDashboard.tsx`
-- Já busca dados via RLS (alertas de capacidade). Gestor já tem acesso via RLS se `sub_time` bate. Verificar se funciona sem mudanças; se não, adicionar prop de filtragem.
+Sem mudanças de banco
+- Nenhuma migração ou ajuste de RLS é necessária.
 
-#### 5. `src/components/MedicalLeaveList.tsx`
-- RLS já permite gestores verem licenças médicas de subordinados. Componente já deve funcionar. Verificar e ajustar se necessário.
-
-#### 6. `src/components/Header.tsx`
-- Adicionar link para `/vacation-management` visível para gestores (atualmente só aparece para admins/diretores via navegação interna ou link direto)
-
-### RLS
-As policies existentes nas tabelas `requests` e `medical_leaves` já permitem que gestores vejam dados dos subordinados diretos. Nenhuma migração de banco necessária.
-
-### Fluxo
-
-```text
-Gestor acessa /vacation-management
-       │
-       ▼
-  Vê apenas 3-4 tabs (escopo do time):
-  ┌──────────────────────────────────────────┐
-  │ Ausências Ativas │ Dashboard │ Licenças  │
-  └──────────────────────────────────────────┘
-       │
-       ▼
-  Dados filtrados por gestor_id = person.id
-  (apenas subordinados diretos)
-```
-
+Validação
+- Testar login com pelo menos 3 usuários `GESTOR` da lista.
+- Confirmar que o menu aparece no desktop e no mobile.
+- Confirmar que o link aparece mesmo para gestor sem subordinados.
+- Confirmar que `COLABORADOR` não vê o menu.
+- Confirmar que os logs deixam de mostrar múltiplos fetches repetidos e o `Auth initialization timeout` indevido.
