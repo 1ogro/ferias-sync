@@ -130,8 +130,8 @@ export function CollaboratorSummaryTable() {
             bVal = getNextAnniversary(b.data_contrato)?.getTime() || Infinity;
             break;
           case "data_nascimento":
-            aVal = a.data_nascimento ? new Date(a.data_nascimento).getTime() : 0;
-            bVal = b.data_nascimento ? new Date(b.data_nascimento).getTime() : 0;
+            aVal = a.data_nascimento ? parseDateSafely(a.data_nascimento).getTime() : 0;
+            bVal = b.data_nascimento ? parseDateSafely(b.data_nascimento).getTime() : 0;
             break;
           case "aniv_pessoal":
             aVal = getNextAnniversary(a.data_nascimento)?.getTime() || Infinity;
