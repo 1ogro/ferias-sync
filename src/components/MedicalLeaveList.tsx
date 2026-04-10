@@ -82,8 +82,8 @@ export const MedicalLeaveList = ({ onRefresh }: MedicalLeaveListProps) => {
             body: {
               type: 'MEDICAL_LEAVE_ENDED',
               personName: leave.person?.nome || 'Desconhecido',
-              startDate: formatDateSafe(leave.start_date),
-              endDate: formatDateSafe(leave.end_date),
+              startDate: formatDateSafe(leave.start_date, 'dd/MM/yyyy'),
+              endDate: formatDateSafe(leave.end_date, 'dd/MM/yyyy'),
             },
           }).catch(err => console.warn('Slack notification failed:', err));
         }
