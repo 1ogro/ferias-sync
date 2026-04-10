@@ -101,8 +101,8 @@ export const NewRequestForm = () => {
     try {
       // For vacation requests, use the new validation system
       if (formData.tipo === TipoAusencia.FERIAS) {
-        const startDate = new Date(formData.inicio);
-        const endDate = new Date(formData.fim);
+        const startDate = parseDateSafely(formData.inicio);
+        const endDate = parseDateSafely(formData.fim);
         const requestedDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
         
         // Validate abono limits
@@ -293,13 +293,13 @@ export const NewRequestForm = () => {
   // Validate maternity leave when dates change
   useEffect(() => {
     if (formData.tipo === TipoAusencia.LICENCA_MATERNIDADE && formData.inicio && person) {
-      validateMaternityLeave(person.id, new Date(formData.inicio))
+      validateMaternityLeave(person.id, parseDateSafely(formData.inicio))
         .then(validation => {
           setMaternityValidation(validation);
           if (validation.valid && validation.total_days) {
             // Auto-calculate end date
             const endDate = calculateMaternityEndDate(
-              new Date(formData.inicio),
+              parseDateSafely(formData.inicio),
               validation.total_days
             );
             setFormData(prev => ({
@@ -314,8 +314,8 @@ export const NewRequestForm = () => {
 
   const calculateDays = () => {
     if (formData.inicio && formData.fim) {
-      const start = new Date(formData.inicio);
-      const end = new Date(formData.fim);
+      const start = parseDateSafely(formData.inicio);
+      const end = parseDateSafely(formData.fim);
       const diffTime = Math.abs(end.getTime() - start.getTime());
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
       return diffDays;
@@ -422,8 +422,8 @@ export const NewRequestForm = () => {
                 to: managerData.email,
                 requesterName: person.nome,
                 requestType: formData.tipo,
-                startDate: new Date(formData.inicio).toLocaleDateString('pt-BR'),
-                endDate: new Date(formData.fim).toLocaleDateString('pt-BR'),
+                startDate: parseDateSafely(formData.inicio).toLocaleDateString('pt-BR'),
+                endDate: parseDateSafely(formData.fim).toLocaleDateString('pt-BR'),
               }
             });
           }
@@ -441,8 +441,8 @@ export const NewRequestForm = () => {
                 requestId: newRequest.id,
                 requesterName: person.nome,
                 requestType: formData.tipo,
-                startDate: new Date(formData.inicio).toLocaleDateString('pt-BR'),
-                endDate: new Date(formData.fim).toLocaleDateString('pt-BR'),
+                startDate: parseDateSafely(formData.inicio).toLocaleDateString('pt-BR'),
+                endDate: parseDateSafely(formData.fim).toLocaleDateString('pt-BR'),
                 approverEmail: managerData.email,
               }
             });
@@ -662,7 +662,7 @@ export const NewRequestForm = () => {
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <span className="inline-flex items-center gap-1 text-sm text-muted-foreground ml-1 cursor-help">
-                            (a partir de {new Date(new Date().getFullYear(), new Date(person.data_nascimento).getMonth(), 1).toLocaleDateString('pt-BR')})
+                            (a partir de {new Date(new Date().getFullYear(), parseDateSafely(person.data_nascimento).getMonth(), 1).toLocaleDateString('pt-BR')})
                             <HelpCircle className="w-3.5 h-3.5" />
                           </span>
                         </TooltipTrigger>

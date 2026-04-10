@@ -7,6 +7,7 @@ import { RequestCard } from "@/components/RequestCard";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Request, Status, TipoAusencia } from "@/lib/types";
+import { parseDateSafely } from "@/lib/dateUtils";
 import { Inbox as InboxIcon, CheckCircle, XCircle, MessageCircle, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -75,8 +76,8 @@ const Inbox = () => {
           id: item.id,
           requesterId: item.requester_id,
           tipo: item.tipo as TipoAusencia,
-          inicio: item.inicio ? new Date(item.inicio) : null,
-          fim: item.fim ? new Date(item.fim) : null,
+          inicio: item.inicio ? parseDateSafely(item.inicio) : null,
+          fim: item.fim ? parseDateSafely(item.fim) : null,
           justificativa: item.justificativa,
           status: item.status as Status,
           diasAbono: item.dias_abono,
@@ -293,8 +294,8 @@ const Inbox = () => {
               to: requesterData.email,
               requesterName: request.requester?.nome || '',
               requestType: request.tipo,
-              startDate: request.inicio ? new Date(request.inicio).toLocaleDateString('pt-BR') : undefined,
-              endDate: request.fim ? new Date(request.fim).toLocaleDateString('pt-BR') : undefined,
+              startDate: request.inicio instanceof Date ? request.inicio.toLocaleDateString('pt-BR') : request.inicio ? parseDateSafely(request.inicio).toLocaleDateString('pt-BR') : undefined,
+              endDate: request.fim instanceof Date ? request.fim.toLocaleDateString('pt-BR') : request.fim ? parseDateSafely(request.fim).toLocaleDateString('pt-BR') : undefined,
               approverName: person.nome,
             }
           });
@@ -321,8 +322,8 @@ const Inbox = () => {
             requestId: requestId,
             requesterName: request.requester?.nome || '',
             requestType: request.tipo,
-            startDate: request.inicio ? new Date(request.inicio).toLocaleDateString('pt-BR') : '',
-            endDate: request.fim ? new Date(request.fim).toLocaleDateString('pt-BR') : '',
+            startDate: request.inicio instanceof Date ? request.inicio.toLocaleDateString('pt-BR') : request.inicio ? parseDateSafely(request.inicio).toLocaleDateString('pt-BR') : '',
+            endDate: request.fim instanceof Date ? request.fim.toLocaleDateString('pt-BR') : request.fim ? parseDateSafely(request.fim).toLocaleDateString('pt-BR') : '',
             comment: null,
           }
         });

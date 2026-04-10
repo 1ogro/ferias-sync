@@ -10,6 +10,7 @@ import { Status, TIPO_LABELS, Request, TipoAusencia, Person, Papel, Organization
 import { ArrowLeft, Calendar, User, Clock, AlertTriangle, Edit, Trash2 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { parseDateSafely } from "@/lib/dateUtils";
 import { useToast } from "@/hooks/use-toast";
 import { DeletionDialog } from "@/components/DeletionDialog";
 import { CancellationDialog } from "@/components/CancellationDialog";
@@ -95,8 +96,8 @@ const RequestDetail = () => {
               data_contrato: requestData.requester.data_contrato
             },
             tipo: requestData.tipo as TipoAusencia,
-          inicio: requestData.inicio ? new Date(requestData.inicio) : null,
-          fim: requestData.fim ? new Date(requestData.fim) : null,
+          inicio: requestData.inicio ? parseDateSafely(requestData.inicio) : null,
+          fim: requestData.fim ? parseDateSafely(requestData.fim) : null,
             tipoFerias: requestData.tipo_ferias,
             status: requestData.status as Status,
             justificativa: requestData.justificativa,

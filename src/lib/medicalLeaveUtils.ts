@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { MedicalLeave, TeamCapacityAlert, SpecialApproval } from "./types";
+import { parseDateSafely } from "./dateUtils";
 
 // Helper function to check if user is authenticated
 const checkAuth = async () => {
@@ -13,16 +14,16 @@ const checkAuth = async () => {
 // Helper function to map database results to proper types
 const mapMedicalLeave = (dbLeave: any): MedicalLeave => ({
   ...dbLeave,
-  start_date: new Date(dbLeave.start_date),
-  end_date: new Date(dbLeave.end_date),
+  start_date: parseDateSafely(dbLeave.start_date),
+  end_date: parseDateSafely(dbLeave.end_date),
   created_at: new Date(dbLeave.created_at),
   updated_at: new Date(dbLeave.updated_at)
 });
 
 const mapTeamCapacityAlert = (dbAlert: any): TeamCapacityAlert => ({
   ...dbAlert,
-  period_start: new Date(dbAlert.period_start),
-  period_end: new Date(dbAlert.period_end),
+  period_start: parseDateSafely(dbAlert.period_start),
+  period_end: parseDateSafely(dbAlert.period_end),
   director_notified_at: dbAlert.director_notified_at ? new Date(dbAlert.director_notified_at) : undefined,
   created_at: new Date(dbAlert.created_at)
 });

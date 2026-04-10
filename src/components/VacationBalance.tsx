@@ -5,7 +5,7 @@ import { Calendar, Clock, User } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { getVacationBalance, VacationBalance as VacationBalanceType } from '@/lib/vacationUtils';
 import { ptBR } from 'date-fns/locale';
-import { formatDateSafe } from '@/lib/dateUtils';
+import { formatDateSafe, parseDateSafely } from '@/lib/dateUtils';
 import { cn } from '@/lib/utils';
 
 interface VacationBalanceProps {
@@ -84,7 +84,7 @@ export function VacationBalance({ className }: VacationBalanceProps) {
     return 'bg-destructive text-destructive-foreground';
   };
 
-  const contractAnniversary = new Date(balance.contract_anniversary);
+  const contractAnniversary = typeof balance.contract_anniversary === 'string' ? parseDateSafely(balance.contract_anniversary) : balance.contract_anniversary;
   const nextAnniversary = new Date(contractAnniversary);
   nextAnniversary.setFullYear(new Date().getFullYear() + 1);
 

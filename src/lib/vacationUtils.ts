@@ -174,8 +174,8 @@ function mapRequestFromDB(dbRequest: any): Request {
     requesterId: dbRequest.requester_id,
     requester: dbRequest.requester,
     tipo: dbRequest.tipo as TipoAusencia,
-    inicio: new Date(dbRequest.inicio),
-    fim: new Date(dbRequest.fim),
+    inicio: parseDateSafely(dbRequest.inicio),
+    fim: parseDateSafely(dbRequest.fim),
     tipoFerias: dbRequest.tipo_ferias,
     status: dbRequest.status as Status,
     justificativa: dbRequest.justificativa,
@@ -215,7 +215,7 @@ export async function getVacationBalance(
         accrued_days: manualBalance.accrued_days,
         used_days: manualBalance.used_days,
         balance_days: manualBalance.balance_days,
-        contract_anniversary: new Date(manualBalance.contract_anniversary),
+        contract_anniversary: parseDateSafely(manualBalance.contract_anniversary),
         is_manual: true,
         manual_justification: manualBalance.manual_justification,
         updated_by: manualBalance.updated_by,
@@ -276,7 +276,7 @@ export async function saveManualVacationBalance(
     
     if (personData?.data_contrato) {
       // Use actual contract date
-      contractAnniversary = new Date(year, new Date(personData.data_contrato).getMonth(), new Date(personData.data_contrato).getDate());
+      contractAnniversary = new Date(year, parseDateSafely(personData.data_contrato).getMonth(), parseDateSafely(personData.data_contrato).getDate());
     } else {
       // Use default date (January 1st of the year) for users without contract date
       contractAnniversary = new Date(year, 0, 1);
@@ -671,7 +671,7 @@ export async function migrateManualBalances(
         let contractAnniversary: Date;
         
         if (personData?.data_contrato) {
-          const contractDate = new Date(personData.data_contrato);
+          const contractDate = parseDateSafely(personData.data_contrato);
           contractAnniversary = new Date(targetYear, contractDate.getMonth(), contractDate.getDate());
         } else {
           contractAnniversary = new Date(targetYear, 0, 1);

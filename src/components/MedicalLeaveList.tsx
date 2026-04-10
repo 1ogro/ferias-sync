@@ -6,7 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { AlertTriangle, Calendar, User, CheckCircle, XCircle } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { formatDateSafe } from "@/lib/dateUtils";
+import { formatDateSafe, parseDateSafely } from "@/lib/dateUtils";
 import { getActiveMedicalLeaves, endMedicalLeave } from "@/lib/medicalLeaveUtils";
 import { MedicalLeave } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
@@ -88,7 +88,7 @@ export const MedicalLeaveList = ({ onRefresh }: MedicalLeaveListProps) => {
 
   const getStatusBadge = (leave: MedicalLeave) => {
     const isActive = leave.status === 'ATIVA';
-    const isExpired = new Date(leave.end_date) < new Date();
+    const isExpired = (leave.end_date instanceof Date ? leave.end_date : parseDateSafely(String(leave.end_date))) < new Date();
     
     if (isActive && !isExpired) {
       return <Badge className="bg-status-in-review/10 text-status-in-review">Ativa</Badge>;
