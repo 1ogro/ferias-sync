@@ -25,11 +25,40 @@ async function sendSlackNotification(text: string) {
   }
 }
 
+async function findSlackUserByName(
+  slackToken: string,
+  personName: string
+): Promise<string | null> {
+  let cursor = "";
+  do {
+    const url = `https://slack.com/api/users.list?limit=200${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`;
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${slackToken}` },
+    });
+    const data = await res.json();
+    if (!data.ok) {
+      console.error("users.list error:", data.error);
+      return null;
+    }
+    const nameLower = personName.toLowerCase();
+    const match = data.members?.find(
+      (u: any) =>
+        u.real_name?.toLowerCase() === nameLower ||
+        u.profile?.display_name?.toLowerCase() === nameLower ||
+        u.name?.toLowerCase() === nameLower
+    );
+    if (match) return match.id;
+    cursor = data.response_metadata?.next_cursor || "";
+  } while (cursor);
+  return null;
+}
+
 async function sendSlackDM(
   slackToken: string,
   email: string,
   blocks: any[],
-  fallbackText: string
+  fallbackText: string,
+  personName?: string
 ): Promise<{ ok: boolean; error?: string }> {
   // Lookup Slack user by email
   const lookupRes = await fetch(
@@ -40,11 +69,21 @@ async function sendSlackDM(
   );
   const lookupData = await lookupRes.json();
 
-  if (!lookupData.ok) {
-    return { ok: false, error: `Usuário não encontrado no Slack para o email ${email}` };
+  let slackUserId: string | null = null;
+
+  if (lookupData.ok) {
+    slackUserId = lookupData.user.id;
+  } else if (personName) {
+    console.log(`Email lookup failed for ${email}, trying name lookup for "${personName}"...`);
+    slackUserId = await findSlackUserByName(slackToken, personName);
+    if (slackUserId) {
+      console.log(`Found Slack user by name "${personName}": ${slackUserId}`);
+    }
   }
 
-  const slackUserId = lookupData.user.id;
+  if (!slackUserId) {
+    return { ok: false, error: `Usuário não encontrado no Slack para ${email}${personName ? ` nem pelo nome "${personName}"` : ""}` };
+  }
 
   // Open DM conversation
   const openRes = await fetch("https://slack.com/api/conversations.open", {
@@ -423,7 +462,8 @@ Deno.serve(async (req) => {
             slackToken,
             targetPerson.email,
             blocks,
-            `Olá ${targetPerson.nome}! Você foi convidado(a) para criar sua conta. ${inviteLink || "Verifique seu email."}`
+            `Olá ${targetPerson.nome}! Você foi convidado(a) para criar sua conta. ${inviteLink || "Verifique seu email."}`,
+            targetPerson.nome
           );
 
           if (dmResult.ok) {
