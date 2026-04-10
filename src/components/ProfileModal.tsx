@@ -94,6 +94,19 @@ export const ProfileModal = ({ open, onOpenChange }: ProfileModalProps) => {
         p_data_nascimento: formData.data_nascimento ? formatDateToYYYYMMDD(formData.data_nascimento) : null,
       });
       if (error) throw error;
+      // Fire-and-forget Slack notification
+      const changedFields: string[] = [];
+      if (formData.nome !== person.nome) changedFields.push('Nome');
+      if (formData.email !== person.email) changedFields.push('Email');
+      if (formatDateToYYYYMMDD(formData.data_nascimento) !== person.data_nascimento) changedFields.push('Data de Nascimento');
+      supabase.functions.invoke('slack-notification', {
+        body: {
+          type: 'PROFILE_UPDATE',
+          personName: formData.nome,
+          personEmail: formData.email,
+          changedFields: changedFields.join(', '),
+        },
+      }).catch(err => console.warn('Slack notification failed:', err));
       toast({ title: "Perfil atualizado!", description: "Suas informações foram salvas com sucesso." });
       onOpenChange(false);
       window.location.reload();

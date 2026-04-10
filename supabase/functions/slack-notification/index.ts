@@ -10,7 +10,7 @@ const corsHeaders = {
 };
 
 interface SlackNotificationRequest {
-  type: 'NEW_REQUEST' | 'APPROVAL' | 'REJECTION' | 'REQUEST_INFO' | 'PERSON_APPROVED' | 'PERSON_REJECTED' | 'INVITE_ACCEPTED' | 'NEW_PENDING_PERSON' | 'PAYMENT_DAY_CHANGE_REQUEST';
+  type: 'NEW_REQUEST' | 'APPROVAL' | 'REJECTION' | 'REQUEST_INFO' | 'PERSON_APPROVED' | 'PERSON_REJECTED' | 'INVITE_ACCEPTED' | 'NEW_PENDING_PERSON' | 'PAYMENT_DAY_CHANGE_REQUEST' | 'USER_LOGIN' | 'USER_SIGNUP' | 'USER_PASSWORD_RESET_REQUEST' | 'USER_FIGMA_LOGIN' | 'PROFILE_UPDATE' | 'CONTRACT_SETUP';
   requestId?: string;
   requesterName?: string;
   requestType?: string;
@@ -27,6 +27,10 @@ interface SlackNotificationRequest {
   managerName?: string;
   currentPaymentDay?: number;
   desiredPaymentDay?: number;
+  email?: string;
+  changedFields?: string;
+  contractModel?: string;
+  contractDate?: string;
 }
 
 async function findSlackUserByName(personName: string): Promise<string | null> {
@@ -254,6 +258,72 @@ serve(async (req) => {
           text: {
             type: "mrkdwn",
             text: `*💰 Solicitação de Alteração de Dia de Pagamento*\n👤 *${payload.requesterName}*\n📅 Dia atual: ${payload.currentPaymentDay} → Dia desejado: ${payload.desiredPaymentDay}`,
+          },
+        },
+      ];
+    } else if (payload.type === 'USER_LOGIN') {
+      text = `Login realizado`;
+      blocks = [
+        {
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: `*🔐 Login*\n${payload.personName ? `👤 *${payload.personName}*` : ''} (${payload.email})`,
+          },
+        },
+      ];
+    } else if (payload.type === 'USER_SIGNUP') {
+      text = `Autocadastro realizado`;
+      blocks = [
+        {
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: `*📝 Autocadastro*\n${payload.personName ? `👤 *${payload.personName}*` : ''} (${payload.email}) se cadastrou no sistema`,
+          },
+        },
+      ];
+    } else if (payload.type === 'USER_PASSWORD_RESET_REQUEST') {
+      text = `Reset de senha solicitado`;
+      blocks = [
+        {
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: `*🔑 Reset de Senha Solicitado*\n📧 ${payload.email} solicitou recuperação de senha`,
+          },
+        },
+      ];
+    } else if (payload.type === 'USER_FIGMA_LOGIN') {
+      text = `Login via Figma`;
+      blocks = [
+        {
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: `*🎨 Login Figma*\n${payload.personName ? `👤 *${payload.personName}*` : ''} (${payload.email || 'email não disponível'})`,
+          },
+        },
+      ];
+    } else if (payload.type === 'PROFILE_UPDATE') {
+      text = `Perfil atualizado`;
+      blocks = [
+        {
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: `*👤 Perfil Atualizado*\n👤 *${payload.personName}* (${payload.personEmail}) alterou seus dados pessoais${payload.changedFields ? `\n📝 Campos: ${payload.changedFields}` : ''}`,
+          },
+        },
+      ];
+    } else if (payload.type === 'CONTRACT_SETUP') {
+      text = `Contrato configurado`;
+      blocks = [
+        {
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: `*📋 Contrato Configurado*\n👤 *${payload.personName}* configurou contrato ${payload.contractModel}, data: ${payload.contractDate}`,
           },
         },
       ];
