@@ -10,7 +10,7 @@ const corsHeaders = {
 };
 
 interface SlackNotificationRequest {
-  type: 'NEW_REQUEST' | 'APPROVAL' | 'REJECTION' | 'REQUEST_INFO' | 'PERSON_APPROVED' | 'PERSON_REJECTED' | 'INVITE_ACCEPTED' | 'NEW_PENDING_PERSON' | 'PAYMENT_DAY_CHANGE_REQUEST' | 'USER_LOGIN' | 'USER_SIGNUP' | 'USER_PASSWORD_RESET_REQUEST' | 'USER_FIGMA_LOGIN' | 'PROFILE_UPDATE' | 'CONTRACT_SETUP';
+  type: 'NEW_REQUEST' | 'APPROVAL' | 'REJECTION' | 'REQUEST_INFO' | 'PERSON_APPROVED' | 'PERSON_REJECTED' | 'INVITE_ACCEPTED' | 'NEW_PENDING_PERSON' | 'PAYMENT_DAY_CHANGE_REQUEST' | 'USER_LOGIN' | 'USER_SIGNUP' | 'USER_PASSWORD_RESET_REQUEST' | 'USER_FIGMA_LOGIN' | 'PROFILE_UPDATE' | 'CONTRACT_SETUP' | 'MEDICAL_LEAVE_CREATED' | 'MEDICAL_LEAVE_ENDED';
   requestId?: string;
   requesterName?: string;
   requestType?: string;
@@ -31,6 +31,8 @@ interface SlackNotificationRequest {
   changedFields?: string;
   contractModel?: string;
   contractDate?: string;
+  affectsCapacity?: boolean;
+  justification?: string;
 }
 
 async function findSlackUserByName(personName: string): Promise<string | null> {
@@ -324,6 +326,28 @@ serve(async (req) => {
           text: {
             type: "mrkdwn",
             text: `*📋 Contrato Configurado*\n👤 *${payload.personName}* configurou contrato ${payload.contractModel}, data: ${payload.contractDate}`,
+          },
+        },
+      ];
+    } else if (payload.type === 'MEDICAL_LEAVE_CREATED') {
+      text = `Licença Médica Registrada`;
+      blocks = [
+        {
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: `*🏥 Licença Médica Registrada*\n👤 *${payload.personName}*\n📅 ${payload.startDate} até ${payload.endDate}${payload.justification ? `\n💬 ${payload.justification}` : ''}${payload.affectsCapacity ? '\n⚠️ Afeta capacidade do time' : ''}`,
+          },
+        },
+      ];
+    } else if (payload.type === 'MEDICAL_LEAVE_ENDED') {
+      text = `Licença Médica Encerrada`;
+      blocks = [
+        {
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: `*✅ Licença Médica Encerrada*\n👤 *${payload.personName}*\n📅 ${payload.startDate} até ${payload.endDate}`,
           },
         },
       ];
