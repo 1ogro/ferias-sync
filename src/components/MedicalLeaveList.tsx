@@ -88,7 +88,7 @@ export const MedicalLeaveList = ({ onRefresh }: MedicalLeaveListProps) => {
 
   const getStatusBadge = (leave: MedicalLeave) => {
     const isActive = leave.status === 'ATIVA';
-    const isExpired = new Date(leave.end_date) < new Date();
+    const isExpired = (leave.end_date instanceof Date ? leave.end_date : parseDateSafely(String(leave.end_date))) < new Date();
     
     if (isActive && !isExpired) {
       return <Badge className="bg-status-in-review/10 text-status-in-review">Ativa</Badge>;

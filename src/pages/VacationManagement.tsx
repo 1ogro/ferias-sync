@@ -385,8 +385,8 @@ const VacationManagement = () => {
             bValue = b.is_manual ? 'Manual' : 'Auto';
             break;
           case 'data_contrato':
-            aValue = a.person.data_contrato ? new Date(a.person.data_contrato).getTime() : 0;
-            bValue = b.person.data_contrato ? new Date(b.person.data_contrato).getTime() : 0;
+            aValue = a.person.data_contrato ? parseDateSafely(a.person.data_contrato).getTime() : 0;
+            bValue = b.person.data_contrato ? parseDateSafely(b.person.data_contrato).getTime() : 0;
             break;
           default:
             return 0;

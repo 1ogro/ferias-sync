@@ -441,8 +441,8 @@ export const NewRequestForm = () => {
                 requestId: newRequest.id,
                 requesterName: person.nome,
                 requestType: formData.tipo,
-                startDate: new Date(formData.inicio).toLocaleDateString('pt-BR'),
-                endDate: new Date(formData.fim).toLocaleDateString('pt-BR'),
+                startDate: parseDateSafely(formData.inicio).toLocaleDateString('pt-BR'),
+                endDate: parseDateSafely(formData.fim).toLocaleDateString('pt-BR'),
                 approverEmail: managerData.email,
               }
             });
