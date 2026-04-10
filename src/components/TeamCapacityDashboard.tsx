@@ -71,7 +71,7 @@ export const TeamCapacityDashboard = () => {
             people!requests_requester_id_fkey(nome, cargo, sub_time)
           `)
           .in('status', ['APROVADO_FINAL', 'REALIZADO'])
-          .in('tipo', ['FERIAS', 'LICENCA_MATERNIDADE', 'LICENCA_MEDICA', 'DAY_OFF'])
+          .in('tipo', ['FERIAS', 'LICENCA_MATERNIDADE', 'LICENCA_MEDICA', 'DAYOFF'])
           .lte('inicio', today)
           .gte('fim', today),
         supabase
@@ -311,7 +311,7 @@ export const TeamCapacityDashboard = () => {
         teamImpact[team].plannedAbsences += 1;
       } else if (absence.tipo === 'LICENCA_MEDICA') {
         teamImpact[team].licencaMedica += 1;
-      } else if (absence.tipo === 'DAY_OFF') {
+      } else if (absence.tipo === 'DAYOFF') {
         teamImpact[team].dayOff += 1;
       }
       
