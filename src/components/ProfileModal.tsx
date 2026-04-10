@@ -17,7 +17,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useIntegrations } from "@/hooks/useIntegrations";
 import { supabase } from "@/integrations/supabase/client";
 import { Person } from "@/lib/types";
-import { formatDateToBRString, parseBRStringToDate, applyDateMask, isValidDateString, formatDateToYYYYMMDD } from "@/lib/dateUtils";
+import { formatDateToBRString, parseBRStringToDate, applyDateMask, isValidDateString, formatDateToYYYYMMDD, parseDateSafely } from "@/lib/dateUtils";
 
 interface ProfileModalProps {
   open: boolean;
@@ -53,7 +53,7 @@ export const ProfileModal = ({ open, onOpenChange }: ProfileModalProps) => {
 
   useEffect(() => {
     if (person && open) {
-      const birthDate = person.data_nascimento ? new Date(person.data_nascimento) : undefined;
+      const birthDate = person.data_nascimento ? parseDateSafely(person.data_nascimento) : undefined;
       setFormData({
         nome: person.nome || "",
         email: person.email || "",
