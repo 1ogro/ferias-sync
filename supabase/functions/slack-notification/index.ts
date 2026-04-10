@@ -10,7 +10,7 @@ const corsHeaders = {
 };
 
 interface SlackNotificationRequest {
-  type: 'NEW_REQUEST' | 'APPROVAL' | 'REJECTION' | 'REQUEST_INFO' | 'PERSON_APPROVED' | 'PERSON_REJECTED' | 'INVITE_ACCEPTED' | 'NEW_PENDING_PERSON';
+  type: 'NEW_REQUEST' | 'APPROVAL' | 'REJECTION' | 'REQUEST_INFO' | 'PERSON_APPROVED' | 'PERSON_REJECTED' | 'INVITE_ACCEPTED' | 'NEW_PENDING_PERSON' | 'PAYMENT_DAY_CHANGE_REQUEST';
   requestId?: string;
   requesterName?: string;
   requestType?: string;
@@ -25,6 +25,8 @@ interface SlackNotificationRequest {
   directorName?: string;
   rejectionReason?: string;
   managerName?: string;
+  currentPaymentDay?: number;
+  desiredPaymentDay?: number;
 }
 
 async function findSlackUserByName(personName: string): Promise<string | null> {
@@ -244,8 +246,18 @@ serve(async (req) => {
           },
         },
       ];
+    } else if (payload.type === 'PAYMENT_DAY_CHANGE_REQUEST') {
+      text = `Solicitação de Alteração de Dia de Pagamento`;
+      blocks = [
+        {
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: `*💰 Solicitação de Alteração de Dia de Pagamento*\n👤 *${payload.requesterName}*\n📅 Dia atual: ${payload.currentPaymentDay} → Dia desejado: ${payload.desiredPaymentDay}`,
+          },
+        },
+      ];
     }
-
 
 
     // Send message to channel or DM

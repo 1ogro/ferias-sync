@@ -131,6 +131,16 @@ export const ProfileModal = ({ open, onOpenChange }: ProfileModalProps) => {
         });
       }
 
+      // Fire-and-forget Slack notification
+      supabase.functions.invoke('slack-notification', {
+        body: {
+          type: 'PAYMENT_DAY_CHANGE_REQUEST',
+          requesterName: person.nome,
+          currentPaymentDay: person.dia_pagamento,
+          desiredPaymentDay: Number(desiredPaymentDay),
+        },
+      }).catch(err => console.warn('Slack notification failed:', err));
+
       toast({ title: "Solicitação enviada!", description: "Os diretores foram notificados sobre sua solicitação de alteração." });
       setShowChangeRequest(false);
       setDesiredPaymentDay("");
