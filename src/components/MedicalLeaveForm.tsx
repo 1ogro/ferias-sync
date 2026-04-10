@@ -12,6 +12,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { CalendarIcon } from "lucide-react";
 import { format } from "date-fns";
 import { createMedicalLeave } from "@/lib/medicalLeaveUtils";
+import { supabase } from "@/integrations/supabase/client";
+import { format as formatDate } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
 import { Person } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
@@ -83,10 +85,24 @@ export const MedicalLeaveForm = ({ people, onSuccess, onCancel }: MedicalLeaveFo
       );
 
       if (result.success) {
+        const selectedPerson = people.find(p => p.id === data.person_id);
         toast({
           title: "Sucesso",
           description: "Licença médica registrada com sucesso.",
         });
+
+        // Fire-and-forget Slack notification
+        supabase.functions.invoke('slack-notification', {
+          body: {
+            type: 'MEDICAL_LEAVE_CREATED',
+            personName: selectedPerson?.nome || 'Desconhecido',
+            startDate: formatDate(data.start_date!, 'dd/MM/yyyy'),
+            endDate: formatDate(data.end_date!, 'dd/MM/yyyy'),
+            justification: data.justification,
+            affectsCapacity: data.affects_team_capacity,
+          },
+        }).catch(err => console.warn('Slack notification failed:', err));
+
         onSuccess();
       } else {
         throw new Error(result.error);
