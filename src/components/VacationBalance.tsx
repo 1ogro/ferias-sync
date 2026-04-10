@@ -84,7 +84,7 @@ export function VacationBalance({ className }: VacationBalanceProps) {
     return 'bg-destructive text-destructive-foreground';
   };
 
-  const contractAnniversary = parseDateSafely(balance.contract_anniversary);
+  const contractAnniversary = typeof balance.contract_anniversary === 'string' ? parseDateSafely(balance.contract_anniversary) : balance.contract_anniversary;
   const nextAnniversary = new Date(contractAnniversary);
   nextAnniversary.setFullYear(new Date().getFullYear() + 1);
 
