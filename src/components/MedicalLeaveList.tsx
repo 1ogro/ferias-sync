@@ -8,6 +8,7 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { formatDateSafe, parseDateSafely } from "@/lib/dateUtils";
 import { getActiveMedicalLeaves, endMedicalLeave } from "@/lib/medicalLeaveUtils";
+import { supabase } from "@/integrations/supabase/client";
 import { MedicalLeave } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
@@ -64,6 +65,7 @@ export const MedicalLeaveList = ({ onRefresh }: MedicalLeaveListProps) => {
   }, [user, authLoading]);
 
   const handleEndLeave = async (leaveId: string) => {
+    const leave = medicalLeaves.find(l => l.id === leaveId);
     try {
       const result = await endMedicalLeave(leaveId);
       
@@ -72,6 +74,19 @@ export const MedicalLeaveList = ({ onRefresh }: MedicalLeaveListProps) => {
           title: "Sucesso",
           description: "Licença médica encerrada com sucesso.",
         });
+
+        // Fire-and-forget Slack notification
+        if (leave) {
+          supabase.functions.invoke('slack-notification', {
+            body: {
+              type: 'MEDICAL_LEAVE_ENDED',
+              personName: leave.person?.nome || 'Desconhecido',
+              startDate: formatDateSafe(leave.start_date, 'dd/MM/yyyy'),
+              endDate: formatDateSafe(leave.end_date, 'dd/MM/yyyy'),
+            },
+          }).catch(err => console.warn('Slack notification failed:', err));
+        }
+
         await loadMedicalLeaves();
         onRefresh?.();
       } else {
