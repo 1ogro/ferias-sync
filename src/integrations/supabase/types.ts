@@ -774,6 +774,12 @@ export type Database = {
           nome: string
         }[]
       }
+      get_director_emails: {
+        Args: never
+        Returns: {
+          email: string
+        }[]
+      }
       get_vacation_summary: {
         Args: { p_year?: number }
         Returns: {
