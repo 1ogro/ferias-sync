@@ -600,7 +600,7 @@ const Admin = () => {
           <p className="text-muted-foreground">Gerencie todos os usuários do sistema</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          {isManager && (
+          {(isManager || isDirector) && (
             <Button 
               onClick={() => setShowNewCollaboratorDialog(true)} 
               variant="outline" 
@@ -1223,21 +1223,26 @@ const Admin = () => {
         </DialogContent>
       </Dialog>
 
-      {/* New Collaborator Dialog (for Managers) */}
+      {/* New Collaborator Dialog (for Managers and Directors) */}
       <Dialog open={showNewCollaboratorDialog} onOpenChange={setShowNewCollaboratorDialog}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Cadastrar Novo Colaborador</DialogTitle>
             <DialogDescription>
-              Preencha os dados do colaborador. O cadastro será enviado para aprovação do diretor.
+              {isDirector 
+                ? "Preencha os dados do colaborador. O cadastro será aprovado automaticamente."
+                : "Preencha os dados do colaborador. O cadastro será enviado para aprovação do diretor."
+              }
             </DialogDescription>
           </DialogHeader>
           <NewCollaboratorForm 
+            isDirector={!!isDirector}
             onSuccess={() => {
               setShowNewCollaboratorDialog(false);
+              fetchPeople();
               toast({
                 title: "Sucesso",
-                description: "Cadastro enviado para aprovação",
+                description: isDirector ? "Colaborador cadastrado com sucesso!" : "Cadastro submetido para aprovação do diretor",
               });
             }}
             onCancel={() => setShowNewCollaboratorDialog(false)}

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import { Papel, ModeloContrato, MODELO_CONTRATO_LABELS } from "@/lib/types";
 import { Loader2 } from "lucide-react";
 
 interface NewCollaboratorFormProps {
+  isDirector?: boolean;
   onSuccess?: () => void;
   onCancel?: () => void;
 }
@@ -24,6 +25,8 @@ interface FormData {
   data_nascimento: string;
   modelo_contrato: ModeloContrato;
   dia_pagamento: string;
+  papel: Papel;
+  gestor_id: string;
 }
 
 interface FormErrors {
@@ -31,13 +34,21 @@ interface FormErrors {
   email?: string;
   cargo?: string;
   sub_time?: string;
+  gestor_id?: string;
 }
 
-export function NewCollaboratorForm({ onSuccess, onCancel }: NewCollaboratorFormProps) {
+interface ManagerOption {
+  id: string;
+  nome: string;
+  papel: string;
+}
+
+export function NewCollaboratorForm({ isDirector = false, onSuccess, onCancel }: NewCollaboratorFormProps) {
   const { person } = useAuth();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<FormErrors>({});
+  const [managers, setManagers] = useState<ManagerOption[]>([]);
 
   const [formData, setFormData] = useState<FormData>({
     nome: "",
@@ -49,7 +60,24 @@ export function NewCollaboratorForm({ onSuccess, onCancel }: NewCollaboratorForm
     data_nascimento: "",
     modelo_contrato: ModeloContrato.CLT,
     dia_pagamento: "",
+    papel: Papel.COLABORADOR,
+    gestor_id: "",
   });
+
+  // Load managers list for director's gestor_id picker
+  useEffect(() => {
+    if (!isDirector) return;
+    const fetchManagers = async () => {
+      const { data } = await supabase
+        .from("people")
+        .select("id, nome, papel")
+        .in("papel", ["GESTOR", "DIRETOR"])
+        .eq("ativo", true)
+        .order("nome");
+      setManagers(data || []);
+    };
+    fetchManagers();
+  }, [isDirector]);
 
   const validate = (): boolean => {
     const newErrors: FormErrors = {};
@@ -71,6 +99,10 @@ export function NewCollaboratorForm({ onSuccess, onCancel }: NewCollaboratorForm
       newErrors.sub_time = "Time é obrigatório";
     }
 
+    if (isDirector && formData.papel === Papel.COLABORADOR && !formData.gestor_id) {
+      newErrors.gestor_id = "Selecione o gestor responsável";
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -78,68 +110,91 @@ export function NewCollaboratorForm({ onSuccess, onCancel }: NewCollaboratorForm
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!validate()) {
-      return;
-    }
+    if (!validate()) return;
 
     if (!person?.id) {
-      toast({
-        title: "Erro",
-        description: "Usuário não identificado",
-        variant: "destructive",
-      });
+      toast({ title: "Erro", description: "Usuário não identificado", variant: "destructive" });
       return;
     }
 
     setLoading(true);
 
     try {
-      const { error } = await supabase.from("pending_people").insert({
+      const gestorId = isDirector
+        ? (formData.papel === Papel.COLABORADOR ? formData.gestor_id : person.id)
+        : person.id;
+
+      const papelValue = isDirector ? formData.papel : Papel.COLABORADOR;
+
+      const { data: insertedRows, error } = await supabase.from("pending_people").insert({
         nome: formData.nome.trim(),
         email: formData.email.trim().toLowerCase(),
         cargo: formData.cargo.trim(),
         local: formData.local.trim() || null,
         sub_time: formData.sub_time.trim(),
-        papel: Papel.COLABORADOR,
-        gestor_id: person.id,
+        papel: papelValue,
+        gestor_id: gestorId,
         data_contrato: formData.data_contrato || null,
         data_nascimento: formData.data_nascimento || null,
         modelo_contrato: formData.modelo_contrato,
         dia_pagamento: formData.modelo_contrato === ModeloContrato.PJ && formData.dia_pagamento ? parseInt(formData.dia_pagamento) : null,
         created_by: person.id,
         status: "PENDENTE",
-      });
+      }).select();
 
       if (error) throw error;
 
-      // Fire-and-forget: notify directors via email
-      supabase.functions.invoke('send-notification-email', {
-        body: {
-          type: 'NEW_PENDING_PERSON',
-          collaboratorName: formData.nome.trim(),
-          collaboratorEmail: formData.email.trim().toLowerCase(),
-          managerName: person.nome || 'Gestor',
-        },
-      }).catch(err => console.warn('Failed to send new pending person email:', err));
+      // If director, auto-approve immediately
+      if (isDirector && insertedRows && insertedRows.length > 0) {
+        const pendingId = insertedRows[0].id;
+        const { data: approveResult, error: approveError } = await supabase.rpc("approve_pending_person", {
+          p_pending_id: pendingId,
+          p_reviewer_id: person.id,
+          p_director_notes: "Cadastro direto pelo diretor",
+          p_nome: formData.nome.trim(),
+          p_email: formData.email.trim().toLowerCase(),
+          p_cargo: formData.cargo.trim(),
+          p_local: formData.local.trim() || null,
+          p_sub_time: formData.sub_time.trim(),
+          p_gestor_id: gestorId,
+          p_data_contrato: formData.data_contrato || null,
+          p_data_nascimento: formData.data_nascimento || null,
+          p_modelo_contrato: formData.modelo_contrato,
+          p_dia_pagamento: formData.modelo_contrato === ModeloContrato.PJ && formData.dia_pagamento ? parseInt(formData.dia_pagamento) : null,
+        });
 
-      // Fire-and-forget: notify via Slack
-      supabase.functions.invoke('slack-notification', {
-        body: {
-          type: 'NEW_PENDING_PERSON',
-          personName: formData.nome.trim(),
-          personEmail: formData.email.trim().toLowerCase(),
-          managerName: person.nome || 'Gestor',
-        },
-      }).catch(err => console.warn('Failed to send new pending person slack:', err));
+        if (approveError) throw approveError;
 
-      toast({
-        title: "Sucesso",
-        description: "Cadastro submetido para aprovação do diretor",
-      });
+        const result = approveResult as unknown as { success: boolean; message: string };
+        if (!result.success) {
+          throw new Error(result.message);
+        }
+      }
+
+      // Fire-and-forget notifications (only for manager flow)
+      if (!isDirector) {
+        supabase.functions.invoke('send-notification-email', {
+          body: {
+            type: 'NEW_PENDING_PERSON',
+            collaboratorName: formData.nome.trim(),
+            collaboratorEmail: formData.email.trim().toLowerCase(),
+            managerName: person.nome || 'Gestor',
+          },
+        }).catch(err => console.warn('Failed to send new pending person email:', err));
+
+        supabase.functions.invoke('slack-notification', {
+          body: {
+            type: 'NEW_PENDING_PERSON',
+            personName: formData.nome.trim(),
+            personEmail: formData.email.trim().toLowerCase(),
+            managerName: person.nome || 'Gestor',
+          },
+        }).catch(err => console.warn('Failed to send new pending person slack:', err));
+      }
 
       onSuccess?.();
     } catch (error: any) {
-      console.error("Error creating pending person:", error);
+      console.error("Error creating collaborator:", error);
       toast({
         title: "Erro",
         description: error.message || "Erro ao cadastrar colaborador",
@@ -200,6 +255,50 @@ export function NewCollaboratorForm({ onSuccess, onCancel }: NewCollaboratorForm
         />
         {errors.sub_time && <p className="text-sm text-destructive">{errors.sub_time}</p>}
       </div>
+
+      {isDirector && (
+        <div className="space-y-2">
+          <Label htmlFor="papel">Papel *</Label>
+          <Select
+            value={formData.papel}
+            onValueChange={(value) => setFormData({ ...formData, papel: value as Papel, gestor_id: value !== Papel.COLABORADOR ? "" : formData.gestor_id })}
+            disabled={loading}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={Papel.COLABORADOR}>Colaborador</SelectItem>
+              <SelectItem value={Papel.GESTOR}>Gestor</SelectItem>
+              <SelectItem value={Papel.DIRETOR}>Diretor</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
+      {isDirector && formData.papel === Papel.COLABORADOR && (
+        <div className="space-y-2">
+          <Label htmlFor="gestor_id">Gestor Responsável *</Label>
+          <Select
+            value={formData.gestor_id || "none"}
+            onValueChange={(value) => setFormData({ ...formData, gestor_id: value === "none" ? "" : value })}
+            disabled={loading}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Selecionar gestor" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">Selecionar...</SelectItem>
+              {managers.map((m) => (
+                <SelectItem key={m.id} value={m.id}>
+                  {m.nome} ({m.papel})
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {errors.gestor_id && <p className="text-sm text-destructive">{errors.gestor_id}</p>}
+        </div>
+      )}
 
       <div className="space-y-2">
         <Label htmlFor="local">Local</Label>
@@ -283,7 +382,7 @@ export function NewCollaboratorForm({ onSuccess, onCancel }: NewCollaboratorForm
         )}
         <Button type="submit" disabled={loading}>
           {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          Submeter para Aprovação
+          {isDirector ? "Cadastrar Colaborador" : "Submeter para Aprovação"}
         </Button>
       </div>
     </form>
