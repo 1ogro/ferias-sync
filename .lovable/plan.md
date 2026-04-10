@@ -1,45 +1,28 @@
 
 
-## Plano: Correções de inconsistências entre código e especificação (README)
+## Plano: Corrigir solicitação de alteração de dia de pagamento para PJ
 
-### Problemas encontrados
+### Problema
+Quando um colaborador PJ (não-admin, não-gestor) tenta solicitar alteração do dia de pagamento, a query para buscar diretores falha silenciosamente porque as políticas RLS da tabela `people` só permitem que o colaborador veja seus próprios dados. Ele não consegue listar os diretores para enviar a notificação por email.
 
-#### 1. Enum `DAY_OFF` vs `DAYOFF` (BUG CRÍTICO)
-O banco de dados usa o enum `DAYOFF` (sem underscore), mas 4 componentes fazem queries e comparações com `DAY_OFF` (com underscore). Resultado: **Day Offs nunca aparecem nos dashboards executivos, contadores do header, e dashboards de capacidade**.
+### Solução
+Criar uma função RPC `security definer` que encapsula toda a lógica de envio da solicitação, evitando que o colaborador precise consultar diretamente a tabela `people` para encontrar diretores.
 
-**Arquivos afetados:**
-- `src/components/Header.tsx` — contador de ausências ativas (linhas 49, 60)
-- `src/components/ActiveAbsencesDashboard.tsx` — dashboard de ausências ativas (linhas 76, 124, 170, 309, 380)
-- `src/components/TeamCapacityDashboard.tsx` — dashboard de capacidade (linhas 74, 265, 314)
-- `src/components/ApprovedVacationsExecutiveView.tsx` — visão executiva (linhas 120, 331, 343, 557, 684)
+### Alterações
 
-**Correção:** Trocar todas as ocorrências de `'DAY_OFF'` por `'DAYOFF'` ou usar `TipoAusencia.DAYOFF` do enum TypeScript.
+#### 1. Nova função RPC no banco de dados
+Criar `request_payment_day_change(p_desired_day integer)` que:
+- Obtém o `person_id` do usuário atual via `profiles`
+- Valida que o modelo de contrato é PJ
+- Busca todos os diretores ativos
+- Retorna os emails dos diretores para que o frontend possa invocar a edge function de notificação
 
-#### 2. CalendarView usa dados mock em vez de dados reais
-`src/components/CalendarView.tsx` importa `mockRequests` de `mockData.ts`, que está vazio. O calendário nunca mostra dados reais.
+Alternativa mais simples: criar uma função que apenas retorna os emails dos diretores ativos, com `security definer`, para que qualquer usuário autenticado possa obter essa lista específica.
 
-**Correção:** Refatorar para buscar requests do Supabase (mesmo padrão do Dashboard).
+#### 2. Atualizar `src/components/ProfileModal.tsx`
+- Substituir a query direta `supabase.from('people').select('email').eq('papel', 'DIRETOR')` pela chamada RPC
 
-#### 3. Dashboard `fetchActiveAbsences` incompleto
-`src/components/Dashboard.tsx` (linha 126) filtra apenas `FERIAS` e `LICENCA_MATERNIDADE`, excluindo `DAYOFF` e `LICENCA_MEDICA` das ausências ativas mostradas no dashboard pessoal.
-
-**Correção:** Adicionar `'DAYOFF'` e `'LICENCA_MEDICA'` ao filtro `.in('tipo', [...])`.
-
-#### 4. README desatualizado
-- Versão 2.0 e data de outubro 2025 — desatualizado
-- Não menciona recuperação de senha via Slack DM (feature recém-implementada)
-- Não menciona scope `im:write` do Slack (necessário para DMs)
-- Não documenta os Slack scopes `users:read` e `users:read.email` como necessários para lookup por nome
-
-### Resumo de alterações
-
-| Arquivo | Tipo de alteração |
-|---------|-------------------|
-| `src/components/Header.tsx` | `DAY_OFF` → `DAYOFF` |
-| `src/components/ActiveAbsencesDashboard.tsx` | `DAY_OFF` → `DAYOFF` |
-| `src/components/TeamCapacityDashboard.tsx` | `DAY_OFF` → `DAYOFF` |
-| `src/components/ApprovedVacationsExecutiveView.tsx` | `DAY_OFF` → `DAYOFF` |
-| `src/components/Dashboard.tsx` | Adicionar `DAYOFF` e `LICENCA_MEDICA` ao filtro |
-| `src/components/CalendarView.tsx` | Refatorar para usar Supabase em vez de mock |
-| `README.md` | Atualizar versão, data e documentar Slack DM para reset de senha |
+### Arquivos a alterar
+- **Migração SQL**: criar função `get_director_emails()`
+- **`src/components/ProfileModal.tsx`**: usar a nova RPC em vez da query direta
 
