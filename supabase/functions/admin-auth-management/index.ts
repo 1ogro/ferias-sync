@@ -43,8 +43,10 @@ async function findSlackUserByName(
     const nameLower = personName.toLowerCase();
     const match = data.members?.find(
       (u: any) =>
-        u.real_name?.toLowerCase() === nameLower ||
-        u.profile?.display_name?.toLowerCase() === nameLower ||
+        u.real_name?.toLowerCase()?.includes(nameLower) ||
+        nameLower.includes(u.real_name?.toLowerCase() || "___") ||
+        u.profile?.display_name?.toLowerCase()?.includes(nameLower) ||
+        nameLower.includes(u.profile?.display_name?.toLowerCase() || "___") ||
         u.name?.toLowerCase() === nameLower
     );
     if (match) return match.id;
