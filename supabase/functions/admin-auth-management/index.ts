@@ -221,6 +221,8 @@ Deno.serve(async (req) => {
     }
 
     if (action === "reset_password") {
+      const resetMethod: string = invite_method || "email";
+
       // Find auth user by email
       const { data: authUsers } = await adminClient.auth.admin.listUsers();
       const authUser = authUsers?.users?.find(
@@ -245,24 +247,101 @@ Deno.serve(async (req) => {
         throw linkError;
       }
 
+      const recoveryLink = linkData?.properties?.action_link;
+      const results: string[] = [];
+
+      // --- EMAIL ---
+      if (resetMethod === "email" || resetMethod === "both") {
+        // generateLink with type "recovery" already sends the email
+        results.push("email");
+      }
+
+      // --- SLACK DM ---
+      if (resetMethod === "slack" || resetMethod === "both") {
+        const slackToken = Deno.env.get("SLACK_BOT_TOKEN");
+        if (!slackToken) {
+          if (resetMethod === "slack") {
+            return new Response(
+              JSON.stringify({ error: "SLACK_BOT_TOKEN não configurado. Não é possível enviar reset via Slack." }),
+              { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            );
+          }
+          results.push("slack_skipped_no_token");
+        } else {
+          const blocks = [
+            {
+              type: "section",
+              text: {
+                type: "mrkdwn",
+                text: `🔑 Olá, *${targetPerson.nome}*!\n\nFoi solicitada a recuperação da sua senha por *${callerPerson.nome}*.`,
+              },
+            },
+            {
+              type: "section",
+              text: {
+                type: "mrkdwn",
+                text: recoveryLink
+                  ? `Clique no link abaixo para redefinir sua senha:\n\n<${recoveryLink}|🔗 Redefinir minha senha>`
+                  : "Verifique seu email para o link de recuperação de senha.",
+              },
+            },
+            {
+              type: "context",
+              elements: [
+                {
+                  type: "mrkdwn",
+                  text: "🔒 Se você não solicitou esta alteração, ignore esta mensagem.",
+                },
+              ],
+            },
+          ];
+
+          const dmResult = await sendSlackDM(
+            slackToken,
+            targetPerson.email,
+            blocks,
+            `Olá ${targetPerson.nome}! Foi solicitada a recuperação da sua senha. ${recoveryLink || "Verifique seu email."}`,
+            targetPerson.nome
+          );
+
+          if (dmResult.ok) {
+            results.push("slack");
+          } else {
+            if (resetMethod === "slack") {
+              return new Response(
+                JSON.stringify({ error: dmResult.error }),
+                { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+              );
+            }
+            results.push(`slack_failed: ${dmResult.error}`);
+          }
+        }
+      }
+
       // Audit log
+      const methodLabel = resetMethod === "both" ? "Email + Slack" : resetMethod === "slack" ? "Slack DM" : "Email";
       await adminClient.from("audit_logs").insert({
         entidade: "auth",
         entidade_id: person_id,
         acao: "ADMIN_PASSWORD_RESET",
         actor_id: callerProfile.person_id,
-        payload: { target_email: targetPerson.email, target_name: targetPerson.nome },
+        payload: { target_email: targetPerson.email, target_name: targetPerson.nome, method: resetMethod, results },
       });
 
-      // Slack notification (fire-and-forget)
+      // Slack channel notification (fire-and-forget)
       sendSlackNotification(
-        `🔑 *Reset de Senha via Admin*\nAdmin *${callerPerson.nome}* enviou reset de senha para *${targetPerson.nome}* (${targetPerson.email})`
+        `🔑 *Reset de Senha (${methodLabel})* — Admin *${callerPerson.nome}* enviou reset de senha para *${targetPerson.nome}* (${targetPerson.email})`
       );
+
+      const successParts: string[] = [];
+      if (results.includes("email")) successParts.push("por email");
+      if (results.includes("slack")) successParts.push("via Slack DM");
 
       return new Response(
         JSON.stringify({
           success: true,
-          message: `Email de recuperação de senha enviado para ${targetPerson.email}`,
+          message: `Link de recuperação enviado ${successParts.join(" e ")} para ${targetPerson.nome}`,
+          results,
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
