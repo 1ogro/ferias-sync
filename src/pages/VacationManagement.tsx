@@ -5,6 +5,7 @@ import { getAllVacationBalances, saveManualVacationBalance, deleteManualVacation
 import { supabase } from "@/integrations/supabase/client";
 import { Navigate, useSearchParams } from "react-router-dom";
 import { Person, ModeloContrato, MODELO_CONTRATO_LABELS } from "@/lib/types";
+import { parseDateSafely } from "@/lib/dateUtils";
 import { Header } from "@/components/Header";
 import { MedicalLeaveForm } from "@/components/MedicalLeaveForm";
 import { MedicalLeaveList } from "@/components/MedicalLeaveList";
