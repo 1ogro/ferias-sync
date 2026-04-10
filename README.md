@@ -332,7 +332,13 @@ Sistema completo para onboarding de novos colaboradores com processo de aprovaç
   2. Habilitar scopes: `chat:write`, `chat:write.public`, `users:read`, `users:read.email`, `im:write`
   3. Configurar Interactive Components URL: `https://uhphxyhffpbnmsrlggbe.supabase.co/functions/v1/slack-interactions`
   4. Obter `SLACK_BOT_TOKEN` e `SLACK_SIGNING_SECRET`
-  5. Configurar secrets no Supabase
+   5. Configurar secrets no Supabase
+
+- **Recuperação de senha via Slack DM**:
+  - Administradores podem enviar link de reset de senha via Slack DM
+  - Opções: Email, Slack ou Ambos
+  - Scope necessário: `im:write` (para abrir canal DM)
+  - Lookup de usuário por nome via `users:read` e `users:read.email`
 
 ### Google Sheets ✅ Implementado
 - **Sincronização bidirecional**:
