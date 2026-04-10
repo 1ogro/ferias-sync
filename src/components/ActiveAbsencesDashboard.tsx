@@ -73,7 +73,7 @@ export function ActiveAbsencesDashboard({ teamIds }: ActiveAbsencesDashboardProp
           )
         `)
         .in('status', ['APROVADO_FINAL', 'REALIZADO'])
-        .in('tipo', ['FERIAS', 'LICENCA_MATERNIDADE', 'LICENCA_MEDICA', 'DAY_OFF'])
+        .in('tipo', ['FERIAS', 'LICENCA_MATERNIDADE', 'LICENCA_MEDICA', 'DAYOFF'])
         .lte('inicio', today)
         .gte('fim', today)
         .order('fim', { ascending: true });
@@ -121,7 +121,7 @@ export function ActiveAbsencesDashboard({ teamIds }: ActiveAbsencesDashboardProp
     const ferias = activeAbsences.filter(a => a.tipo === 'FERIAS').length;
     const maternidade = activeAbsences.filter(a => a.tipo === 'LICENCA_MATERNIDADE').length;
     const licencaMedica = activeAbsences.filter(a => a.tipo === 'LICENCA_MEDICA').length;
-    const dayOff = activeAbsences.filter(a => a.tipo === 'DAY_OFF').length;
+    const dayOff = activeAbsences.filter(a => a.tipo === 'DAYOFF').length;
     const teams = new Set(activeAbsences.map(a => a.requester_sub_time));
     
     // Calcular times com múltiplas ausências
@@ -167,7 +167,7 @@ export function ActiveAbsencesDashboard({ teamIds }: ActiveAbsencesDashboardProp
         return { icon: Baby, label: 'Lic. Maternidade', variant: 'secondary' as const };
       case 'LICENCA_MEDICA':
         return { icon: Activity, label: 'Lic. Médica', variant: 'destructive' as const };
-      case 'DAY_OFF':
+      case 'DAYOFF':
         return { icon: Clock, label: 'Day Off', variant: 'outline' as const };
       default: // FERIAS
         return { icon: Briefcase, label: 'Férias', variant: 'default' as const };
@@ -306,7 +306,7 @@ export function ActiveAbsencesDashboard({ teamIds }: ActiveAbsencesDashboardProp
                 <SelectItem value="FERIAS">Férias</SelectItem>
                 <SelectItem value="LICENCA_MATERNIDADE">Licença Maternidade</SelectItem>
                 <SelectItem value="LICENCA_MEDICA">Licença Médica</SelectItem>
-                <SelectItem value="DAY_OFF">Day Off</SelectItem>
+                <SelectItem value="DAYOFF">Day Off</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -377,7 +377,7 @@ export function ActiveAbsencesDashboard({ teamIds }: ActiveAbsencesDashboardProp
                     <div className={`w-1 h-16 rounded-full ${
                       absence.tipo === 'LICENCA_MATERNIDADE' ? 'bg-purple-500' :
                       absence.tipo === 'LICENCA_MEDICA' ? 'bg-red-500' :
-                      absence.tipo === 'DAY_OFF' ? 'bg-green-500' :
+                      absence.tipo === 'DAYOFF' ? 'bg-green-500' :
                       'bg-blue-500'
                     }`} />
                     <div>

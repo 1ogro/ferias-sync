@@ -123,7 +123,7 @@ export const Dashboard = () => {
           requester:people!inner(*)
         `)
         .in('status', ['APROVADO_FINAL', 'REALIZADO'])
-        .in('tipo', ['FERIAS', 'LICENCA_MATERNIDADE'])
+        .in('tipo', ['FERIAS', 'LICENCA_MATERNIDADE', 'DAYOFF', 'LICENCA_MEDICA'])
         .lte('inicio', today)
         .gte('fim', today)
         .order('fim', { ascending: true });

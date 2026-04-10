@@ -329,10 +329,16 @@ Sistema completo para onboarding de novos colaboradores com processo de aprovaç
   
 - **Configuração necessária**:
   1. Criar Slack App em https://api.slack.com/apps
-  2. Habilitar scopes: `chat:write`, `chat:write.public`, `users:read`, `users:read.email`
+  2. Habilitar scopes: `chat:write`, `chat:write.public`, `users:read`, `users:read.email`, `im:write`
   3. Configurar Interactive Components URL: `https://uhphxyhffpbnmsrlggbe.supabase.co/functions/v1/slack-interactions`
   4. Obter `SLACK_BOT_TOKEN` e `SLACK_SIGNING_SECRET`
-  5. Configurar secrets no Supabase
+   5. Configurar secrets no Supabase
+
+- **Recuperação de senha via Slack DM**:
+  - Administradores podem enviar link de reset de senha via Slack DM
+  - Opções: Email, Slack ou Ambos
+  - Scope necessário: `im:write` (para abrir canal DM)
+  - Lookup de usuário por nome via `users:read` e `users:read.email`
 
 ### Google Sheets ✅ Implementado
 - **Sincronização bidirecional**:
@@ -696,6 +702,6 @@ Para mais informações, entre em contato com raul@1ogro.com.
 ---
 
 **Status**: ✅ Produção - Sistema completo e funcional  
-**Última atualização**: Outubro 2025  
-**Versão**: 2.0  
+**Última atualização**: Abril 2026  
+**Versão**: 2.1  
 **Supabase Project ID**: uhphxyhffpbnmsrlggbe

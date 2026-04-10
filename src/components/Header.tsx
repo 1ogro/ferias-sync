@@ -46,7 +46,7 @@ export const Header = ({ showNavigation = true }: HeaderProps) => {
             .from('requests')
             .select('id', { count: 'exact', head: true })
             .in('status', ['APROVADO_FINAL', 'REALIZADO'])
-            .in('tipo', ['FERIAS', 'LICENCA_MATERNIDADE', 'LICENCA_MEDICA', 'DAY_OFF'])
+            .in('tipo', ['FERIAS', 'LICENCA_MATERNIDADE', 'LICENCA_MEDICA', 'DAYOFF'])
             .lte('inicio', today)
             .gte('fim', today)
             .in('requester_id', teamIds);
@@ -57,7 +57,7 @@ export const Header = ({ showNavigation = true }: HeaderProps) => {
             .from('requests')
             .select('id', { count: 'exact', head: true })
             .in('status', ['APROVADO_FINAL', 'REALIZADO'])
-            .in('tipo', ['FERIAS', 'LICENCA_MATERNIDADE', 'LICENCA_MEDICA', 'DAY_OFF'])
+            .in('tipo', ['FERIAS', 'LICENCA_MATERNIDADE', 'LICENCA_MEDICA', 'DAYOFF'])
             .lte('inicio', today)
             .gte('fim', today);
 

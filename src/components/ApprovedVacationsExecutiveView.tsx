@@ -117,7 +117,7 @@ export function ApprovedVacationsExecutiveView({ teamIds }: ApprovedVacationsExe
             )
           )
         `)
-        .in('tipo', ['FERIAS', 'LICENCA_MATERNIDADE', 'LICENCA_MEDICA', 'DAY_OFF'])
+        .in('tipo', ['FERIAS', 'LICENCA_MATERNIDADE', 'LICENCA_MEDICA', 'DAYOFF'])
         .in('status', ['APROVADO_FINAL', 'REALIZADO'])
         .not('inicio', 'is', null)
         .not('fim', 'is', null)
@@ -328,7 +328,7 @@ export function ApprovedVacationsExecutiveView({ teamIds }: ApprovedVacationsExe
         return { label: 'Lic. Maternidade', variant: 'secondary' as const };
       case 'LICENCA_MEDICA':
         return { label: 'Lic. Médica', variant: 'destructive' as const };
-      case 'DAY_OFF':
+      case 'DAYOFF':
         return { label: 'Day Off', variant: 'outline' as const };
       default:
         return { label: 'Férias', variant: 'default' as const };
@@ -340,7 +340,7 @@ export function ApprovedVacationsExecutiveView({ teamIds }: ApprovedVacationsExe
     const vacations = filteredVacations.filter(v => v.tipo === 'FERIAS');
     const maternityLeaves = filteredVacations.filter(v => v.tipo === 'LICENCA_MATERNIDADE');
     const licencaMedica = filteredVacations.filter(v => v.tipo === 'LICENCA_MEDICA');
-    const dayOff = filteredVacations.filter(v => v.tipo === 'DAY_OFF');
+    const dayOff = filteredVacations.filter(v => v.tipo === 'DAYOFF');
     
     return {
       totalVacations: vacations.length,
@@ -554,7 +554,7 @@ export function ApprovedVacationsExecutiveView({ teamIds }: ApprovedVacationsExe
                 <SelectItem value="FERIAS">Férias</SelectItem>
                 <SelectItem value="LICENCA_MATERNIDADE">Licença Maternidade</SelectItem>
                 <SelectItem value="LICENCA_MEDICA">Licença Médica</SelectItem>
-                <SelectItem value="DAY_OFF">Day Off</SelectItem>
+                <SelectItem value="DAYOFF">Day Off</SelectItem>
               </SelectContent>
             </Select>
             
@@ -681,7 +681,7 @@ export function ApprovedVacationsExecutiveView({ teamIds }: ApprovedVacationsExe
                             const { label, variant } = getTypeBadge(vacation.tipo);
                             const IconComponent = vacation.tipo === 'LICENCA_MATERNIDADE' ? Baby :
                                                   vacation.tipo === 'LICENCA_MEDICA' ? Activity :
-                                                  vacation.tipo === 'DAY_OFF' ? Clock : Briefcase;
+                                                  vacation.tipo === 'DAYOFF' ? Clock : Briefcase;
                             return (
                               <Badge variant={variant} className="flex items-center gap-1 w-fit">
                                 <IconComponent className="w-3 h-3" />
