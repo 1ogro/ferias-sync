@@ -1,27 +1,28 @@
 
 
-## Plano: Localizar usuário no Slack por nome quando email não encontrado
+## Plano: Recuperação de senha via Slack DM
 
-### Problema
-A função `sendSlackDM` em `admin-auth-management/index.ts` usa apenas `users.lookupByEmail` para encontrar o usuário no Slack. Se o email cadastrado no sistema não corresponde ao email usado no Slack, a busca falha com "Usuário não encontrado".
+### Situação atual
+O botão "Resetar senha" (`reset_password`) sempre envia email de recuperação via `generateLink({ type: "recovery" })`. Não há opção de enviar o link via Slack DM.
 
 ### Solução
-Adicionar fallback na função `sendSlackDM`: quando `lookupByEmail` falhar, buscar o usuário paginando `users.list` e comparando pelo nome (`real_name`, `display_name`, `name`). A mesma lógica será aplicada na `slack-notification/index.ts` para o lookup por `approverEmail`.
+Replicar o padrão já usado em `send_invite`: ao clicar no botão de reset, abrir um diálogo perguntando o método (Email, Slack ou Ambos), e na edge function enviar o link de recuperação via Slack DM usando `sendSlackDM` com fallback por nome.
 
 ### Mudanças
 
-#### 1. `supabase/functions/admin-auth-management/index.ts`
-- Alterar `sendSlackDM` para aceitar um parâmetro adicional `personName` (opcional).
-- Se `lookupByEmail` falhar e `personName` for fornecido, paginar `users.list` buscando por nome (case-insensitive).
-- Atualizar a chamada de `sendSlackDM` para passar `targetPerson.nome`.
+#### 1. `src/pages/Admin.tsx`
+- Adicionar estado `resetPasswordTarget` (similar ao `inviteTarget`).
+- Trocar o `onClick` do botão de reset para abrir um diálogo de escolha de método (Email / Slack / Ambos).
+- Passar `method` para `handleAdminAuthAction` no action `reset_password`.
 
-#### 2. `supabase/functions/slack-notification/index.ts`
-- Adicionar campo `personName` ao payload (já existe como `requesterName`).
-- Na busca do `approverEmail`, se `lookupByEmail` falhar, fazer fallback por nome usando `users.list`.
+#### 2. `supabase/functions/admin-auth-management/index.ts`
+- No bloco `action === "reset_password"`, aceitar `invite_method` do body (default: `"email"`).
+- Se método inclui Slack: gerar link de recovery via `generateLink({ type: "recovery" })`, montar blocks com o link, e enviar via `sendSlackDM` (que já faz fallback por nome).
+- Se método inclui email: manter comportamento atual (o `generateLink` com type recovery já dispara email automaticamente, ou usar `resetPasswordForEmail`).
 
-#### 3. Deploy das edge functions atualizadas.
+#### 3. Deploy da edge function atualizada.
 
 ### Arquivos a alterar
-- `supabase/functions/admin-auth-management/index.ts`
-- `supabase/functions/slack-notification/index.ts`
+- `src/pages/Admin.tsx` — diálogo de escolha de método para reset
+- `supabase/functions/admin-auth-management/index.ts` — lógica de envio via Slack no reset_password
 
