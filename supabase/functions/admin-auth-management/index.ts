@@ -325,17 +325,28 @@ Deno.serve(async (req) => {
       // Determine effective invite method
       const effectiveMethod: string = invite_method || "both";
 
-      // Check if email already has an auth user
+      // Check if email already has an auth user with confirmed identity
       const { data: authUsers } = await adminClient.auth.admin.listUsers();
       const existingAuthUser = authUsers?.users?.find(
         (u: any) => u.email === targetPerson.email
       );
 
-      if (existingAuthUser) {
+      // Only block if user has actually confirmed (has identities with confirmed login)
+      const hasConfirmedIdentity = existingAuthUser?.email_confirmed_at && 
+        existingAuthUser?.identities?.some((i: any) => i.provider !== 'email' || i.last_sign_in_at);
+
+      if (existingAuthUser && hasConfirmedIdentity) {
         return new Response(
           JSON.stringify({ error: "Este email já possui uma conta de autenticação ativa" }),
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
+      }
+
+      // If there's an unconfirmed/invited user, delete it first so we can re-invite
+      if (existingAuthUser && !hasConfirmedIdentity) {
+        await adminClient.auth.admin.deleteUser(existingAuthUser.id);
+        // Also clean up any orphaned profile
+        await adminClient.from("profiles").delete().eq("user_id", existingAuthUser.id);
       }
 
       const results: string[] = [];
