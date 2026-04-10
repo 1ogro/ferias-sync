@@ -66,7 +66,7 @@ export const MedicalLeaveList = ({ onRefresh }: MedicalLeaveListProps) => {
   }, [user, authLoading]);
 
   const handleEndLeave = async (leaveId: string) => {
-    const leave = leaves.find(l => l.id === leaveId);
+    const leave = medicalLeaves.find(l => l.id === leaveId);
     try {
       const result = await endMedicalLeave(leaveId);
       
