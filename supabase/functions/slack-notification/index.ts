@@ -17,6 +17,7 @@ interface SlackNotificationRequest {
   startDate?: string;
   endDate?: string;
   approverEmail?: string;
+  approverName?: string;
   comment?: string;
   targetPersonId?: string;
   personName?: string;
@@ -24,6 +25,31 @@ interface SlackNotificationRequest {
   directorName?: string;
   rejectionReason?: string;
   managerName?: string;
+}
+
+async function findSlackUserByName(personName: string): Promise<string | null> {
+  let cursor = "";
+  do {
+    const url = `https://slack.com/api/users.list?limit=200${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`;
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}` },
+    });
+    const data = await res.json();
+    if (!data.ok) {
+      console.error("users.list error:", data.error);
+      return null;
+    }
+    const nameLower = personName.toLowerCase();
+    const match = data.members?.find(
+      (u: any) =>
+        u.real_name?.toLowerCase() === nameLower ||
+        u.profile?.display_name?.toLowerCase() === nameLower ||
+        u.name?.toLowerCase() === nameLower
+    );
+    if (match) return match.id;
+    cursor = data.response_metadata?.next_cursor || "";
+  } while (cursor);
+  return null;
 }
 
 const TIPO_EMOJI = {
@@ -77,20 +103,24 @@ serve(async (req) => {
       }
     }
 
-    // Get Slack user ID from email (if provided)
+    // Get Slack user ID from email (if provided), with name fallback
     let slackUserId = null;
     if (payload.approverEmail) {
-      const userResponse = await fetch("https://slack.com/api/users.lookupByEmail", {
-        method: "GET",
-        headers: {
-          "Authorization": `Bearer ${SLACK_BOT_TOKEN}`,
-          "Content-Type": "application/x-www-form-urlencoded",
-        },
-        body: `email=${encodeURIComponent(payload.approverEmail)}`,
-      });
+      const userResponse = await fetch(
+        `https://slack.com/api/users.lookupByEmail?email=${encodeURIComponent(payload.approverEmail)}`,
+        {
+          headers: { "Authorization": `Bearer ${SLACK_BOT_TOKEN}` },
+        }
+      );
       const userData = await userResponse.json();
       if (userData.ok) {
         slackUserId = userData.user.id;
+      } else if (payload.approverName) {
+        console.log(`Email lookup failed for ${payload.approverEmail}, trying name lookup for "${payload.approverName}"...`);
+        slackUserId = await findSlackUserByName(payload.approverName);
+        if (slackUserId) {
+          console.log(`Found Slack user by name "${payload.approverName}": ${slackUserId}`);
+        }
       }
     }
 
