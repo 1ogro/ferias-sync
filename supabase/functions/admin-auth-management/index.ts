@@ -87,24 +87,7 @@ async function sendSlackDM(
     return { ok: false, error: `Usuário não encontrado no Slack para ${email}${personName ? ` nem pelo nome "${personName}"` : ""}` };
   }
 
-  // Open DM conversation
-  const openRes = await fetch("https://slack.com/api/conversations.open", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${slackToken}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ users: slackUserId }),
-  });
-  const openData = await openRes.json();
-
-  if (!openData.ok) {
-    return { ok: false, error: `Erro ao abrir conversa Slack: ${openData.error}` };
-  }
-
-  const channelId = openData.channel.id;
-
-  // Send DM
+  // Send DM directly using user ID as channel (no conversations.open needed)
   const msgRes = await fetch("https://slack.com/api/chat.postMessage", {
     method: "POST",
     headers: {
@@ -112,7 +95,7 @@ async function sendSlackDM(
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      channel: channelId,
+      channel: slackUserId,
       text: fallbackText,
       blocks,
     }),
