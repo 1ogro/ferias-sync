@@ -128,8 +128,8 @@ const EditRequest = () => {
     try {
       // For vacation requests, use the new validation system
       if (formData.tipo === TipoAusencia.FERIAS) {
-        const startDate = new Date(formData.inicio);
-        const endDate = new Date(formData.fim);
+        const startDate = parseDateSafely(formData.inicio);
+        const endDate = parseDateSafely(formData.fim);
         const requestedDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
         
         const validation = await validateVacationRequest(
@@ -275,8 +275,8 @@ const EditRequest = () => {
 
   const calculateDays = () => {
     if (formData.inicio && formData.fim) {
-      const start = new Date(formData.inicio);
-      const end = new Date(formData.fim);
+      const start = parseDateSafely(formData.inicio);
+      const end = parseDateSafely(formData.fim);
       const diffTime = Math.abs(end.getTime() - start.getTime());
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
       return diffDays;
@@ -496,7 +496,7 @@ const EditRequest = () => {
                       Data de Início *
                       {formData.tipo === TipoAusencia.DAYOFF && person?.data_nascimento && (
                         <span className="text-sm text-muted-foreground ml-2">
-                          (Day Off: {new Date(new Date().getFullYear(), new Date(person.data_nascimento).getMonth(), new Date(person.data_nascimento).getDate()).toLocaleDateString('pt-BR')})
+                          (Day Off: {new Date(new Date().getFullYear(), parseDateSafely(person.data_nascimento).getMonth(), parseDateSafely(person.data_nascimento).getDate()).toLocaleDateString('pt-BR')})
                         </span>
                       )}
                     </Label>

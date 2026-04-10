@@ -147,7 +147,7 @@ export const ProfileModal = ({ open, onOpenChange }: ProfileModalProps) => {
   const getBirthdayThisYear = () => {
     if (!formData.data_nascimento) return null;
     const currentYear = new Date().getFullYear();
-    const birthday = new Date(formData.data_nascimento);
+    const birthday = parseDateSafely(formData.data_nascimento);
     return new Date(currentYear, birthday.getMonth(), birthday.getDate());
   };
 

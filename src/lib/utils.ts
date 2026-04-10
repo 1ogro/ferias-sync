@@ -1,6 +1,7 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { Request, TipoAusencia, Status, Person } from "./types";
+import { parseDateSafely } from "./dateUtils";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -40,7 +41,7 @@ export function calculateAvailableDayOffs(person: Person | null, requests: Reque
   }
 
   // Check if currently within eligibility period (from first day of birthday month to day before next birthday)
-  const birth = new Date(person.data_nascimento);
+  const birth = parseDateSafely(person.data_nascimento);
   const eligibilityStartThisYear = new Date(currentYear, birth.getMonth(), 1);
   const today = new Date();
   
