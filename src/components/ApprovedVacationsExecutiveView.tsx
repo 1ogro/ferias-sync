@@ -328,7 +328,7 @@ export function ApprovedVacationsExecutiveView({ teamIds }: ApprovedVacationsExe
         return { label: 'Lic. Maternidade', variant: 'secondary' as const };
       case 'LICENCA_MEDICA':
         return { label: 'Lic. Médica', variant: 'destructive' as const };
-      case 'DAY_OFF':
+      case 'DAYOFF':
         return { label: 'Day Off', variant: 'outline' as const };
       default:
         return { label: 'Férias', variant: 'default' as const };

@@ -167,7 +167,7 @@ export function ActiveAbsencesDashboard({ teamIds }: ActiveAbsencesDashboardProp
         return { icon: Baby, label: 'Lic. Maternidade', variant: 'secondary' as const };
       case 'LICENCA_MEDICA':
         return { icon: Activity, label: 'Lic. Médica', variant: 'destructive' as const };
-      case 'DAY_OFF':
+      case 'DAYOFF':
         return { icon: Clock, label: 'Day Off', variant: 'outline' as const };
       default: // FERIAS
         return { icon: Briefcase, label: 'Férias', variant: 'default' as const };
