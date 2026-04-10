@@ -1,35 +1,37 @@
 
 
-## Plano: Corrigir datas exibidas com 1 dia a menos
+## Plano: Permitir gestores e diretores cadastrarem novos colaboradores
 
-### Causa raiz
+### Situação atual
+- O botão "Novo Colaborador" só aparece para **gestores** (`isManager`), não para diretores.
+- O formulário `NewCollaboratorForm` hardcoda `papel: Papel.COLABORADOR` e `gestor_id: person.id`.
+- A RLS de INSERT na `pending_people` exige que `created_by` seja um `GESTOR` — diretores são bloqueados pelo banco.
+- Diretores deveriam poder cadastrar qualquer tipo (COLABORADOR, GESTOR, DIRETOR) e atribuir qualquer gestor.
 
-Colunas como `data_nascimento`, `data_contrato`, `inicio`, `fim`, `start_date`, `end_date` são do tipo **date** no Postgres (sem hora). O Supabase retorna strings como `"2000-05-15"`. Quando o JavaScript faz `new Date("2000-05-15")`, interpreta como **meia-noite UTC**, que no fuso do Brasil (UTC-3) vira `14/05/2000 às 21:00` — um dia antes.
+### Mudanças
 
-Já existe a função `parseDateSafely()` em `dateUtils.ts` que faz o parse correto (usando `new Date(year, month-1, day)` em horário local), mas ela não está sendo usada nos componentes.
+#### 1. Migração: Atualizar RLS de INSERT na `pending_people`
+- Adicionar política permitindo diretores/admins inserirem em `pending_people`.
+- A política atual (`Gestores podem criar cadastros pendentes`) permanece para gestores.
 
-### Solução
+#### 2. `src/components/NewCollaboratorForm.tsx`
+- Aceitar prop `isDirector` para controlar funcionalidades extras.
+- **Diretores**: exibir campo de seleção de `papel` (COLABORADOR, GESTOR, DIRETOR) e campo de seleção de `gestor_id` (lista de gestores/diretores do sistema).
+- **Gestores**: manter comportamento atual (papel fixo COLABORADOR, gestor_id = próprio ID).
+- Atualizar descrição do dialog conforme o papel do criador (diretor não precisa de aprovação → cadastro direto via `approve_pending_person` auto-aprovado, ou inserção direta na `people`).
 
-1. **Criar helper `formatDateSafe` em `src/lib/dateUtils.ts`**
-   - Função que recebe uma string date-only e um formato, e retorna a string formatada corretamente usando `parseDateSafely` internamente.
-   - Evita repetir `parseDateSafely` + `format` em cada componente.
-
-2. **Substituir `format(new Date(dateString), ...)` por `formatDateSafe(dateString, ...)` nos seguintes arquivos** (apenas para colunas date-only):
-   - `src/components/CollaboratorSummaryTable.tsx` — `data_contrato`, `data_nascimento` + corrigir `getNextAnniversary`
-   - `src/components/VacationTableRow.tsx` — `data_contrato`
-   - `src/components/VacationDetailsDrawer.tsx` — `data_contrato`
-   - `src/components/VacationBalance.tsx` — `contract_anniversary`
-   - `src/components/TeamCapacityDashboard.tsx` — `inicio`, `fim`, `period_start`, `period_end`
-   - `src/components/ApprovedVacationsExecutiveView.tsx` — `start_date`, `end_date`
-   - `src/components/MedicalLeaveList.tsx` — `start_date`, `end_date`
-
-3. **Não alterar** campos com timestamp (como `approval_date`, `created_at`, `manager_approval_date`) — esses incluem fuso horário e funcionam corretamente com `new Date()`.
+#### 3. `src/pages/Admin.tsx`
+- Exibir botão "Novo Colaborador" também para diretores (`isManager || isDirector`).
+- Passar prop `isDirector` ao `NewCollaboratorForm`.
+- Para diretores: após o insert em `pending_people`, auto-aprovar chamando a RPC `approve_pending_person` imediatamente — mantendo o fluxo auditável sem etapa manual extra.
 
 ### Arquivos a alterar
-- `src/lib/dateUtils.ts` — adicionar `formatDateSafe`
-- 7 componentes listados acima — substituir chamadas de parse de datas
+- Nova migração SQL (RLS para diretores em `pending_people`)
+- `src/components/NewCollaboratorForm.tsx` — campos extras para diretor, auto-aprovação
+- `src/pages/Admin.tsx` — exibir botão para diretores, passar prop
 
 ### Impacto
-- Todas as datas date-only passarão a ser exibidas corretamente independente do fuso do navegador.
-- Nenhuma mudança de banco necessária.
+- Gestores continuam cadastrando colaboradores do seu time (pendente de aprovação).
+- Diretores cadastram qualquer colaborador com aprovação automática.
+- Auditoria mantida via `audit_logs` e registro em `pending_people`.
 
