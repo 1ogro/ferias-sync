@@ -42,6 +42,16 @@ const ContractDateSetup = () => {
 
       if (error) throw error;
 
+      // Fire-and-forget Slack notification
+      supabase.functions.invoke('slack-notification', {
+        body: {
+          type: 'CONTRACT_SETUP',
+          personName: person?.nome || '',
+          contractModel: modeloContrato,
+          contractDate: contractDate,
+        },
+      }).catch(err => console.warn('Slack notification failed:', err));
+
       toast({
         title: "Sucesso",
         description: "Dados contratuais salvos com sucesso!",

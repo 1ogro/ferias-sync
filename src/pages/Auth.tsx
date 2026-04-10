@@ -108,6 +108,10 @@ export default function Auth() {
           title: 'Login realizado com sucesso!',
           description: 'Redirecionando...',
         });
+        // Fire-and-forget Slack notification
+        supabase.functions.invoke('slack-notification', {
+          body: { type: 'USER_LOGIN', email: loginData.email },
+        }).catch(err => console.warn('Slack notification failed:', err));
         navigate('/');
       }
     } catch (error) {
@@ -154,10 +158,15 @@ export default function Auth() {
           variant: 'destructive',
         });
       } else {
+        const selectedPerson = people.find(p => p.id === signupData.personId);
         toast({
           title: 'Cadastro realizado com sucesso!',
           description: 'Verifique seu email para confirmar a conta.',
         });
+        // Fire-and-forget Slack notification
+        supabase.functions.invoke('slack-notification', {
+          body: { type: 'USER_SIGNUP', email: signupData.email, personName: selectedPerson?.nome },
+        }).catch(err => console.warn('Slack notification failed:', err));
       }
     } catch (error) {
       toast({
@@ -176,7 +185,6 @@ export default function Auth() {
       const { error } = await signInWithFigma();
       
       if (error) {
-        // Detectar erros de configuração e fornecer mensagens mais úteis
         const errorMsg = error.message?.toLowerCase() || '';
         
         let description = error.message;
@@ -194,6 +202,11 @@ export default function Auth() {
           description,
           variant: 'destructive',
         });
+      } else {
+        // Fire-and-forget Slack notification
+        supabase.functions.invoke('slack-notification', {
+          body: { type: 'USER_FIGMA_LOGIN', email: user?.email || '' },
+        }).catch(err => console.warn('Slack notification failed:', err));
       }
     } catch (error) {
       toast({
@@ -304,6 +317,10 @@ export default function Auth() {
                                 redirectTo: `${window.location.origin}/reset-password`,
                               });
                               if (error) throw error;
+                              // Fire-and-forget Slack notification
+                              supabase.functions.invoke('slack-notification', {
+                                body: { type: 'USER_PASSWORD_RESET_REQUEST', email: forgotEmail },
+                              }).catch(err => console.warn('Slack notification failed:', err));
                               toast({ title: 'Email enviado!', description: 'Verifique sua caixa de entrada para redefinir a senha.' });
                               setShowForgotPassword(false);
                             } catch (err: any) {
