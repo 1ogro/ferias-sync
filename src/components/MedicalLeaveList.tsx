@@ -9,7 +9,6 @@ import { ptBR } from "date-fns/locale";
 import { formatDateSafe, parseDateSafely } from "@/lib/dateUtils";
 import { getActiveMedicalLeaves, endMedicalLeave } from "@/lib/medicalLeaveUtils";
 import { supabase } from "@/integrations/supabase/client";
-import { formatDateSafe as formatDateSafeUtil } from "@/lib/dateUtils";
 import { MedicalLeave } from "@/lib/types";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
