@@ -119,11 +119,11 @@ export const ProfileModal = ({ open, onOpenChange }: ProfileModalProps) => {
       }
 
       // Send email to each director
-      for (const director of directors) {
+      for (const dir of directorEmails) {
         await supabase.functions.invoke('send-notification-email', {
           body: {
             type: 'PAYMENT_DAY_CHANGE_REQUEST',
-            to: director.email,
+            to: dir.email,
             requesterName: person.nome,
             currentPaymentDay: person.dia_pagamento,
             desiredPaymentDay: Number(desiredPaymentDay),
