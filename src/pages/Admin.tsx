@@ -120,6 +120,8 @@ const Admin = () => {
   const [clearAuthTarget, setClearAuthTarget] = useState<Person | null>(null);
   const [inviteTarget, setInviteTarget] = useState<Person | null>(null);
   const [inviteMethod, setInviteMethod] = useState<'email' | 'slack' | 'both'>('both');
+  const [resetPasswordTarget, setResetPasswordTarget] = useState<Person | null>(null);
+  const [resetMethod, setResetMethod] = useState<'email' | 'slack' | 'both'>('both');
   const [originalEditData, setOriginalEditData] = useState<{ papel: string; ativo: boolean; nome: string; email: string } | null>(null);
   
    const [formData, setFormData] = useState<FormData>({
@@ -448,7 +450,7 @@ const Admin = () => {
       if (!token) throw new Error('Sessão não encontrada');
 
       const bodyPayload: Record<string, string> = { action, person_id: personId };
-      if (action === 'send_invite' && method) {
+      if ((action === 'send_invite' || action === 'reset_password') && method) {
         bodyPayload.invite_method = method;
       }
 
@@ -474,6 +476,9 @@ const Admin = () => {
       if (action === 'send_invite') {
         setInviteTarget(null);
         fetchPeople();
+      }
+      if (action === 'reset_password') {
+        setResetPasswordTarget(null);
       }
     } catch (error: any) {
       toast({ title: 'Erro', description: error.message, variant: 'destructive' });
@@ -939,10 +944,10 @@ const Admin = () => {
                               <TooltipProvider>
                                 <Tooltip>
                                   <TooltipTrigger asChild>
-                                    <Button
+                                     <Button
                                       variant="outline"
                                       size="sm"
-                                      onClick={() => handleAdminAuthAction(targetPerson.id, 'reset_password')}
+                                      onClick={() => setResetPasswordTarget(targetPerson)}
                                       disabled={authActionLoading === `reset_password_${targetPerson.id}`}
                                     >
                                       {authActionLoading === `reset_password_${targetPerson.id}` ? (
@@ -1286,6 +1291,59 @@ const Admin = () => {
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Confirmar — Zerar Autenticação
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Reset Password Method Dialog */}
+      <AlertDialog open={!!resetPasswordTarget} onOpenChange={(open) => { if (!open) { setResetPasswordTarget(null); setResetMethod('both'); } }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Resetar Senha</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                <p>
+                  Enviar link de recuperação de senha para <strong>{resetPasswordTarget?.nome}</strong> ({resetPasswordTarget?.email})?
+                </p>
+                
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Método de envio</Label>
+                  <Select
+                    value={resetMethod}
+                    onValueChange={(v) => setResetMethod(v as 'email' | 'slack' | 'both')}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="both">📧 Email + 💬 Slack DM</SelectItem>
+                      <SelectItem value="email">📧 Apenas Email</SelectItem>
+                      <SelectItem value="slack">💬 Apenas Slack DM</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <p className="text-xs text-muted-foreground">
+                  {resetMethod === 'email' && 
+                    "Um email será enviado com o link para redefinir a senha."}
+                  {resetMethod === 'slack' &&
+                    "Uma mensagem direta será enviada no Slack com o link para redefinir a senha."}
+                  {resetMethod === 'both' &&
+                    "Um email e uma mensagem direta no Slack serão enviados com o link para redefinir a senha."}
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={() => {
+                if (!resetPasswordTarget) return;
+                handleAdminAuthAction(resetPasswordTarget.id, 'reset_password', resetMethod);
+              }}
+            >
+              Confirmar — Enviar Reset
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
