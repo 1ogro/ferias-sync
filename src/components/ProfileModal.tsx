@@ -53,7 +53,7 @@ export const ProfileModal = ({ open, onOpenChange }: ProfileModalProps) => {
 
   useEffect(() => {
     if (person && open) {
-      const birthDate = person.data_nascimento ? new Date(person.data_nascimento) : undefined;
+      const birthDate = person.data_nascimento ? parseDateSafely(person.data_nascimento) : undefined;
       setFormData({
         nome: person.nome || "",
         email: person.email || "",
