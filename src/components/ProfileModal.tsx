@@ -108,25 +108,22 @@ export const ProfileModal = ({ open, onOpenChange }: ProfileModalProps) => {
     if (!person || !desiredPaymentDay) return;
     setIsRequestingChange(true);
     try {
-      const { data: directors, error: dirError } = await supabase
-        .from('people')
-        .select('email')
-        .eq('papel', 'DIRETOR')
-        .eq('ativo', true);
+      const { data: directorEmails, error: dirError } = await supabase
+        .rpc('get_director_emails');
 
       if (dirError) throw dirError;
 
-      if (!directors || directors.length === 0) {
+      if (!directorEmails || directorEmails.length === 0) {
         toast({ title: "Erro", description: "Nenhum diretor encontrado para enviar a solicitação.", variant: "destructive" });
         return;
       }
 
       // Send email to each director
-      for (const director of directors) {
+      for (const dir of directorEmails) {
         await supabase.functions.invoke('send-notification-email', {
           body: {
             type: 'PAYMENT_DAY_CHANGE_REQUEST',
-            to: director.email,
+            to: dir.email,
             requesterName: person.nome,
             currentPaymentDay: person.dia_pagamento,
             desiredPaymentDay: Number(desiredPaymentDay),
