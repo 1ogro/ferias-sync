@@ -1,62 +1,45 @@
 
 
-## Plano: Corrigir todas as exibições de data com offset UTC
+## Plano: Correções de inconsistências entre código e especificação (README)
 
-### Problema
-Diversas partes do sistema usam `new Date(string)` em strings de data `YYYY-MM-DD`, que são interpretadas como UTC meia-noite. Em fusos negativos (Brasil), isso causa deslocamento de -1 dia na exibição.
+### Problemas encontrados
 
-### Locais afetados e correções
+#### 1. Enum `DAY_OFF` vs `DAYOFF` (BUG CRÍTICO)
+O banco de dados usa o enum `DAYOFF` (sem underscore), mas 4 componentes fazem queries e comparações com `DAY_OFF` (com underscore). Resultado: **Day Offs nunca aparecem nos dashboards executivos, contadores do header, e dashboards de capacidade**.
 
-#### 1. `src/lib/utils.ts` (linha 43)
-- `new Date(person.data_nascimento)` → `parseDateSafely(person.data_nascimento)`
+**Arquivos afetados:**
+- `src/components/Header.tsx` — contador de ausências ativas (linhas 49, 60)
+- `src/components/ActiveAbsencesDashboard.tsx` — dashboard de ausências ativas (linhas 76, 124, 170, 309, 380)
+- `src/components/TeamCapacityDashboard.tsx` — dashboard de capacidade (linhas 74, 265, 314)
+- `src/components/ApprovedVacationsExecutiveView.tsx` — visão executiva (linhas 120, 331, 343, 557, 684)
 
-#### 2. `src/lib/medicalLeaveUtils.ts` (linhas 16-17, 24-25)
-- `new Date(dbLeave.start_date)` → `parseDateSafely(dbLeave.start_date)`
-- `new Date(dbLeave.end_date)` → `parseDateSafely(dbLeave.end_date)`
-- `new Date(dbAlert.period_start)` → `parseDateSafely(dbAlert.period_start)`
-- `new Date(dbAlert.period_end)` → `parseDateSafely(dbAlert.period_end)`
+**Correção:** Trocar todas as ocorrências de `'DAY_OFF'` por `'DAYOFF'` ou usar `TipoAusencia.DAYOFF` do enum TypeScript.
 
-#### 3. `src/components/MedicalLeaveList.tsx` (linha 91)
-- `new Date(leave.end_date)` — já recebe Date do mapper, OK se mapper for corrigido
+#### 2. CalendarView usa dados mock em vez de dados reais
+`src/components/CalendarView.tsx` importa `mockRequests` de `mockData.ts`, que está vazio. O calendário nunca mostra dados reais.
 
-#### 4. `src/components/Dashboard.tsx` (linhas 194-195)
-- `new Date(item.inicio)` → `parseDateSafely(item.inicio)`
-- `new Date(item.fim)` → `parseDateSafely(item.fim)`
+**Correção:** Refatorar para buscar requests do Supabase (mesmo padrão do Dashboard).
 
-#### 5. `src/pages/Inbox.tsx` (linhas 78-79, 296-297, 324-325)
-- Mesmo padrão: trocar `new Date()` por `parseDateSafely()` para `inicio`/`fim`
-- `toLocaleDateString` → `formatDateSafe(x, 'dd/MM/yyyy')`
+#### 3. Dashboard `fetchActiveAbsences` incompleto
+`src/components/Dashboard.tsx` (linha 126) filtra apenas `FERIAS` e `LICENCA_MATERNIDADE`, excluindo `DAYOFF` e `LICENCA_MEDICA` das ausências ativas mostradas no dashboard pessoal.
 
-#### 6. `src/pages/RequestDetail.tsx` (linhas 98-99)
-- `new Date(requestData.inicio)` → `parseDateSafely(requestData.inicio)`
-- `new Date(requestData.fim)` → `parseDateSafely(requestData.fim)`
+**Correção:** Adicionar `'DAYOFF'` e `'LICENCA_MEDICA'` ao filtro `.in('tipo', [...])`.
 
-#### 7. `src/components/NewRequestForm.tsx` (linhas 104-105, 296, 302, 317-318, 425-426, 665)
-- Todas as instâncias de `new Date(formData.inicio)`, `new Date(formData.fim)`, `new Date(person.data_nascimento)` → `parseDateSafely()`
-- `toLocaleDateString('pt-BR')` → `formatDateSafe(x, 'dd/MM/yyyy')`
+#### 4. README desatualizado
+- Versão 2.0 e data de outubro 2025 — desatualizado
+- Não menciona recuperação de senha via Slack DM (feature recém-implementada)
+- Não menciona scope `im:write` do Slack (necessário para DMs)
+- Não documenta os Slack scopes `users:read` e `users:read.email` como necessários para lookup por nome
 
-#### 8. `src/pages/EditRequest.tsx` (linhas 131-132, 278-279, 499)
-- Mesmo padrão: `new Date()` → `parseDateSafely()` em `inicio`, `fim`, `data_nascimento`
+### Resumo de alterações
 
-#### 9. `src/components/ProfileModal.tsx` (linha 150)
-- `new Date(formData.data_nascimento)` → `parseDateSafely(formData.data_nascimento)`
-
-#### 10. `src/components/VacationBalance.tsx` (linha 87-88)
-- `new Date(balance.contract_anniversary)` → já usa `formatDateSafe` para exibição na linha 135, mas linhas 87-88 criam Date para cálculo — trocar por `parseDateSafely()`
-
-### Padrão de correção
-Cada arquivo receberá import de `parseDateSafely` e/ou `formatDateSafe` de `@/lib/dateUtils` (se não tiver), e substituição pontual de `new Date(stringYYYYMMDD)` por `parseDateSafely(stringYYYYMMDD)`.
-
-**Nota**: campos com timestamp (como `created_at`, `approval_date`, `updated_at`) usam `new Date()` corretamente pois incluem hora/timezone — esses NÃO serão alterados.
-
-### Arquivos a alterar (10 arquivos)
-1. `src/lib/utils.ts`
-2. `src/lib/medicalLeaveUtils.ts`
-3. `src/components/Dashboard.tsx`
-4. `src/components/NewRequestForm.tsx`
-5. `src/components/ProfileModal.tsx`
-6. `src/components/VacationBalance.tsx`
-7. `src/pages/EditRequest.tsx`
-8. `src/pages/Inbox.tsx`
-9. `src/pages/RequestDetail.tsx`
+| Arquivo | Tipo de alteração |
+|---------|-------------------|
+| `src/components/Header.tsx` | `DAY_OFF` → `DAYOFF` |
+| `src/components/ActiveAbsencesDashboard.tsx` | `DAY_OFF` → `DAYOFF` |
+| `src/components/TeamCapacityDashboard.tsx` | `DAY_OFF` → `DAYOFF` |
+| `src/components/ApprovedVacationsExecutiveView.tsx` | `DAY_OFF` → `DAYOFF` |
+| `src/components/Dashboard.tsx` | Adicionar `DAYOFF` e `LICENCA_MEDICA` ao filtro |
+| `src/components/CalendarView.tsx` | Refatorar para usar Supabase em vez de mock |
+| `README.md` | Atualizar versão, data e documentar Slack DM para reset de senha |
 
