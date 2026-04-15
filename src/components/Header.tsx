@@ -243,6 +243,11 @@ export const Header = ({ showNavigation = true }: HeaderProps) => {
                                 {activeAbsencesCount}
                               </span>
                             )}
+                            {item.showInboxBadge && pendingInboxCount > 0 && (
+                              <span className="inline-flex items-center justify-center min-w-5 h-5 px-1.5 text-xs font-bold text-primary-foreground bg-destructive rounded-full">
+                                {pendingInboxCount}
+                              </span>
+                            )}
                           </Link>
                         );
                       })}
