@@ -4,20 +4,32 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { RequestCard } from "@/components/RequestCard";
+import { PendingCollaboratorCard } from "@/components/PendingCollaboratorCard";
+import { ApprovePendingCollaboratorDialog } from "@/components/ApprovePendingCollaboratorDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { Request, Status, TipoAusencia } from "@/lib/types";
+import { Request, Status, TipoAusencia, PendingPerson, Papel, ModeloContrato } from "@/lib/types";
 import { parseDateSafely } from "@/lib/dateUtils";
-import { Inbox as InboxIcon, CheckCircle, XCircle, MessageCircle, Trash2 } from "lucide-react";
+import { Inbox as InboxIcon, CheckCircle, XCircle, MessageCircle, Trash2, UserPlus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 
 const Inbox = () => {
   const { person } = useAuth();
   const { toast } = useToast();
   const [pendingRequests, setPendingRequests] = useState<Request[]>([]);
+  const [pendingPeople, setPendingPeople] = useState<PendingPerson[]>([]);
   const [loading, setLoading] = useState(true);
+  const [pendingPeopleLoading, setPendingPeopleLoading] = useState(true);
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [currentUserPerson, setCurrentUserPerson] = useState<any>(null);
+  const [selectedTab, setSelectedTab] = useState<"requests" | "registrations">("requests");
+  const [selectedPending, setSelectedPending] = useState<PendingPerson | null>(null);
+  const [approveDialogOpen, setApproveDialogOpen] = useState(false);
+  const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
+  const [rejectionReason, setRejectionReason] = useState("");
+  const [rejectingId, setRejectingId] = useState<string | null>(null);
 
   const fetchPendingRequests = async () => {
     if (!person) {
