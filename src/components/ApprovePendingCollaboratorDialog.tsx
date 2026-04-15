@@ -76,8 +76,8 @@ export function ApprovePendingCollaboratorDialog({
         p_local: formData.local !== pending.local ? formData.local : null,
         p_sub_time: formData.sub_time !== pending.sub_time ? formData.sub_time : null,
         p_gestor_id: formData.gestor_id !== pending.gestor_id ? formData.gestor_id : null,
-        p_data_contrato: formData.data_contrato !== pending.data_contrato ? formData.data_contrato : null,
-        p_data_nascimento: formData.data_nascimento !== pending.data_nascimento ? formData.data_nascimento : null,
+        p_data_contrato: formData.data_contrato && formData.data_contrato !== (pending.data_contrato || "") ? formData.data_contrato : null,
+        p_data_nascimento: formData.data_nascimento && formData.data_nascimento !== (pending.data_nascimento || "") ? formData.data_nascimento : null,
         p_modelo_contrato: formData.modelo_contrato !== pending.modelo_contrato ? formData.modelo_contrato : null,
         p_dia_pagamento: formData.dia_pagamento ? parseInt(formData.dia_pagamento) : null,
       });
