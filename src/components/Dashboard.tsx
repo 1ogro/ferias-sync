@@ -37,6 +37,7 @@ export const Dashboard = () => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [requestToDelete, setRequestToDelete] = useState<Request | null>(null);
   const [activeAbsences, setActiveAbsences] = useState<Request[]>([]);
+  const [pendingRegistrations, setPendingRegistrations] = useState(0);
   
   // Initialize birthday notifications for managers
   useBirthdayNotifications();
@@ -47,6 +48,9 @@ export const Dashboard = () => {
       fetchActiveAbsences();
       if (person.papel === 'GESTOR' || person.papel === 'DIRETOR' || person.is_admin) {
         fetchPendingApprovals();
+      }
+      if (person.papel === 'DIRETOR' || person.is_admin) {
+        fetchPendingRegistrations();
       }
     }
   }, [person]);
@@ -299,6 +303,19 @@ export const Dashboard = () => {
     }
   };
 
+  const fetchPendingRegistrations = async () => {
+    if (!person) return;
+    try {
+      const { count } = await supabase
+        .from('pending_people')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'PENDENTE');
+      setPendingRegistrations(count || 0);
+    } catch (error) {
+      console.error('Error fetching pending registrations:', error);
+    }
+  };
+
   const isManagerOrDirector = person?.papel === 'GESTOR' || person?.papel === 'DIRETOR' || person?.is_admin;
 
   const stats = [
@@ -395,6 +412,28 @@ export const Dashboard = () => {
           </CardContent>
         </Card>
       </div>
+
+      {/* Pending Registrations Alert - Directors/Admins only */}
+      {(person?.papel === 'DIRETOR' || person?.is_admin) && pendingRegistrations > 0 && (
+        <Card className="border-yellow-500/50 bg-yellow-500/5">
+          <CardContent className="flex items-center justify-between py-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-full bg-yellow-500/10">
+                <Users className="h-5 w-5 text-yellow-600" />
+              </div>
+              <div>
+                <p className="font-medium">
+                  {pendingRegistrations} cadastro{pendingRegistrations !== 1 ? 's' : ''} pendente{pendingRegistrations !== 1 ? 's' : ''} de aprovação
+                </p>
+                <p className="text-sm text-muted-foreground">Novos colaboradores aguardando revisão do diretor</p>
+              </div>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => navigate('/inbox')}>
+              Ver na Inbox
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Segunda Linha: 4 Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
