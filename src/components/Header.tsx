@@ -20,6 +20,7 @@ export const Header = ({ showNavigation = true }: HeaderProps) => {
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [activeAbsencesCount, setActiveAbsencesCount] = useState(0);
+  const [pendingInboxCount, setPendingInboxCount] = useState(0);
 
   // Fetch active absences count for managers
   useEffect(() => {
@@ -71,10 +72,56 @@ export const Header = ({ showNavigation = true }: HeaderProps) => {
     fetchActiveAbsences();
   }, [person, user]);
 
+  // Fetch pending inbox count (pending requests + pending registrations for directors)
+  useEffect(() => {
+    if (!person || !user || (person.papel !== 'GESTOR' && person.papel !== 'DIRETOR' && !person.is_admin)) {
+      setPendingInboxCount(0);
+      return;
+    }
+
+    const fetchInboxCount = async () => {
+      try {
+        let requestCount = 0;
+        let registrationCount = 0;
+
+        // Count pending requests
+        const { data: requestsData } = await supabase
+          .from('requests')
+          .select('id, status, requester:people!inner(gestor_id)')
+          .in('status', ['PENDENTE', 'EM_ANALISE_GESTOR', 'EM_ANALISE_DIRETOR']);
+
+        if (requestsData) {
+          if (person.papel === 'DIRETOR' || person.is_admin) {
+            requestCount = requestsData.length;
+          } else {
+            requestCount = requestsData.filter((r: any) => 
+              r.status === 'EM_ANALISE_GESTOR' && r.requester?.gestor_id === person.id
+            ).length;
+          }
+        }
+
+        // Count pending registrations (directors/admins only)
+        if (person.papel === 'DIRETOR' || person.is_admin) {
+          const { count } = await supabase
+            .from('pending_people')
+            .select('id', { count: 'exact', head: true })
+            .eq('status', 'PENDENTE');
+          registrationCount = count || 0;
+        }
+
+        setPendingInboxCount(requestCount + registrationCount);
+      } catch (error) {
+        console.error('Error fetching inbox count:', error);
+      }
+    };
+
+    fetchInboxCount();
+  }, [person, user]);
+
   const navigation = [
     { name: "Dashboard", href: "/", icon: Calendar },
     { name: "Nova Solicitação", href: "/new-request", icon: Menu },
-    { name: "Caixa de Entrada", href: "/inbox", icon: Bell, roles: ['GESTOR', 'DIRETOR'] },
+    { name: "Caixa de Entrada", href: "/inbox", icon: Bell, roles: ['GESTOR', 'DIRETOR'], showInboxBadge: true },
     { name: "Gestão do Time", href: "/vacation-management", icon: Users, roles: ['GESTOR', 'DIRETOR'], showBadge: true },
     { name: "Administração", href: "/admin", icon: Shield, isAdmin: true },
   ];
@@ -148,6 +195,11 @@ export const Header = ({ showNavigation = true }: HeaderProps) => {
                             {activeAbsencesCount}
                           </span>
                         )}
+                        {item.showInboxBadge && pendingInboxCount > 0 && (
+                          <span className="inline-flex items-center justify-center min-w-5 h-5 px-1.5 text-xs font-bold text-primary-foreground bg-destructive rounded-full">
+                            {pendingInboxCount}
+                          </span>
+                        )}
                       </Link>
                     );
                   })}
@@ -189,6 +241,11 @@ export const Header = ({ showNavigation = true }: HeaderProps) => {
                             {item.showBadge && activeAbsencesCount > 0 && (
                               <span className="inline-flex items-center justify-center min-w-5 h-5 px-1.5 text-xs font-bold text-primary-foreground bg-destructive rounded-full">
                                 {activeAbsencesCount}
+                              </span>
+                            )}
+                            {item.showInboxBadge && pendingInboxCount > 0 && (
+                              <span className="inline-flex items-center justify-center min-w-5 h-5 px-1.5 text-xs font-bold text-primary-foreground bg-destructive rounded-full">
+                                {pendingInboxCount}
                               </span>
                             )}
                           </Link>

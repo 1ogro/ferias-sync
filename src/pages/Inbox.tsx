@@ -4,20 +4,32 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { RequestCard } from "@/components/RequestCard";
+import { PendingCollaboratorCard } from "@/components/PendingCollaboratorCard";
+import { ApprovePendingCollaboratorDialog } from "@/components/ApprovePendingCollaboratorDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { Request, Status, TipoAusencia } from "@/lib/types";
+import { Request, Status, TipoAusencia, PendingPerson, Papel, ModeloContrato } from "@/lib/types";
 import { parseDateSafely } from "@/lib/dateUtils";
-import { Inbox as InboxIcon, CheckCircle, XCircle, MessageCircle, Trash2 } from "lucide-react";
+import { Inbox as InboxIcon, CheckCircle, XCircle, MessageCircle, Trash2, UserPlus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 
 const Inbox = () => {
   const { person } = useAuth();
   const { toast } = useToast();
   const [pendingRequests, setPendingRequests] = useState<Request[]>([]);
+  const [pendingPeople, setPendingPeople] = useState<PendingPerson[]>([]);
   const [loading, setLoading] = useState(true);
+  const [pendingPeopleLoading, setPendingPeopleLoading] = useState(true);
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [currentUserPerson, setCurrentUserPerson] = useState<any>(null);
+  const [selectedTab, setSelectedTab] = useState<"requests" | "registrations">("requests");
+  const [selectedPending, setSelectedPending] = useState<PendingPerson | null>(null);
+  const [approveDialogOpen, setApproveDialogOpen] = useState(false);
+  const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
+  const [rejectionReason, setRejectionReason] = useState("");
+  const [rejectingId, setRejectingId] = useState<string | null>(null);
 
   const fetchPendingRequests = async () => {
     if (!person) {
@@ -108,14 +120,121 @@ const Inbox = () => {
     }
   };
 
-  // Fetch requests when component mounts or person changes
+  const fetchPendingPeople = async () => {
+    if (!person) return;
+    setPendingPeopleLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('pending_people')
+        .select('*, gestor:people!pending_people_gestor_id_fkey(id, nome, email)')
+        .eq('status', 'PENDENTE')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        // Fallback without join if FK doesn't exist
+        const { data: fallbackData, error: fallbackError } = await supabase
+          .from('pending_people')
+          .select('*')
+          .eq('status', 'PENDENTE')
+          .order('created_at', { ascending: false });
+        
+        if (fallbackError) {
+          console.error('Error fetching pending people:', fallbackError);
+          return;
+        }
+        
+        const mapped: PendingPerson[] = (fallbackData || []).map((p: any) => ({
+          id: p.id,
+          nome: p.nome,
+          email: p.email,
+          cargo: p.cargo,
+          local: p.local,
+          sub_time: p.sub_time,
+          papel: p.papel as Papel,
+          gestor_id: p.gestor_id,
+          data_contrato: p.data_contrato,
+          data_nascimento: p.data_nascimento,
+          modelo_contrato: p.modelo_contrato as ModeloContrato,
+          dia_pagamento: p.dia_pagamento,
+          status: p.status,
+          created_by: p.created_by,
+          created_at: new Date(p.created_at),
+          reviewed_by: p.reviewed_by,
+          reviewed_at: p.reviewed_at ? new Date(p.reviewed_at) : undefined,
+          rejection_reason: p.rejection_reason,
+          director_notes: p.director_notes,
+        }));
+        setPendingPeople(mapped);
+        return;
+      }
+
+      const mapped: PendingPerson[] = (data || []).map((p: any) => ({
+        id: p.id,
+        nome: p.nome,
+        email: p.email,
+        cargo: p.cargo,
+        local: p.local,
+        sub_time: p.sub_time,
+        papel: p.papel as Papel,
+        gestor_id: p.gestor_id,
+        gestor: p.gestor || undefined,
+        data_contrato: p.data_contrato,
+        data_nascimento: p.data_nascimento,
+        modelo_contrato: p.modelo_contrato as ModeloContrato,
+        dia_pagamento: p.dia_pagamento,
+        status: p.status,
+        created_by: p.created_by,
+        created_at: new Date(p.created_at),
+        reviewed_by: p.reviewed_by,
+        reviewed_at: p.reviewed_at ? new Date(p.reviewed_at) : undefined,
+        rejection_reason: p.rejection_reason,
+        director_notes: p.director_notes,
+      }));
+      setPendingPeople(mapped);
+    } catch (error) {
+      console.error('Error fetching pending people:', error);
+    } finally {
+      setPendingPeopleLoading(false);
+    }
+  };
+
+  const handleRejectPending = async () => {
+    if (!selectedPending || !person) return;
+    setRejectingId(selectedPending.id);
+    try {
+      const { error } = await supabase.rpc('reject_pending_person', {
+        p_pending_id: selectedPending.id,
+        p_rejection_reason: rejectionReason,
+        p_reviewer_id: person.id,
+      });
+      if (error) throw error;
+      toast({ title: "Sucesso", description: "Cadastro rejeitado com sucesso" });
+      setRejectDialogOpen(false);
+      setRejectionReason("");
+      setSelectedPending(null);
+      fetchPendingPeople();
+    } catch (error: any) {
+      console.error('Error rejecting:', error);
+      toast({ title: "Erro", description: error.message || "Erro ao rejeitar cadastro", variant: "destructive" });
+    } finally {
+      setRejectingId(null);
+    }
+  };
+
+
   useEffect(() => {
     if (person) {
       console.log('Person available, fetching pending requests');
       fetchPendingRequests();
+      if (person.papel === 'DIRETOR' || person.is_admin) {
+        fetchPendingPeople();
+      } else {
+        setPendingPeopleLoading(false);
+      }
     } else {
       console.log('No person found, setting loading to false');
       setLoading(false);
+      setPendingPeopleLoading(false);
     }
   }, [person]);
 
@@ -359,6 +478,9 @@ const Inbox = () => {
     }
   };
 
+  const isDirectorOrAdmin = person?.papel === 'DIRETOR' || person?.is_admin;
+  const showTabs = isDirectorOrAdmin && pendingPeople.length > 0;
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/30">
       <Header />
@@ -373,85 +495,202 @@ const Inbox = () => {
           </p>
         </div>
 
-        {loading ? (
-          <Card className="p-8 text-center">
-            <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full mx-auto mb-4"></div>
-            <p className="text-muted-foreground">Carregando solicitações...</p>
-          </Card>
-        ) : pendingRequests.length > 0 ? (
-          <div className="space-y-4">
-            {pendingRequests.map((request) => {
-              const isUserManagerOfRequester = person?.id === request.requester.gestorId;
-              
-              return (
-                <Card key={request.id} className="hover:shadow-md transition-shadow">
-                  <CardHeader className="pb-4">
-                    <div className="flex items-start justify-between">
-                      <RequestCard 
-                        request={request} 
-                        showActions={true}
-                        currentUserRole={person?.papel}
-                        isUserManager={isUserManagerOfRequester}
-                        currentUserId={person?.id}
-                        onEdit={(req) => window.location.href = `/requests/${req.id}/edit`}
-                      />
-                    </div>
-                  </CardHeader>
-                <CardContent className="pt-0">
-                  <div className="mb-3">
-                    <p className="text-sm text-muted-foreground">
-                      <span className="font-medium">Solicitante:</span> {request.requester?.nome}
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      <span className="font-medium">Email:</span> {request.requester?.email}
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <Button 
-                      size="sm" 
-                      onClick={() => handleApproval(request.id, 'approve')}
-                      disabled={processingId !== null}
-                      className="bg-status-approved hover:bg-status-approved/90 text-white disabled:opacity-50"
-                    >
-                      <CheckCircle className="w-4 h-4 mr-1" />
-                      {processingId === request.id ? 'Aprovando...' : 'Aprovar'}
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={() => handleApproval(request.id, 'reject')}
-                      disabled={processingId !== null}
-                      className="border-status-rejected text-status-rejected hover:bg-status-rejected/10 disabled:opacity-50"
-                    >
-                      <XCircle className="w-4 h-4 mr-1" />
-                      {processingId === request.id ? 'Reprovando...' : 'Reprovar'}
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={() => handleApproval(request.id, 'ask_info')}
-                      disabled={processingId !== null}
-                      className="disabled:opacity-50"
-                    >
-                      <MessageCircle className="w-4 h-4 mr-1" />
-                      Pedir Informações
-                    </Button>
-                  </div>
-                </CardContent>
-                </Card>
-              );
-            })}
+        {/* Tabs for directors */}
+        {showTabs && (
+          <div className="flex space-x-1 bg-muted p-1 rounded-lg mb-6">
+            <Button
+              variant={selectedTab === "requests" ? "default" : "ghost"}
+              onClick={() => setSelectedTab("requests")}
+              className="flex-1"
+            >
+              Solicitações
+              {pendingRequests.length > 0 && (
+                <Badge variant="secondary" className="ml-2">{pendingRequests.length}</Badge>
+              )}
+            </Button>
+            <Button
+              variant={selectedTab === "registrations" ? "default" : "ghost"}
+              onClick={() => setSelectedTab("registrations")}
+              className="flex-1"
+            >
+              <UserPlus className="w-4 h-4 mr-2" />
+              Cadastros Pendentes
+              <Badge variant="secondary" className="ml-2">{pendingPeople.length}</Badge>
+            </Button>
           </div>
-        ) : (
-          <Card className="p-8 text-center">
-            <InboxIcon className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-            <h3 className="text-lg font-medium mb-2">Nenhuma solicitação pendente</h3>
-            <p className="text-muted-foreground">
-              Todas as solicitações foram processadas.
-            </p>
-          </Card>
+        )}
+
+        {/* Requests tab */}
+        {selectedTab === "requests" && (
+          <>
+            {loading ? (
+              <Card className="p-8 text-center">
+                <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full mx-auto mb-4"></div>
+                <p className="text-muted-foreground">Carregando solicitações...</p>
+              </Card>
+            ) : pendingRequests.length > 0 ? (
+              <div className="space-y-4">
+                {pendingRequests.map((request) => {
+                  const isUserManagerOfRequester = person?.id === request.requester.gestorId;
+                  
+                  return (
+                    <Card key={request.id} className="hover:shadow-md transition-shadow">
+                      <CardHeader className="pb-4">
+                        <div className="flex items-start justify-between">
+                          <RequestCard 
+                            request={request} 
+                            showActions={true}
+                            currentUserRole={person?.papel}
+                            isUserManager={isUserManagerOfRequester}
+                            currentUserId={person?.id}
+                            onEdit={(req) => window.location.href = `/requests/${req.id}/edit`}
+                          />
+                        </div>
+                      </CardHeader>
+                    <CardContent className="pt-0">
+                      <div className="mb-3">
+                        <p className="text-sm text-muted-foreground">
+                          <span className="font-medium">Solicitante:</span> {request.requester?.nome}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          <span className="font-medium">Email:</span> {request.requester?.email}
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <Button 
+                          size="sm" 
+                          onClick={() => handleApproval(request.id, 'approve')}
+                          disabled={processingId !== null}
+                          className="bg-status-approved hover:bg-status-approved/90 text-white disabled:opacity-50"
+                        >
+                          <CheckCircle className="w-4 h-4 mr-1" />
+                          {processingId === request.id ? 'Aprovando...' : 'Aprovar'}
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => handleApproval(request.id, 'reject')}
+                          disabled={processingId !== null}
+                          className="border-status-rejected text-status-rejected hover:bg-status-rejected/10 disabled:opacity-50"
+                        >
+                          <XCircle className="w-4 h-4 mr-1" />
+                          {processingId === request.id ? 'Reprovando...' : 'Reprovar'}
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => handleApproval(request.id, 'ask_info')}
+                          disabled={processingId !== null}
+                          className="disabled:opacity-50"
+                        >
+                          <MessageCircle className="w-4 h-4 mr-1" />
+                          Pedir Informações
+                        </Button>
+                      </div>
+                    </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            ) : (
+              <Card className="p-8 text-center">
+                <InboxIcon className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-medium mb-2">Nenhuma solicitação pendente</h3>
+                <p className="text-muted-foreground">
+                  Todas as solicitações foram processadas.
+                </p>
+              </Card>
+            )}
+          </>
+        )}
+
+        {/* Registrations tab */}
+        {selectedTab === "registrations" && isDirectorOrAdmin && (
+          <>
+            {pendingPeopleLoading ? (
+              <Card className="p-8 text-center">
+                <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full mx-auto mb-4"></div>
+                <p className="text-muted-foreground">Carregando cadastros...</p>
+              </Card>
+            ) : pendingPeople.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {pendingPeople.map((pending) => (
+                  <PendingCollaboratorCard
+                    key={pending.id}
+                    pending={pending}
+                    showActions={true}
+                    onApprove={(p) => {
+                      setSelectedPending(p);
+                      setApproveDialogOpen(true);
+                    }}
+                    onReject={(p) => {
+                      setSelectedPending(p);
+                      setRejectDialogOpen(true);
+                    }}
+                  />
+                ))}
+              </div>
+            ) : (
+              <Card className="p-8 text-center">
+                <UserPlus className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-medium mb-2">Nenhum cadastro pendente</h3>
+                <p className="text-muted-foreground">
+                  Todos os cadastros foram processados.
+                </p>
+              </Card>
+            )}
+          </>
         )}
       </main>
+
+      {/* Approve Dialog */}
+      {selectedPending && (
+        <ApprovePendingCollaboratorDialog
+          pending={selectedPending}
+          open={approveDialogOpen}
+          onOpenChange={(open) => {
+            setApproveDialogOpen(open);
+            if (!open) setSelectedPending(null);
+          }}
+          onSuccess={() => {
+            fetchPendingPeople();
+            setSelectedPending(null);
+          }}
+        />
+      )}
+
+      {/* Reject Dialog */}
+      <Dialog open={rejectDialogOpen} onOpenChange={(open) => {
+        setRejectDialogOpen(open);
+        if (!open) {
+          setSelectedPending(null);
+          setRejectionReason("");
+        }
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Rejeitar Cadastro</DialogTitle>
+            <DialogDescription>
+              Informe o motivo da rejeição do cadastro de {selectedPending?.nome}.
+            </DialogDescription>
+          </DialogHeader>
+          <Textarea
+            placeholder="Motivo da rejeição..."
+            value={rejectionReason}
+            onChange={(e) => setRejectionReason(e.target.value)}
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRejectDialogOpen(false)}>Cancelar</Button>
+            <Button 
+              variant="destructive" 
+              onClick={handleRejectPending}
+              disabled={!rejectionReason.trim() || rejectingId !== null}
+            >
+              {rejectingId ? 'Rejeitando...' : 'Rejeitar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
