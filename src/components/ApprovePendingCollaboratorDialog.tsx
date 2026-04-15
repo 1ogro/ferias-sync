@@ -66,7 +66,8 @@ export function ApprovePendingCollaboratorDialog({
 
     setLoading(true);
     try {
-      const { data, error } = await supabase.rpc("approve_pending_person", {
+      // Build RPC args dynamically — only include optional fields when they have real values
+      const rpcArgs: Record<string, any> = {
         p_pending_id: pending.id,
         p_reviewer_id: person.id,
         p_director_notes: directorNotes.trim() || null,
@@ -76,11 +77,21 @@ export function ApprovePendingCollaboratorDialog({
         p_local: formData.local !== pending.local ? formData.local : null,
         p_sub_time: formData.sub_time !== pending.sub_time ? formData.sub_time : null,
         p_gestor_id: formData.gestor_id !== pending.gestor_id ? formData.gestor_id : null,
-        p_data_contrato: formData.data_contrato && formData.data_contrato !== (pending.data_contrato || "") ? formData.data_contrato : null,
-        p_data_nascimento: formData.data_nascimento && formData.data_nascimento !== (pending.data_nascimento || "") ? formData.data_nascimento : null,
         p_modelo_contrato: formData.modelo_contrato !== pending.modelo_contrato ? formData.modelo_contrato : null,
-        p_dia_pagamento: formData.dia_pagamento ? parseInt(formData.dia_pagamento) : null,
-      });
+      };
+
+      // Only add date/integer fields if they have actual values to avoid PostgreSQL type errors
+      if (formData.data_contrato) {
+        rpcArgs.p_data_contrato = formData.data_contrato;
+      }
+      if (formData.data_nascimento) {
+        rpcArgs.p_data_nascimento = formData.data_nascimento;
+      }
+      if (formData.dia_pagamento) {
+        rpcArgs.p_dia_pagamento = parseInt(formData.dia_pagamento);
+      }
+
+      const { data, error } = await supabase.rpc("approve_pending_person", rpcArgs as any);
 
       if (error) throw error;
 
@@ -257,7 +268,7 @@ export function ApprovePendingCollaboratorDialog({
               )}
 
               <div className="space-y-2">
-                <Label htmlFor="data_contrato">Data de Contrato</Label>
+                <Label htmlFor="data_contrato">Data de Contrato <span className="text-muted-foreground font-normal">(opcional)</span></Label>
                 <Input
                   id="data_contrato"
                   type="date"
@@ -268,7 +279,7 @@ export function ApprovePendingCollaboratorDialog({
               </div>
 
               <div className="space-y-2 sm:col-span-2">
-                <Label htmlFor="data_nascimento">Data de Nascimento</Label>
+                <Label htmlFor="data_nascimento">Data de Nascimento <span className="text-muted-foreground font-normal">(opcional)</span></Label>
                 <Input
                   id="data_nascimento"
                   type="date"
@@ -276,6 +287,7 @@ export function ApprovePendingCollaboratorDialog({
                   onChange={(e) => setFormData({ ...formData, data_nascimento: e.target.value })}
                   disabled={loading}
                 />
+                <p className="text-xs text-muted-foreground">Datas podem ser preenchidas depois pelo colaborador ou gestor direto.</p>
               </div>
             </div>
 

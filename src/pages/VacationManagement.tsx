@@ -486,12 +486,18 @@ const VacationManagement = () => {
     }
 
     try {
-      const { error } = await supabase
-        .from('people')
-        .update(updateData)
-        .eq('id', selectedPerson.person_id);
+      const rpcArgs: Record<string, any> = {
+        p_person_id: selectedPerson.person_id,
+      };
+      if (updateData.data_contrato !== undefined) rpcArgs.p_data_contrato = updateData.data_contrato;
+      if (updateData.modelo_contrato !== undefined) rpcArgs.p_modelo_contrato = updateData.modelo_contrato;
+      if (updateData.maternity_extension_days !== undefined) rpcArgs.p_data_nascimento = null; // maternity handled separately
+
+      const { data, error } = await supabase.rpc('update_collaborator_onboarding_data', rpcArgs as any);
 
       if (error) throw error;
+      const result = data as any;
+      if (result && !result.success) throw new Error(result.message);
 
       toast({
         title: "Sucesso",
