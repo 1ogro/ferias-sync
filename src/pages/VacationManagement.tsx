@@ -491,13 +491,20 @@ const VacationManagement = () => {
       };
       if (updateData.data_contrato !== undefined) rpcArgs.p_data_contrato = updateData.data_contrato;
       if (updateData.modelo_contrato !== undefined) rpcArgs.p_modelo_contrato = updateData.modelo_contrato;
-      if (updateData.maternity_extension_days !== undefined) rpcArgs.p_data_nascimento = null; // maternity handled separately
 
       const { data, error } = await supabase.rpc('update_collaborator_onboarding_data', rpcArgs as any);
-
       if (error) throw error;
       const result = data as any;
       if (result && !result.success) throw new Error(result.message);
+
+      // Maternity extension is admin-only and not in the onboarding RPC
+      if (updateData.maternity_extension_days !== undefined) {
+        const { error: extError } = await supabase
+          .from('people')
+          .update({ maternity_extension_days: updateData.maternity_extension_days })
+          .eq('id', selectedPerson.person_id);
+        if (extError) throw extError;
+      }
 
       toast({
         title: "Sucesso",
