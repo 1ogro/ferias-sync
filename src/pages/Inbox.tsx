@@ -120,7 +120,108 @@ const Inbox = () => {
     }
   };
 
-  // Fetch requests when component mounts or person changes
+  const fetchPendingPeople = async () => {
+    if (!person) return;
+    setPendingPeopleLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('pending_people')
+        .select('*, gestor:people!pending_people_gestor_id_fkey(id, nome, email)')
+        .eq('status', 'PENDENTE')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        // Fallback without join if FK doesn't exist
+        const { data: fallbackData, error: fallbackError } = await supabase
+          .from('pending_people')
+          .select('*')
+          .eq('status', 'PENDENTE')
+          .order('created_at', { ascending: false });
+        
+        if (fallbackError) {
+          console.error('Error fetching pending people:', fallbackError);
+          return;
+        }
+        
+        const mapped: PendingPerson[] = (fallbackData || []).map((p: any) => ({
+          id: p.id,
+          nome: p.nome,
+          email: p.email,
+          cargo: p.cargo,
+          local: p.local,
+          sub_time: p.sub_time,
+          papel: p.papel as Papel,
+          gestor_id: p.gestor_id,
+          data_contrato: p.data_contrato,
+          data_nascimento: p.data_nascimento,
+          modelo_contrato: p.modelo_contrato as ModeloContrato,
+          dia_pagamento: p.dia_pagamento,
+          status: p.status,
+          created_by: p.created_by,
+          created_at: new Date(p.created_at),
+          reviewed_by: p.reviewed_by,
+          reviewed_at: p.reviewed_at ? new Date(p.reviewed_at) : undefined,
+          rejection_reason: p.rejection_reason,
+          director_notes: p.director_notes,
+        }));
+        setPendingPeople(mapped);
+        return;
+      }
+
+      const mapped: PendingPerson[] = (data || []).map((p: any) => ({
+        id: p.id,
+        nome: p.nome,
+        email: p.email,
+        cargo: p.cargo,
+        local: p.local,
+        sub_time: p.sub_time,
+        papel: p.papel as Papel,
+        gestor_id: p.gestor_id,
+        gestor: p.gestor || undefined,
+        data_contrato: p.data_contrato,
+        data_nascimento: p.data_nascimento,
+        modelo_contrato: p.modelo_contrato as ModeloContrato,
+        dia_pagamento: p.dia_pagamento,
+        status: p.status,
+        created_by: p.created_by,
+        created_at: new Date(p.created_at),
+        reviewed_by: p.reviewed_by,
+        reviewed_at: p.reviewed_at ? new Date(p.reviewed_at) : undefined,
+        rejection_reason: p.rejection_reason,
+        director_notes: p.director_notes,
+      }));
+      setPendingPeople(mapped);
+    } catch (error) {
+      console.error('Error fetching pending people:', error);
+    } finally {
+      setPendingPeopleLoading(false);
+    }
+  };
+
+  const handleRejectPending = async () => {
+    if (!selectedPending || !person) return;
+    setRejectingId(selectedPending.id);
+    try {
+      const { error } = await supabase.rpc('reject_pending_person', {
+        p_pending_id: selectedPending.id,
+        p_rejection_reason: rejectionReason,
+        p_reviewer_id: person.id,
+      });
+      if (error) throw error;
+      toast({ title: "Sucesso", description: "Cadastro rejeitado com sucesso" });
+      setRejectDialogOpen(false);
+      setRejectionReason("");
+      setSelectedPending(null);
+      fetchPendingPeople();
+    } catch (error: any) {
+      console.error('Error rejecting:', error);
+      toast({ title: "Erro", description: error.message || "Erro ao rejeitar cadastro", variant: "destructive" });
+    } finally {
+      setRejectingId(null);
+    }
+  };
+
+
   useEffect(() => {
     if (person) {
       console.log('Person available, fetching pending requests');
