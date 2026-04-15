@@ -478,6 +478,9 @@ const Inbox = () => {
     }
   };
 
+  const isDirectorOrAdmin = person?.papel === 'DIRETOR' || person?.is_admin;
+  const showTabs = isDirectorOrAdmin && pendingPeople.length > 0;
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/30">
       <Header />
@@ -492,85 +495,202 @@ const Inbox = () => {
           </p>
         </div>
 
-        {loading ? (
-          <Card className="p-8 text-center">
-            <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full mx-auto mb-4"></div>
-            <p className="text-muted-foreground">Carregando solicitações...</p>
-          </Card>
-        ) : pendingRequests.length > 0 ? (
-          <div className="space-y-4">
-            {pendingRequests.map((request) => {
-              const isUserManagerOfRequester = person?.id === request.requester.gestorId;
-              
-              return (
-                <Card key={request.id} className="hover:shadow-md transition-shadow">
-                  <CardHeader className="pb-4">
-                    <div className="flex items-start justify-between">
-                      <RequestCard 
-                        request={request} 
-                        showActions={true}
-                        currentUserRole={person?.papel}
-                        isUserManager={isUserManagerOfRequester}
-                        currentUserId={person?.id}
-                        onEdit={(req) => window.location.href = `/requests/${req.id}/edit`}
-                      />
-                    </div>
-                  </CardHeader>
-                <CardContent className="pt-0">
-                  <div className="mb-3">
-                    <p className="text-sm text-muted-foreground">
-                      <span className="font-medium">Solicitante:</span> {request.requester?.nome}
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      <span className="font-medium">Email:</span> {request.requester?.email}
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <Button 
-                      size="sm" 
-                      onClick={() => handleApproval(request.id, 'approve')}
-                      disabled={processingId !== null}
-                      className="bg-status-approved hover:bg-status-approved/90 text-white disabled:opacity-50"
-                    >
-                      <CheckCircle className="w-4 h-4 mr-1" />
-                      {processingId === request.id ? 'Aprovando...' : 'Aprovar'}
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={() => handleApproval(request.id, 'reject')}
-                      disabled={processingId !== null}
-                      className="border-status-rejected text-status-rejected hover:bg-status-rejected/10 disabled:opacity-50"
-                    >
-                      <XCircle className="w-4 h-4 mr-1" />
-                      {processingId === request.id ? 'Reprovando...' : 'Reprovar'}
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={() => handleApproval(request.id, 'ask_info')}
-                      disabled={processingId !== null}
-                      className="disabled:opacity-50"
-                    >
-                      <MessageCircle className="w-4 h-4 mr-1" />
-                      Pedir Informações
-                    </Button>
-                  </div>
-                </CardContent>
-                </Card>
-              );
-            })}
+        {/* Tabs for directors */}
+        {showTabs && (
+          <div className="flex space-x-1 bg-muted p-1 rounded-lg mb-6">
+            <Button
+              variant={selectedTab === "requests" ? "default" : "ghost"}
+              onClick={() => setSelectedTab("requests")}
+              className="flex-1"
+            >
+              Solicitações
+              {pendingRequests.length > 0 && (
+                <Badge variant="secondary" className="ml-2">{pendingRequests.length}</Badge>
+              )}
+            </Button>
+            <Button
+              variant={selectedTab === "registrations" ? "default" : "ghost"}
+              onClick={() => setSelectedTab("registrations")}
+              className="flex-1"
+            >
+              <UserPlus className="w-4 h-4 mr-2" />
+              Cadastros Pendentes
+              <Badge variant="secondary" className="ml-2">{pendingPeople.length}</Badge>
+            </Button>
           </div>
-        ) : (
-          <Card className="p-8 text-center">
-            <InboxIcon className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-            <h3 className="text-lg font-medium mb-2">Nenhuma solicitação pendente</h3>
-            <p className="text-muted-foreground">
-              Todas as solicitações foram processadas.
-            </p>
-          </Card>
+        )}
+
+        {/* Requests tab */}
+        {selectedTab === "requests" && (
+          <>
+            {loading ? (
+              <Card className="p-8 text-center">
+                <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full mx-auto mb-4"></div>
+                <p className="text-muted-foreground">Carregando solicitações...</p>
+              </Card>
+            ) : pendingRequests.length > 0 ? (
+              <div className="space-y-4">
+                {pendingRequests.map((request) => {
+                  const isUserManagerOfRequester = person?.id === request.requester.gestorId;
+                  
+                  return (
+                    <Card key={request.id} className="hover:shadow-md transition-shadow">
+                      <CardHeader className="pb-4">
+                        <div className="flex items-start justify-between">
+                          <RequestCard 
+                            request={request} 
+                            showActions={true}
+                            currentUserRole={person?.papel}
+                            isUserManager={isUserManagerOfRequester}
+                            currentUserId={person?.id}
+                            onEdit={(req) => window.location.href = `/requests/${req.id}/edit`}
+                          />
+                        </div>
+                      </CardHeader>
+                    <CardContent className="pt-0">
+                      <div className="mb-3">
+                        <p className="text-sm text-muted-foreground">
+                          <span className="font-medium">Solicitante:</span> {request.requester?.nome}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          <span className="font-medium">Email:</span> {request.requester?.email}
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <Button 
+                          size="sm" 
+                          onClick={() => handleApproval(request.id, 'approve')}
+                          disabled={processingId !== null}
+                          className="bg-status-approved hover:bg-status-approved/90 text-white disabled:opacity-50"
+                        >
+                          <CheckCircle className="w-4 h-4 mr-1" />
+                          {processingId === request.id ? 'Aprovando...' : 'Aprovar'}
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => handleApproval(request.id, 'reject')}
+                          disabled={processingId !== null}
+                          className="border-status-rejected text-status-rejected hover:bg-status-rejected/10 disabled:opacity-50"
+                        >
+                          <XCircle className="w-4 h-4 mr-1" />
+                          {processingId === request.id ? 'Reprovando...' : 'Reprovar'}
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => handleApproval(request.id, 'ask_info')}
+                          disabled={processingId !== null}
+                          className="disabled:opacity-50"
+                        >
+                          <MessageCircle className="w-4 h-4 mr-1" />
+                          Pedir Informações
+                        </Button>
+                      </div>
+                    </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            ) : (
+              <Card className="p-8 text-center">
+                <InboxIcon className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-medium mb-2">Nenhuma solicitação pendente</h3>
+                <p className="text-muted-foreground">
+                  Todas as solicitações foram processadas.
+                </p>
+              </Card>
+            )}
+          </>
+        )}
+
+        {/* Registrations tab */}
+        {selectedTab === "registrations" && isDirectorOrAdmin && (
+          <>
+            {pendingPeopleLoading ? (
+              <Card className="p-8 text-center">
+                <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full mx-auto mb-4"></div>
+                <p className="text-muted-foreground">Carregando cadastros...</p>
+              </Card>
+            ) : pendingPeople.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {pendingPeople.map((pending) => (
+                  <PendingCollaboratorCard
+                    key={pending.id}
+                    pending={pending}
+                    showActions={true}
+                    onApprove={(p) => {
+                      setSelectedPending(p);
+                      setApproveDialogOpen(true);
+                    }}
+                    onReject={(p) => {
+                      setSelectedPending(p);
+                      setRejectDialogOpen(true);
+                    }}
+                  />
+                ))}
+              </div>
+            ) : (
+              <Card className="p-8 text-center">
+                <UserPlus className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-medium mb-2">Nenhum cadastro pendente</h3>
+                <p className="text-muted-foreground">
+                  Todos os cadastros foram processados.
+                </p>
+              </Card>
+            )}
+          </>
         )}
       </main>
+
+      {/* Approve Dialog */}
+      {selectedPending && (
+        <ApprovePendingCollaboratorDialog
+          pending={selectedPending}
+          open={approveDialogOpen}
+          onOpenChange={(open) => {
+            setApproveDialogOpen(open);
+            if (!open) setSelectedPending(null);
+          }}
+          onSuccess={() => {
+            fetchPendingPeople();
+            setSelectedPending(null);
+          }}
+        />
+      )}
+
+      {/* Reject Dialog */}
+      <Dialog open={rejectDialogOpen} onOpenChange={(open) => {
+        setRejectDialogOpen(open);
+        if (!open) {
+          setSelectedPending(null);
+          setRejectionReason("");
+        }
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Rejeitar Cadastro</DialogTitle>
+            <DialogDescription>
+              Informe o motivo da rejeição do cadastro de {selectedPending?.nome}.
+            </DialogDescription>
+          </DialogHeader>
+          <Textarea
+            placeholder="Motivo da rejeição..."
+            value={rejectionReason}
+            onChange={(e) => setRejectionReason(e.target.value)}
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRejectDialogOpen(false)}>Cancelar</Button>
+            <Button 
+              variant="destructive" 
+              onClick={handleRejectPending}
+              disabled={!rejectionReason.trim() || rejectingId !== null}
+            >
+              {rejectingId ? 'Rejeitando...' : 'Rejeitar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
