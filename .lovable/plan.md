@@ -1,35 +1,31 @@
 
 
-## Plano: Tornar cadastros pendentes visíveis no Dashboard e Inbox
+## Fix: "Invalid input syntax" on pending collaborator approval
 
-### Problema
-Cadastros de novos colaboradores submetidos por gestores (`pending_people` com status PENDENTE) só aparecem dentro de um dialog na página Admin, acessível pelo botão "Aprovar Cadastros". O diretor não tem visibilidade desses cadastros no Dashboard principal nem na Inbox, tornando fácil perdê-los.
+### Root cause
+In `ApprovePendingCollaboratorDialog.tsx`, lines 79-80 send empty strings `""` instead of `null` for date parameters when the original values are `null`:
+- `formData.data_contrato` starts as `""` (from `pending.data_contrato || ""`)
+- The comparison `"" !== null` is `true`, so `""` is sent to the RPC
+- PostgreSQL rejects `""` as invalid date input
 
-### Alterações
+The same issue exists for `dia_pagamento` — `parseInt("")` returns `NaN`.
 
-#### 1. Dashboard (`src/components/Dashboard.tsx`)
-- Adicionar fetch de `pending_people` com status PENDENTE (apenas para diretores/admin)
-- Exibir card "Cadastros Pendentes" ao lado dos cards existentes, com contagem e badge
-- Incluir botão "Ver cadastros" que redireciona para `/admin` ou abre dialog inline
+### Fix (single file)
 
-#### 2. Inbox (`src/pages/Inbox.tsx`)
-- Adicionar seção/aba "Cadastros Pendentes" para diretores
-- Buscar `pending_people` com status PENDENTE
-- Renderizar cards usando `PendingCollaboratorCard` existente com ações de aprovar/rejeitar
-- Integrar com `ApprovePendingCollaboratorDialog` já existente
+**`src/components/ApprovePendingCollaboratorDialog.tsx`**
 
-#### 3. Header (`src/components/Header.tsx`)
-- Adicionar badge de notificação no link da Inbox quando houver cadastros pendentes, para que o diretor veja imediatamente que há itens a revisar
+Update the RPC call (lines 69-83) to coerce empty strings to `null` for date and integer fields:
 
-### Arquivos a alterar
-| Arquivo | Ação |
-|---------|------|
-| `src/components/Dashboard.tsx` | Adicionar card de cadastros pendentes para diretores |
-| `src/pages/Inbox.tsx` | Adicionar seção de cadastros pendentes com ações |
-| `src/components/Header.tsx` | Badge de notificação incluindo cadastros pendentes |
+```typescript
+p_data_contrato: formData.data_contrato && formData.data_contrato !== (pending.data_contrato || "") ? formData.data_contrato : null,
+p_data_nascimento: formData.data_nascimento && formData.data_nascimento !== (pending.data_nascimento || "") ? formData.data_nascimento : null,
+p_dia_pagamento: formData.dia_pagamento ? parseInt(formData.dia_pagamento) : null,
+```
 
-### Notas
-- Reutiliza componentes existentes (`PendingCollaboratorCard`, `ApprovePendingCollaboratorDialog`)
-- Mantém a funcionalidade existente na página Admin intacta
-- Visibilidade restrita a diretores e admins (mesmo controle atual)
+The key change: add a truthiness check (`formData.data_contrato &&`) so empty strings become `null`, and normalize the comparison so both sides use the same fallback.
+
+### Files to change
+| File | Change |
+|------|--------|
+| `src/components/ApprovePendingCollaboratorDialog.tsx` | Fix date/integer params to send `null` instead of `""` |
 
