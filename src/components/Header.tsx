@@ -121,7 +121,7 @@ export const Header = ({ showNavigation = true }: HeaderProps) => {
   const navigation = [
     { name: "Dashboard", href: "/", icon: Calendar },
     { name: "Nova Solicitação", href: "/new-request", icon: Menu },
-    { name: "Caixa de Entrada", href: "/inbox", icon: Bell, roles: ['GESTOR', 'DIRETOR'] },
+    { name: "Caixa de Entrada", href: "/inbox", icon: Bell, roles: ['GESTOR', 'DIRETOR'], showInboxBadge: true },
     { name: "Gestão do Time", href: "/vacation-management", icon: Users, roles: ['GESTOR', 'DIRETOR'], showBadge: true },
     { name: "Administração", href: "/admin", icon: Shield, isAdmin: true },
   ];
