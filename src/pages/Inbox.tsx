@@ -125,9 +125,15 @@ const Inbox = () => {
     if (person) {
       console.log('Person available, fetching pending requests');
       fetchPendingRequests();
+      if (person.papel === 'DIRETOR' || person.is_admin) {
+        fetchPendingPeople();
+      } else {
+        setPendingPeopleLoading(false);
+      }
     } else {
       console.log('No person found, setting loading to false');
       setLoading(false);
+      setPendingPeopleLoading(false);
     }
   }, [person]);
 
