@@ -1225,6 +1225,11 @@ const VacationManagement = () => {
           </div>
         </div>
 
+        <ActiveAbsencesBanner
+          teamIds={isManager && !isDirectorOrAdmin ? teamMemberIds : undefined}
+          onSeeDetails={() => setActiveTab("active")}
+        />
+
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           {/* Mobile: ScrollArea horizontal */}
           <div className="block lg:hidden">
