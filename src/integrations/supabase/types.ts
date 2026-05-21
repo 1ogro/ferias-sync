@@ -762,6 +762,13 @@ export type Database = {
           email: string
         }[]
       }
+      get_figma_login_status: {
+        Args: never
+        Returns: {
+          figma_enabled: boolean
+          figma_status: string
+        }[]
+      }
       get_vacation_summary: {
         Args: { p_year?: number }
         Returns: {
