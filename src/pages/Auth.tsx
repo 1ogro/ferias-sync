@@ -9,7 +9,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
-import { useIntegrations } from '@/hooks/useIntegrations';
+
 import { supabase } from '@/integrations/supabase/client';
 import { LogIn, UserPlus, Calendar, Figma } from 'lucide-react';
 
