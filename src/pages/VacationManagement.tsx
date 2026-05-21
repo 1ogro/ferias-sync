@@ -15,6 +15,7 @@ import { VacationDetailsDrawer } from "@/components/VacationDetailsDrawer";
 import { TeamCapacityDashboard } from "@/components/TeamCapacityDashboard";
 import { ApprovedVacationsExecutiveView } from "@/components/ApprovedVacationsExecutiveView";
 import { ActiveAbsencesDashboard } from "@/components/ActiveAbsencesDashboard";
+import { ActiveAbsencesBanner } from "@/components/ActiveAbsencesBanner";
 import { HistoricalRequestForm } from "@/components/HistoricalRequestForm";
 import { SheetsSync } from "@/components/SheetsSync";
 import { CollaboratorSummaryTable } from "@/components/CollaboratorSummaryTable";
@@ -1224,6 +1225,11 @@ const VacationManagement = () => {
             </p>
           </div>
         </div>
+
+        <ActiveAbsencesBanner
+          teamIds={isManager && !isDirectorOrAdmin ? teamMemberIds : undefined}
+          onSeeDetails={() => setActiveTab("active")}
+        />
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           {/* Mobile: ScrollArea horizontal */}

@@ -1,47 +1,31 @@
-<final-text>## Plano
+## Plano: deixar claro o que o badge de "Gestão do Time" está sinalizando
 
 ### Diagnóstico
-- O ajuste anterior foi parcial: a aprovação ainda fica frágil porque os campos opcionais continuam entrando no payload da RPC mesmo quando não foram preenchidos.
-- Hoje o colaborador já consegue completar parte desses dados depois, mas o gestor direto ainda não tem um caminho confiável para preencher tudo por causa do `UPDATE` direto em `people`, que esbarra em RLS.
-- Além disso, existe duplicidade de assinatura da RPC `approve_pending_person` no banco, o que vale limpar para deixar a aprovação sem datas realmente estável.
+- O badge ao lado de "Gestão do Time" no Header (`src/components/Header.tsx`, linhas 25–73) é alimentado por `activeAbsencesCount`, que conta solicitações `APROVADO_FINAL`/`REALIZADO` (Férias, Licença Maternidade, Licença Médica, Dayoff) ativas hoje. Para diretor/admin conta todo mundo; para gestor, só seu time direto.
+- O `Dashboard` já mostra esse mesmo número como "1 pessoa ausente hoje" (via `ActiveAbsencesDashboard`).
+- Ao entrar em `/vacation-management`, a tela mostra apenas as estatísticas gerais (Total, Sem Data Contrato, Férias Acumuladas, Saldos Manuais). Não existe nenhum bloco/aviso que mostre **quem** está ausente hoje, nem nenhum filtro pré-aplicado. Por isso o diretor vê o badge mas não consegue identificar a origem dentro da página.
 
 ### O que vou implementar
-1. **Permitir aprovação sem datas no modal**
-   - Em `src/components/ApprovePendingCollaboratorDialog.tsx`, montar o payload da RPC dinamicamente.
-   - Enviar `p_data_contrato`, `p_data_nascimento` e `p_dia_pagamento` somente se houver valor real.
-   - Deixar claro na UI que essas informações são opcionais na aprovação e podem ser preenchidas depois.
+1. **Banner "Ausentes hoje" no topo de Gestão do Time**
+   - Em `src/pages/VacationManagement.tsx`, adicionar logo abaixo do título uma faixa/cartão destacado quando houver ausências ativas hoje, listando:
+     - Nome do colaborador
+     - Tipo da ausência (Férias, Licença Médica, etc.)
+     - Período (início → fim) e "Retorna em X dias"
+   - Diretor/admin vê todos; gestor vê apenas seu time direto, espelhando a lógica do badge.
+   - Cada item é clicável e abre o `VacationDetailsDrawer` correspondente.
 
-2. **Consolidar a RPC de aprovação**
-   - Criar migration para manter uma única versão canônica de `approve_pending_person`.
-   - Garantir que aprovar sem datas crie o colaborador normalmente, preservando `null` nesses campos.
+2. **Reaproveitar dados existentes**
+   - Buscar as solicitações ativas com a mesma query do Header (`requests` em `APROVADO_FINAL`/`REALIZADO`, `inicio<=hoje<=fim`, tipos relevantes), trazendo nome e tipo via join com `people`.
+   - Sem alterações de schema ou RPC.
 
-3. **Permitir preenchimento posterior pelo gestor direto**
-   - Criar uma nova RPC `SECURITY DEFINER` para o gestor direto, diretor ou admin atualizar os dados de onboarding do colaborador aprovado:
-     - `data_contrato`
-     - `modelo_contrato`
-     - `dia_pagamento`
-     - `data_nascimento`
-   - Validar no banco que gestor só possa editar subordinados diretos.
-   - Registrar `audit_logs` e manter notificação no Slack admin.
-
-4. **Reaproveitar a UI já existente**
-   - Em `src/pages/VacationManagement.tsx`, trocar o `update` direto em `people` por essa nova RPC.
-   - Ampliar o diálogo atual para incluir também data de nascimento e dia de pagamento PJ.
-   - Ajustar os rótulos em `VacationTableRow.tsx` e `VacationDetailsDrawer.tsx` para refletir melhor que ali se editam dados de onboarding/contrato.
-
-5. **Manter o fluxo do próprio colaborador**
-   - Preservar o `/setup-contract` para contrato/modelo/dia de pagamento no primeiro acesso.
-   - Manter o `ProfileModal` como caminho de autoatualização da data de nascimento.
+3. **Coerência com o Dashboard**
+   - Manter o mesmo texto/iconografia do `ActiveAbsencesDashboard` para o usuário reconhecer a relação badge → banner.
+   - Se a contagem for zero, esconder o banner (não poluir a tela).
 
 ### Arquivos previstos
-- `src/components/ApprovePendingCollaboratorDialog.tsx`
-- `src/pages/VacationManagement.tsx`
-- `src/components/VacationTableRow.tsx`
-- `src/components/VacationDetailsDrawer.tsx`
-- `supabase/migrations/...`
-- possivelmente `supabase/functions/slack-notification/index.ts` para detalhar o log da edição feita pelo gestor
+- `src/pages/VacationManagement.tsx` — novo bloco "Ausentes hoje" no topo.
+- (Opcional) extrair um pequeno componente `ActiveAbsencesBanner` em `src/components/` se ficar mais limpo do que inline.
 
-### Detalhes técnicos
-- Continuar usando o padrão de datas do projeto (`YYYY-MM-DD` nos inputs e helpers locais para exibição).
-- Não editar `src/integrations/supabase/types.ts` manualmente.
-- Resultado esperado: o diretor aprova mesmo sem datas, e depois o colaborador ou o gestor direto conseguem completar essas informações sem depender do diretor/admin.</final-text>
+### Fora de escopo
+- Mudar a lógica do badge no Header.
+- Alterar regras de quem aparece como ausente (segue exatamente a regra atual).
