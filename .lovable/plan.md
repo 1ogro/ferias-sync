@@ -1,31 +1,34 @@
-## Plano: deixar claro o que o badge de "Gestão do Time" está sinalizando
+## Diagnóstico
 
-### Diagnóstico
-- O badge ao lado de "Gestão do Time" no Header (`src/components/Header.tsx`, linhas 25–73) é alimentado por `activeAbsencesCount`, que conta solicitações `APROVADO_FINAL`/`REALIZADO` (Férias, Licença Maternidade, Licença Médica, Dayoff) ativas hoje. Para diretor/admin conta todo mundo; para gestor, só seu time direto.
-- O `Dashboard` já mostra esse mesmo número como "1 pessoa ausente hoje" (via `ActiveAbsencesDashboard`).
-- Ao entrar em `/vacation-management`, a tela mostra apenas as estatísticas gerais (Total, Sem Data Contrato, Férias Acumuladas, Saldos Manuais). Não existe nenhum bloco/aviso que mostre **quem** está ausente hoje, nem nenhum filtro pré-aplicado. Por isso o diretor vê o badge mas não consegue identificar a origem dentro da página.
+- A configuração do Figma no banco está ativa: `figma_enabled = true` e `figma_status = active`.
+- O botão some na tela pública de login porque `useIntegrations()` lê `integration_settings` diretamente no frontend.
+- A política RLS atual permite ver `integration_settings` apenas para usuários autenticados com papel `director` ou `admin`.
+- Como a tela `/auth` é acessada antes do login, o usuário anônimo não consegue ler essa configuração; `integrationSettings` fica vazio e `isFigmaEnabled` vira `false`.
 
-### O que vou implementar
-1. **Banner "Ausentes hoje" no topo de Gestão do Time**
-   - Em `src/pages/VacationManagement.tsx`, adicionar logo abaixo do título uma faixa/cartão destacado quando houver ausências ativas hoje, listando:
-     - Nome do colaborador
-     - Tipo da ausência (Férias, Licença Médica, etc.)
-     - Período (início → fim) e "Retorna em X dias"
-   - Diretor/admin vê todos; gestor vê apenas seu time direto, espelhando a lógica do badge.
-   - Cada item é clicável e abre o `VacationDetailsDrawer` correspondente.
+## Plano
 
-2. **Reaproveitar dados existentes**
-   - Buscar as solicitações ativas com a mesma query do Header (`requests` em `APROVADO_FINAL`/`REALIZADO`, `inicio<=hoje<=fim`, tipos relevantes), trazendo nome e tipo via join com `people`.
-   - Sem alterações de schema ou RPC.
+1. **Corrigir a fonte da flag pública do Figma**
+   - Criar uma função RPC pública e somente-leitura para retornar apenas o estado mínimo necessário do login Figma:
+     - `figma_enabled`
+     - `figma_status`
+   - Não expor `figma_client_id`, secrets, redirect URI ou mensagens internas.
 
-3. **Coerência com o Dashboard**
-   - Manter o mesmo texto/iconografia do `ActiveAbsencesDashboard` para o usuário reconhecer a relação badge → banner.
-   - Se a contagem for zero, esconder o banner (não poluir a tela).
+2. **Ajustar a tela de login**
+   - Trocar a condição do botão em `src/pages/Auth.tsx` para usar essa RPC pública.
+   - Manter a regra atual: exibir o botão apenas quando `figma_enabled=true` e status for `active` ou `configured`.
+   - Se a RPC falhar, não quebrar a tela de login; apenas manter o login por email/senha visível.
 
-### Arquivos previstos
-- `src/pages/VacationManagement.tsx` — novo bloco "Ausentes hoje" no topo.
-- (Opcional) extrair um pequeno componente `ActiveAbsencesBanner` em `src/components/` se ficar mais limpo do que inline.
+3. **Preservar segurança das configurações completas**
+   - Manter a tabela `integration_settings` protegida para diretores/admins.
+   - Não abrir uma policy ampla na tabela inteira, para evitar expor dados de integrações.
 
-### Fora de escopo
-- Mudar a lógica do badge no Header.
-- Alterar regras de quem aparece como ausente (segue exatamente a regra atual).
+## Arquivos/áreas afetadas
+
+- Banco Supabase: nova função RPC pública de leitura mínima.
+- `src/pages/Auth.tsx`: leitura da flag pública e exibição do botão “Entrar com Figma”.
+
+## Resultado esperado
+
+- O botão “Entrar com Figma” volta a aparecer em `/auth` no ambiente produtivo para usuários ainda não logados.
+- A área de configurações continua restrita a diretores/admins.
+- Nenhum segredo ou dado sensível de integração é exposto publicamente.
