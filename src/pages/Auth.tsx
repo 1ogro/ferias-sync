@@ -23,12 +23,29 @@ export default function Auth() {
   const navigate = useNavigate();
   const { signIn, signUp, signInWithFigma, user } = useAuth();
   const { toast } = useToast();
-  const { settings: integrationSettings } = useIntegrations();
   const [loading, setLoading] = useState(false);
   const [people, setPeople] = useState<PersonOption[]>([]);
+  const [isFigmaEnabled, setIsFigmaEnabled] = useState(false);
 
-  const isFigmaEnabled = integrationSettings?.figma_enabled === true && 
-    (integrationSettings?.figma_status === 'active' || integrationSettings?.figma_status === 'configured');
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data, error } = await supabase.rpc('get_figma_login_status' as any);
+        if (error) {
+          console.warn('Figma login status check failed:', error);
+          return;
+        }
+        const row = Array.isArray(data) ? data[0] : data;
+        if (row?.figma_enabled === true && (row?.figma_status === 'active' || row?.figma_status === 'configured')) {
+          setIsFigmaEnabled(true);
+        }
+      } catch (err) {
+        console.warn('Figma login status check error:', err);
+      }
+    })();
+  }, []);
+
+
 
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [forgotEmail, setForgotEmail] = useState('');
