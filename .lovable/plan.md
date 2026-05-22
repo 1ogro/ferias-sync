@@ -1,52 +1,26 @@
-## Objetivo
-Notificar diretores (e-mail + Slack) sobre aniversários de contrato de colaboradores PJ ativos.
+## Mudança
+Substituir o envio diário no dia exato pelo envio mensal recorrente (dias 01, 10, 20 e 30), listando todos os aniversários de contrato do mês corrente.
 
-## Definição
-- Aniversário de contrato = mesmo dia/mês de `people.data_contrato`, considerando apenas `modelo_contrato = 'PJ'` e `ativo = true`.
-- Notificação enviada no próprio dia do aniversário, uma vez por dia, agrupando todos os colaboradores que façam aniversário naquele dia.
-- Destinatários: todos com `papel = 'DIRETOR'` e `ativo = true`.
-- Respeita `notification_preferences` de cada diretor (envia por e-mail e/ou Slack conforme preferência).
+## Ajustes
 
-## Implementação
+### 1. Edge Function `send-contract-anniversary-notifications`
+- Trocar filtro de "dia + mês = hoje" para "mês de `data_contrato` = mês atual" (PJ ativos).
+- Ordenar a lista por dia do aniversário (asc).
+- Para cada item, calcular anos completos ao atingir o aniversário neste mês.
+- Marcar visualmente os itens já passados/futuros do mês (ex.: ✅ já feito / ⏳ a fazer) para ajudar o diretor.
+- Texto do e-mail/Slack: "Aniversários de contrato PJ — {mês/ano}" com a lista completa do mês.
+- Idempotência: usar `entidade_id = YYYY-MM-DD` (data do disparo) em `audit_logs` para não duplicar envio no mesmo dia, permitindo múltiplos disparos no mês.
+- Manter `dry_run` e `date` override.
 
-### 1. Nova Edge Function: `send-contract-anniversary-notifications`
-- Sem JWT (chamada por cron).
-- Busca PJs ativos cujo `data_contrato` tem dia/mês igual a hoje (timezone America/Sao_Paulo).
-- Para cada um calcula anos completos de contrato.
-- Busca diretores ativos + preferências de notificação.
-- Para cada diretor envia:
-  - **E-mail** via Resend, com a lista (nome, cargo, anos completos, data original).
-  - **Slack** via `slack-notification` (DM ao diretor, fallback por email/nome conforme padrão existente).
-- Loga execução em `audit_logs` (`entidade='contract_anniversary'`).
-- Idempotência: usa tabela de controle ou checa `audit_logs` do dia para evitar reenvio.
-
-### 2. Migração SQL
-- Agendar cron diário (ex.: 09:00 BRT = 12:00 UTC):
-  ```
-  select cron.schedule(
-    'contract-anniversary-daily',
-    '0 12 * * *',
-    $$ select net.http_post(
-        url := '.../functions/v1/send-contract-anniversary-notifications',
-        headers := '{"Content-Type":"application/json","apikey":"<anon>"}'::jsonb,
-        body := '{}'::jsonb
-    ); $$
-  );
-  ```
-- Inserido via insert-tool (não migration), pois inclui URL/anon key.
-
-### 3. Configuração
-- Adicionar `send-contract-anniversary-notifications` em `supabase/config.toml` com `verify_jwt = false`.
-- Reusa secrets existentes: `RESEND_API_KEY`, `SLACK_BOT_TOKEN`.
-
-### 4. Teste manual
-- Endpoint aceita body opcional `{ "date": "YYYY-MM-DD", "dry_run": true }` para validação sem enviar.
-
-## Arquivos
-- `supabase/functions/send-contract-anniversary-notifications/index.ts` (novo)
-- `supabase/config.toml` (adicionar entry)
-- Nova migração para cron (via insert SQL)
+### 2. Cron
+- Remover o job atual `contract-anniversary-daily`.
+- Criar novo job `contract-anniversary-monthly-checkpoints` com expressão `0 12 1,10,20,30 * *` (12:00 UTC = 09:00 BRT nos dias 01, 10, 20 e 30).
+- Aplicado via insert SQL (URL + anon key).
 
 ## Fora de escopo
-- UI de preferência específica para esse tipo (usa preferências gerais de notificação existentes).
+- Mudanças de UI ou de preferências de notificação.
 - Notificação para o próprio colaborador.
+
+## Arquivos
+- `supabase/functions/send-contract-anniversary-notifications/index.ts` (atualizado)
+- SQL para `cron.unschedule` do job antigo e `cron.schedule` do novo

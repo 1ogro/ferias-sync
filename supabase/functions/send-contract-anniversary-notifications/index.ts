@@ -12,7 +12,12 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 const SLACK_BOT_TOKEN = Deno.env.get("SLACK_BOT_TOKEN");
 
-function todayInSaoPaulo(): { iso: string; day: number; month: number } {
+const MES_PT = [
+  "janeiro", "fevereiro", "março", "abril", "maio", "junho",
+  "julho", "agosto", "setembro", "outubro", "novembro", "dezembro",
+];
+
+function todayInSaoPaulo(): { iso: string; day: number; month: number; year: number } {
   const fmt = new Intl.DateTimeFormat("en-CA", {
     timeZone: "America/Sao_Paulo",
     year: "numeric", month: "2-digit", day: "2-digit",
@@ -20,13 +25,12 @@ function todayInSaoPaulo(): { iso: string; day: number; month: number } {
   const parts = fmt.formatToParts(new Date());
   const get = (t: string) => Number(parts.find(p => p.type === t)?.value);
   const year = get("year"), month = get("month"), day = get("day");
-  const iso = `${year}-${String(month).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
-  return { iso, day, month };
+  const iso = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  return { iso, day, month, year };
 }
 
-async function findSlackUserId(supabase: any, name: string, email: string): Promise<string | null> {
+async function findSlackUserId(name: string, email: string): Promise<string | null> {
   if (!SLACK_BOT_TOKEN) return null;
-  // try email first
   try {
     const r = await fetch(`https://slack.com/api/users.lookupByEmail?email=${encodeURIComponent(email)}`, {
       headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}` },
@@ -34,7 +38,6 @@ async function findSlackUserId(supabase: any, name: string, email: string): Prom
     const d = await r.json();
     if (d.ok && d.user?.id) return d.user.id;
   } catch (_) { /* ignore */ }
-  // fallback by name
   let cursor = "";
   do {
     const r = await fetch(`https://slack.com/api/users.list?limit=200${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`, {
@@ -53,7 +56,7 @@ async function findSlackUserId(supabase: any, name: string, email: string): Prom
   return null;
 }
 
-async function sendSlackDM(userId: string, text: string, blocks?: any[]) {
+async function sendSlackDM(userId: string, text: string) {
   if (!SLACK_BOT_TOKEN) return;
   const open = await fetch("https://slack.com/api/conversations.open", {
     method: "POST",
@@ -65,7 +68,7 @@ async function sendSlackDM(userId: string, text: string, blocks?: any[]) {
   const post = await fetch("https://slack.com/api/chat.postMessage", {
     method: "POST",
     headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ channel, text, blocks, username: "Aniversários de Contrato", icon_emoji: ":tada:" }),
+    body: JSON.stringify({ channel, text, username: "Aniversários de Contrato", icon_emoji: ":tada:" }),
   }).then(r => r.json());
   if (!post.ok) console.error("chat.postMessage failed", post.error);
 }
@@ -80,21 +83,21 @@ serve(async (req) => {
     const dryRun = body?.dry_run === true;
     const overrideDate: string | undefined = body?.date;
 
-    const { iso: todayIso, day, month } = overrideDate
+    const { iso: todayIso, day: todayDay, month, year } = overrideDate
       ? (() => {
           const [y, m, d] = overrideDate.split("-").map(Number);
-          return { iso: overrideDate, day: d, month: m };
+          return { iso: overrideDate, day: d, month: m, year: y };
         })()
       : todayInSaoPaulo();
 
-    console.log(`Checking PJ contract anniversaries for ${todayIso} (day=${day}, month=${month})`);
+    console.log(`Monthly contract anniversary digest for ${MES_PT[month - 1]}/${year} (trigger ${todayIso})`);
 
-    // Idempotency: skip if already logged today
+    // Idempotency per day
     const { data: existingLog } = await supabase
       .from("audit_logs")
       .select("id")
       .eq("entidade", "contract_anniversary")
-      .eq("acao", "DAILY_RUN")
+      .eq("acao", "MONTHLY_DIGEST")
       .eq("entidade_id", todayIso)
       .maybeSingle();
 
@@ -104,40 +107,33 @@ serve(async (req) => {
       });
     }
 
-    // Find PJ collaborators with anniversary today
+    // PJ collaborators with anniversary in current month
     const { data: pjPeople, error: pjErr } = await supabase
       .from("people")
-      .select("id, nome, email, cargo, data_contrato, modelo_contrato")
+      .select("id, nome, email, cargo, data_contrato")
       .eq("ativo", true)
       .eq("modelo_contrato", "PJ")
       .not("data_contrato", "is", null);
-
     if (pjErr) throw pjErr;
 
-    const anniversaries = (pjPeople || []).filter((p: any) => {
-      if (!p.data_contrato) return false;
-      const [y, m, d] = p.data_contrato.split("-").map(Number);
-      return m === month && d === day;
-    }).map((p: any) => {
-      const [y] = p.data_contrato.split("-").map(Number);
-      const years = Number(String(todayIso).slice(0, 4)) - y;
-      return { ...p, years_completed: years };
-    });
+    const anniversaries = (pjPeople || [])
+      .filter((p: any) => {
+        if (!p.data_contrato) return false;
+        const [, m] = p.data_contrato.split("-").map(Number);
+        return m === month;
+      })
+      .map((p: any) => {
+        const [y, , d] = p.data_contrato.split("-").map(Number);
+        return {
+          ...p,
+          aniv_day: d,
+          years_completed: year - y,
+          passed: d < todayDay,
+        };
+      })
+      .sort((a: any, b: any) => a.aniv_day - b.aniv_day);
 
-    if (anniversaries.length === 0) {
-      await supabase.from("audit_logs").insert({
-        entidade: "contract_anniversary",
-        entidade_id: todayIso,
-        acao: "DAILY_RUN",
-        actor_id: null,
-        payload: { count: 0, date: todayIso },
-      });
-      return new Response(JSON.stringify({ success: true, count: 0, date: todayIso }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    // Find directors + preferences
+    // Directors
     const { data: directors, error: dirErr } = await supabase
       .from("people")
       .select("id, nome, email")
@@ -152,20 +148,49 @@ serve(async (req) => {
       .in("person_id", directorIds);
     const prefMap = new Map((prefs || []).map((p: any) => [p.person_id, p]));
 
-    const lines = anniversaries.map((a: any) =>
-      `• *${a.nome}*${a.cargo ? ` — ${a.cargo}` : ""} — ${a.years_completed} ${a.years_completed === 1 ? "ano" : "anos"} de contrato (desde ${a.data_contrato})`
-    );
-    const slackText = `🎉 *Aniversário(s) de contrato PJ hoje (${todayIso}):*\n${lines.join("\n")}`;
-    const emailHtml = `
-      <h2>🎉 Aniversários de contrato PJ — ${todayIso}</h2>
-      <p>Colaboradores PJ completando mais um ano de contrato hoje:</p>
-      <ul>
-        ${anniversaries.map((a: any) =>
-          `<li><strong>${a.nome}</strong>${a.cargo ? ` — ${a.cargo}` : ""} — ${a.years_completed} ${a.years_completed === 1 ? "ano" : "anos"} (desde ${a.data_contrato})</li>`
-        ).join("")}
-      </ul>
-      <p>Considere reconhecer o tempo de parceria com cada um.</p>
-    `;
+    const mesAno = `${MES_PT[month - 1]}/${year}`;
+    const slackHeader = anniversaries.length === 0
+      ? `📅 *Aniversários de contrato PJ em ${mesAno}:* nenhum este mês.`
+      : `📅 *Aniversários de contrato PJ em ${mesAno}* (${anniversaries.length}):`;
+
+    const slackLines = anniversaries.map((a: any) => {
+      const dayStr = String(a.aniv_day).padStart(2, "0");
+      const icon = a.passed ? "✅" : "⏳";
+      return `${icon} *${dayStr}/${String(month).padStart(2, "0")}* — ${a.nome}${a.cargo ? ` (${a.cargo})` : ""} — ${a.years_completed} ${a.years_completed === 1 ? "ano" : "anos"} de contrato`;
+    });
+    const slackText = anniversaries.length === 0
+      ? slackHeader
+      : `${slackHeader}\n${slackLines.join("\n")}\n\n✅ já passou neste mês · ⏳ ainda este mês`;
+
+    const emailHtml = anniversaries.length === 0
+      ? `<h2>📅 Aniversários de contrato PJ — ${mesAno}</h2><p>Nenhum contrato PJ faz aniversário neste mês.</p>`
+      : `
+        <h2>📅 Aniversários de contrato PJ — ${mesAno}</h2>
+        <p>${anniversaries.length} ${anniversaries.length === 1 ? "colaborador" : "colaboradores"} PJ completando mais um ano de contrato neste mês:</p>
+        <table style="border-collapse:collapse;width:100%;max-width:640px">
+          <thead>
+            <tr style="background:#f3f4f6;text-align:left">
+              <th style="padding:8px;border:1px solid #e5e7eb">Dia</th>
+              <th style="padding:8px;border:1px solid #e5e7eb">Colaborador</th>
+              <th style="padding:8px;border:1px solid #e5e7eb">Cargo</th>
+              <th style="padding:8px;border:1px solid #e5e7eb">Anos</th>
+              <th style="padding:8px;border:1px solid #e5e7eb">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${anniversaries.map((a: any) => `
+              <tr>
+                <td style="padding:8px;border:1px solid #e5e7eb">${String(a.aniv_day).padStart(2, "0")}/${String(month).padStart(2, "0")}</td>
+                <td style="padding:8px;border:1px solid #e5e7eb"><strong>${a.nome}</strong></td>
+                <td style="padding:8px;border:1px solid #e5e7eb">${a.cargo ?? "—"}</td>
+                <td style="padding:8px;border:1px solid #e5e7eb">${a.years_completed}</td>
+                <td style="padding:8px;border:1px solid #e5e7eb">${a.passed ? "✅ já passou" : "⏳ ainda este mês"}</td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+        <p style="color:#6b7280;font-size:12px;margin-top:12px">Resumo enviado nos dias 01, 10, 20 e 30 de cada mês.</p>
+      `;
 
     const resend = RESEND_API_KEY ? new Resend(RESEND_API_KEY) : null;
     const results: any[] = [];
@@ -175,13 +200,12 @@ serve(async (req) => {
       const sendEmail = !pref || pref.system_alerts_email !== false;
       const sendSlack = !pref || pref.system_alerts_slack !== false;
 
-      // Email
       if (sendEmail && resend && dir.email && !dryRun) {
         try {
           await resend.emails.send({
             from: "Aniversários de Contrato <onboarding@resend.dev>",
             to: [dir.email],
-            subject: `🎉 ${anniversaries.length} aniversário(s) de contrato PJ hoje`,
+            subject: `📅 Aniversários de contrato PJ — ${mesAno} (${anniversaries.length})`,
             html: emailHtml,
           });
           results.push({ director: dir.nome, email: "sent" });
@@ -191,10 +215,9 @@ serve(async (req) => {
         }
       }
 
-      // Slack
       if (sendSlack && SLACK_BOT_TOKEN && !dryRun) {
         try {
-          const slackUserId = await findSlackUserId(supabase, dir.nome, dir.email);
+          const slackUserId = await findSlackUserId(dir.nome, dir.email);
           if (slackUserId) {
             await sendSlackDM(slackUserId, slackText);
             results.push({ director: dir.nome, slack: "sent" });
@@ -212,11 +235,13 @@ serve(async (req) => {
       await supabase.from("audit_logs").insert({
         entidade: "contract_anniversary",
         entidade_id: todayIso,
-        acao: "DAILY_RUN",
+        acao: "MONTHLY_DIGEST",
         actor_id: null,
         payload: {
-          date: todayIso,
-          anniversaries: anniversaries.map((a: any) => ({ id: a.id, nome: a.nome, years: a.years_completed })),
+          trigger_date: todayIso,
+          month: `${year}-${String(month).padStart(2, "0")}`,
+          count: anniversaries.length,
+          anniversaries: anniversaries.map((a: any) => ({ id: a.id, nome: a.nome, day: a.aniv_day, years: a.years_completed })),
           directors_notified: (directors || []).length,
           results,
         },
@@ -225,7 +250,8 @@ serve(async (req) => {
 
     return new Response(JSON.stringify({
       success: true,
-      date: todayIso,
+      trigger_date: todayIso,
+      month: `${year}-${String(month).padStart(2, "0")}`,
       anniversaries_count: anniversaries.length,
       directors_count: (directors || []).length,
       dry_run: dryRun,
