@@ -1,34 +1,52 @@
-## Diagnóstico
+## Objetivo
+Notificar diretores (e-mail + Slack) sobre aniversários de contrato de colaboradores PJ ativos.
 
-- A configuração do Figma no banco está ativa: `figma_enabled = true` e `figma_status = active`.
-- O botão some na tela pública de login porque `useIntegrations()` lê `integration_settings` diretamente no frontend.
-- A política RLS atual permite ver `integration_settings` apenas para usuários autenticados com papel `director` ou `admin`.
-- Como a tela `/auth` é acessada antes do login, o usuário anônimo não consegue ler essa configuração; `integrationSettings` fica vazio e `isFigmaEnabled` vira `false`.
+## Definição
+- Aniversário de contrato = mesmo dia/mês de `people.data_contrato`, considerando apenas `modelo_contrato = 'PJ'` e `ativo = true`.
+- Notificação enviada no próprio dia do aniversário, uma vez por dia, agrupando todos os colaboradores que façam aniversário naquele dia.
+- Destinatários: todos com `papel = 'DIRETOR'` e `ativo = true`.
+- Respeita `notification_preferences` de cada diretor (envia por e-mail e/ou Slack conforme preferência).
 
-## Plano
+## Implementação
 
-1. **Corrigir a fonte da flag pública do Figma**
-   - Criar uma função RPC pública e somente-leitura para retornar apenas o estado mínimo necessário do login Figma:
-     - `figma_enabled`
-     - `figma_status`
-   - Não expor `figma_client_id`, secrets, redirect URI ou mensagens internas.
+### 1. Nova Edge Function: `send-contract-anniversary-notifications`
+- Sem JWT (chamada por cron).
+- Busca PJs ativos cujo `data_contrato` tem dia/mês igual a hoje (timezone America/Sao_Paulo).
+- Para cada um calcula anos completos de contrato.
+- Busca diretores ativos + preferências de notificação.
+- Para cada diretor envia:
+  - **E-mail** via Resend, com a lista (nome, cargo, anos completos, data original).
+  - **Slack** via `slack-notification` (DM ao diretor, fallback por email/nome conforme padrão existente).
+- Loga execução em `audit_logs` (`entidade='contract_anniversary'`).
+- Idempotência: usa tabela de controle ou checa `audit_logs` do dia para evitar reenvio.
 
-2. **Ajustar a tela de login**
-   - Trocar a condição do botão em `src/pages/Auth.tsx` para usar essa RPC pública.
-   - Manter a regra atual: exibir o botão apenas quando `figma_enabled=true` e status for `active` ou `configured`.
-   - Se a RPC falhar, não quebrar a tela de login; apenas manter o login por email/senha visível.
+### 2. Migração SQL
+- Agendar cron diário (ex.: 09:00 BRT = 12:00 UTC):
+  ```
+  select cron.schedule(
+    'contract-anniversary-daily',
+    '0 12 * * *',
+    $$ select net.http_post(
+        url := '.../functions/v1/send-contract-anniversary-notifications',
+        headers := '{"Content-Type":"application/json","apikey":"<anon>"}'::jsonb,
+        body := '{}'::jsonb
+    ); $$
+  );
+  ```
+- Inserido via insert-tool (não migration), pois inclui URL/anon key.
 
-3. **Preservar segurança das configurações completas**
-   - Manter a tabela `integration_settings` protegida para diretores/admins.
-   - Não abrir uma policy ampla na tabela inteira, para evitar expor dados de integrações.
+### 3. Configuração
+- Adicionar `send-contract-anniversary-notifications` em `supabase/config.toml` com `verify_jwt = false`.
+- Reusa secrets existentes: `RESEND_API_KEY`, `SLACK_BOT_TOKEN`.
 
-## Arquivos/áreas afetadas
+### 4. Teste manual
+- Endpoint aceita body opcional `{ "date": "YYYY-MM-DD", "dry_run": true }` para validação sem enviar.
 
-- Banco Supabase: nova função RPC pública de leitura mínima.
-- `src/pages/Auth.tsx`: leitura da flag pública e exibição do botão “Entrar com Figma”.
+## Arquivos
+- `supabase/functions/send-contract-anniversary-notifications/index.ts` (novo)
+- `supabase/config.toml` (adicionar entry)
+- Nova migração para cron (via insert SQL)
 
-## Resultado esperado
-
-- O botão “Entrar com Figma” volta a aparecer em `/auth` no ambiente produtivo para usuários ainda não logados.
-- A área de configurações continua restrita a diretores/admins.
-- Nenhum segredo ou dado sensível de integração é exposto publicamente.
+## Fora de escopo
+- UI de preferência específica para esse tipo (usa preferências gerais de notificação existentes).
+- Notificação para o próprio colaborador.
