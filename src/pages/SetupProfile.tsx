@@ -171,7 +171,7 @@ export default function SetupProfile() {
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>
                 Você fez login com Figma usando o email <strong>{user?.email}</strong>.
-                Para continuar, selecione seu nome na lista abaixo para vincular sua conta.
+                Ao confirmar, esse email será definido como o email cadastrado do colaborador selecionado.
               </AlertDescription>
             </Alert>
           ) : (
