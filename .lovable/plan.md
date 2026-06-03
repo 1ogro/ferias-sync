@@ -1,26 +1,31 @@
-## Mudança
-Substituir o envio diário no dia exato pelo envio mensal recorrente (dias 01, 10, 20 e 30), listando todos os aniversários de contrato do mês corrente.
+## Objetivo
 
-## Ajustes
+Quando um usuário logar via Figma e selecionar manualmente sua identidade no `SetupProfile` (porque o auto-link por email falhou), atualizar o `people.email` para o email vindo do Figma — garantindo que o cadastro reflita o email real usado na autenticação.
 
-### 1. Edge Function `send-contract-anniversary-notifications`
-- Trocar filtro de "dia + mês = hoje" para "mês de `data_contrato` = mês atual" (PJ ativos).
-- Ordenar a lista por dia do aniversário (asc).
-- Para cada item, calcular anos completos ao atingir o aniversário neste mês.
-- Marcar visualmente os itens já passados/futuros do mês (ex.: ✅ já feito / ⏳ a fazer) para ajudar o diretor.
-- Texto do e-mail/Slack: "Aniversários de contrato PJ — {mês/ano}" com a lista completa do mês.
-- Idempotência: usar `entidade_id = YYYY-MM-DD` (data do disparo) em `audit_logs` para não duplicar envio no mesmo dia, permitindo múltiplos disparos no mês.
-- Manter `dry_run` e `date` override.
+## Mudanças
 
-### 2. Cron
-- Remover o job atual `contract-anniversary-daily`.
-- Criar novo job `contract-anniversary-monthly-checkpoints` com expressão `0 12 1,10,20,30 * *` (12:00 UTC = 09:00 BRT nos dias 01, 10, 20 e 30).
-- Aplicado via insert SQL (URL + anon key).
+### 1. Nova função SQL `link_profile_with_figma_email`
+Função `SECURITY DEFINER` que, em uma única transação:
+- Recebe `p_person_id` e `p_figma_email`
+- Valida que o usuário atual está autenticado e que o `auth.users.email` bate com `p_figma_email` (evita fraude)
+- Atualiza `people.email = p_figma_email` para o `person_id` selecionado
+- Cria o `profiles` (user_id, person_id)
+- Grava `audit_logs` com ação `FIGMA_EMAIL_INHERITED` contendo email antigo e novo
+- Retorna `jsonb { success, message }`
 
-## Fora de escopo
-- Mudanças de UI ou de preferências de notificação.
-- Notificação para o próprio colaborador.
+Grants: `EXECUTE` para `authenticated`.
 
-## Arquivos
-- `supabase/functions/send-contract-anniversary-notifications/index.ts` (atualizado)
-- SQL para `cron.unschedule` do job antigo e `cron.schedule` do novo
+### 2. Frontend — `src/pages/SetupProfile.tsx`
+- Quando `authProvider === 'figma'`, em vez de chamar `createProfile(personId)`, chama a nova RPC `link_profile_with_figma_email({ p_person_id, p_figma_email: user.email })`.
+- Após sucesso, chama `fetchPersonData()` para recarregar e redireciona para `/`.
+- Para login por email/senha, mantém o fluxo atual (`createProfile`).
+- Mostra aviso no `Alert` informando que o email cadastrado será atualizado para o email do Figma.
+
+### 3. Memory
+Atualizar `mem://features/figma-oauth-login` registrando o novo comportamento de herança de email no SetupProfile.
+
+## Detalhes técnicos
+
+- A validação `auth.users.email = p_figma_email` é feita via `SELECT email FROM auth.users WHERE id = auth.uid()` dentro da função, protegendo contra um cliente que tente passar um email arbitrário.
+- O trigger `audit_people_changes` já registrará o UPDATE em `people`; o log adicional `FIGMA_EMAIL_INHERITED` torna a intenção explícita.
+- Nenhuma mudança no trigger `auto_link_figma_user` (continua tentando match automático antes do SetupProfile aparecer).
