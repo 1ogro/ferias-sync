@@ -16,7 +16,7 @@ interface PersonOption {
 }
 
 export default function SetupProfile() {
-  const { user, person, loading: authLoading, profileChecked, createProfile } = useAuth();
+  const { user, person, loading: authLoading, profileChecked, createProfile, fetchPersonData } = useAuth();
   const navigate = useNavigate();
   const [people, setPeople] = useState<PersonOption[]>([]);
   const [selectedPersonId, setSelectedPersonId] = useState<string>('');
@@ -96,24 +96,36 @@ export default function SetupProfile() {
 
     setSubmitting(true);
     try {
-      const { error } = await createProfile(selectedPersonId);
-      
-      if (error) {
-        throw error;
+      if (authProvider === 'figma' && user?.email) {
+        const { data, error } = await supabase.rpc('link_profile_with_figma_email' as any, {
+          p_person_id: selectedPersonId,
+          p_figma_email: user.email,
+        });
+
+        if (error) throw error;
+        const result = data as { success: boolean; message: string } | null;
+        if (!result?.success) {
+          throw new Error(result?.message || 'Falha ao vincular perfil');
+        }
+
+        await fetchPersonData();
+      } else {
+        const { error } = await createProfile(selectedPersonId);
+        if (error) throw error;
       }
 
       toast({
         title: 'Perfil criado com sucesso!',
         description: 'Redirecionando para o dashboard...',
       });
-      
+
       navigate('/');
     } catch (error) {
       console.error('Error creating profile:', error);
       toast({
         variant: 'destructive',
         title: 'Erro ao criar perfil',
-        description: 'Não foi possível criar o perfil. Tente novamente.',
+        description: error instanceof Error ? error.message : 'Não foi possível criar o perfil. Tente novamente.',
       });
     } finally {
       setSubmitting(false);
@@ -159,7 +171,7 @@ export default function SetupProfile() {
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>
                 Você fez login com Figma usando o email <strong>{user?.email}</strong>.
-                Para continuar, selecione seu nome na lista abaixo para vincular sua conta.
+                Ao confirmar, esse email será definido como o email cadastrado do colaborador selecionado.
               </AlertDescription>
             </Alert>
           ) : (
