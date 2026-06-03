@@ -16,7 +16,7 @@ interface PersonOption {
 }
 
 export default function SetupProfile() {
-  const { user, person, loading: authLoading, profileChecked, createProfile } = useAuth();
+  const { user, person, loading: authLoading, profileChecked, createProfile, fetchPersonData } = useAuth();
   const navigate = useNavigate();
   const [people, setPeople] = useState<PersonOption[]>([]);
   const [selectedPersonId, setSelectedPersonId] = useState<string>('');

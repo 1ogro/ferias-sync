@@ -786,6 +786,10 @@ export type Database = {
         Returns: boolean
       }
       is_current_user_admin: { Args: never; Returns: boolean }
+      link_profile_with_figma_email: {
+        Args: { p_figma_email: string; p_person_id: string }
+        Returns: Json
+      }
       recalculate_vacation_balance: {
         Args: { p_person_id: string; p_year?: number }
         Returns: {
