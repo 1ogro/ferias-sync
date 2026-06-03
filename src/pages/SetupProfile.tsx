@@ -96,24 +96,36 @@ export default function SetupProfile() {
 
     setSubmitting(true);
     try {
-      const { error } = await createProfile(selectedPersonId);
-      
-      if (error) {
-        throw error;
+      if (authProvider === 'figma' && user?.email) {
+        const { data, error } = await supabase.rpc('link_profile_with_figma_email' as any, {
+          p_person_id: selectedPersonId,
+          p_figma_email: user.email,
+        });
+
+        if (error) throw error;
+        const result = data as { success: boolean; message: string } | null;
+        if (!result?.success) {
+          throw new Error(result?.message || 'Falha ao vincular perfil');
+        }
+
+        await fetchPersonData();
+      } else {
+        const { error } = await createProfile(selectedPersonId);
+        if (error) throw error;
       }
 
       toast({
         title: 'Perfil criado com sucesso!',
         description: 'Redirecionando para o dashboard...',
       });
-      
+
       navigate('/');
     } catch (error) {
       console.error('Error creating profile:', error);
       toast({
         variant: 'destructive',
         title: 'Erro ao criar perfil',
-        description: 'Não foi possível criar o perfil. Tente novamente.',
+        description: error instanceof Error ? error.message : 'Não foi possível criar o perfil. Tente novamente.',
       });
     } finally {
       setSubmitting(false);
