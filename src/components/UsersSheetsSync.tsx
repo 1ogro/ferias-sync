@@ -112,14 +112,14 @@ export const UsersSheetsSync = () => {
           <div className="space-y-4">
             <div className="grid grid-cols-3 gap-3">
               <div className="rounded-lg border border-border bg-card p-3 text-center">
-                <div className="flex items-center justify-center gap-1 text-success">
+                <div className="flex items-center justify-center gap-1 text-primary">
                   <CheckCircle2 className="h-4 w-4" />
                   <span className="text-xs font-medium">Importados</span>
                 </div>
                 <div className="mt-1 text-2xl font-semibold">{result.imported}</div>
               </div>
               <div className="rounded-lg border border-border bg-card p-3 text-center">
-                <div className="flex items-center justify-center gap-1 text-warning">
+                <div className="flex items-center justify-center gap-1 text-accent-foreground">
                   <AlertTriangle className="h-4 w-4" />
                   <span className="text-xs font-medium">Ignorados</span>
                 </div>
