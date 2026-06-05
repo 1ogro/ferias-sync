@@ -772,6 +772,10 @@ export type Database = {
           figma_status: string
         }[]
       }
+      get_manager_deletion_impact: {
+        Args: { p_person_id: string }
+        Returns: Json
+      }
       get_vacation_summary: {
         Args: { p_year?: number }
         Returns: {
@@ -791,6 +795,14 @@ export type Database = {
       is_current_user_admin: { Args: never; Returns: boolean }
       link_profile_with_figma_email: {
         Args: { p_figma_email: string; p_person_id: string }
+        Returns: Json
+      }
+      reassign_and_delete_person: {
+        Args: {
+          p_justification?: string
+          p_new_manager_id: string
+          p_person_id: string
+        }
         Returns: Json
       }
       recalculate_vacation_balance: {

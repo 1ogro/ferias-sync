@@ -53,6 +53,7 @@ import { Navigate } from "react-router-dom";
 import { Header } from "@/components/Header";
 import { NewCollaboratorForm } from "@/components/NewCollaboratorForm";
 import { PendingCollaboratorsList } from "@/components/PendingCollaboratorsList";
+import { ReassignManagerDialog, DeletionImpact } from "@/components/ReassignManagerDialog";
 import { 
   Plus, 
   Search, 
@@ -123,6 +124,8 @@ const Admin = () => {
   const [resetPasswordTarget, setResetPasswordTarget] = useState<Person | null>(null);
   const [resetMethod, setResetMethod] = useState<'email' | 'slack' | 'both'>('both');
   const [originalEditData, setOriginalEditData] = useState<{ papel: string; ativo: boolean; nome: string; email: string } | null>(null);
+  const [reassignTarget, setReassignTarget] = useState<Person | null>(null);
+  const [reassignImpact, setReassignImpact] = useState<DeletionImpact | null>(null);
   
    const [formData, setFormData] = useState<FormData>({
      id: '',
@@ -406,7 +409,27 @@ const Admin = () => {
 
   const handleDelete = async (id: string) => {
     const targetPerson = people.find(p => p.id === id);
+    if (!targetPerson) return;
+
     try {
+      // Check deletion impact first
+      const { data: impactData, error: impactError } = await supabase
+        .rpc('get_manager_deletion_impact', { p_person_id: id });
+
+      if (impactError) throw impactError;
+
+      const impact = impactData as unknown as DeletionImpact;
+      const total = impact.counts.subordinates + impact.counts.pending_requests + impact.counts.pending_people;
+
+      if (total > 0) {
+        // Open reassignment flow
+        setReassignImpact(impact);
+        setReassignTarget(targetPerson);
+        setDeleteId(null);
+        return;
+      }
+
+      // No pendencies: proceed with direct deletion
       const { error } = await supabase
         .from('people')
         .delete()
@@ -414,21 +437,18 @@ const Admin = () => {
 
       if (error) throw error;
 
-      // Slack notification (fire-and-forget)
-      if (targetPerson) {
-        sendAdminNotification({
-          change_type: 'deletion',
-          person_id: id,
-          target_name: targetPerson.nome,
-          target_email: targetPerson.email,
-        });
-      }
+      sendAdminNotification({
+        change_type: 'deletion',
+        person_id: id,
+        target_name: targetPerson.nome,
+        target_email: targetPerson.email,
+      });
 
       toast({
         title: "Sucesso",
         description: "Pessoa excluída com sucesso!",
       });
-      
+
       fetchPeople();
     } catch (error: any) {
       console.error('Erro ao excluir:', error);
@@ -440,6 +460,56 @@ const Admin = () => {
     }
     setDeleteId(null);
   };
+
+  const handleReassignAndDelete = async (newManagerId: string, justification: string) => {
+    if (!reassignTarget) return;
+    try {
+      const { data, error } = await supabase.rpc('reassign_and_delete_person', {
+        p_person_id: reassignTarget.id,
+        p_new_manager_id: newManagerId,
+        p_justification: justification || null,
+      });
+
+      if (error) throw error;
+      const result = data as any;
+      if (!result?.success) {
+        throw new Error(result?.message || 'Erro ao reatribuir e excluir');
+      }
+
+      const newManager = people.find(p => p.id === newManagerId);
+      const counts = result.counts || {};
+
+      sendAdminNotification({
+        change_type: 'deletion',
+        person_id: reassignTarget.id,
+        target_name: reassignTarget.nome,
+        target_email: reassignTarget.email,
+        details: {
+          reassigned_to: newManager?.nome,
+          subordinates: counts.subordinates,
+          pending_requests: counts.pending_requests,
+          pending_people: counts.pending_people,
+        },
+      });
+
+      toast({
+        title: 'Equipe reatribuída',
+        description: `${counts.subordinates || 0} subordinado(s), ${counts.pending_requests || 0} solicitação(ões) e ${counts.pending_people || 0} cadastro(s) pendente(s) reatribuídos a ${newManager?.nome || 'novo gestor'}.`,
+      });
+
+      setReassignTarget(null);
+      setReassignImpact(null);
+      fetchPeople();
+    } catch (error: any) {
+      console.error('Erro ao reatribuir e excluir:', error);
+      toast({
+        title: 'Erro',
+        description: error.message || 'Erro ao reatribuir e excluir',
+        variant: 'destructive',
+      });
+    }
+  };
+
 
 
   const handleAdminAuthAction = async (personId: string, action: 'reset_password' | 'clear_identities' | 'send_invite', method?: 'email' | 'slack' | 'both') => {
@@ -1401,6 +1471,25 @@ const Admin = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <ReassignManagerDialog
+        open={!!reassignTarget}
+        onOpenChange={(o) => {
+          if (!o) {
+            setReassignTarget(null);
+            setReassignImpact(null);
+          }
+        }}
+        target={reassignTarget}
+        impact={reassignImpact}
+        candidates={people.filter(
+          (p) =>
+            p.ativo &&
+            (p.papel === Papel.GESTOR || p.papel === Papel.DIRETOR) &&
+            p.id !== reassignTarget?.id
+        )}
+        onConfirm={handleReassignAndDelete}
+      />
       </div>
     </div>
   );
