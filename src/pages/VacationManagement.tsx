@@ -1723,8 +1723,9 @@ const VacationManagement = () => {
           </TabsContent>
 
           {/* Google Sheets Sync Tab */}
-          <TabsContent value="sheets" className="hidden lg:block">
+          <TabsContent value="sheets" className="space-y-6 hidden lg:block">
             <SheetsSync />
+            <UsersSheetsSync />
           </TabsContent>
 
           {/* Mobile: Carousel com swipe gestures */}
