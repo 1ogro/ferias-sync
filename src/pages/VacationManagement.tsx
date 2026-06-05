@@ -18,6 +18,7 @@ import { ActiveAbsencesDashboard } from "@/components/ActiveAbsencesDashboard";
 import { ActiveAbsencesBanner } from "@/components/ActiveAbsencesBanner";
 import { HistoricalRequestForm } from "@/components/HistoricalRequestForm";
 import { SheetsSync } from "@/components/SheetsSync";
+import { UsersSheetsSync } from "@/components/UsersSheetsSync";
 import { CollaboratorSummaryTable } from "@/components/CollaboratorSummaryTable";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
