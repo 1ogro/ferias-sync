@@ -1,74 +1,73 @@
+
 ## Objetivo
 
-Gerar um one-pager **em PDF** para onboarding de uma nova gestora de time no sistema **Férias UXTD**. O documento combinará:
+Permitir que um diretor importe linhas de uma nova Planilha Google e crie cadastros em `pending_people` (fila de aprovação), com botão manual, configuração de planilha na UI e relatório claro de duplicados.
 
-- Um **resumo visual rápido** no topo (cabeçalho, blocos com ícones, paleta consistente com o app).
-- Um **guia passo a passo** logo abaixo, cobrindo: login, aprovações, e visualização dos dados dos colaboradores do seu time.
+## Escopo
 
-O arquivo será salvo em `/mnt/documents/onepager-gestora-ferias-uxtd.pdf` e entregue via `<presentation-artifact>`.
+1. **Configuração da planilha (UI)** — em `Settings`/`Admin` (tela de Integrações), adicionar um campo "ID da planilha de novos usuários" salvo em `integration_settings` (nova coluna `sheets_users_id`). Diretor cola o ID e salva.
+2. **Edge Function `sheets-import-users`** — nova função, reutiliza `GOOGLE_SERVICE_ACCOUNT_EMAIL` e `GOOGLE_PRIVATE_KEY` já configurados, mas lê de `sheets_users_id` (vindo do body ou de `integration_settings`). Lê aba `Novos_Usuarios`.
+3. **Botão de importação** — novo componente `UsersSheetsSync.tsx` (similar ao `SheetsSync.tsx`), com botão "Importar novos usuários da planilha" e painel de resultado.
+4. **Tratamento de duplicados** — emails já existentes em `people` OU em `pending_people` (status PENDENTE/APROVADO) são pulados, contados como `ignored`, e listados na UI com badge âmbar "Já cadastrado" para revisão.
+5. **Auditoria** — log em `audit_logs` (entidade `pending_people`, ação `SHEETS_IMPORT`).
 
-## Conteúdo do one-pager
+## Estrutura da planilha
 
-### 1. Cabeçalho
-- Título: **Férias UXTD — Guia rápido da Gestora**
-- Subtítulo: "Controle de férias, day offs e ausências do seu time"
-- Data de geração + selo "Perfil: Gestora de Time"
+Aba `Novos_Usuarios`, linha 1 = cabeçalho, importa a partir de A2:
+```text
+Nome | Email | Cargo | Local | Sub-Time | Papel | Gestor (email) | Data Contrato | Modelo Contrato | Data Nascimento | Dia Pagamento
+```
+- Campos obrigatórios: Nome, Email, Gestor (email).
+- `Gestor (email)` é resolvido para `gestor_id` via lookup em `people`.
+- Datas em `YYYY-MM-DD` ou `DD/MM/YYYY` (normalizar).
+- `Papel` default `COLABORADOR`, `Modelo Contrato` default `CLT`.
 
-### 2. Visão geral do sistema (resumo visual — 3 blocos com ícones)
-- **O que é**: plataforma interna para solicitação, aprovação e acompanhamento de férias, day offs e licenças médicas/maternidade da equipe.
-- **Seu papel como gestora**: aprovar/recusar pedidos do seu time, acompanhar saldos, ausências ativas e capacidade da equipe.
-- **Canais de notificação**: e-mail e Slack (configuráveis em *Configurações → Notificações*).
+## Mudanças técnicas
 
-### 3. Como fazer login (passo a passo)
-1. Acessar `https://ferias-sync.lovable.app`.
-2. Na tela inicial, escolher uma das opções:
-   - **Entrar com Figma** (recomendado — SSO com o e-mail do Figma; perfil é vinculado automaticamente).
-   - **Entrar com e-mail e senha** — se for o primeiro acesso, ir na aba **Cadastrar**, selecionar seu nome na lista, definir e-mail e senha.
-3. Caso esqueça a senha, usar **"Esqueceu a senha?"** na tela de login → link de redefinição chega por e-mail.
-4. Se o sistema pedir para confirmar identidade após o login (tela *Setup Profile*), selecionar seu nome na lista — o e-mail do Figma será herdado automaticamente.
+### Banco (migration)
+- `ALTER TABLE integration_settings ADD COLUMN sheets_users_id text;`
+- Sem novas tabelas.
 
-### 4. Como realizar aprovações (passo a passo)
-1. No menu principal, abrir **Inbox** (ícone de caixa de entrada no header).
-2. Visualizar a lista de **solicitações pendentes** do time (férias, day offs, licenças).
-3. Clicar no card da solicitação para abrir o detalhe (período, dias, saldo do colaborador, observações).
-4. Ações disponíveis:
-   - **Aprovar** → confirma; o colaborador é notificado por e-mail e Slack.
-   - **Recusar** → exige um motivo no campo de justificativa; também notifica o colaborador.
-5. Em caso de novos colaboradores pendentes de aprovação, eles aparecem em **Pendentes de Aprovação** (Dashboard) — clicar em *Aprovar* abre o diálogo de confirmação.
-6. Todas as ações ficam registradas no histórico/auditoria da solicitação.
+### Edge Function `supabase/functions/sheets-import-users/index.ts`
+- `verify_jwt = false` no `config.toml`; valida JWT em código e checa papel DIRETOR/ADMIN do chamador.
+- Lê `sheets_users_id` da `integration_settings`.
+- Obtém access token Google (mesma lógica do `sheets-import`).
+- GET `Novos_Usuarios!A2:K1000`.
+- Para cada linha:
+  - Valida obrigatórios → senão `errors++`.
+  - Resolve `gestor_id` por email → senão `errors++` com mensagem clara.
+  - Verifica duplicado (`people.email` ou `pending_people.email` com status PENDENTE/APROVADO) → se sim, `ignored++` com `{ email, nome, motivo: "Já cadastrado" }`.
+  - Insere em `pending_people` com `created_by = <person_id do chamador>`, `status = 'PENDENTE'`.
+- Retorna `{ imported, ignored, errors, ignoredList: [...], errorMessages: [...] }`.
+- Insere `audit_logs` com sumário.
 
-### 5. Como visualizar os dados dos colaboradores (passo a passo)
-1. **Dashboard** (página inicial `/`):
-   - **Ausências ativas** do time hoje (banner superior).
-   - **Capacidade da equipe** por período.
-   - **Próximos eventos**: férias aprovadas, aniversários e aniversários de contrato.
-2. **Gestão de Férias** (`/vacation-management`):
-   - Lista consolidada dos seus colaboradores diretos com **saldo de férias**, **dias usados**, **próxima janela** e **status**.
-   - Filtros por status (Pendente, Aprovada, Recusada, Concluída) e por colaborador.
-   - Clicar no nome do colaborador → drawer com **resumo completo**: contrato, papel, data de admissão, saldos por período aquisitivo, histórico de solicitações e licenças médicas.
-3. **Calendário** (acessível pelo header): visão mensal com todas as ausências confirmadas do time.
+### Frontend
+- `src/components/integrations/UsersSheetsSetup.tsx` — campo simples para ID da planilha de novos usuários, salvando em `integration_settings.sheets_users_id`. Plugado dentro do `IntegrationsWizard` (ou na seção Google Sheets existente).
+- `src/components/UsersSheetsSync.tsx` — botão "Importar novos usuários", chama `supabase.functions.invoke('sheets-import-users')`, mostra resultado com 3 contadores (Importados / Ignorados / Erros) e duas listas colapsáveis:
+  - **Ignorados** (badge âmbar, ícone `AlertTriangle`) com nome+email+motivo.
+  - **Erros** (badge vermelho).
+- Adicionar o componente no painel admin (provavelmente `src/pages/Admin.tsx`, próximo ao `SheetsSync` já existente).
 
-### 6. Boas práticas e dicas (rodapé)
-- Revisar a Inbox diariamente para não atrasar aprovações.
-- Conferir o saldo do colaborador antes de aprovar (mostrado no detalhe da solicitação).
-- Ajustar suas preferências de notificação em **Configurações → Notificações** (e-mail/Slack).
-- Em caso de dúvida, abrir chamado com **RH** ou contatar um Diretor (papel com permissões mais amplas).
-
-### 7. Rodapé
-- Link do sistema: `https://ferias-sync.lovable.app`
-- Suporte: equipe de RH
-
-## Detalhes técnicos (geração do PDF)
-
-- **Ferramenta**: `reportlab` (Python) com `SimpleDocTemplate` + `Platypus` para combinar header visual (Table com fundo colorido + ícones unicode/SVG simples), seções com `Paragraph`, listas numeradas, e blocos coloridos.
-- **Paleta**: alinhada ao app (tons primários sóbrios — azul/roxo discreto, com cinza neutro). Tipografia padrão (Helvetica), títulos em peso bold.
-- **Layout**: A4 retrato, margens 1.5cm, uma única página (ajustando tamanhos de fonte/espaçamentos). Caso ultrapasse, dividir em 2 páginas mantendo o resumo visual na primeira.
-- **Saída**: `/mnt/documents/onepager-gestora-ferias-uxtd.pdf`.
-- **QA obrigatório**: converter para imagem com `pdftoppm -jpeg -r 150` e inspecionar com a ferramenta de leitura de imagem — checar overflow, contraste, alinhamento e quebras de página. Iterar até estar limpo.
-- **Entrega**: tag `<presentation-artifact path="onepager-gestora-ferias-uxtd.pdf" mime_type="application/pdf">`.
+### Permissões
+- Apenas DIRETOR/ADMIN podem chamar a edge function (checagem em código) e ver/usar o botão na UI (usando o mesmo padrão de `is_current_user_admin`/papel já presente).
+- RLS de `pending_people` já permite INSERT por diretores; usaremos o `service_role` na edge function para inserir, registrando `created_by` corretamente.
 
 ## Fora de escopo
 
-- Nenhuma alteração no código da aplicação.
-- Sem prints reais de tela do sistema (o PDF usará blocos visuais e ícones, não screenshots — gerar screenshots fiéis exigiria login real no app).
-- Sem versão DOCX ou HTML (apenas PDF, conforme escolhido).
+- Sincronização automática/agendada (fica como evolução futura).
+- Sincronização App→Sheets dos novos cadastros (somente Sheets→App por enquanto).
+- Edição em massa pela planilha (não atualiza pessoas existentes — duplicados são apenas pulados).
+- Notificação Slack/email da importação (podemos adicionar depois se desejado).
+
+## Dependências/Pré-requisitos
+
+- Service Account do Google já precisa ter acesso de **leitura** à nova planilha (compartilhar a planilha com o email da service account).
+- Secrets `GOOGLE_SERVICE_ACCOUNT_EMAIL` e `GOOGLE_PRIVATE_KEY` já estão configurados.
+
+## Critérios de aceite
+
+- Diretor consegue colar o ID da nova planilha na tela de Integrações e salvar.
+- Clicando no botão, linhas válidas viram registros em `pending_people` com status PENDENTE.
+- Emails já existentes não são reimportados e aparecem em destaque âmbar com motivo.
+- Linhas inválidas (sem nome/email/gestor) aparecem em destaque vermelho com mensagem clara.
+- Log de auditoria registra a operação.
