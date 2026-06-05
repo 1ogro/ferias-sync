@@ -1,73 +1,57 @@
+# Reatribuição de equipe ao excluir um gestor
 
-## Objetivo
+Hoje a exclusão é direta (`supabase.from('people').delete()` em `Admin.tsx`). Vamos introduzir um fluxo obrigatório de reatribuição quando o alvo possuir subordinados ativos, solicitações em aberto ou cadastros pendentes vinculados.
 
-Permitir que um diretor importe linhas de uma nova Planilha Google e crie cadastros em `pending_people` (fila de aprovação), com botão manual, configuração de planilha na UI e relatório claro de duplicados.
+## Fluxo de UX
 
-## Escopo
+1. Admin clica em "Excluir" em uma pessoa com papel GESTOR (ou em qualquer pessoa que tenha pendências como gestor).
+2. Antes de abrir o diálogo atual de confirmação, o sistema busca as dependências do alvo:
+   - `people` ativos com `gestor_id = alvo` (subordinados ativos)
+   - `requests` com `status` em (`PENDENTE`, `INFORMACOES_ADICIONAIS`) cujo `requester_id` é subordinado ativo do alvo (aprovações em aberto)
+   - `pending_people` com `status = 'PENDENTE'` e `gestor_id = alvo` ou `created_by = alvo`
+3. Se houver qualquer pendência: abre um novo diálogo `ReassignManagerDialog` com:
+   - Resumo das pendências (X subordinados, Y solicitações pendentes, Z cadastros pendentes), com listas colapsáveis.
+   - Combobox "Novo gestor" listando pessoas ativas com papel `GESTOR` ou `DIRETOR`, excluindo o próprio alvo.
+   - Botão "Reatribuir e excluir" (desabilitado até escolher substituto) e "Cancelar".
+4. Se não houver pendências: segue direto para o `DeletionDialog` atual.
 
-1. **Configuração da planilha (UI)** — em `Settings`/`Admin` (tela de Integrações), adicionar um campo "ID da planilha de novos usuários" salvo em `integration_settings` (nova coluna `sheets_users_id`). Diretor cola o ID e salva.
-2. **Edge Function `sheets-import-users`** — nova função, reutiliza `GOOGLE_SERVICE_ACCOUNT_EMAIL` e `GOOGLE_PRIVATE_KEY` já configurados, mas lê de `sheets_users_id` (vindo do body ou de `integration_settings`). Lê aba `Novos_Usuarios`.
-3. **Botão de importação** — novo componente `UsersSheetsSync.tsx` (similar ao `SheetsSync.tsx`), com botão "Importar novos usuários da planilha" e painel de resultado.
-4. **Tratamento de duplicados** — emails já existentes em `people` OU em `pending_people` (status PENDENTE/APROVADO) são pulados, contados como `ignored`, e listados na UI com badge âmbar "Já cadastrado" para revisão.
-5. **Auditoria** — log em `audit_logs` (entidade `pending_people`, ação `SHEETS_IMPORT`).
+## Operação no backend
 
-## Estrutura da planilha
+Tudo executado em uma RPC `reassign_and_delete_person(p_person_id text, p_new_manager_id text, p_justification text)` com `SECURITY DEFINER` (admin/diretor apenas, validado por `is_current_user_admin()` ou papel). Em transação:
 
-Aba `Novos_Usuarios`, linha 1 = cabeçalho, importa a partir de A2:
-```text
-Nome | Email | Cargo | Local | Sub-Time | Papel | Gestor (email) | Data Contrato | Modelo Contrato | Data Nascimento | Dia Pagamento
-```
-- Campos obrigatórios: Nome, Email, Gestor (email).
-- `Gestor (email)` é resolvido para `gestor_id` via lookup em `people`.
-- Datas em `YYYY-MM-DD` ou `DD/MM/YYYY` (normalizar).
-- `Papel` default `COLABORADOR`, `Modelo Contrato` default `CLT`.
+- Valida que o novo gestor está ativo e tem papel `GESTOR` ou `DIRETOR`.
+- `UPDATE people SET gestor_id = p_new_manager_id WHERE gestor_id = p_person_id AND ativo = true`.
+- `UPDATE pending_people SET gestor_id = p_new_manager_id WHERE gestor_id = p_person_id AND status = 'PENDENTE'`.
+- Para cada `request` aberta (PENDENTE/INFORMACOES_ADICIONAIS) dos subordinados que agora pertencem ao novo gestor: nada precisa ser atualizado na tabela `requests` em si (a aprovação é determinada pelo `gestor_id` atual do colaborador via RLS/lógica), mas registramos em `audit_logs` o redirecionamento (uma linha por request afetada) para rastreabilidade.
+- `INSERT audit_logs` com ação `REASSIGN_MANAGER` contendo `{old_manager_id, new_manager_id, justification, counts:{subordinates, pending_requests, pending_people}}`.
+- `DELETE FROM people WHERE id = p_person_id`.
+- `INSERT audit_logs` com ação `DELETE_WITH_REASSIGN` (complementa o trigger de auditoria de `people`).
 
-## Mudanças técnicas
+A RPC retorna `{success, counts}` para o frontend exibir confirmação detalhada.
 
-### Banco (migration)
-- `ALTER TABLE integration_settings ADD COLUMN sheets_users_id text;`
-- Sem novas tabelas.
+## Notificação Slack
 
-### Edge Function `supabase/functions/sheets-import-users/index.ts`
-- `verify_jwt = false` no `config.toml`; valida JWT em código e checa papel DIRETOR/ADMIN do chamador.
-- Lê `sheets_users_id` da `integration_settings`.
-- Obtém access token Google (mesma lógica do `sheets-import`).
-- GET `Novos_Usuarios!A2:K1000`.
-- Para cada linha:
-  - Valida obrigatórios → senão `errors++`.
-  - Resolve `gestor_id` por email → senão `errors++` com mensagem clara.
-  - Verifica duplicado (`people.email` ou `pending_people.email` com status PENDENTE/APROVADO) → se sim, `ignored++` com `{ email, nome, motivo: "Já cadastrado" }`.
-  - Insere em `pending_people` com `created_by = <person_id do chamador>`, `status = 'PENDENTE'`.
-- Retorna `{ imported, ignored, errors, ignoredList: [...], errorMessages: [...] }`.
-- Insere `audit_logs` com sumário.
+Após sucesso, mantemos `sendAdminNotification({change_type: 'deletion', ...})` e adicionamos uma linha extra (fire-and-forget) com o resumo da reatribuição: "🔄 Equipe de *X* (N pessoas) reatribuída para *Y* por *Admin*."
 
-### Frontend
-- `src/components/integrations/UsersSheetsSetup.tsx` — campo simples para ID da planilha de novos usuários, salvando em `integration_settings.sheets_users_id`. Plugado dentro do `IntegrationsWizard` (ou na seção Google Sheets existente).
-- `src/components/UsersSheetsSync.tsx` — botão "Importar novos usuários", chama `supabase.functions.invoke('sheets-import-users')`, mostra resultado com 3 contadores (Importados / Ignorados / Erros) e duas listas colapsáveis:
-  - **Ignorados** (badge âmbar, ícone `AlertTriangle`) com nome+email+motivo.
-  - **Erros** (badge vermelho).
-- Adicionar o componente no painel admin (provavelmente `src/pages/Admin.tsx`, próximo ao `SheetsSync` já existente).
+## Arquivos a alterar/criar
 
-### Permissões
-- Apenas DIRETOR/ADMIN podem chamar a edge function (checagem em código) e ver/usar o botão na UI (usando o mesmo padrão de `is_current_user_admin`/papel já presente).
-- RLS de `pending_people` já permite INSERT por diretores; usaremos o `service_role` na edge function para inserir, registrando `created_by` corretamente.
+- **Migration**: criar RPC `reassign_and_delete_person` (+ função auxiliar `get_manager_deletion_impact(p_person_id)` que retorna os contadores e listas para a UI).
+- **`src/components/ReassignManagerDialog.tsx`** (novo): diálogo com resumo + select de substituto.
+- **`src/pages/Admin.tsx`**:
+  - Em `handleDelete`, antes da exclusão, chamar `get_manager_deletion_impact`.
+  - Se contadores > 0, abrir `ReassignManagerDialog` em vez do `DeletionDialog`.
+  - No confirm, chamar `reassign_and_delete_person`.
+- **`src/components/DeletionDialog.tsx`**: sem alterações.
+
+## Permissões / Segurança
+
+- RPC restrita a admins/diretores (verificação dentro da função via `is_current_user_admin()` + checagem de papel).
+- Nenhuma alteração de RLS necessária (todas as tabelas já permitem update por admin).
+- Auditoria garante rastreabilidade da reatribuição.
 
 ## Fora de escopo
 
-- Sincronização automática/agendada (fica como evolução futura).
-- Sincronização App→Sheets dos novos cadastros (somente Sheets→App por enquanto).
-- Edição em massa pela planilha (não atualiza pessoas existentes — duplicados são apenas pulados).
-- Notificação Slack/email da importação (podemos adicionar depois se desejado).
-
-## Dependências/Pré-requisitos
-
-- Service Account do Google já precisa ter acesso de **leitura** à nova planilha (compartilhar a planilha com o email da service account).
-- Secrets `GOOGLE_SERVICE_ACCOUNT_EMAIL` e `GOOGLE_PRIVATE_KEY` já estão configurados.
-
-## Critérios de aceite
-
-- Diretor consegue colar o ID da nova planilha na tela de Integrações e salvar.
-- Clicando no botão, linhas válidas viram registros em `pending_people` com status PENDENTE.
-- Emails já existentes não são reimportados e aparecem em destaque âmbar com motivo.
-- Linhas inválidas (sem nome/email/gestor) aparecem em destaque vermelho com mensagem clara.
-- Log de auditoria registra a operação.
+- Reatribuir aprovações já registradas em `approvals` (registros históricos imutáveis).
+- Reatribuir solicitações já `APROVADO_FINAL` ou `REALIZADO`.
+- Fluxo de reatribuição em massa de múltiplos gestores.
+- Notificar os subordinados sobre a mudança de gestor (pode ser adicionado depois).
