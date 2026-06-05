@@ -361,24 +361,26 @@ Deno.serve(async (req) => {
         (u: any) => u.email === targetPerson.email
       );
 
-      if (!authUser) {
-        return new Response(
-          JSON.stringify({
-            success: true,
-            message: "Nenhum usuário de autenticação encontrado — já está limpo",
-          }),
-          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      let deletedAuthUserId: string | null = null;
+
+      if (authUser) {
+        const { error: deleteError } = await adminClient.auth.admin.deleteUser(
+          authUser.id
         );
+        if (deleteError) {
+          throw deleteError;
+        }
+        deletedAuthUserId = authUser.id;
       }
 
-      // Delete the auth user (cascades to profiles)
-      const { error: deleteError } = await adminClient.auth.admin.deleteUser(
-        authUser.id
-      );
+      // Always remove any orphan profile linked to this person
+      const { data: deletedProfiles } = await adminClient
+        .from("profiles")
+        .delete()
+        .eq("person_id", person_id)
+        .select("id");
 
-      if (deleteError) {
-        throw deleteError;
-      }
+      const orphanCleaned = (deletedProfiles?.length ?? 0) > 0 && !deletedAuthUserId;
 
       // Audit log
       await adminClient.from("audit_logs").insert({
@@ -389,23 +391,39 @@ Deno.serve(async (req) => {
         payload: {
           target_email: targetPerson.email,
           target_name: targetPerson.nome,
-          deleted_auth_user_id: authUser.id,
+          deleted_auth_user_id: deletedAuthUserId,
+          deleted_profiles: deletedProfiles?.length ?? 0,
+          orphan_cleanup_only: orphanCleaned,
         },
       });
 
+      if (!authUser && (deletedProfiles?.length ?? 0) === 0) {
+        return new Response(
+          JSON.stringify({
+            success: true,
+            message: "Nenhum usuário de autenticação encontrado — já está limpo",
+          }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
       // Slack notification (fire-and-forget)
       sendSlackNotification(
-        `🛡️ *Autenticação Zerada via Admin*\nAdmin *${callerPerson.nome}* zerou a autenticação de *${targetPerson.nome}* (${targetPerson.email})`
+        `🛡️ *Autenticação Zerada via Admin*\nAdmin *${callerPerson.nome}* zerou a autenticação de *${targetPerson.nome}* (${targetPerson.email})${orphanCleaned ? " (perfil órfão removido)" : ""}`
       );
 
       return new Response(
         JSON.stringify({
           success: true,
-          message: `Autenticação de ${targetPerson.nome} foi zerada. O usuário poderá se recadastrar.`,
+          message: orphanCleaned
+            ? `Perfil órfão de ${targetPerson.nome} removido. Agora é possível enviar um novo convite.`
+            : `Autenticação de ${targetPerson.nome} foi zerada. O usuário poderá se recadastrar.`,
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+
 
     if (action === "send_invite") {
       // Determine effective invite method
