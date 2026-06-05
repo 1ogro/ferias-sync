@@ -123,6 +123,8 @@ const Admin = () => {
   const [resetPasswordTarget, setResetPasswordTarget] = useState<Person | null>(null);
   const [resetMethod, setResetMethod] = useState<'email' | 'slack' | 'both'>('both');
   const [originalEditData, setOriginalEditData] = useState<{ papel: string; ativo: boolean; nome: string; email: string } | null>(null);
+  const [reassignTarget, setReassignTarget] = useState<Person | null>(null);
+  const [reassignImpact, setReassignImpact] = useState<DeletionImpact | null>(null);
   
    const [formData, setFormData] = useState<FormData>({
      id: '',
