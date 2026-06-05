@@ -238,7 +238,7 @@ Deno.serve(async (req) => {
 
       if (!authUser) {
         return new Response(
-          JSON.stringify({ error: "Usuário de autenticação não encontrado para este email" }),
+          JSON.stringify({ error: `${targetPerson.nome} ainda não criou uma conta. Envie um convite (botão de envelope) em vez de redefinir senha.` }),
           { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
