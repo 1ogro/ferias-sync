@@ -142,7 +142,7 @@ export const UsersSheetsSync = () => {
                   <ul className="space-y-1 text-xs">
                     {result.ignoredList.map((it, i) => (
                       <li key={i} className="flex flex-wrap items-center gap-2">
-                        <Badge variant="outline" className="border-warning text-warning">Já cadastrado</Badge>
+                        <Badge variant="outline" className="border-accent-foreground/40 text-accent-foreground">Já cadastrado</Badge>
                         <span className="font-medium">{it.nome || "(sem nome)"}</span>
                         <span className="text-muted-foreground">{it.email}</span>
                         <span className="text-muted-foreground">— {it.motivo}</span>
