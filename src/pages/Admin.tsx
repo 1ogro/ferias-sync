@@ -53,6 +53,7 @@ import { Navigate } from "react-router-dom";
 import { Header } from "@/components/Header";
 import { NewCollaboratorForm } from "@/components/NewCollaboratorForm";
 import { PendingCollaboratorsList } from "@/components/PendingCollaboratorsList";
+import { ReassignManagerDialog, DeletionImpact } from "@/components/ReassignManagerDialog";
 import { 
   Plus, 
   Search, 
