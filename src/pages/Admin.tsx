@@ -1471,6 +1471,25 @@ const Admin = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <ReassignManagerDialog
+        open={!!reassignTarget}
+        onOpenChange={(o) => {
+          if (!o) {
+            setReassignTarget(null);
+            setReassignImpact(null);
+          }
+        }}
+        target={reassignTarget}
+        impact={reassignImpact}
+        candidates={people.filter(
+          (p) =>
+            p.ativo &&
+            (p.papel === Papel.GESTOR || p.papel === Papel.DIRETOR) &&
+            p.id !== reassignTarget?.id
+        )}
+        onConfirm={handleReassignAndDelete}
+      />
       </div>
     </div>
   );
