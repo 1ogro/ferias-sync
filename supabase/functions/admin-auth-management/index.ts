@@ -206,19 +206,26 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Get target person's email and role
+    // Get target person's email and role (may be missing for deletion notifications)
     const { data: targetPerson } = await adminClient
       .from("people")
       .select("email, nome, papel")
       .eq("id", person_id)
-      .single();
+      .maybeSingle();
 
-    if (!targetPerson) {
+    const hasTargetFallback = !!(target_name || target_email);
+    if (!targetPerson && !(action === "notify_admin_change" && hasTargetFallback)) {
       return new Response(
         JSON.stringify({ error: "Pessoa não encontrada" }),
         { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    const effectiveTarget = targetPerson || {
+      email: target_email || "",
+      nome: target_name || "",
+      papel: "",
+    };
 
     if (action === "reset_password") {
       const resetMethod: string = invite_method || "email";
