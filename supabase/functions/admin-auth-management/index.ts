@@ -620,13 +620,16 @@ Deno.serve(async (req) => {
       let message = `${emoji} *${title}*\nAdmin *${callerPerson.nome}*`;
 
       if (change_type === "role_change" && details) {
-        message += ` alterou papel de *${target_name || targetPerson.nome}* de ${details.old_role} para ${details.new_role}`;
+        message += ` alterou papel de *${target_name || effectiveTarget.nome}* de ${details.old_role} para ${details.new_role}`;
       } else if (change_type === "deactivation") {
-        message += ` desativou *${target_name || targetPerson.nome}* (${target_email || targetPerson.email})`;
+        message += ` desativou *${target_name || effectiveTarget.nome}* (${target_email || effectiveTarget.email})`;
       } else if (change_type === "reactivation") {
-        message += ` reativou *${target_name || targetPerson.nome}* (${target_email || targetPerson.email})`;
+        message += ` reativou *${target_name || effectiveTarget.nome}* (${target_email || effectiveTarget.email})`;
       } else if (change_type === "deletion") {
-        message += ` excluiu *${target_name || targetPerson.nome}* (${target_email || targetPerson.email})`;
+        const reassignInfo = details?.reassigned_to
+          ? `\n🔄 Equipe (${details.subordinates || 0} pessoa(s)) reatribuída para *${details.reassigned_to}*`
+          : "";
+        message += ` excluiu *${target_name || effectiveTarget.nome}* (${target_email || effectiveTarget.email})${reassignInfo}`;
       }
 
       // Audit log
@@ -637,8 +640,8 @@ Deno.serve(async (req) => {
         actor_id: callerProfile.person_id,
         payload: {
           change_type,
-          target_name: target_name || targetPerson.nome,
-          target_email: target_email || targetPerson.email,
+          target_name: target_name || effectiveTarget.nome,
+          target_email: target_email || effectiveTarget.email,
           details,
         },
       });
