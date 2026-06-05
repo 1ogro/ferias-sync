@@ -18,6 +18,7 @@ import { ActiveAbsencesDashboard } from "@/components/ActiveAbsencesDashboard";
 import { ActiveAbsencesBanner } from "@/components/ActiveAbsencesBanner";
 import { HistoricalRequestForm } from "@/components/HistoricalRequestForm";
 import { SheetsSync } from "@/components/SheetsSync";
+import { UsersSheetsSync } from "@/components/UsersSheetsSync";
 import { CollaboratorSummaryTable } from "@/components/CollaboratorSummaryTable";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
@@ -1198,8 +1199,9 @@ const VacationManagement = () => {
 
       case 'sheets':
         return (
-          <div className="mt-6">
+          <div className="mt-6 space-y-6">
             <SheetsSync />
+            <UsersSheetsSync />
           </div>
         );
       
@@ -1721,8 +1723,9 @@ const VacationManagement = () => {
           </TabsContent>
 
           {/* Google Sheets Sync Tab */}
-          <TabsContent value="sheets" className="hidden lg:block">
+          <TabsContent value="sheets" className="space-y-6 hidden lg:block">
             <SheetsSync />
+            <UsersSheetsSync />
           </TabsContent>
 
           {/* Mobile: Carousel com swipe gestures */}

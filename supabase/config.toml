@@ -15,6 +15,9 @@ verify_jwt = false
 [functions.sheets-import]
 verify_jwt = false
 
+[functions.sheets-import-users]
+verify_jwt = false
+
 [functions.sheets-export]
 verify_jwt = false
 

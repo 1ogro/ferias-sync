@@ -123,6 +123,7 @@ export type Database = {
           sheets_service_account_set: boolean | null
           sheets_status: string | null
           sheets_sync_frequency: string | null
+          sheets_users_id: string | null
           slack_bot_token_set: boolean | null
           slack_channel_approvals: string | null
           slack_enabled: boolean | null
@@ -156,6 +157,7 @@ export type Database = {
           sheets_service_account_set?: boolean | null
           sheets_status?: string | null
           sheets_sync_frequency?: string | null
+          sheets_users_id?: string | null
           slack_bot_token_set?: boolean | null
           slack_channel_approvals?: string | null
           slack_enabled?: boolean | null
@@ -189,6 +191,7 @@ export type Database = {
           sheets_service_account_set?: boolean | null
           sheets_status?: string | null
           sheets_sync_frequency?: string | null
+          sheets_users_id?: string | null
           slack_bot_token_set?: boolean | null
           slack_channel_approvals?: string | null
           slack_enabled?: boolean | null
