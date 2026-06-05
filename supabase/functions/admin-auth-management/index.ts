@@ -206,19 +206,26 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Get target person's email and role
+    // Get target person's email and role (may be missing for deletion notifications)
     const { data: targetPerson } = await adminClient
       .from("people")
       .select("email, nome, papel")
       .eq("id", person_id)
-      .single();
+      .maybeSingle();
 
-    if (!targetPerson) {
+    const hasTargetFallback = !!(target_name || target_email);
+    if (!targetPerson && !(action === "notify_admin_change" && hasTargetFallback)) {
       return new Response(
         JSON.stringify({ error: "Pessoa não encontrada" }),
         { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    const effectiveTarget = targetPerson || {
+      email: target_email || "",
+      nome: target_name || "",
+      papel: "",
+    };
 
     if (action === "reset_password") {
       const resetMethod: string = invite_method || "email";
@@ -613,13 +620,16 @@ Deno.serve(async (req) => {
       let message = `${emoji} *${title}*\nAdmin *${callerPerson.nome}*`;
 
       if (change_type === "role_change" && details) {
-        message += ` alterou papel de *${target_name || targetPerson.nome}* de ${details.old_role} para ${details.new_role}`;
+        message += ` alterou papel de *${target_name || effectiveTarget.nome}* de ${details.old_role} para ${details.new_role}`;
       } else if (change_type === "deactivation") {
-        message += ` desativou *${target_name || targetPerson.nome}* (${target_email || targetPerson.email})`;
+        message += ` desativou *${target_name || effectiveTarget.nome}* (${target_email || effectiveTarget.email})`;
       } else if (change_type === "reactivation") {
-        message += ` reativou *${target_name || targetPerson.nome}* (${target_email || targetPerson.email})`;
+        message += ` reativou *${target_name || effectiveTarget.nome}* (${target_email || effectiveTarget.email})`;
       } else if (change_type === "deletion") {
-        message += ` excluiu *${target_name || targetPerson.nome}* (${target_email || targetPerson.email})`;
+        const reassignInfo = details?.reassigned_to
+          ? `\n🔄 Equipe (${details.subordinates || 0} pessoa(s)) reatribuída para *${details.reassigned_to}*`
+          : "";
+        message += ` excluiu *${target_name || effectiveTarget.nome}* (${target_email || effectiveTarget.email})${reassignInfo}`;
       }
 
       // Audit log
@@ -630,8 +640,8 @@ Deno.serve(async (req) => {
         actor_id: callerProfile.person_id,
         payload: {
           change_type,
-          target_name: target_name || targetPerson.nome,
-          target_email: target_email || targetPerson.email,
+          target_name: target_name || effectiveTarget.nome,
+          target_email: target_email || effectiveTarget.email,
           details,
         },
       });
