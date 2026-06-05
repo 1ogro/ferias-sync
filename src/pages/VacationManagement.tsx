@@ -1199,8 +1199,9 @@ const VacationManagement = () => {
 
       case 'sheets':
         return (
-          <div className="mt-6">
+          <div className="mt-6 space-y-6">
             <SheetsSync />
+            <UsersSheetsSync />
           </div>
         );
       
