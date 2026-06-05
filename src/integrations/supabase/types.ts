@@ -751,6 +751,7 @@ export type Database = {
         }
         Returns: Json
       }
+      cleanup_orphan_profiles: { Args: never; Returns: number }
       get_active_people_for_signup: {
         Args: never
         Returns: {
