@@ -252,24 +252,33 @@ Deno.serve(async (req) => {
     // 2) Resolver Slack user ID
     let slackUserId: string | null = null;
     let lookupMethod: "email" | "name" | "person_email" | "none" = "none";
+    let nameLookupReason: string | null = null;
 
     if (identifierType === "email") {
       slackUserId = await lookupSlackByEmail(slackToken, identifierLower);
       if (slackUserId) lookupMethod = "email";
     } else {
-      slackUserId = await findSlackUserByName(slackToken, rawIdentifier);
-      if (slackUserId) lookupMethod = "name";
+      const r = await findSlackUserByName(slackToken, rawIdentifier);
+      nameLookupReason = r.reason;
+      if (r.id) {
+        slackUserId = r.id;
+        lookupMethod = "name";
+      }
     }
     if (!slackUserId && person.email) {
       slackUserId = await lookupSlackByEmail(slackToken, person.email);
       if (slackUserId) lookupMethod = "person_email";
     }
     if (!slackUserId) {
-      slackUserId = await findSlackUserByName(slackToken, person.nome);
-      if (slackUserId) lookupMethod = "name";
+      const r = await findSlackUserByName(slackToken, person.nome);
+      nameLookupReason = r.reason;
+      if (r.id) {
+        slackUserId = r.id;
+        lookupMethod = "name";
+      }
     }
 
-    log("slack_lookup", { method: lookupMethod, slackUserId });
+    log("slack_lookup", { method: lookupMethod, slackUserId, nameLookupReason });
 
     if (!slackUserId) {
       sendSlackChannel(
