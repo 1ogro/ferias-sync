@@ -160,7 +160,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setPerson(null);
       } else if (profile?.people) {
         console.log('Profile found:', profile.people);
-        const personData = profile.people as Person;
+        const raw = profile.people as any;
+        const personData: Person = {
+          ...raw,
+          gestorId: raw.gestor_id ?? raw.gestorId ?? undefined,
+          subTime: raw.sub_time ?? raw.subTime ?? undefined,
+        };
         setPerson(personData);
         
         await fetchUserRoles(userIdToUse);
