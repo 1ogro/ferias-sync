@@ -350,14 +350,23 @@ Deno.serve(async (req) => {
       },
     ];
 
-    const dmResult = await postSlackDM(
-      slackToken,
-      slackUserId,
-      `Olá ${person.nome}! Acesse ${recoveryLink} para redefinir sua senha.`,
-      blocks
-    );
+    const [dmResult, emailResult] = await Promise.all([
+      postSlackDM(
+        slackToken,
+        slackUserId,
+        `Olá ${person.nome}! Acesse ${recoveryLink} para redefinir sua senha.`,
+        blocks
+      ),
+      person.email
+        ? sendRecoveryEmail(person.email, person.nome, recoveryLink)
+        : Promise.resolve({ ok: false, error: "no_email" } as { ok: boolean; error?: string }),
+    ]);
 
     log("dm_result", { ok: dmResult.ok, error: dmResult.error });
+    log("email_result", { ok: emailResult.ok, error: emailResult.error });
+
+    const dmStatus = dmResult.ok ? "sent" : "failed";
+    const emailStatus = emailResult.ok ? "sent" : "failed";
 
     // 5) Audit + canal admin
     await admin.from("audit_logs").insert({
@@ -368,25 +377,28 @@ Deno.serve(async (req) => {
       payload: {
         identifier_type: identifierType,
         slack_lookup_method: lookupMethod,
-        dm_status: dmResult.ok ? "sent" : "failed",
+        dm_status: dmStatus,
         dm_error: dmResult.error,
+        email_status: emailStatus,
+        email_error: emailResult.error,
         auth_user_created: authUserCreated,
         target_email: person.email,
         target_name: person.nome,
       },
     });
 
-    const statusLabel = dmResult.ok
-      ? "✅ DM enviada"
-      : `⚠️ falha DM (${dmResult.error ?? "erro"})`;
+    const dmLabel = dmResult.ok ? "✅ DM" : `⚠️ DM (${dmResult.error ?? "erro"})`;
+    const emailLabel = emailResult.ok ? "✅ email" : `⚠️ email (${emailResult.error ?? "erro"})`;
     sendSlackChannel(
-      `🔑 *Reset de senha* — *${person.nome}* (${person.email}) — ${statusLabel}${authUserCreated ? " · auth user criado" : ""}`
+      `🔑 *Reset de senha* — *${person.nome}* (${person.email}) — ${dmLabel} · ${emailLabel}${authUserCreated ? " · auth user criado" : ""}`
     );
 
     return respond({
       ok: true,
-      dm_status: dmResult.ok ? "sent" : "failed",
+      dm_status: dmStatus,
       dm_error: dmResult.error,
+      email_status: emailStatus,
+      email_error: emailResult.error,
       lookup_method: lookupMethod,
       auth_user_created: authUserCreated,
     });
