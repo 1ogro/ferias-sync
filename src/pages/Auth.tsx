@@ -333,41 +333,33 @@ export default function Auth() {
                           onClick={async () => {
                             setForgotLoading(true);
                             const identifier = forgotEmail.trim();
-                            const looksLikeEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(identifier);
                             const redirectTo = `${window.location.origin}/reset-password`;
                             try {
-                              if (looksLikeEmail) {
-                                // Canal 1: email padrão Supabase
-                                const { error } = await supabase.auth.resetPasswordForEmail(identifier, { redirectTo });
-                                if (error) console.warn('resetPasswordForEmail:', error.message);
-                              }
-                              // Canal 2: Slack DM (sempre, redundância e/ou canal único)
+                              // Canal único: edge function envia email (via Resend) + DM no Slack
                               const { data, error: fnError } = await supabase.functions.invoke('send-password-reset-slack', {
                                 body: { identifier, redirectTo },
                               });
-                              if (fnError) console.warn('Slack reset DM failed:', fnError);
+                              if (fnError) console.warn('send-password-reset-slack error:', fnError);
 
                               const dmStatus = (data as any)?.dm_status;
-                              if (dmStatus === 'sent') {
+                              const emailStatus = (data as any)?.email_status;
+                              const channels: string[] = [];
+                              if (emailStatus === 'sent') channels.push('email');
+                              if (dmStatus === 'sent') channels.push('Slack');
+
+                              if (channels.length > 0) {
                                 toast({
                                   title: 'Link enviado!',
-                                  description: looksLikeEmail
-                                    ? 'Enviamos o link por email e por DM no Slack.'
-                                    : 'Enviamos o link por DM no Slack.',
+                                  description: `Enviamos o link de redefinição por ${channels.join(' e ')}.`,
                                 });
-                              } else if (looksLikeEmail) {
-                                toast({
-                                  title: 'Link enviado por email',
-                                  description: 'Não conseguimos enviar pelo Slack — confira sua caixa de entrada.',
-                                });
+                                setShowForgotPassword(false);
                               } else {
                                 toast({
-                                  title: 'Não foi possível enviar pelo Slack',
-                                  description: 'Verifique o usuário informado ou contate um administrador.',
+                                  title: 'Não foi possível enviar o link',
+                                  description: 'Verifique o identificador informado ou contate um administrador.',
                                   variant: 'destructive',
                                 });
                               }
-                              setShowForgotPassword(false);
                             } catch (err: any) {
                               toast({ title: 'Erro', description: err.message, variant: 'destructive' });
                             } finally {
