@@ -32,3 +32,6 @@ verify_jwt = false
 
 [functions.send-contract-anniversary-notifications]
 verify_jwt = false
+
+[functions.send-password-reset-slack]
+verify_jwt = false
