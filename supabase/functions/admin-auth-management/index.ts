@@ -346,7 +346,6 @@ Deno.serve(async (req) => {
 
       // Audit log
       const methodLabel = resetMethod === "both" ? "Email + Slack" : resetMethod === "slack" ? "Slack DM" : "Email";
-      const dmResultRef: any = (typeof dmResult !== "undefined") ? dmResult : null;
       await adminClient.from("audit_logs").insert({
         entidade: "auth",
         entidade_id: person_id,
@@ -357,10 +356,10 @@ Deno.serve(async (req) => {
           target_name: targetPerson.nome,
           method: resetMethod,
           results,
-          slack_user_id: dmResultRef?.slackUserId ?? null,
-          slack_lookup_method: dmResultRef?.lookupMethod ?? null,
-          slack_dm_ts: dmResultRef?.ts ?? null,
-          slack_dm_error: dmResultRef?.error ?? null,
+          slack_user_id: dmResultOuter?.slackUserId ?? null,
+          slack_lookup_method: dmResultOuter?.lookupMethod ?? null,
+          slack_dm_ts: dmResultOuter?.ts ?? null,
+          slack_dm_error: dmResultOuter?.error ?? null,
         },
       });
 
