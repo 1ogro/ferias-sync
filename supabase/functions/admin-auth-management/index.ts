@@ -260,18 +260,27 @@ Deno.serve(async (req) => {
         );
       }
 
-      // Generate recovery link
+      // Generate recovery link — build link on app domain using hashed_token
+      // so that Slack/email prefetch doesn't consume the one-time token.
+      const appRedirect =
+        Deno.env.get("PUBLIC_APP_URL") ??
+        "https://ferias-sync.lovable.app/reset-password";
       const { data: linkData, error: linkError } =
         await adminClient.auth.admin.generateLink({
           type: "recovery",
           email: targetPerson.email,
+          options: { redirectTo: appRedirect },
         });
 
       if (linkError) {
         throw linkError;
       }
 
-      const recoveryLink = linkData?.properties?.action_link;
+      const hashedToken = linkData?.properties?.hashed_token;
+      const sep = appRedirect.includes("?") ? "&" : "?";
+      const recoveryLink = hashedToken
+        ? `${appRedirect}${sep}token_hash=${encodeURIComponent(hashedToken)}&type=recovery`
+        : linkData?.properties?.action_link;
       const results: string[] = [];
       let dmResultOuter: Awaited<ReturnType<typeof sendSlackDM>> | null = null;
 
@@ -507,12 +516,17 @@ Deno.serve(async (req) => {
       }
 
       // --- SLACK-ONLY: use generateLink instead of inviteUserByEmail ---
+      const inviteRedirect =
+        Deno.env.get("PUBLIC_APP_URL")?.replace(/\/reset-password$/, "/setup-profile") ??
+        "https://ferias-sync.lovable.app/setup-profile";
+
       if (effectiveMethod === "slack") {
         // Generate a signup/invite link without sending email
         const { data: linkData, error: linkError } =
           await adminClient.auth.admin.generateLink({
             type: "invite",
             email: targetPerson.email,
+            options: { redirectTo: inviteRedirect },
           });
 
         if (linkError) {
@@ -552,6 +566,7 @@ Deno.serve(async (req) => {
             await adminClient.auth.admin.generateLink({
               type: "invite",
               email: targetPerson.email,
+              options: { redirectTo: inviteRedirect },
             });
 
           if (!dmLinkError && dmLinkData?.properties?.action_link) {
