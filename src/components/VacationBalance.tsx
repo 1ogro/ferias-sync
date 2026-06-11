@@ -136,7 +136,7 @@ export function VacationBalance({ className }: VacationBalanceProps) {
             <div className="flex justify-between items-center mt-2">
               <span className="text-sm text-muted-foreground">Próximo acúmulo:</span>
               <span className="font-medium text-sm">
-                {formatDateSafe(balance.contract_anniversary, "dd/MM/yyyy", { locale: ptBR })}
+                {formatDateSafe(nextAccrual, "dd/MM/yyyy", { locale: ptBR })}
               </span>
             </div>
           )}
