@@ -344,12 +344,22 @@ Deno.serve(async (req) => {
 
       // Audit log
       const methodLabel = resetMethod === "both" ? "Email + Slack" : resetMethod === "slack" ? "Slack DM" : "Email";
+      const dmResultRef: any = (typeof dmResult !== "undefined") ? dmResult : null;
       await adminClient.from("audit_logs").insert({
         entidade: "auth",
         entidade_id: person_id,
         acao: "ADMIN_PASSWORD_RESET",
         actor_id: callerProfile.person_id,
-        payload: { target_email: targetPerson.email, target_name: targetPerson.nome, method: resetMethod, results },
+        payload: {
+          target_email: targetPerson.email,
+          target_name: targetPerson.nome,
+          method: resetMethod,
+          results,
+          slack_user_id: dmResultRef?.slackUserId ?? null,
+          slack_lookup_method: dmResultRef?.lookupMethod ?? null,
+          slack_dm_ts: dmResultRef?.ts ?? null,
+          slack_dm_error: dmResultRef?.error ?? null,
+        },
       });
 
       // Slack channel notification (fire-and-forget)
