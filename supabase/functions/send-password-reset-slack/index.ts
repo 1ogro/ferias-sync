@@ -408,6 +408,8 @@ Deno.serve(async (req) => {
       payload: {
         identifier_type: identifierType,
         slack_lookup_method: lookupMethod,
+        slack_user_id: slackUserId,
+        name_lookup_reason: nameLookupReason,
         dm_status: dmStatus,
         dm_error: dmResult.error,
         email_status: emailStatus,
