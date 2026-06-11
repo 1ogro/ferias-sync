@@ -119,6 +119,19 @@ Deno.serve(async (req) => {
       return safeOk();
     }
 
+    // Determine redirect URL — never trust localhost / http
+    const FALLBACK_REDIRECT =
+      Deno.env.get("PUBLIC_APP_URL") ?? "https://ferias-sync.lovable.app/reset-password";
+    let redirectTo = FALLBACK_REDIRECT;
+    const rawRedirect = typeof body?.redirectTo === "string" ? body.redirectTo.trim() : "";
+    if (
+      rawRedirect &&
+      rawRedirect.startsWith("https://") &&
+      !/localhost|127\.0\.0\.1/i.test(rawRedirect)
+    ) {
+      redirectTo = rawRedirect;
+    }
+
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
@@ -146,16 +159,18 @@ Deno.serve(async (req) => {
       return safeOk();
     }
 
-    // Generate recovery link
+    // Generate recovery link with explicit redirectTo so it doesn't fall back to Site URL (localhost)
     const { data: linkData, error: linkError } = await adminClient.auth.admin.generateLink({
       type: "recovery",
       email: person.email,
+      options: { redirectTo },
     });
     if (linkError) {
       console.error("generateLink error:", linkError);
       return safeOk();
     }
     const recoveryLink = linkData?.properties?.action_link;
+    console.log("Reset Slack: link generated for", person.email, "redirectTo=", redirectTo);
 
     // Send DM
     const slackToken = Deno.env.get("SLACK_BOT_TOKEN");
