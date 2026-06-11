@@ -313,14 +313,17 @@ export default function Auth() {
                     <div className="p-3 rounded-md border bg-muted/50 space-y-3">
                       <p className="text-sm font-medium">Recuperar senha</p>
                       <div className="space-y-2">
-                        <Label htmlFor="forgot-email">Email da conta</Label>
+                        <Label htmlFor="forgot-email">Email ou usuário do Slack</Label>
                         <Input
                           id="forgot-email"
-                          type="email"
-                          placeholder="seu.email@exemplo.com"
+                          type="text"
+                          placeholder="seu.email@exemplo.com ou @seu.usuario"
                           value={forgotEmail}
                           onChange={(e) => setForgotEmail(e.target.value)}
                         />
+                        <p className="text-xs text-muted-foreground">
+                          Se você não tem email cadastrado, informe seu nome/usuário do Slack — enviaremos o link por DM.
+                        </p>
                       </div>
                       <div className="flex gap-2">
                         <Button
@@ -329,16 +332,41 @@ export default function Auth() {
                           disabled={forgotLoading || !forgotEmail}
                           onClick={async () => {
                             setForgotLoading(true);
+                            const identifier = forgotEmail.trim();
+                            const looksLikeEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(identifier);
+                            const redirectTo = `${window.location.origin}/reset-password`;
                             try {
-                              const { error } = await supabase.auth.resetPasswordForEmail(forgotEmail, {
-                                redirectTo: `${window.location.origin}/reset-password`,
+                              if (looksLikeEmail) {
+                                // Canal 1: email padrão Supabase
+                                const { error } = await supabase.auth.resetPasswordForEmail(identifier, { redirectTo });
+                                if (error) console.warn('resetPasswordForEmail:', error.message);
+                              }
+                              // Canal 2: Slack DM (sempre, redundância e/ou canal único)
+                              const { data, error: fnError } = await supabase.functions.invoke('send-password-reset-slack', {
+                                body: { identifier, redirectTo },
                               });
-                              if (error) throw error;
-                              // Fire-and-forget: envia DM via Slack com o link de reset (a função também avisa o canal de admins)
-                              supabase.functions.invoke('send-password-reset-slack', {
-                                body: { email: forgotEmail, redirectTo: `${window.location.origin}/reset-password` },
-                              }).catch(err => console.warn('Slack reset DM failed:', err));
-                              toast({ title: 'Link enviado!', description: 'Enviamos o link para seu email e, se o seu Slack estiver vinculado, também por mensagem direta.' });
+                              if (fnError) console.warn('Slack reset DM failed:', fnError);
+
+                              const dmStatus = (data as any)?.dm_status;
+                              if (dmStatus === 'sent') {
+                                toast({
+                                  title: 'Link enviado!',
+                                  description: looksLikeEmail
+                                    ? 'Enviamos o link por email e por DM no Slack.'
+                                    : 'Enviamos o link por DM no Slack.',
+                                });
+                              } else if (looksLikeEmail) {
+                                toast({
+                                  title: 'Link enviado por email',
+                                  description: 'Não conseguimos enviar pelo Slack — confira sua caixa de entrada.',
+                                });
+                              } else {
+                                toast({
+                                  title: 'Não foi possível enviar pelo Slack',
+                                  description: 'Verifique o usuário informado ou contate um administrador.',
+                                  variant: 'destructive',
+                                });
+                              }
                               setShowForgotPassword(false);
                             } catch (err: any) {
                               toast({ title: 'Erro', description: err.message, variant: 'destructive' });
