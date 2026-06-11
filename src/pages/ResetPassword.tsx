@@ -16,17 +16,31 @@ export default function ResetPassword() {
   const [loading, setLoading] = useState(false);
   const [isRecovery, setIsRecovery] = useState(false);
 
+  const [verifyError, setVerifyError] = useState<string | null>(null);
+
   useEffect(() => {
-    // Listen for PASSWORD_RECOVERY event from Supabase
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
       if (event === 'PASSWORD_RECOVERY') {
         setIsRecovery(true);
       }
     });
 
-    // Also check URL hash for type=recovery
+    const url = new URL(window.location.href);
+    const tokenHash = url.searchParams.get('token_hash');
+    const type = url.searchParams.get('type');
     const hash = window.location.hash;
-    if (hash.includes('type=recovery')) {
+
+    if (tokenHash && type === 'recovery') {
+      supabase.auth.verifyOtp({ type: 'recovery', token_hash: tokenHash }).then(({ error }) => {
+        if (error) {
+          setVerifyError(error.message || 'Link inválido ou expirado.');
+        } else {
+          setIsRecovery(true);
+          // limpar query para não reusar
+          window.history.replaceState({}, '', '/reset-password');
+        }
+      });
+    } else if (hash.includes('type=recovery')) {
       setIsRecovery(true);
     }
 
@@ -65,8 +79,17 @@ export default function ResetPassword() {
       <div className="min-h-screen bg-gradient-to-br from-primary/5 to-primary/10 flex items-center justify-center p-4">
         <Card className="w-full max-w-md">
           <CardContent className="pt-6 text-center">
-            <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-muted-foreground" />
-            <p className="text-muted-foreground">Verificando link de recuperação...</p>
+            {verifyError ? (
+              <>
+                <p className="text-destructive font-medium mb-2">Link inválido ou expirado</p>
+                <p className="text-sm text-muted-foreground mb-4">{verifyError}</p>
+              </>
+            ) : (
+              <>
+                <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-muted-foreground" />
+                <p className="text-muted-foreground">Verificando link de recuperação...</p>
+              </>
+            )}
             <Button variant="link" className="mt-4" onClick={() => navigate('/auth')}>
               Voltar ao login
             </Button>
