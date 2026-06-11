@@ -328,6 +328,7 @@ Deno.serve(async (req) => {
             `Olá ${targetPerson.nome}! Foi solicitada a recuperação da sua senha. ${recoveryLink || "Verifique seu email."}`,
             targetPerson.nome
           );
+          dmResultOuter = dmResult;
 
           if (dmResult.ok) {
             results.push("slack");
