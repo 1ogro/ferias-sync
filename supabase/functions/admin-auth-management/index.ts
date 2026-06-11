@@ -273,6 +273,7 @@ Deno.serve(async (req) => {
 
       const recoveryLink = linkData?.properties?.action_link;
       const results: string[] = [];
+      let dmResultOuter: Awaited<ReturnType<typeof sendSlackDM>> | null = null;
 
       // --- EMAIL ---
       if (resetMethod === "email" || resetMethod === "both") {
