@@ -292,6 +292,9 @@ Deno.serve(async (req) => {
         payload: {
           identifier_type: identifierType,
           slack_lookup_method: lookupMethod,
+          name_lookup_reason: nameLookupReason,
+          target_email: person.email,
+          target_name: person.nome,
           dm_status: "failed",
           dm_error: "slack_user_not_found",
         },
