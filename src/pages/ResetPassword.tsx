@@ -31,15 +31,26 @@ export default function ResetPassword() {
     const hash = window.location.hash;
 
     if (tokenHash && type === 'recovery') {
-      supabase.auth.verifyOtp({ type: 'recovery', token_hash: tokenHash }).then(({ error }) => {
-        if (error) {
-          setVerifyError(error.message || 'Link inválido ou expirado.');
-        } else {
-          setIsRecovery(true);
-          // limpar query para não reusar
-          window.history.replaceState({}, '', '/reset-password');
-        }
-      });
+      // Timeout de segurança: nunca deixar o spinner infinito
+      const timeoutId = setTimeout(() => {
+        setVerifyError((prev) => prev ?? 'Tempo esgotado ao verificar o link. Verifique sua conexão e tente novamente.');
+      }, 15000);
+
+      supabase.auth.verifyOtp({ type: 'recovery', token_hash: tokenHash })
+        .then(({ error }) => {
+          clearTimeout(timeoutId);
+          if (error) {
+            setVerifyError(error.message || 'Link inválido ou expirado.');
+          } else {
+            setIsRecovery(true);
+            // limpar query para não reusar
+            window.history.replaceState({}, '', '/reset-password');
+          }
+        })
+        .catch((err: any) => {
+          clearTimeout(timeoutId);
+          setVerifyError(err?.message || 'Erro ao verificar o link. Tente novamente.');
+        });
     } else if (hash.includes('type=recovery')) {
       setIsRecovery(true);
     }
