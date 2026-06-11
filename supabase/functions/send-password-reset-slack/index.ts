@@ -312,14 +312,17 @@ Deno.serve(async (req) => {
       email: person.email,
       options: { redirectTo },
     });
-    if (linkError || !linkData?.properties?.action_link) {
+    const hashedToken = linkData?.properties?.hashed_token;
+    if (linkError || !hashedToken) {
       log("generate_link_error", { error: linkError?.message });
       sendSlackChannel(
-        `⚠️ *Reset de senha* — falha ao gerar link para *${person.nome}* (${person.email}): ${linkError?.message ?? "sem link"}`
+        `⚠️ *Reset de senha* — falha ao gerar link para *${person.nome}* (${person.email}): ${linkError?.message ?? "sem hashed_token"}`
       );
       return respond({ ok: true, dm_status: "failed", dm_error: "link_generation_failed" });
     }
-    const recoveryLink = linkData.properties.action_link;
+    // Montar link no domínio do app (não no Supabase) — validado via verifyOtp
+    const sep = redirectTo.includes("?") ? "&" : "?";
+    const recoveryLink = `${redirectTo}${sep}token_hash=${encodeURIComponent(hashedToken)}&type=recovery`;
     log("link_generated", { personId: person.id, authUserCreated });
 
     // 4) Enviar DM
