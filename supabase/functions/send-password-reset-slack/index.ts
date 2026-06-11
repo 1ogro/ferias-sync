@@ -195,18 +195,10 @@ Deno.serve(async (req) => {
     const identifierType: "email" | "handle" = isEmail(rawIdentifier) ? "email" : "handle";
     const identifierLower = rawIdentifier.toLowerCase();
 
-    // Redirect seguro
-    const FALLBACK_REDIRECT =
+    // Redirect sempre no domínio público — ignora qualquer redirectTo do cliente
+    // (preview/localhost nunca devem aparecer em emails ou DMs reais).
+    const redirectTo =
       Deno.env.get("PUBLIC_APP_URL") ?? "https://ferias-sync.lovable.app/reset-password";
-    let redirectTo = FALLBACK_REDIRECT;
-    const rawRedirect = typeof body?.redirectTo === "string" ? body.redirectTo.trim() : "";
-    if (
-      rawRedirect &&
-      rawRedirect.startsWith("https://") &&
-      !/localhost|127\.0\.0\.1/i.test(rawRedirect)
-    ) {
-      redirectTo = rawRedirect;
-    }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
