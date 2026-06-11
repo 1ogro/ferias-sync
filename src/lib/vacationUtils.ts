@@ -294,7 +294,7 @@ export async function saveManualVacationBalance(
         contract_anniversary: contractAnniversary.toISOString().split('T')[0],
         manual_justification: justification,
         updated_by: updatedBy
-      });
+      }, { onConflict: 'person_id,year' });
 
     if (error) {
       console.error('Error saving manual balance:', error);
@@ -503,7 +503,7 @@ export async function recalculateVacationBalance(
         contract_anniversary: calculated.contract_anniversary,
         manual_justification: justification,
         updated_by: updatedBy
-      });
+      }, { onConflict: 'person_id,year' });
 
     if (error) {
       console.error('Error updating manual balance:', error);
@@ -694,7 +694,7 @@ export async function migrateManualBalances(
             contract_anniversary: contractAnniversary.toISOString().split('T')[0],
             manual_justification: migrationJustification,
             updated_by: updatedBy
-          });
+          }, { onConflict: 'person_id,year' });
 
         if (error) {
           result.errors.push(`${balance.person_name}: ${error.message}`);
