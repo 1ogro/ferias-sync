@@ -85,8 +85,12 @@ export function VacationBalance({ className }: VacationBalanceProps) {
   };
 
   const contractAnniversary = typeof balance.contract_anniversary === 'string' ? parseDateSafely(balance.contract_anniversary) : balance.contract_anniversary;
-  const nextAnniversary = new Date(contractAnniversary);
-  nextAnniversary.setFullYear(new Date().getFullYear() + 1);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const nextAccrual = new Date(today.getFullYear(), contractAnniversary.getMonth(), contractAnniversary.getDate());
+  if (nextAccrual < today) {
+    nextAccrual.setFullYear(nextAccrual.getFullYear() + 1);
+  }
 
   return (
     <Card className={cn("", className)}>
@@ -132,7 +136,7 @@ export function VacationBalance({ className }: VacationBalanceProps) {
             <div className="flex justify-between items-center mt-2">
               <span className="text-sm text-muted-foreground">Próximo acúmulo:</span>
               <span className="font-medium text-sm">
-                {formatDateSafe(balance.contract_anniversary, "dd/MM/yyyy", { locale: ptBR })}
+                {formatDateSafe(nextAccrual, "dd/MM/yyyy", { locale: ptBR })}
               </span>
             </div>
           )}
