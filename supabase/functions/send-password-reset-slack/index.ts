@@ -395,6 +395,11 @@ Deno.serve(async (req) => {
       `🔑 *Reset de senha* — *${person.nome}* (${person.email}) — ${dmLabel} · ${emailLabel}${authUserCreated ? " · auth user criado" : ""}`
     );
 
+    // Debug: incluir recovery_link apenas se header x-test-debug-token bater com TEST_RESET_DEBUG_TOKEN
+    const debugToken = req.headers.get("x-test-debug-token");
+    const expectedDebug = Deno.env.get("TEST_RESET_DEBUG_TOKEN");
+    const includeDebug = !!expectedDebug && debugToken === expectedDebug;
+
     return respond({
       ok: true,
       dm_status: dmStatus,
@@ -403,6 +408,7 @@ Deno.serve(async (req) => {
       email_error: emailResult.error,
       lookup_method: lookupMethod,
       auth_user_created: authUserCreated,
+      ...(includeDebug ? { recovery_link: recoveryLink } : {}),
     });
   } catch (e: any) {
     console.error("send-password-reset-slack error:", e);
