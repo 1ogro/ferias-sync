@@ -79,8 +79,17 @@ export default function ResetPassword() {
       <div className="min-h-screen bg-gradient-to-br from-primary/5 to-primary/10 flex items-center justify-center p-4">
         <Card className="w-full max-w-md">
           <CardContent className="pt-6 text-center">
-            <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-muted-foreground" />
-            <p className="text-muted-foreground">Verificando link de recuperação...</p>
+            {verifyError ? (
+              <>
+                <p className="text-destructive font-medium mb-2">Link inválido ou expirado</p>
+                <p className="text-sm text-muted-foreground mb-4">{verifyError}</p>
+              </>
+            ) : (
+              <>
+                <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-muted-foreground" />
+                <p className="text-muted-foreground">Verificando link de recuperação...</p>
+              </>
+            )}
             <Button variant="link" className="mt-4" onClick={() => navigate('/auth')}>
               Voltar ao login
             </Button>
