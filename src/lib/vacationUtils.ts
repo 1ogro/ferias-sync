@@ -694,7 +694,7 @@ export async function migrateManualBalances(
             contract_anniversary: contractAnniversary.toISOString().split('T')[0],
             manual_justification: migrationJustification,
             updated_by: updatedBy
-          });
+          }, { onConflict: 'person_id,year' });
 
         if (error) {
           result.errors.push(`${balance.person_name}: ${error.message}`);
