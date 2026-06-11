@@ -333,11 +333,11 @@ export default function Auth() {
                           onClick={async () => {
                             setForgotLoading(true);
                             const identifier = forgotEmail.trim();
-                            const redirectTo = `${window.location.origin}/reset-password`;
                             try {
-                              // Canal único: edge function envia email (via Resend) + DM no Slack
+                              // Canal único: edge function envia email (via Resend) + DM no Slack.
+                              // redirectTo é resolvido server-side para o domínio público.
                               const { data, error: fnError } = await supabase.functions.invoke('send-password-reset-slack', {
-                                body: { identifier, redirectTo },
+                                body: { identifier },
                               });
                               if (fnError) console.warn('send-password-reset-slack error:', fnError);
 
