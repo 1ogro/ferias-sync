@@ -294,7 +294,7 @@ export async function saveManualVacationBalance(
         contract_anniversary: contractAnniversary.toISOString().split('T')[0],
         manual_justification: justification,
         updated_by: updatedBy
-      });
+      }, { onConflict: 'person_id,year' });
 
     if (error) {
       console.error('Error saving manual balance:', error);
