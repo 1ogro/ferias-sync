@@ -16,17 +16,31 @@ export default function ResetPassword() {
   const [loading, setLoading] = useState(false);
   const [isRecovery, setIsRecovery] = useState(false);
 
+  const [verifyError, setVerifyError] = useState<string | null>(null);
+
   useEffect(() => {
-    // Listen for PASSWORD_RECOVERY event from Supabase
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
       if (event === 'PASSWORD_RECOVERY') {
         setIsRecovery(true);
       }
     });
 
-    // Also check URL hash for type=recovery
+    const url = new URL(window.location.href);
+    const tokenHash = url.searchParams.get('token_hash');
+    const type = url.searchParams.get('type');
     const hash = window.location.hash;
-    if (hash.includes('type=recovery')) {
+
+    if (tokenHash && type === 'recovery') {
+      supabase.auth.verifyOtp({ type: 'recovery', token_hash: tokenHash }).then(({ error }) => {
+        if (error) {
+          setVerifyError(error.message || 'Link inválido ou expirado.');
+        } else {
+          setIsRecovery(true);
+          // limpar query para não reusar
+          window.history.replaceState({}, '', '/reset-password');
+        }
+      });
+    } else if (hash.includes('type=recovery')) {
       setIsRecovery(true);
     }
 
