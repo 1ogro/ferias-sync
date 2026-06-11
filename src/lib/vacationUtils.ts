@@ -503,7 +503,7 @@ export async function recalculateVacationBalance(
         contract_anniversary: calculated.contract_anniversary,
         manual_justification: justification,
         updated_by: updatedBy
-      });
+      }, { onConflict: 'person_id,year' });
 
     if (error) {
       console.error('Error updating manual balance:', error);
