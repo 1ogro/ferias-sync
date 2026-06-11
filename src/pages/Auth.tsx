@@ -336,7 +336,7 @@ export default function Auth() {
                               if (error) throw error;
                               // Fire-and-forget: envia DM via Slack com o link de reset (a função também avisa o canal de admins)
                               supabase.functions.invoke('send-password-reset-slack', {
-                                body: { email: forgotEmail },
+                                body: { email: forgotEmail, redirectTo: `${window.location.origin}/reset-password` },
                               }).catch(err => console.warn('Slack reset DM failed:', err));
                               toast({ title: 'Link enviado!', description: 'Enviamos o link para seu email e, se o seu Slack estiver vinculado, também por mensagem direta.' });
                               setShowForgotPassword(false);
