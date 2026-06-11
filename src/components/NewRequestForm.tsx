@@ -404,14 +404,15 @@ export const NewRequestForm = () => {
         });
 
       // Send email notification to manager (if not auto-approved)
-      if (!isDirector && person.gestorId) {
-        let managerData: { email: string } | null = null;
+      const managerIdForNotify = person.gestorId ?? (person as any).gestor_id ?? null;
+      if (!isDirector && managerIdForNotify) {
+        let managerData: { email: string; nome: string } | null = null;
         
         try {
           const { data } = await supabase
             .from('people')
-            .select('email')
-            .eq('id', person.gestorId)
+            .select('email, nome')
+            .eq('id', managerIdForNotify)
             .single();
           
           managerData = data;
@@ -445,6 +446,7 @@ export const NewRequestForm = () => {
                 startDate: parseDateSafely(formData.inicio).toLocaleDateString('pt-BR'),
                 endDate: parseDateSafely(formData.fim).toLocaleDateString('pt-BR'),
                 approverEmail: managerData.email,
+                approverName: managerData.nome,
               }
             });
           }
