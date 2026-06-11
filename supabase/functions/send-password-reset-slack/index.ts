@@ -77,11 +77,22 @@ async function sendSlackChannel(text: string) {
   }
 }
 
+function normalizeName(s: string): string {
+  return (s || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+}
+
 async function findSlackUserByName(
   slackToken: string,
   query: string
-): Promise<string | null> {
-  const q = query.replace(/^@/, "").toLowerCase();
+): Promise<{ id: string | null; reason: "exact" | "multiple_matches" | "not_found" | "error" }> {
+  const target = normalizeName(query.replace(/^@/, ""));
+  if (!target) return { id: null, reason: "not_found" };
+
+  const matches: { id: string; label: string }[] = [];
   let cursor = "";
   do {
     const url = `https://slack.com/api/users.list?limit=200${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`;
@@ -89,9 +100,10 @@ async function findSlackUserByName(
     const data = await res.json();
     if (!data.ok) {
       log("slack_users_list_error", { error: data.error });
-      return null;
+      return { id: null, reason: "error" };
     }
-    const match = data.members?.find((u: any) => {
+    for (const u of data.members ?? []) {
+      if (u.deleted || u.is_bot || u.id === "USLACKBOT") continue;
       const candidates = [
         u.name,
         u.real_name,
@@ -99,15 +111,20 @@ async function findSlackUserByName(
         u.profile?.real_name,
         u.profile?.display_name_normalized,
         u.profile?.real_name_normalized,
-      ]
-        .filter(Boolean)
-        .map((s: string) => s.toLowerCase());
-      return candidates.some((c) => c === q || c.includes(q) || q.includes(c));
-    });
-    if (match) return match.id;
+      ].map(normalizeName).filter(Boolean);
+      if (candidates.some((c) => c === target)) {
+        matches.push({ id: u.id, label: u.profile?.real_name || u.real_name || u.name });
+      }
+    }
     cursor = data.response_metadata?.next_cursor || "";
   } while (cursor);
-  return null;
+
+  if (matches.length === 1) return { id: matches[0].id, reason: "exact" };
+  if (matches.length > 1) {
+    log("slack_multiple_matches", { query, matches: matches.map((m) => `${m.label} (${m.id})`) });
+    return { id: null, reason: "multiple_matches" };
+  }
+  return { id: null, reason: "not_found" };
 }
 
 async function lookupSlackByEmail(
