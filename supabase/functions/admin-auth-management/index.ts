@@ -25,10 +25,22 @@ async function sendSlackNotification(text: string) {
   }
 }
 
+function normalizeName(s: string): string {
+  return (s || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+}
+
 async function findSlackUserByName(
   slackToken: string,
   personName: string
-): Promise<string | null> {
+): Promise<{ id: string | null; reason: "exact" | "multiple_matches" | "not_found" | "error" }> {
+  const target = normalizeName(personName);
+  if (!target) return { id: null, reason: "not_found" };
+
+  const matches: { id: string; label: string }[] = [];
   let cursor = "";
   do {
     const url = `https://slack.com/api/users.list?limit=200${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`;
@@ -38,21 +50,31 @@ async function findSlackUserByName(
     const data = await res.json();
     if (!data.ok) {
       console.error("users.list error:", data.error);
-      return null;
+      return { id: null, reason: "error" };
     }
-    const nameLower = personName.toLowerCase();
-    const match = data.members?.find(
-      (u: any) =>
-        u.real_name?.toLowerCase()?.includes(nameLower) ||
-        nameLower.includes(u.real_name?.toLowerCase() || "___") ||
-        u.profile?.display_name?.toLowerCase()?.includes(nameLower) ||
-        nameLower.includes(u.profile?.display_name?.toLowerCase() || "___") ||
-        u.name?.toLowerCase() === nameLower
-    );
-    if (match) return match.id;
+    for (const u of data.members ?? []) {
+      if (u.deleted || u.is_bot || u.id === "USLACKBOT") continue;
+      const candidates = [
+        u.name,
+        u.real_name,
+        u.profile?.display_name,
+        u.profile?.real_name,
+        u.profile?.display_name_normalized,
+        u.profile?.real_name_normalized,
+      ].map(normalizeName).filter(Boolean);
+      if (candidates.some((c) => c === target)) {
+        matches.push({ id: u.id, label: u.profile?.real_name || u.real_name || u.name });
+      }
+    }
     cursor = data.response_metadata?.next_cursor || "";
   } while (cursor);
-  return null;
+
+  if (matches.length === 1) return { id: matches[0].id, reason: "exact" };
+  if (matches.length > 1) {
+    console.warn(`Multiple Slack matches for "${personName}":`, matches.map((m) => `${m.label} (${m.id})`).join(", "));
+    return { id: null, reason: "multiple_matches" };
+  }
+  return { id: null, reason: "not_found" };
 }
 
 async function sendSlackDM(
@@ -60,9 +82,9 @@ async function sendSlackDM(
   email: string,
   blocks: any[],
   fallbackText: string,
-  personName?: string
-): Promise<{ ok: boolean; error?: string }> {
-  // Lookup Slack user by email
+  _personName?: string
+): Promise<{ ok: boolean; error?: string; slackUserId?: string; lookupMethod?: string; ts?: string }> {
+  // Lookup Slack user STRICTLY by email — no silent name fallback
   const lookupRes = await fetch(
     `https://slack.com/api/users.lookupByEmail?email=${encodeURIComponent(email)}`,
     {
@@ -71,23 +93,18 @@ async function sendSlackDM(
   );
   const lookupData = await lookupRes.json();
 
-  let slackUserId: string | null = null;
-
-  if (lookupData.ok) {
-    slackUserId = lookupData.user.id;
-  } else if (personName) {
-    console.log(`Email lookup failed for ${email}, trying name lookup for "${personName}"...`);
-    slackUserId = await findSlackUserByName(slackToken, personName);
-    if (slackUserId) {
-      console.log(`Found Slack user by name "${personName}": ${slackUserId}`);
-    }
+  if (!lookupData.ok) {
+    console.warn(`Slack lookupByEmail failed for ${email}: ${lookupData.error}`);
+    return {
+      ok: false,
+      error: `Usuário não encontrado no Slack pelo email ${email} (${lookupData.error}). Confirme que o email do colaborador é o mesmo cadastrado no Slack ou tente o método de Email.`,
+    };
   }
 
-  if (!slackUserId) {
-    return { ok: false, error: `Usuário não encontrado no Slack para ${email}${personName ? ` nem pelo nome "${personName}"` : ""}` };
-  }
+  const slackUserId: string = lookupData.user.id;
+  const slackUserName: string = lookupData.user?.profile?.real_name || lookupData.user?.real_name || lookupData.user?.name || "";
+  console.log(`Slack DM target resolved by email ${email} -> ${slackUserId} (${slackUserName})`);
 
-  // Send DM directly using user ID as channel (no conversations.open needed)
   const msgRes = await fetch("https://slack.com/api/chat.postMessage", {
     method: "POST",
     headers: {
@@ -103,10 +120,10 @@ async function sendSlackDM(
   const msgData = await msgRes.json();
 
   if (!msgData.ok) {
-    return { ok: false, error: `Erro ao enviar DM Slack: ${msgData.error}` };
+    return { ok: false, error: `Erro ao enviar DM Slack: ${msgData.error}`, slackUserId, lookupMethod: "email" };
   }
 
-  return { ok: true };
+  return { ok: true, slackUserId, lookupMethod: "email", ts: msgData.ts };
 }
 
 Deno.serve(async (req) => {
