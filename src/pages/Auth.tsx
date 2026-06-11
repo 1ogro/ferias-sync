@@ -334,11 +334,11 @@ export default function Auth() {
                                 redirectTo: `${window.location.origin}/reset-password`,
                               });
                               if (error) throw error;
-                              // Fire-and-forget Slack notification
-                              supabase.functions.invoke('slack-notification', {
-                                body: { type: 'USER_PASSWORD_RESET_REQUEST', email: forgotEmail },
-                              }).catch(err => console.warn('Slack notification failed:', err));
-                              toast({ title: 'Email enviado!', description: 'Verifique sua caixa de entrada para redefinir a senha.' });
+                              // Fire-and-forget: envia DM via Slack com o link de reset (a função também avisa o canal de admins)
+                              supabase.functions.invoke('send-password-reset-slack', {
+                                body: { email: forgotEmail },
+                              }).catch(err => console.warn('Slack reset DM failed:', err));
+                              toast({ title: 'Link enviado!', description: 'Enviamos o link para seu email e, se o seu Slack estiver vinculado, também por mensagem direta.' });
                               setShowForgotPassword(false);
                             } catch (err: any) {
                               toast({ title: 'Erro', description: err.message, variant: 'destructive' });
