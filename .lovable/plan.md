@@ -1,50 +1,39 @@
 ## Problema
 
-O `saveManualVacationBalance` e o `recalculateVacationBalance` chamam `.upsert()` sem informar `onConflict: 'person_id,year'`. O Supabase então tenta resolver o conflito pela primary key (`id`), e como nenhum `id` é enviado ele cria um novo registro — que bate na constraint `vacation_balances_person_id_year_key` e estoura o erro "duplicate key value". Por isso nenhuma edição manual está sendo salva.
+A função `send-password-reset-slack` chama `auth.admin.generateLink({ type: 'recovery', email })` sem passar `redirectTo`. Nesse caso o Supabase usa o **Site URL** configurado no projeto, que está apontando para `http://localhost`. Por isso a mensagem no Slack chega com link `https://localhost/...`.
 
-A função `migrateManualBalances` tem o mesmo problema.
+O fluxo de e-mail (`resetPasswordForEmail` no `Auth.tsx`) já passa `redirectTo: ${window.location.origin}/reset-password` e por isso funciona corretamente.
 
-## Correções
+## Solução
 
-### 1. Corrigir os upserts em `src/lib/vacationUtils.ts`
-Em três pontos, trocar:
+Passar a URL de redirect também na geração do link usada pela edge function, alinhando com o que o cliente já faz.
+
+### 1. `src/pages/Auth.tsx`
+No `invoke('send-password-reset-slack', ...)`, enviar também `redirectTo`:
+
 ```ts
-.upsert({ person_id, year, ... })
+body: {
+  email: forgotEmail,
+  redirectTo: `${window.location.origin}/reset-password`,
+}
 ```
-por:
+
+### 2. `supabase/functions/send-password-reset-slack/index.ts`
+- Ler `redirectTo` do body (string, opcional, validar que começa com `https://` e não contém `localhost`).
+- Fallback seguro caso não venha: usar env var `PUBLIC_APP_URL` e, por último, `https://ferias-sync.lovable.app/reset-password`.
+- Passar para o generateLink:
+
 ```ts
-.upsert({ person_id, year, ... }, { onConflict: 'person_id,year' })
+adminClient.auth.admin.generateLink({
+  type: 'recovery',
+  email: person.email,
+  options: { redirectTo },
+})
 ```
-Locais:
-- `saveManualVacationBalance`
-- `recalculateVacationBalance`
-- `migrateManualBalances`
 
-Assim o registro existente é atualizado em vez de uma nova linha ser inserida.
+### 3. Validação
+- Disparar "Esqueci a senha" com email do Pedro Belsito e conferir nos logs da função que `recoveryLink` começa com o domínio público.
+- Conferir DM no Slack com link clicável apontando para `https://ferias-sync.lovable.app/reset-password?...`.
 
-### 2. Ajustar os saldos pendentes de Raul Queiroz e Vanessa Adão
-
-Hoje no banco (ano 2026):
-
-| Pessoa | Contrato | accrued atual | accrued esperado (com aniversário 2026) |
-|---|---|---|---|
-| Raul Queiroz (pessoa_016) | 2018-05-11 | 210 | 240 (+30) |
-| Vanessa Adão (pessoa_019) | 2022-05-01 | 90 | 120 (+30) |
-
-Aplicar via `UPDATE` direto em `vacation_balances`:
-- somar +30 a `accrued_days`
-- recalcular `balance_days = accrued_days - used_days`
-- acrescentar nota em `manual_justification` indicando "Ajuste aniversário de contrato 2026 aplicado manualmente em 11/06/2026"
-- registrar entrada em `audit_logs` com `acao = 'ANNIVERSARY_ACCRUAL_MANUAL'` para cada pessoa (mantendo a idempotência do job diário)
-
-### 3. Validar
-
-Depois da migração de dados, abrir a tela de Vacation Management e confirmar:
-- Raul aparece com 240 acumulados / 90 saldo
-- Vanessa aparece com 120 acumulados / 61 saldo
-- Editar um saldo manual qualquer e confirmar que o "duplicate key" não aparece mais
-
-## Observações
-
-- Não mexe no schema do banco — só correção de dados + fix nas chamadas de upsert no frontend.
-- O job diário `apply-contract-anniversary-accrual` continua valendo daqui para frente; estes dois colaboradores precisaram do ajuste porque o aniversário caiu antes do job entrar em produção.
+## Observação (opcional, fora do escopo do código)
+O ideal também é corrigir o **Site URL** no painel do Supabase para `https://ferias-sync.lovable.app` — isso resolve qualquer outro fluxo que dependa do default. Posso indicar onde ajustar se quiser, mas a correção no código acima já blinda esse fluxo específico.
