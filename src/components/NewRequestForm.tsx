@@ -338,10 +338,11 @@ export const NewRequestForm = () => {
         initialStatus = Status.APROVADO_FINAL;
       } else {
         // Find the user's manager to determine next status
+        const gestorIdResolved = person.gestorId ?? (person as any).gestor_id ?? '';
         const { data: managerData } = await supabase
           .from('people')
           .select('papel')
-          .eq('id', person.gestorId || '')
+          .eq('id', gestorIdResolved)
           .maybeSingle();
         
         // If manager is a director, go straight to director analysis
