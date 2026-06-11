@@ -386,17 +386,21 @@ const Inbox = () => {
         console.warn('Error creating audit log (non-critical):', auditError);
       }
 
+      // Fetch requester contact once (used for both email and Slack DM)
+      const { data: requesterData } = await supabase
+        .from('people')
+        .select('email, nome')
+        .eq('id', request.requesterId)
+        .single();
+
+      const requesterEmail = requesterData?.email || '';
+      const requesterFullName = requesterData?.nome || request.requester?.nome || '';
+
       // Send email notification to requester
       try {
-        const { data: requesterData } = await supabase
-          .from('people')
-          .select('email')
-          .eq('id', request.requesterId)
-          .single();
-
-        if (requesterData?.email) {
+        if (requesterEmail) {
           let notificationType: 'APPROVAL_MANAGER' | 'APPROVAL_FINAL' | 'REJECTION' | 'REQUEST_INFO';
-          
+
           if (action === 'reject') {
             notificationType = 'REJECTION';
           } else if (action === 'ask_info') {
@@ -410,8 +414,8 @@ const Inbox = () => {
           await supabase.functions.invoke('send-notification-email', {
             body: {
               type: notificationType,
-              to: requesterData.email,
-              requesterName: request.requester?.nome || '',
+              to: requesterEmail,
+              requesterName: requesterFullName,
               requestType: request.tipo,
               startDate: request.inicio instanceof Date ? request.inicio.toLocaleDateString('pt-BR') : request.inicio ? parseDateSafely(request.inicio).toLocaleDateString('pt-BR') : undefined,
               endDate: request.fim instanceof Date ? request.fim.toLocaleDateString('pt-BR') : request.fim ? parseDateSafely(request.fim).toLocaleDateString('pt-BR') : undefined,
@@ -424,7 +428,7 @@ const Inbox = () => {
         // Don't block the flow if email fails
       }
 
-      // Send Slack notification
+      // Send Slack notification (DM ao solicitante para REQUEST_INFO/REJECTION/APPROVAL)
       try {
         let slackType: 'APPROVAL' | 'REJECTION' | 'REQUEST_INFO';
         if (action === 'reject') {
@@ -439,11 +443,14 @@ const Inbox = () => {
           body: {
             type: slackType,
             requestId: requestId,
-            requesterName: request.requester?.nome || '',
+            requesterName: requesterFullName,
             requestType: request.tipo,
             startDate: request.inicio instanceof Date ? request.inicio.toLocaleDateString('pt-BR') : request.inicio ? parseDateSafely(request.inicio).toLocaleDateString('pt-BR') : '',
             endDate: request.fim instanceof Date ? request.fim.toLocaleDateString('pt-BR') : request.fim ? parseDateSafely(request.fim).toLocaleDateString('pt-BR') : '',
             comment: null,
+            recipientEmail: requesterEmail || undefined,
+            recipientName: requesterFullName || undefined,
+            targetPersonId: request.requesterId,
           }
         });
       } catch (slackError) {
