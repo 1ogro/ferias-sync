@@ -1,4 +1,49 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { Resend } from "npm:resend@2.0.0";
+
+const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
+
+async function sendRecoveryEmail(
+  to: string,
+  name: string,
+  recoveryLink: string
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    if (!Deno.env.get("RESEND_API_KEY")) {
+      return { ok: false, error: "no_resend_key" };
+    }
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 560px; margin: 0 auto; padding: 24px; color: #0f172a;">
+        <h2 style="margin: 0 0 16px;">🔑 Redefinir sua senha</h2>
+        <p>Olá, <strong>${name}</strong>!</p>
+        <p>Recebemos um pedido para redefinir a senha da sua conta. Clique no botão abaixo para criar uma nova senha:</p>
+        <p style="margin: 24px 0;">
+          <a href="${recoveryLink}"
+             style="background:#0f172a;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none;display:inline-block;">
+            Redefinir minha senha
+          </a>
+        </p>
+        <p style="font-size: 13px; color:#475569;">Se o botão não funcionar, copie e cole este link no navegador:</p>
+        <p style="font-size: 12px; word-break: break-all; color:#475569;">${recoveryLink}</p>
+        <hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0;" />
+        <p style="font-size: 12px; color:#64748b;">🔒 Se você não solicitou esta alteração, ignore este email.</p>
+      </div>
+    `;
+    const res = await resend.emails.send({
+      from: "Sistema de Férias <onboarding@resend.dev>",
+      to: [to],
+      subject: "Redefinir sua senha",
+      html,
+    });
+    if ((res as any)?.error) {
+      return { ok: false, error: String((res as any).error?.message ?? (res as any).error) };
+    }
+    return { ok: true };
+  } catch (e: any) {
+    return { ok: false, error: String(e?.message ?? e) };
+  }
+}
+
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -107,9 +152,8 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  const debug = req.headers.get("x-debug") === "1";
   const respond = (body: Record<string, unknown>, status = 200) =>
-    new Response(JSON.stringify(debug ? body : { ok: true }), {
+    new Response(JSON.stringify(body), {
       status,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
@@ -305,14 +349,23 @@ Deno.serve(async (req) => {
       },
     ];
 
-    const dmResult = await postSlackDM(
-      slackToken,
-      slackUserId,
-      `Olá ${person.nome}! Acesse ${recoveryLink} para redefinir sua senha.`,
-      blocks
-    );
+    const [dmResult, emailResult] = await Promise.all([
+      postSlackDM(
+        slackToken,
+        slackUserId,
+        `Olá ${person.nome}! Acesse ${recoveryLink} para redefinir sua senha.`,
+        blocks
+      ),
+      person.email
+        ? sendRecoveryEmail(person.email, person.nome, recoveryLink)
+        : Promise.resolve({ ok: false, error: "no_email" } as { ok: boolean; error?: string }),
+    ]);
 
     log("dm_result", { ok: dmResult.ok, error: dmResult.error });
+    log("email_result", { ok: emailResult.ok, error: emailResult.error });
+
+    const dmStatus = dmResult.ok ? "sent" : "failed";
+    const emailStatus = emailResult.ok ? "sent" : "failed";
 
     // 5) Audit + canal admin
     await admin.from("audit_logs").insert({
@@ -323,25 +376,28 @@ Deno.serve(async (req) => {
       payload: {
         identifier_type: identifierType,
         slack_lookup_method: lookupMethod,
-        dm_status: dmResult.ok ? "sent" : "failed",
+        dm_status: dmStatus,
         dm_error: dmResult.error,
+        email_status: emailStatus,
+        email_error: emailResult.error,
         auth_user_created: authUserCreated,
         target_email: person.email,
         target_name: person.nome,
       },
     });
 
-    const statusLabel = dmResult.ok
-      ? "✅ DM enviada"
-      : `⚠️ falha DM (${dmResult.error ?? "erro"})`;
+    const dmLabel = dmResult.ok ? "✅ DM" : `⚠️ DM (${dmResult.error ?? "erro"})`;
+    const emailLabel = emailResult.ok ? "✅ email" : `⚠️ email (${emailResult.error ?? "erro"})`;
     sendSlackChannel(
-      `🔑 *Reset de senha* — *${person.nome}* (${person.email}) — ${statusLabel}${authUserCreated ? " · auth user criado" : ""}`
+      `🔑 *Reset de senha* — *${person.nome}* (${person.email}) — ${dmLabel} · ${emailLabel}${authUserCreated ? " · auth user criado" : ""}`
     );
 
     return respond({
       ok: true,
-      dm_status: dmResult.ok ? "sent" : "failed",
+      dm_status: dmStatus,
       dm_error: dmResult.error,
+      email_status: emailStatus,
+      email_error: emailResult.error,
       lookup_method: lookupMethod,
       auth_user_created: authUserCreated,
     });
