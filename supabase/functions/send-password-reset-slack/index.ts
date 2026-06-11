@@ -152,9 +152,8 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  const debug = req.headers.get("x-debug") === "1";
   const respond = (body: Record<string, unknown>, status = 200) =>
-    new Response(JSON.stringify(debug ? body : { ok: true }), {
+    new Response(JSON.stringify(body), {
       status,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
