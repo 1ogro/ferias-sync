@@ -18,6 +18,8 @@ interface SlackNotificationRequest {
   endDate?: string;
   approverEmail?: string;
   approverName?: string;
+  recipientEmail?: string;
+  recipientName?: string;
   comment?: string;
   targetPersonId?: string;
   personName?: string;
