@@ -77,11 +77,22 @@ async function sendSlackChannel(text: string) {
   }
 }
 
+function normalizeName(s: string): string {
+  return (s || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+}
+
 async function findSlackUserByName(
   slackToken: string,
   query: string
-): Promise<string | null> {
-  const q = query.replace(/^@/, "").toLowerCase();
+): Promise<{ id: string | null; reason: "exact" | "multiple_matches" | "not_found" | "error" }> {
+  const target = normalizeName(query.replace(/^@/, ""));
+  if (!target) return { id: null, reason: "not_found" };
+
+  const matches: { id: string; label: string }[] = [];
   let cursor = "";
   do {
     const url = `https://slack.com/api/users.list?limit=200${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`;
@@ -89,9 +100,10 @@ async function findSlackUserByName(
     const data = await res.json();
     if (!data.ok) {
       log("slack_users_list_error", { error: data.error });
-      return null;
+      return { id: null, reason: "error" };
     }
-    const match = data.members?.find((u: any) => {
+    for (const u of data.members ?? []) {
+      if (u.deleted || u.is_bot || u.id === "USLACKBOT") continue;
       const candidates = [
         u.name,
         u.real_name,
@@ -99,15 +111,20 @@ async function findSlackUserByName(
         u.profile?.real_name,
         u.profile?.display_name_normalized,
         u.profile?.real_name_normalized,
-      ]
-        .filter(Boolean)
-        .map((s: string) => s.toLowerCase());
-      return candidates.some((c) => c === q || c.includes(q) || q.includes(c));
-    });
-    if (match) return match.id;
+      ].map(normalizeName).filter(Boolean);
+      if (candidates.some((c) => c === target)) {
+        matches.push({ id: u.id, label: u.profile?.real_name || u.real_name || u.name });
+      }
+    }
     cursor = data.response_metadata?.next_cursor || "";
   } while (cursor);
-  return null;
+
+  if (matches.length === 1) return { id: matches[0].id, reason: "exact" };
+  if (matches.length > 1) {
+    log("slack_multiple_matches", { query, matches: matches.map((m) => `${m.label} (${m.id})`) });
+    return { id: null, reason: "multiple_matches" };
+  }
+  return { id: null, reason: "not_found" };
 }
 
 async function lookupSlackByEmail(
@@ -235,24 +252,33 @@ Deno.serve(async (req) => {
     // 2) Resolver Slack user ID
     let slackUserId: string | null = null;
     let lookupMethod: "email" | "name" | "person_email" | "none" = "none";
+    let nameLookupReason: string | null = null;
 
     if (identifierType === "email") {
       slackUserId = await lookupSlackByEmail(slackToken, identifierLower);
       if (slackUserId) lookupMethod = "email";
     } else {
-      slackUserId = await findSlackUserByName(slackToken, rawIdentifier);
-      if (slackUserId) lookupMethod = "name";
+      const r = await findSlackUserByName(slackToken, rawIdentifier);
+      nameLookupReason = r.reason;
+      if (r.id) {
+        slackUserId = r.id;
+        lookupMethod = "name";
+      }
     }
     if (!slackUserId && person.email) {
       slackUserId = await lookupSlackByEmail(slackToken, person.email);
       if (slackUserId) lookupMethod = "person_email";
     }
     if (!slackUserId) {
-      slackUserId = await findSlackUserByName(slackToken, person.nome);
-      if (slackUserId) lookupMethod = "name";
+      const r = await findSlackUserByName(slackToken, person.nome);
+      nameLookupReason = r.reason;
+      if (r.id) {
+        slackUserId = r.id;
+        lookupMethod = "name";
+      }
     }
 
-    log("slack_lookup", { method: lookupMethod, slackUserId });
+    log("slack_lookup", { method: lookupMethod, slackUserId, nameLookupReason });
 
     if (!slackUserId) {
       sendSlackChannel(
@@ -266,6 +292,9 @@ Deno.serve(async (req) => {
         payload: {
           identifier_type: identifierType,
           slack_lookup_method: lookupMethod,
+          name_lookup_reason: nameLookupReason,
+          target_email: person.email,
+          target_name: person.nome,
           dm_status: "failed",
           dm_error: "slack_user_not_found",
         },
@@ -379,6 +408,8 @@ Deno.serve(async (req) => {
       payload: {
         identifier_type: identifierType,
         slack_lookup_method: lookupMethod,
+        slack_user_id: slackUserId,
+        name_lookup_reason: nameLookupReason,
         dm_status: dmStatus,
         dm_error: dmResult.error,
         email_status: emailStatus,
