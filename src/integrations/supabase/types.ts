@@ -313,13 +313,13 @@ export type Database = {
         Row: {
           cargo: string | null
           created_at: string | null
-          created_by: string
+          created_by: string | null
           data_contrato: string | null
           data_nascimento: string | null
           dia_pagamento: number | null
           director_notes: string | null
           email: string
-          gestor_id: string
+          gestor_id: string | null
           id: string
           local: string | null
           modelo_contrato: string | null
@@ -334,13 +334,13 @@ export type Database = {
         Insert: {
           cargo?: string | null
           created_at?: string | null
-          created_by: string
+          created_by?: string | null
           data_contrato?: string | null
           data_nascimento?: string | null
           dia_pagamento?: number | null
           director_notes?: string | null
           email: string
-          gestor_id: string
+          gestor_id?: string | null
           id?: string
           local?: string | null
           modelo_contrato?: string | null
@@ -355,13 +355,13 @@ export type Database = {
         Update: {
           cargo?: string | null
           created_at?: string | null
-          created_by?: string
+          created_by?: string | null
           data_contrato?: string | null
           data_nascimento?: string | null
           dia_pagamento?: number | null
           director_notes?: string | null
           email?: string
-          gestor_id?: string
+          gestor_id?: string | null
           id?: string
           local?: string | null
           modelo_contrato?: string | null
@@ -373,7 +373,29 @@ export type Database = {
           status?: string
           sub_time?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "pending_people_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pending_people_gestor_id_fkey"
+            columns: ["gestor_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pending_people_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       people: {
         Row: {
