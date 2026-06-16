@@ -1,50 +1,36 @@
-## Objetivo
-Notificar no Slack aniversários de nascimento e de contrato dos colaboradores, com:
-- **Digest mensal** (resumo do mês) para gestores diretos e diretores
-- **Aviso pontual no dia** para gestor direto + diretores
-- **Mensagem de parabéns** no Slack para o próprio aniversariante (apenas nascimento)
+## Diagnóstico
 
-Tudo respeitando as preferências em `notification_preferences` (`system_alerts_slack` / `system_alerts_email`).
+A função `slack-notification` é chamada corretamente do `NewRequestForm` quando uma nova solicitação é criada (passa `approverEmail` + `approverName` do gestor). Mas o código tem dois problemas que fazem a DM não chegar:
 
-## O que vai mudar
+1. **Fallback silencioso para canal**: quando o `users.lookupByEmail` do Slack falha (escopo ausente, email do Slack diferente do email no `people`, etc.) e o lookup por nome também falha, a mensagem vai para o canal `SLACK_CHANNEL_APPROVALS` em vez do gestor — então a DM nunca chega, mas o sistema acha que "deu certo".
+2. **Lookup por nome muito frouxo**: usa `.includes()` em vez de match exato — pode encontrar a pessoa errada ou nenhuma.
 
-### 1. Função existente: `send-contract-anniversary-notifications` (digest mensal)
-- Hoje envia só para **diretores**. Vai passar a enviar também para **gestores diretos** dos aniversariantes do mês — cada gestor recebe um digest filtrado só com os membros do próprio time que fazem aniversário de contrato no mês.
-- Diretores continuam recebendo o digest completo (todos os PJ do mês), como hoje.
+Sem logs históricos disponíveis (>7 dias) não dá para confirmar qual dos dois está disparando, mas a arquitetura atual mascara qualquer falha. Também identifiquei um gap relacionado: **quando o gestor aprova no 1º nível, o diretor não recebe nenhuma DM** para o 2º nível.
 
-### 2. Nova função: `send-birthday-digest` (digest mensal de aniversários de nascimento)
-- Roda nos mesmos dias do digest de contrato (01/10/20/30).
-- Diretores: digest com todos os aniversariantes do mês.
-- Cada gestor: digest com aniversariantes do próprio time no mês.
-- Marca cada item como ✅ já passou / ⏳ ainda este mês.
-- Auditoria idempotente por dia (mesmo padrão do contrato).
+## O que será feito
 
-### 3. Nova função: `send-daily-anniversaries` (aviso no dia)
-- Roda 1× por dia (manhã, horário SP).
-- Para cada colaborador ativo cujo dia/mês de `data_nascimento` ou `data_contrato` é hoje:
-  - DM no Slack para o **gestor direto** ("Hoje é aniversário de X" / "Hoje X completa N anos de contrato").
-  - DM no Slack para todos os **diretores** ativos.
-  - Se for aniversário de nascimento: DM de parabéns para o **próprio colaborador**.
-- Respeita `notification_preferences.system_alerts_slack` para cada destinatário.
-- Auditoria idempotente por dia + tipo (`daily_birthday` / `daily_contract_anniversary`).
+### 1. Endurecer `slack-notification` para garantir DM (sem regredir comportamento atual)
+- Trocar `users.list` `.includes()` por match exato em `real_name` / `display_name` / `name`.
+- Adicionar log claro de qual caminho foi usado (`email_lookup_ok`, `name_lookup_ok`, `channel_fallback`) e o motivo da falha (resposta do Slack incluída no log).
+- Para tipos de notificação que devem ser DM ao gestor/aprovador (`NEW_REQUEST`, `APPROVAL`, `REJECTION`, `REQUEST_INFO`), se a DM falhar, postar no canal **mencionando o email do destinatário** (ex: "⚠️ Não consegui enviar DM para `email@...` — quem aprova esta solicitação?"). Hoje vai silencioso.
+- Persistir `audit_logs` com cada tentativa (`entidade='slack_notification'`, payload contendo `type`, `targetEmail`, `slackUserId`, `delivery`).
 
-### 4. Agendamentos (pg_cron)
-Configurar 2 cron jobs novos (e manter o existente do contrato mensal):
-- `send-birthday-digest` — dias 01, 10, 20, 30 de cada mês, 09:00 BRT
-- `send-daily-anniversaries` — todos os dias, 09:00 BRT
+### 2. Notificar diretores quando solicitação sobe para 2º nível
+- Em `Inbox.tsx`, quando a aprovação do gestor muda status para `EM_ANALISE_DIRETOR`, invocar `slack-notification` para cada diretor ativo com `type='NEW_REQUEST'` (DM individual). Hoje só o solicitante é avisado.
 
-### 5. Frontend
-- `useBirthdayNotifications` (toast in-app) permanece como está — não conflita.
-- Sem mudanças visuais; toda a entrega é via Slack.
+### 3. Endpoint de diagnóstico rápido
+- Adicionar suporte a `?diagnose=true` em `slack-notification` que tenta resolver o `approverEmail` para um `slackUserId` **sem enviar mensagem** e retorna `{ found, slackUserId, method }`. Útil para verificar todos os gestores ativos de uma vez.
+
+### 4. Verificações de escopo do bot (apenas docs no plano, não código)
+- A função precisa que o Slack bot tenha `users:read` e `users:read.email`. Sem o segundo, `lookupByEmail` falha com `missing_scope` para todos os usuários. Se o diagnóstico mostrar que NENHUM email é encontrado, o caminho é o usuário reconectar o Slack com esses escopos (memória já documentada em `Slack Integration Requirements`).
 
 ## Detalhes técnicos
 
-- Reaproveita o helper `findSlackUserId` + `sendSlackDM` já existente em `send-contract-anniversary-notifications`. Extrai para inline em cada função nova (evita import cross-function que o Deno edge não permite limpo).
-- Lookup do gestor: `people.gestor_id` → resolve para Slack via email (`users.lookupByEmail`) com fallback por nome.
-- Comparação de data em fuso `America/Sao_Paulo` (já tem helper).
-- Sem mudanças de schema. Sem novas secrets (usa `SLACK_BOT_TOKEN`, `RESEND_API_KEY`, `SUPABASE_SERVICE_ROLE_KEY` que já existem).
-- `audit_logs` usado para idempotência: chave (`entidade`, `acao`, `entidade_id=YYYY-MM-DD`).
+- Sem mudanças de schema.
+- `audit_logs` reutilizado (entidade nova `slack_notification`) para rastreabilidade.
+- Sem novas secrets.
+- Frontend: 1 chamada adicional dentro do bloco já existente de aprovação no `Inbox.tsx`.
 
 ## Fora de escopo
-- Email não muda (digest de contrato continua indo por email para diretores; demais novas notificações são **só Slack**, conforme pedido).
-- Sem UI nova de preferências — usa as flags `system_alerts_slack` existentes.
+- Não mexer no template de email (o email para o gestor já funciona via outro caminho).
+- Não alterar `SLACK_CHANNEL_APPROVALS` — continua sendo fallback visível.

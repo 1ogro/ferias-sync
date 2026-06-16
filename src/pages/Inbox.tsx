@@ -458,6 +458,40 @@ const Inbox = () => {
         // Don't block the flow if Slack fails
       }
 
+      // If escalated to director level, DM all active directors
+      if (action === 'approve' && newStatus === Status.EM_ANALISE_DIRETOR) {
+        try {
+          const { data: directors } = await supabase
+            .from('people')
+            .select('id, email, nome')
+            .eq('papel', 'DIRETOR')
+            .eq('ativo', true);
+
+          const startStr = request.inicio instanceof Date ? request.inicio.toLocaleDateString('pt-BR') : request.inicio ? parseDateSafely(request.inicio).toLocaleDateString('pt-BR') : '';
+          const endStr = request.fim instanceof Date ? request.fim.toLocaleDateString('pt-BR') : request.fim ? parseDateSafely(request.fim).toLocaleDateString('pt-BR') : '';
+
+          await Promise.all(
+            (directors || []).map((d) =>
+              supabase.functions.invoke('slack-notification', {
+                body: {
+                  type: 'NEW_REQUEST',
+                  requestId: requestId,
+                  requesterName: requesterFullName,
+                  requestType: request.tipo,
+                  startDate: startStr,
+                  endDate: endStr,
+                  approverEmail: d.email,
+                  approverName: d.nome,
+                  targetPersonId: d.id,
+                },
+              }).catch((e) => console.error(`Failed to notify director ${d.email}:`, e))
+            )
+          );
+        } catch (directorNotifyError) {
+          console.error('Error notifying directors:', directorNotifyError);
+        }
+      }
+
       toast({
         title: "Sucesso",
         description: `Solicitação ${action === 'approve' ? 'aprovada' : action === 'reject' ? 'reprovada' : 'marcada para informações adicionais'} com sucesso`,
