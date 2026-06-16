@@ -35,48 +35,80 @@ interface SlackNotificationRequest {
   contractDate?: string;
   affectsCapacity?: boolean;
   justification?: string;
+  diagnose?: boolean;
 }
 
-async function findSlackUserByName(personName: string): Promise<string | null> {
-  let cursor = "";
-  do {
-    const url = `https://slack.com/api/users.list?limit=200${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`;
-    const res = await fetch(url, {
-      headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}` },
-    });
-    const data = await res.json();
-    if (!data.ok) {
-      console.error("users.list error:", data.error);
-      return null;
+type LookupResult = {
+  slackUserId: string | null;
+  method: 'email_lookup_ok' | 'name_lookup_ok' | 'not_found' | 'no_input';
+  error?: string;
+};
+
+async function lookupSlackUser(email?: string, name?: string): Promise<LookupResult> {
+  if (!email && !name) return { slackUserId: null, method: 'no_input' };
+
+  if (email) {
+    try {
+      const res = await fetch(
+        `https://slack.com/api/users.lookupByEmail?email=${encodeURIComponent(email)}`,
+        { headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}` } }
+      );
+      const data = await res.json();
+      if (data.ok && data.user?.id) {
+        return { slackUserId: data.user.id, method: 'email_lookup_ok' };
+      }
+      console.warn(`users.lookupByEmail failed for ${email}: ${data.error}`);
+      if (!name) return { slackUserId: null, method: 'not_found', error: data.error };
+    } catch (err: any) {
+      console.error("users.lookupByEmail threw:", err?.message);
     }
-    const nameLower = personName.toLowerCase();
-    const match = data.members?.find(
-      (u: any) =>
-        u.real_name?.toLowerCase()?.includes(nameLower) ||
-        nameLower.includes(u.real_name?.toLowerCase() || "___") ||
-        u.profile?.display_name?.toLowerCase()?.includes(nameLower) ||
-        nameLower.includes(u.profile?.display_name?.toLowerCase() || "___") ||
-        u.name?.toLowerCase() === nameLower
-    );
-    if (match) return match.id;
-    cursor = data.response_metadata?.next_cursor || "";
-  } while (cursor);
-  return null;
+  }
+
+  if (name) {
+    const target = name.trim().toLowerCase();
+    let cursor = "";
+    do {
+      const url = `https://slack.com/api/users.list?limit=200${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`;
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}` } });
+      const data = await res.json();
+      if (!data.ok) {
+        console.error("users.list error:", data.error);
+        return { slackUserId: null, method: 'not_found', error: data.error };
+      }
+      const match = data.members?.find((u: any) => {
+        const candidates = [u.real_name, u.profile?.display_name, u.profile?.real_name, u.name]
+          .filter(Boolean)
+          .map((s: string) => s.toLowerCase());
+        return candidates.includes(target);
+      });
+      if (match) return { slackUserId: match.id, method: 'name_lookup_ok' };
+      cursor = data.response_metadata?.next_cursor || "";
+    } while (cursor);
+  }
+
+  return { slackUserId: null, method: 'not_found' };
 }
 
 const TIPO_EMOJI = {
   'FERIAS': '🏖️',
   'DAY_OFF': '🎂',
+  'DAYOFF': '🎂',
   'LICENCA_MATERNIDADE': '👶',
   'LICENCA_MEDICA': '🏥',
 };
 
-// Map notification types to preference columns
+const DM_TYPES = new Set(['NEW_REQUEST', 'APPROVAL', 'REJECTION', 'REQUEST_INFO']);
+
 function getPreferenceColumn(type: string): string | null {
-  if (['NEW_REQUEST', 'APPROVAL', 'REJECTION', 'REQUEST_INFO'].includes(type)) {
-    return 'request_updates_slack';
-  }
+  if (DM_TYPES.has(type)) return 'request_updates_slack';
   return null;
+}
+
+function getSupabaseAdmin() {
+  return createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+  );
 }
 
 serve(async (req) => {
@@ -84,27 +116,40 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  let payload: SlackNotificationRequest | null = null;
   try {
-    const payload: SlackNotificationRequest = await req.json();
+    payload = await req.json();
     console.log("Slack notification payload:", payload);
 
-    // Check user preferences if targetPersonId is provided
-    if (payload.targetPersonId) {
-      const prefColumn = getPreferenceColumn(payload.type);
+    const url = new URL(req.url);
+    const diagnose = payload!.diagnose === true || url.searchParams.get('diagnose') === 'true';
+
+    const lookupEmail = payload!.recipientEmail || payload!.approverEmail;
+    const lookupName = payload!.recipientName || payload!.approverName;
+
+    // Diagnose mode: resolve only, never send
+    if (diagnose) {
+      const result = await lookupSlackUser(lookupEmail, lookupName);
+      return new Response(
+        JSON.stringify({ success: true, diagnose: true, ...result, lookupEmail, lookupName }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Respect user preference (only when targetPersonId provided)
+    if (payload!.targetPersonId) {
+      const prefColumn = getPreferenceColumn(payload!.type);
       if (prefColumn) {
         try {
-          const supabaseAdmin = createClient(
-            Deno.env.get("SUPABASE_URL")!,
-            Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-          );
+          const supabaseAdmin = getSupabaseAdmin();
           const { data: prefs } = await supabaseAdmin
             .from("notification_preferences")
             .select(prefColumn)
-            .eq("person_id", payload.targetPersonId)
+            .eq("person_id", payload!.targetPersonId)
             .maybeSingle();
 
-          if (prefs && prefs[prefColumn] === false) {
-            console.log(`Slack notification skipped: user ${payload.targetPersonId} disabled ${prefColumn}`);
+          if (prefs && (prefs as any)[prefColumn] === false) {
+            console.log(`Slack notification skipped: user ${payload!.targetPersonId} disabled ${prefColumn}`);
             return new Response(JSON.stringify({ success: true, skipped: true, reason: 'user_preference' }), {
               headers: { ...corsHeaders, "Content-Type": "application/json" },
             });
@@ -115,286 +160,145 @@ serve(async (req) => {
       }
     }
 
-    // Resolve Slack user ID — prioriza recipient (destinatário direto), fallback approver
-    let slackUserId: string | null = null;
-    const lookupEmail = payload.recipientEmail || payload.approverEmail;
-    const lookupName = payload.recipientName || payload.approverName;
+    const lookup = await lookupSlackUser(lookupEmail, lookupName);
+    console.log("Slack lookup result:", lookup);
 
-    if (lookupEmail) {
-      const userResponse = await fetch(
-        `https://slack.com/api/users.lookupByEmail?email=${encodeURIComponent(lookupEmail)}`,
-        {
-          headers: { "Authorization": `Bearer ${SLACK_BOT_TOKEN}` },
-        }
-      );
-      const userData = await userResponse.json();
-      if (userData.ok) {
-        slackUserId = userData.user.id;
-      } else if (lookupName) {
-        console.log(`Email lookup failed for ${lookupEmail}, trying name lookup for "${lookupName}"...`);
-        slackUserId = await findSlackUserByName(lookupName);
-        if (slackUserId) {
-          console.log(`Found Slack user by name "${lookupName}": ${slackUserId}`);
-        }
-      }
-    } else if (lookupName) {
-      slackUserId = await findSlackUserByName(lookupName);
-    }
-
-    const emoji = TIPO_EMOJI[payload.requestType as keyof typeof TIPO_EMOJI] || '📝';
-    
+    const emoji = TIPO_EMOJI[payload!.requestType as keyof typeof TIPO_EMOJI] || '📝';
     let blocks: any[] = [];
     let text = '';
 
-    if (payload.type === 'NEW_REQUEST') {
-      text = `Nova Solicitação de ${payload.requestType}`;
+    if (payload!.type === 'NEW_REQUEST') {
+      text = `Nova Solicitação de ${payload!.requestType}`;
       blocks = [
-        {
-          type: "section",
-          text: {
-            type: "mrkdwn",
-            text: `*${emoji} Nova Solicitação: ${payload.requestType}*\n👤 *${payload.requesterName}*\n📅 ${payload.startDate} até ${payload.endDate}`,
-          },
-        },
-        {
-          type: "actions",
-          elements: [
-            {
-              type: "button",
-              text: { type: "plain_text", text: "✅ Aprovar" },
-              style: "primary",
-              action_id: "approve_request",
-              value: payload.requestId,
-            },
-            {
-              type: "button",
-              text: { type: "plain_text", text: "❌ Rejeitar" },
-              style: "danger",
-              action_id: "reject_request",
-              value: payload.requestId,
-            },
-            {
-              type: "button",
-              text: { type: "plain_text", text: "📋 Solicitar Info" },
-              action_id: "request_info",
-              value: payload.requestId,
-            },
-          ],
-        },
+        { type: "section", text: { type: "mrkdwn", text: `*${emoji} Nova Solicitação: ${payload!.requestType}*\n👤 *${payload!.requesterName}*\n📅 ${payload!.startDate} até ${payload!.endDate}` } },
+        { type: "actions", elements: [
+          { type: "button", text: { type: "plain_text", text: "✅ Aprovar" }, style: "primary", action_id: "approve_request", value: payload!.requestId },
+          { type: "button", text: { type: "plain_text", text: "❌ Rejeitar" }, style: "danger", action_id: "reject_request", value: payload!.requestId },
+          { type: "button", text: { type: "plain_text", text: "📋 Solicitar Info" }, action_id: "request_info", value: payload!.requestId },
+        ] },
       ];
-    } else if (payload.type === 'APPROVAL') {
+    } else if (payload!.type === 'APPROVAL') {
       text = `Solicitação Aprovada`;
-      blocks = [
-        {
-          type: "section",
-          text: {
-            type: "mrkdwn",
-            text: `*✅ Solicitação Aprovada*\n👤 ${payload.requesterName}\n📅 ${payload.startDate} até ${payload.endDate}${payload.comment ? `\n💬 ${payload.comment}` : ''}`,
-          },
-        },
-      ];
-    } else if (payload.type === 'REJECTION') {
+      blocks = [{ type: "section", text: { type: "mrkdwn", text: `*✅ Solicitação Aprovada*\n👤 ${payload!.requesterName}\n📅 ${payload!.startDate} até ${payload!.endDate}${payload!.comment ? `\n💬 ${payload!.comment}` : ''}` } }];
+    } else if (payload!.type === 'REJECTION') {
       text = `Solicitação Rejeitada`;
-      blocks = [
-        {
-          type: "section",
-          text: {
-            type: "mrkdwn",
-            text: `*❌ Solicitação Rejeitada*\n👤 ${payload.requesterName}\n📅 ${payload.startDate} até ${payload.endDate}${payload.comment ? `\n💬 ${payload.comment}` : ''}`,
-          },
-        },
-      ];
-    } else if (payload.type === 'REQUEST_INFO') {
+      blocks = [{ type: "section", text: { type: "mrkdwn", text: `*❌ Solicitação Rejeitada*\n👤 ${payload!.requesterName}\n📅 ${payload!.startDate} até ${payload!.endDate}${payload!.comment ? `\n💬 ${payload!.comment}` : ''}` } }];
+    } else if (payload!.type === 'REQUEST_INFO') {
       text = `Informações Adicionais Solicitadas`;
-      blocks = [
-        {
-          type: "section",
-          text: {
-            type: "mrkdwn",
-            text: `*📋 Informações Adicionais Solicitadas*\n👤 ${payload.requesterName}\n📅 ${payload.startDate} até ${payload.endDate}${payload.comment ? `\n💬 ${payload.comment}` : ''}`,
-          },
-        },
-      ];
-    } else if (payload.type === 'PERSON_APPROVED') {
+      blocks = [{ type: "section", text: { type: "mrkdwn", text: `*📋 Informações Adicionais Solicitadas*\n👤 ${payload!.requesterName}\n📅 ${payload!.startDate} até ${payload!.endDate}${payload!.comment ? `\n💬 ${payload!.comment}` : ''}` } }];
+    } else if (payload!.type === 'PERSON_APPROVED') {
       text = `Colaborador Aprovado`;
-      blocks = [
-        {
-          type: "section",
-          text: {
-            type: "mrkdwn",
-            text: `*✅ Colaborador Aprovado*\n👤 *${payload.personName}* (${payload.personEmail})\n🔑 Aprovado por: ${payload.directorName}`,
-          },
-        },
-      ];
-    } else if (payload.type === 'PERSON_REJECTED') {
+      blocks = [{ type: "section", text: { type: "mrkdwn", text: `*✅ Colaborador Aprovado*\n👤 *${payload!.personName}* (${payload!.personEmail})\n🔑 Aprovado por: ${payload!.directorName}` } }];
+    } else if (payload!.type === 'PERSON_REJECTED') {
       text = `Colaborador Rejeitado`;
-      blocks = [
-        {
-          type: "section",
-          text: {
-            type: "mrkdwn",
-            text: `*❌ Colaborador Rejeitado*\n👤 *${payload.personName}* (${payload.personEmail})\n🔑 Rejeitado por: ${payload.directorName}${payload.rejectionReason ? `\n💬 Motivo: ${payload.rejectionReason}` : ''}`,
-          },
-        },
-      ];
-    } else if (payload.type === 'INVITE_ACCEPTED') {
+      blocks = [{ type: "section", text: { type: "mrkdwn", text: `*❌ Colaborador Rejeitado*\n👤 *${payload!.personName}* (${payload!.personEmail})\n🔑 Rejeitado por: ${payload!.directorName}${payload!.rejectionReason ? `\n💬 Motivo: ${payload!.rejectionReason}` : ''}` } }];
+    } else if (payload!.type === 'INVITE_ACCEPTED') {
       text = `Convite Aceito`;
-      blocks = [
-        {
-          type: "section",
-          text: {
-            type: "mrkdwn",
-            text: `*🎉 Convite Aceito*\n👤 *${payload.personName}* (${payload.personEmail}) aceitou o convite e criou sua conta no sistema.`,
-          },
-        },
-      ];
-    } else if (payload.type === 'NEW_PENDING_PERSON') {
+      blocks = [{ type: "section", text: { type: "mrkdwn", text: `*🎉 Convite Aceito*\n👤 *${payload!.personName}* (${payload!.personEmail}) aceitou o convite e criou sua conta no sistema.` } }];
+    } else if (payload!.type === 'NEW_PENDING_PERSON') {
       text = `Novo Cadastro Pendente`;
-      blocks = [
-        {
-          type: "section",
-          text: {
-            type: "mrkdwn",
-            text: `*📋 Novo Cadastro Pendente*\n👤 *${payload.managerName}* submeteu o cadastro de *${payload.personName}* (${payload.personEmail}) para aprovação.`,
-          },
-        },
-      ];
-    } else if (payload.type === 'PAYMENT_DAY_CHANGE_REQUEST') {
+      blocks = [{ type: "section", text: { type: "mrkdwn", text: `*📋 Novo Cadastro Pendente*\n👤 *${payload!.managerName}* submeteu o cadastro de *${payload!.personName}* (${payload!.personEmail}) para aprovação.` } }];
+    } else if (payload!.type === 'PAYMENT_DAY_CHANGE_REQUEST') {
       text = `Solicitação de Alteração de Dia de Pagamento`;
-      blocks = [
-        {
-          type: "section",
-          text: {
-            type: "mrkdwn",
-            text: `*💰 Solicitação de Alteração de Dia de Pagamento*\n👤 *${payload.requesterName}*\n📅 Dia atual: ${payload.currentPaymentDay} → Dia desejado: ${payload.desiredPaymentDay}`,
-          },
-        },
-      ];
-    } else if (payload.type === 'USER_LOGIN') {
+      blocks = [{ type: "section", text: { type: "mrkdwn", text: `*💰 Solicitação de Alteração de Dia de Pagamento*\n👤 *${payload!.requesterName}*\n📅 Dia atual: ${payload!.currentPaymentDay} → Dia desejado: ${payload!.desiredPaymentDay}` } }];
+    } else if (payload!.type === 'USER_LOGIN') {
       text = `Login realizado`;
-      blocks = [
-        {
-          type: "section",
-          text: {
-            type: "mrkdwn",
-            text: `*🔐 Login*\n${payload.personName ? `👤 *${payload.personName}*` : ''} (${payload.email})`,
-          },
-        },
-      ];
-    } else if (payload.type === 'USER_SIGNUP') {
+      blocks = [{ type: "section", text: { type: "mrkdwn", text: `*🔐 Login*\n${payload!.personName ? `👤 *${payload!.personName}*` : ''} (${payload!.email})` } }];
+    } else if (payload!.type === 'USER_SIGNUP') {
       text = `Autocadastro realizado`;
-      blocks = [
-        {
-          type: "section",
-          text: {
-            type: "mrkdwn",
-            text: `*📝 Autocadastro*\n${payload.personName ? `👤 *${payload.personName}*` : ''} (${payload.email}) se cadastrou no sistema`,
-          },
-        },
-      ];
-    } else if (payload.type === 'USER_PASSWORD_RESET_REQUEST') {
+      blocks = [{ type: "section", text: { type: "mrkdwn", text: `*📝 Autocadastro*\n${payload!.personName ? `👤 *${payload!.personName}*` : ''} (${payload!.email}) se cadastrou no sistema` } }];
+    } else if (payload!.type === 'USER_PASSWORD_RESET_REQUEST') {
       text = `Reset de senha solicitado`;
-      blocks = [
-        {
-          type: "section",
-          text: {
-            type: "mrkdwn",
-            text: `*🔑 Reset de Senha Solicitado*\n📧 ${payload.email} solicitou recuperação de senha`,
-          },
-        },
-      ];
-    } else if (payload.type === 'USER_FIGMA_LOGIN') {
+      blocks = [{ type: "section", text: { type: "mrkdwn", text: `*🔑 Reset de Senha Solicitado*\n📧 ${payload!.email} solicitou recuperação de senha` } }];
+    } else if (payload!.type === 'USER_FIGMA_LOGIN') {
       text = `Login via Figma`;
-      blocks = [
-        {
-          type: "section",
-          text: {
-            type: "mrkdwn",
-            text: `*🎨 Login Figma*\n${payload.personName ? `👤 *${payload.personName}*` : ''} (${payload.email || 'email não disponível'})`,
-          },
-        },
-      ];
-    } else if (payload.type === 'PROFILE_UPDATE') {
+      blocks = [{ type: "section", text: { type: "mrkdwn", text: `*🎨 Login Figma*\n${payload!.personName ? `👤 *${payload!.personName}*` : ''} (${payload!.email || 'email não disponível'})` } }];
+    } else if (payload!.type === 'PROFILE_UPDATE') {
       text = `Perfil atualizado`;
-      blocks = [
-        {
-          type: "section",
-          text: {
-            type: "mrkdwn",
-            text: `*👤 Perfil Atualizado*\n👤 *${payload.personName}* (${payload.personEmail}) alterou seus dados pessoais${payload.changedFields ? `\n📝 Campos: ${payload.changedFields}` : ''}`,
-          },
-        },
-      ];
-    } else if (payload.type === 'CONTRACT_SETUP') {
+      blocks = [{ type: "section", text: { type: "mrkdwn", text: `*👤 Perfil Atualizado*\n👤 *${payload!.personName}* (${payload!.personEmail}) alterou seus dados pessoais${payload!.changedFields ? `\n📝 Campos: ${payload!.changedFields}` : ''}` } }];
+    } else if (payload!.type === 'CONTRACT_SETUP') {
       text = `Contrato configurado`;
-      blocks = [
-        {
-          type: "section",
-          text: {
-            type: "mrkdwn",
-            text: `*📋 Contrato Configurado*\n👤 *${payload.personName}* configurou contrato ${payload.contractModel}, data: ${payload.contractDate}`,
-          },
-        },
-      ];
-    } else if (payload.type === 'MEDICAL_LEAVE_CREATED') {
+      blocks = [{ type: "section", text: { type: "mrkdwn", text: `*📋 Contrato Configurado*\n👤 *${payload!.personName}* configurou contrato ${payload!.contractModel}, data: ${payload!.contractDate}` } }];
+    } else if (payload!.type === 'MEDICAL_LEAVE_CREATED') {
       text = `Licença Médica Registrada`;
-      blocks = [
-        {
-          type: "section",
-          text: {
-            type: "mrkdwn",
-            text: `*🏥 Licença Médica Registrada*\n👤 *${payload.personName}*\n📅 ${payload.startDate} até ${payload.endDate}${payload.justification ? `\n💬 ${payload.justification}` : ''}${payload.affectsCapacity ? '\n⚠️ Afeta capacidade do time' : ''}`,
-          },
-        },
-      ];
-    } else if (payload.type === 'MEDICAL_LEAVE_ENDED') {
+      blocks = [{ type: "section", text: { type: "mrkdwn", text: `*🏥 Licença Médica Registrada*\n👤 *${payload!.personName}*\n📅 ${payload!.startDate} até ${payload!.endDate}${payload!.justification ? `\n💬 ${payload!.justification}` : ''}${payload!.affectsCapacity ? '\n⚠️ Afeta capacidade do time' : ''}` } }];
+    } else if (payload!.type === 'MEDICAL_LEAVE_ENDED') {
       text = `Licença Médica Encerrada`;
-      blocks = [
-        {
-          type: "section",
-          text: {
-            type: "mrkdwn",
-            text: `*✅ Licença Médica Encerrada*\n👤 *${payload.personName}*\n📅 ${payload.startDate} até ${payload.endDate}`,
-          },
-        },
-      ];
+      blocks = [{ type: "section", text: { type: "mrkdwn", text: `*✅ Licença Médica Encerrada*\n👤 *${payload!.personName}*\n📅 ${payload!.startDate} até ${payload!.endDate}` } }];
     }
 
+    // Decide delivery
+    let channel: string | undefined;
+    let deliveryMode: 'dm' | 'channel_fallback' | 'channel' = 'channel';
 
-    // Send message to channel or DM
-    const target = slackUserId || SLACK_CHANNEL;
-    const response = await fetch("https://slack.com/api/chat.postMessage", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${SLACK_BOT_TOKEN}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        channel: target,
-        text,
-        blocks,
-      }),
-    });
+    if (lookup.slackUserId) {
+      channel = lookup.slackUserId;
+      deliveryMode = 'dm';
+    } else if (DM_TYPES.has(payload!.type) && lookupEmail && SLACK_CHANNEL) {
+      // DM was expected but failed — surface the failure in the channel
+      channel = SLACK_CHANNEL;
+      deliveryMode = 'channel_fallback';
+      const warning = `⚠️ Não consegui enviar DM para \`${lookupEmail}\`${lookupName ? ` (${lookupName})` : ''}. Motivo: \`${lookup.method}${lookup.error ? ':' + lookup.error : ''}\`. Verifique se o usuário existe no Slack com este email ou se o bot tem os escopos \`users:read\` e \`users:read.email\`.`;
+      blocks = [
+        { type: "section", text: { type: "mrkdwn", text: warning } },
+        { type: "divider" },
+        ...blocks,
+      ];
+    } else if (SLACK_CHANNEL) {
+      channel = SLACK_CHANNEL;
+      deliveryMode = 'channel';
+    }
 
-    const result = await response.json();
-    console.log("Slack API response:", result);
+    let slackResult: any = null;
+    if (channel) {
+      const response = await fetch("https://slack.com/api/chat.postMessage", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${SLACK_BOT_TOKEN}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ channel, text, blocks }),
+      });
+      slackResult = await response.json();
+      console.log("Slack API response:", slackResult, "mode:", deliveryMode);
+    } else {
+      console.warn("No channel resolved and SLACK_CHANNEL_APPROVALS not set — message dropped");
+    }
 
-    if (!result.ok) {
-      throw new Error(`Slack API error: ${result.error}`);
+    // Audit log (best-effort, never throws)
+    try {
+      const supabaseAdmin = getSupabaseAdmin();
+      await supabaseAdmin.from('audit_logs').insert({
+        entidade: 'slack_notification',
+        entidade_id: payload!.requestId || payload!.targetPersonId || 'n/a',
+        acao: payload!.type,
+        actor_id: null,
+        payload: {
+          deliveryMode,
+          lookupEmail,
+          lookupName,
+          lookupMethod: lookup.method,
+          lookupError: lookup.error,
+          slackUserId: lookup.slackUserId,
+          slackOk: slackResult?.ok ?? false,
+          slackError: slackResult?.error ?? null,
+          message_ts: slackResult?.ts ?? null,
+        },
+      });
+    } catch (auditErr) {
+      console.warn("Failed to write audit_log for slack_notification:", auditErr);
+    }
+
+    if (slackResult && !slackResult.ok) {
+      throw new Error(`Slack API error: ${slackResult.error}`);
     }
 
     return new Response(
-      JSON.stringify({ success: true, message_ts: result.ts }),
+      JSON.stringify({ success: true, deliveryMode, lookupMethod: lookup.method, message_ts: slackResult?.ts }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error: any) {
     console.error("Error in slack-notification:", error);
     return new Response(
       JSON.stringify({ error: error.message }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 });
