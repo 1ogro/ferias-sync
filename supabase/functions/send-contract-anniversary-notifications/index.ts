@@ -231,6 +231,68 @@ serve(async (req) => {
       }
     }
 
+    // ===== Per-manager digests (only members of own team) =====
+    const managerResults: any[] = [];
+    if (anniversaries.length > 0) {
+      const personIds = anniversaries.map((a: any) => a.id);
+      const { data: peopleWithMgr } = await supabase
+        .from("people")
+        .select("id, gestor_id")
+        .in("id", personIds);
+      const mgrMap = new Map((peopleWithMgr || []).map((p: any) => [p.id, p.gestor_id]));
+
+      const byManager = new Map<string, any[]>();
+      for (const a of anniversaries) {
+        const mgrId = mgrMap.get(a.id);
+        if (!mgrId) continue;
+        if (!byManager.has(mgrId)) byManager.set(mgrId, []);
+        byManager.get(mgrId)!.push(a);
+      }
+
+      const directorIdSet = new Set((directors || []).map((d: any) => d.id));
+      const managerIdsToNotify = Array.from(byManager.keys()).filter((id) => !directorIdSet.has(id));
+
+      if (managerIdsToNotify.length > 0) {
+        const { data: managers } = await supabase
+          .from("people")
+          .select("id, nome, email")
+          .in("id", managerIdsToNotify)
+          .eq("ativo", true);
+
+        const { data: mgrPrefs } = await supabase
+          .from("notification_preferences")
+          .select("person_id, system_alerts_slack")
+          .in("person_id", managerIdsToNotify);
+        const mgrPrefMap = new Map((mgrPrefs || []).map((p: any) => [p.person_id, p]));
+
+        for (const mgr of managers || []) {
+          const pref = mgrPrefMap.get(mgr.id);
+          const sendSlack = !pref || pref.system_alerts_slack !== false;
+          if (!sendSlack || !SLACK_BOT_TOKEN || dryRun) continue;
+
+          const teamAnnivs = byManager.get(mgr.id) || [];
+          const lines = teamAnnivs.map((a: any) => {
+            const dayStr = String(a.aniv_day).padStart(2, "0");
+            const icon = a.passed ? "✅" : "⏳";
+            return `${icon} *${dayStr}/${String(month).padStart(2, "0")}* — ${a.nome}${a.cargo ? ` (${a.cargo})` : ""} — ${a.years_completed} ${a.years_completed === 1 ? "ano" : "anos"} de contrato`;
+          });
+          const mgrText = `📅 *Aniversários de contrato PJ do seu time em ${mesAno}* (${teamAnnivs.length}):\n${lines.join("\n")}\n\n✅ já passou neste mês · ⏳ ainda este mês`;
+
+          try {
+            const slackUserId = await findSlackUserId(mgr.nome, mgr.email);
+            if (slackUserId) {
+              await sendSlackDM(slackUserId, mgrText);
+              managerResults.push({ manager: mgr.nome, slack: "sent", count: teamAnnivs.length });
+            } else {
+              managerResults.push({ manager: mgr.nome, slack: "user_not_found" });
+            }
+          } catch (e: any) {
+            managerResults.push({ manager: mgr.nome, slack: "failed", error: e?.message });
+          }
+        }
+      }
+    }
+
     if (!dryRun) {
       await supabase.from("audit_logs").insert({
         entidade: "contract_anniversary",
@@ -244,6 +306,7 @@ serve(async (req) => {
           anniversaries: anniversaries.map((a: any) => ({ id: a.id, nome: a.nome, day: a.aniv_day, years: a.years_completed })),
           directors_notified: (directors || []).length,
           results,
+          manager_results: managerResults,
         },
       });
     }

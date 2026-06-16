@@ -35,3 +35,10 @@ verify_jwt = false
 
 [functions.send-password-reset-slack]
 verify_jwt = false
+
+[functions.send-birthday-digest]
+verify_jwt = false
+
+[functions.send-daily-anniversaries]
+verify_jwt = false
+
