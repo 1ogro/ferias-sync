@@ -1034,6 +1034,19 @@ const VacationManagement = () => {
                       </SelectContent>
                     </Select>
 
+                    {/* Contract Month Filter */}
+                    <Select onValueChange={(value) => toggleFilter('contractMonth', value)}>
+                      <SelectTrigger className="w-[200px] h-8">
+                        <SelectValue placeholder="+ Mês do Contrato" />
+                      </SelectTrigger>
+                      <SelectContent className="z-50 bg-background">
+                        {MONTH_OPTIONS.map((m) => (
+                          <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+
+
                     {activeFiltersCount > 0 && (
                       <Button
                         variant="ghost"
