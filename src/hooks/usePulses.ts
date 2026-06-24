@@ -27,20 +27,27 @@ export interface PulseSurvey {
   target_team_id: string | null;
   target_person_ids: string[] | null;
   tone?: "formal" | "neutral" | "casual";
-  kind?: "self" | "peer";
+  kind?: "self" | "peer" | "kudos";
   peer_anonymous?: boolean;
+  kudos_categories?: string[] | null;
+  kudos_channel?: string | null;
+  prompt_text?: string | null;
   created_at: string;
   updated_at: string;
 }
 
+export type KudosCategory = "teamwork" | "innovation" | "delivery" | "leadership" | "customer";
 
 export interface CreateSurveyInput {
   title: string;
   description?: string;
   anonymous: boolean;
   tone?: "formal" | "neutral" | "casual";
-  kind?: "self" | "peer";
+  kind?: "self" | "peer" | "kudos";
   peer_anonymous?: boolean;
+  kudos_categories?: string[] | null;
+  kudos_channel?: string | null;
+  prompt_text?: string | null;
   frequency: PulseFrequency;
   next_run_at: string;
   target_scope: "team" | "custom";
@@ -117,6 +124,7 @@ export function useCreatePulseSurvey() {
   return useMutation({
     mutationFn: async (input: CreateSurveyInput & { created_by: string }) => {
       const { questions, ...survey } = input;
+      const kind = survey.kind ?? "self";
       const { data: createdSurvey, error } = await supabase
         .from("pulse_surveys")
         .insert({
@@ -125,21 +133,23 @@ export function useCreatePulseSurvey() {
           description: survey.description ?? null,
           anonymous: survey.anonymous,
           tone: survey.tone ?? "neutral",
-          kind: survey.kind ?? "self",
+          kind,
           peer_anonymous: survey.peer_anonymous ?? true,
+          kudos_categories: kind === "kudos" ? (survey.kudos_categories ?? null) : null,
+          kudos_channel: kind === "kudos" ? (survey.kudos_channel ?? null) : null,
+          prompt_text: kind === "kudos" ? (survey.prompt_text ?? null) : null,
           frequency: survey.frequency,
           next_run_at: survey.next_run_at,
           target_scope: survey.target_scope,
           target_team_id: survey.target_team_id ?? null,
           target_person_ids: survey.target_person_ids ?? null,
           active: true,
-        })
-
+        } as any)
         .select()
         .single();
       if (error) throw error;
 
-      if (questions.length) {
+      if (kind !== "kudos" && questions.length) {
         const { error: qErr } = await supabase.from("pulse_questions").insert(
           questions.map((q, i) => ({
             survey_id: createdSurvey.id,
@@ -174,14 +184,17 @@ export interface UpdateSurveyInput {
   description?: string | null;
   anonymous: boolean;
   tone?: "formal" | "neutral" | "casual";
-  kind?: "self" | "peer";
+  kind?: "self" | "peer" | "kudos";
   peer_anonymous?: boolean;
+  kudos_categories?: string[] | null;
+  kudos_channel?: string | null;
+  prompt_text?: string | null;
   frequency: PulseFrequency;
   next_run_at: string;
   target_scope: "team" | "custom";
   target_team_id?: string | null;
   target_person_ids?: string[] | null;
-  questions?: PulseQuestion[]; // if provided, replaces all questions
+  questions?: PulseQuestion[]; // if provided, replaces all questions (ignored for kudos)
 }
 
 export function useUpdatePulseSurvey() {
@@ -189,6 +202,7 @@ export function useUpdatePulseSurvey() {
   return useMutation({
     mutationFn: async (input: UpdateSurveyInput) => {
       const { id, questions, ...fields } = input;
+      const kind = fields.kind ?? "self";
       const { error } = await supabase
         .from("pulse_surveys")
         .update({
@@ -196,19 +210,21 @@ export function useUpdatePulseSurvey() {
           description: fields.description ?? null,
           anonymous: fields.anonymous,
           tone: fields.tone ?? "neutral",
-          kind: fields.kind ?? "self",
+          kind,
           peer_anonymous: fields.peer_anonymous ?? true,
+          kudos_categories: kind === "kudos" ? (fields.kudos_categories ?? null) : null,
+          kudos_channel: kind === "kudos" ? (fields.kudos_channel ?? null) : null,
+          prompt_text: kind === "kudos" ? (fields.prompt_text ?? null) : null,
           frequency: fields.frequency,
           next_run_at: fields.next_run_at,
           target_scope: fields.target_scope,
           target_team_id: fields.target_team_id ?? null,
           target_person_ids: fields.target_person_ids ?? null,
-        })
+        } as any)
         .eq("id", id);
       if (error) throw error;
 
-
-      if (questions) {
+      if (kind !== "kudos" && questions) {
         const { error: delErr } = await supabase.from("pulse_questions").delete().eq("survey_id", id);
         if (delErr) throw delErr;
         if (questions.length) {
@@ -271,13 +287,19 @@ export function useDuplicatePulseSurvey() {
           title: `${orig.title} (cópia)`,
           description: orig.description,
           anonymous: orig.anonymous,
+          tone: (orig as any).tone ?? "neutral",
+          kind: (orig as any).kind ?? "self",
+          peer_anonymous: (orig as any).peer_anonymous ?? true,
+          kudos_categories: (orig as any).kudos_categories ?? null,
+          kudos_channel: (orig as any).kudos_channel ?? null,
+          prompt_text: (orig as any).prompt_text ?? null,
           frequency: orig.frequency,
           next_run_at: nextRun,
           target_scope: orig.target_scope,
           target_team_id: orig.target_team_id,
           target_person_ids: orig.target_person_ids,
           active: false,
-        })
+        } as any)
         .select()
         .single();
       if (e3) throw e3;
