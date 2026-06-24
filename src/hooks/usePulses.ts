@@ -213,6 +213,11 @@ export interface UpdateSurveyInput {
   target_team_id?: string | null;
   target_team_ids?: string[] | null;
   target_person_ids?: string[] | null;
+  notify_manager_on_negative?: boolean;
+  notify_manager_on_positive?: boolean;
+  notify_negative_threshold?: number;
+  notify_positive_threshold?: number;
+  notify_include_text_responses?: boolean;
   questions?: PulseQuestion[]; // if provided, replaces all questions (ignored for kudos)
 }
 
