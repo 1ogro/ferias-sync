@@ -435,7 +435,7 @@ const VacationManagement = () => {
     }
 
     return filtered;
-  }, [vacationData, searchTerm, selectedTimes, selectedContractTypes, selectedStatuses, sortColumn, sortDirection]);
+  }, [vacationData, searchTerm, selectedTimes, selectedContractTypes, selectedStatuses, selectedContractMonths, sortColumn, sortDirection]);
 
   const stats = useMemo(() => {
     const contractTypeCounts = vacationData.reduce((acc, item) => {
