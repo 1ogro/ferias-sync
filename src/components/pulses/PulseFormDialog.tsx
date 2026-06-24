@@ -374,24 +374,44 @@ export function PulseFormDialog({ open, onOpenChange, survey, initialValues }: P
           </div>
 
           <div className="space-y-2">
-            <Label>Alvo</Label>
+            <Label>Público-alvo</Label>
             <Select value={targetScope} onValueChange={(v) => setTargetScope(v as any)}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="team">Time inteiro</SelectItem>
+                <SelectItem value="all">Empresa inteira</SelectItem>
+                <SelectItem value="teams">Time(s) específico(s)</SelectItem>
                 <SelectItem value="custom">Pessoas específicas</SelectItem>
               </SelectContent>
             </Select>
           </div>
 
-          {targetScope === "team" ? (
-            <Select value={targetTeamId} onValueChange={setTargetTeamId}>
-              <SelectTrigger><SelectValue placeholder="Selecione o time" /></SelectTrigger>
-              <SelectContent>
-                {teams.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          ) : (
+          {targetScope === "all" && (
+            <p className="text-xs text-muted-foreground">
+              Será disparado para todos os colaboradores ativos do sistema ({people.length}).
+            </p>
+          )}
+
+          {targetScope === "teams" && (
+            <div className="max-h-40 overflow-y-auto rounded border p-2 space-y-1">
+              {teams.length === 0 && (
+                <p className="text-xs text-muted-foreground p-2">Nenhum time disponível.</p>
+              )}
+              {teams.map((t) => (
+                <label key={t} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-muted px-2 py-1 rounded">
+                  <input
+                    type="checkbox"
+                    checked={targetTeamIds.includes(t)}
+                    onChange={(e) => setTargetTeamIds((cur) =>
+                      e.target.checked ? [...cur, t] : cur.filter((x) => x !== t)
+                    )}
+                  />
+                  {t}
+                </label>
+              ))}
+            </div>
+          )}
+
+          {targetScope === "custom" && (
             <div className="max-h-40 overflow-y-auto rounded border p-2 space-y-1">
               {people.map((p) => (
                 <label key={p.id} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-muted px-2 py-1 rounded">
@@ -407,6 +427,7 @@ export function PulseFormDialog({ open, onOpenChange, survey, initialValues }: P
               ))}
             </div>
           )}
+
 
           {kind !== "kudos" && (
             <div className="space-y-2">
