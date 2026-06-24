@@ -381,60 +381,62 @@ export function PulseFormDialog({ open, onOpenChange, survey }: Props) {
             </div>
           )}
 
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label>Perguntas</Label>
-              {!hasResponses && (
-                <Button type="button" variant="outline" size="sm" onClick={addQuestion}>
-                  <Plus className="w-3 h-3 mr-1" /> Adicionar
-                </Button>
-              )}
-            </div>
-            {hasResponses && (
-              <p className="text-xs text-amber-600 dark:text-amber-400">
-                Esta enquete já tem respostas. Perguntas não podem ser alteradas para preservar os dados.
-              </p>
-            )}
-            {questions.map((q, i) => (
-              <div key={i} className={`space-y-2 rounded border p-3 ${hasResponses ? "opacity-60" : ""}`}>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium">#{i + 1}</span>
-                  <Select
-                    value={q.question_type}
-                    onValueChange={(v) => updateQuestion(i, { question_type: v as any })}
-                    disabled={hasResponses}
-                  >
-                    <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="scale_1_5">Escala 1–5</SelectItem>
-                      <SelectItem value="open_text">Texto aberto</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <label className="flex items-center gap-1 text-xs">
-                    <input
-                      type="checkbox"
-                      checked={q.required}
-                      onChange={(e) => updateQuestion(i, { required: e.target.checked })}
-                      disabled={hasResponses}
-                    />
-                    Obrigatória
-                  </label>
-                  {!hasResponses && questions.length > 1 && (
-                    <Button type="button" variant="ghost" size="icon" onClick={() => removeQuestion(i)} className="ml-auto">
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  )}
-                </div>
-                <Textarea
-                  placeholder="Pergunta"
-                  rows={2}
-                  value={q.question_text}
-                  onChange={(e) => updateQuestion(i, { question_text: e.target.value })}
-                  disabled={hasResponses}
-                />
+          {kind !== "kudos" && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label>Perguntas</Label>
+                {!hasResponses && (
+                  <Button type="button" variant="outline" size="sm" onClick={addQuestion}>
+                    <Plus className="w-3 h-3 mr-1" /> Adicionar
+                  </Button>
+                )}
               </div>
-            ))}
-          </div>
+              {hasResponses && (
+                <p className="text-xs text-amber-600 dark:text-amber-400">
+                  Esta enquete já tem respostas. Perguntas não podem ser alteradas para preservar os dados.
+                </p>
+              )}
+              {questions.map((q, i) => (
+                <div key={i} className={`space-y-2 rounded border p-3 ${hasResponses ? "opacity-60" : ""}`}>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium">#{i + 1}</span>
+                    <Select
+                      value={q.question_type}
+                      onValueChange={(v) => updateQuestion(i, { question_type: v as any })}
+                      disabled={hasResponses}
+                    >
+                      <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="scale_1_5">Escala 1–5</SelectItem>
+                        <SelectItem value="open_text">Texto aberto</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <label className="flex items-center gap-1 text-xs">
+                      <input
+                        type="checkbox"
+                        checked={q.required}
+                        onChange={(e) => updateQuestion(i, { required: e.target.checked })}
+                        disabled={hasResponses}
+                      />
+                      Obrigatória
+                    </label>
+                    {!hasResponses && questions.length > 1 && (
+                      <Button type="button" variant="ghost" size="icon" onClick={() => removeQuestion(i)} className="ml-auto">
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    )}
+                  </div>
+                  <Textarea
+                    placeholder="Pergunta"
+                    rows={2}
+                    value={q.question_text}
+                    onChange={(e) => updateQuestion(i, { question_text: e.target.value })}
+                    disabled={hasResponses}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <DialogFooter>
