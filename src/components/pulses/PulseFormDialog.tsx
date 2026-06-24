@@ -141,8 +141,11 @@ export function PulseFormDialog({ open, onOpenChange, survey }: Props) {
     if (!title.trim()) {
       toast({ title: "Título obrigatório", variant: "destructive" }); return;
     }
-    if (questions.some((q) => !q.question_text.trim())) {
+    if (kind !== "kudos" && questions.some((q) => !q.question_text.trim())) {
       toast({ title: "Preencha todas as perguntas", variant: "destructive" }); return;
+    }
+    if (kind === "kudos" && kudosCategories.length === 0) {
+      toast({ title: "Selecione ao menos uma categoria de kudos", variant: "destructive" }); return;
     }
     if (targetScope === "team" && !targetTeamId) {
       toast({ title: "Selecione um time", variant: "destructive" }); return;
@@ -151,6 +154,11 @@ export function PulseFormDialog({ open, onOpenChange, survey }: Props) {
       toast({ title: "Selecione ao menos uma pessoa", variant: "destructive" }); return;
     }
     try {
+      const commonKudos = {
+        kudos_categories: kind === "kudos" ? kudosCategories : null,
+        kudos_channel: kind === "kudos" ? (kudosChannel.trim() || null) : null,
+        prompt_text: kind === "kudos" ? (promptText.trim() || null) : null,
+      };
       if (isEdit && survey) {
         await updateMut.mutateAsync({
           id: survey.id,
@@ -160,12 +168,13 @@ export function PulseFormDialog({ open, onOpenChange, survey }: Props) {
           tone,
           kind,
           peer_anonymous: peerAnonymous,
+          ...commonKudos,
           frequency,
           next_run_at: new Date(nextRunAt).toISOString(),
           target_scope: targetScope,
           target_team_id: targetScope === "team" ? targetTeamId : null,
           target_person_ids: targetScope === "custom" ? targetPersonIds : null,
-          questions: hasResponses ? undefined : questions,
+          questions: kind === "kudos" ? undefined : (hasResponses ? undefined : questions),
         } as any);
         toast({ title: "Enquete atualizada" });
       } else {
@@ -177,12 +186,13 @@ export function PulseFormDialog({ open, onOpenChange, survey }: Props) {
           tone,
           kind,
           peer_anonymous: peerAnonymous,
+          ...commonKudos,
           frequency,
           next_run_at: new Date(nextRunAt).toISOString(),
           target_scope: targetScope,
           target_team_id: targetScope === "team" ? targetTeamId : null,
           target_person_ids: targetScope === "custom" ? targetPersonIds : null,
-          questions,
+          questions: kind === "kudos" ? [] : questions,
         } as any);
 
         toast({ title: "Enquete criada" });
