@@ -120,6 +120,9 @@ export function useCreatePulseSurvey() {
           title: survey.title,
           description: survey.description ?? null,
           anonymous: survey.anonymous,
+          tone: survey.tone ?? "neutral",
+          kind: survey.kind ?? "self",
+          peer_anonymous: survey.peer_anonymous ?? true,
           frequency: survey.frequency,
           next_run_at: survey.next_run_at,
           target_scope: survey.target_scope,
@@ -127,6 +130,7 @@ export function useCreatePulseSurvey() {
           target_person_ids: survey.target_person_ids ?? null,
           active: true,
         })
+
         .select()
         .single();
       if (error) throw error;
