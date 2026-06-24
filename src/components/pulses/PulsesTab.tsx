@@ -21,7 +21,14 @@ export function PulsesTab() {
 
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<PulseSurvey | null>(null);
+  const [templateValues, setTemplateValues] = useState<Partial<CreateSurveyInput> | null>(null);
   const [selected, setSelected] = useState<PulseSurvey | null>(null);
+
+  const openFromTemplate = (t: PulseTemplate) => {
+    setEditing(null);
+    setTemplateValues(t.values);
+    setOpen(true);
+  };
 
 
   const canCreate = person && (person.is_admin || ["DIRETOR", "ADMIN", "GESTOR"].includes(person.papel || ""));
