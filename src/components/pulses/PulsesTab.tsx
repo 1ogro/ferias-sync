@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { usePulseSurveys, useTogglePulseActive, useDeletePulseSurvey, dispatchPulseNow, PulseSurvey } from "@/hooks/usePulses";
+import { usePulseSurveys, useTogglePulseActive, useDeletePulseSurvey, useDuplicatePulseSurvey, dispatchPulseNow, PulseSurvey } from "@/hooks/usePulses";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Send, Power, Trash2, Pencil } from "lucide-react";
+import { Plus, Send, Power, Trash2, Pencil, Copy } from "lucide-react";
 import { PulseFormDialog } from "./PulseFormDialog";
 import { PulseResultsPanel } from "./PulseResultsPanel";
 import { useAuth } from "@/hooks/useAuth";
@@ -15,6 +15,8 @@ export function PulsesTab() {
   const { data: surveys = [], isLoading } = usePulseSurveys();
   const toggleMut = useTogglePulseActive();
   const deleteMut = useDeletePulseSurvey();
+  const duplicateMut = useDuplicatePulseSurvey();
+
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<PulseSurvey | null>(null);
   const [selected, setSelected] = useState<PulseSurvey | null>(null);
@@ -112,6 +114,24 @@ export function PulsesTab() {
                       <Pencil className="w-3 h-3 mr-1" /> Editar
                     </Button>
                   )}
+                  {canCreate && person?.id && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={duplicateMut.isPending}
+                      onClick={async () => {
+                        try {
+                          await duplicateMut.mutateAsync({ surveyId: s.id, createdBy: person.id });
+                          toast({ title: "Enquete duplicada", description: "Criada como inativa. Revise e ative quando quiser disparar." });
+                        } catch (e: any) {
+                          toast({ title: "Erro ao duplicar", description: e.message, variant: "destructive" });
+                        }
+                      }}
+                    >
+                      <Copy className="w-3 h-3 mr-1" /> Duplicar
+                    </Button>
+                  )}
+
                   <Button
                     size="sm"
                     variant="outline"
