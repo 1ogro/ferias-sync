@@ -42,3 +42,10 @@ verify_jwt = false
 [functions.send-daily-anniversaries]
 verify_jwt = false
 
+[functions.pulse-dispatch]
+verify_jwt = false
+
+[functions.pulse-export]
+verify_jwt = true
+
+
