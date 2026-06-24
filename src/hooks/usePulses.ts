@@ -226,6 +226,62 @@ export function useDeletePulseSurvey() {
   });
 }
 
+export function useDuplicatePulseSurvey() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ surveyId, createdBy }: { surveyId: string; createdBy: string }) => {
+      const { data: orig, error: e1 } = await supabase
+        .from("pulse_surveys")
+        .select("*")
+        .eq("id", surveyId)
+        .single();
+      if (e1) throw e1;
+
+      const { data: qs, error: e2 } = await supabase
+        .from("pulse_questions")
+        .select("*")
+        .eq("survey_id", surveyId)
+        .order("position");
+      if (e2) throw e2;
+
+      const nextRun = new Date(Date.now() + 30 * 60_000).toISOString();
+      const { data: newSurvey, error: e3 } = await supabase
+        .from("pulse_surveys")
+        .insert({
+          created_by: createdBy,
+          title: `${orig.title} (cópia)`,
+          description: orig.description,
+          anonymous: orig.anonymous,
+          frequency: orig.frequency,
+          next_run_at: nextRun,
+          target_scope: orig.target_scope,
+          target_team_id: orig.target_team_id,
+          target_person_ids: orig.target_person_ids,
+          active: false,
+        })
+        .select()
+        .single();
+      if (e3) throw e3;
+
+      if (qs && qs.length) {
+        const { error: e4 } = await supabase.from("pulse_questions").insert(
+          qs.map((q, i) => ({
+            survey_id: newSurvey.id,
+            position: i,
+            question_text: q.question_text,
+            question_type: q.question_type,
+            required: q.required,
+          }))
+        );
+        if (e4) throw e4;
+      }
+      return newSurvey;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["pulse_surveys"] }),
+  });
+}
+
+
 export async function dispatchPulseNow(surveyId: string) {
   const { data, error } = await supabase.functions.invoke("pulse-dispatch", {
     body: { surveyId },
