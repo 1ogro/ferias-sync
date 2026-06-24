@@ -17,6 +17,7 @@ import {
   PulseQuestion,
   PulseFrequency,
   PulseSurvey,
+  CreateSurveyInput,
 } from "@/hooks/usePulses";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -24,6 +25,7 @@ interface Props {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   survey?: PulseSurvey | null;
+  initialValues?: Partial<CreateSurveyInput> | null;
 }
 
 function toLocalInput(iso: string | null | undefined): string {
@@ -33,7 +35,7 @@ function toLocalInput(iso: string | null | undefined): string {
   return local.toISOString().slice(0, 16);
 }
 
-export function PulseFormDialog({ open, onOpenChange, survey }: Props) {
+export function PulseFormDialog({ open, onOpenChange, survey, initialValues }: Props) {
   const { person } = useAuth();
   const { toast } = useToast();
   const createMut = useCreatePulseSurvey();
@@ -108,9 +110,25 @@ export function PulseFormDialog({ open, onOpenChange, survey }: Props) {
       setTargetPersonIds(survey.target_person_ids || []);
     } else if (!isEdit) {
       reset();
+      if (initialValues) {
+        if (initialValues.title !== undefined) setTitle(initialValues.title);
+        if (initialValues.description !== undefined) setDescription(initialValues.description || "");
+        if (initialValues.anonymous !== undefined) setAnonymous(initialValues.anonymous);
+        if (initialValues.tone) setTone(initialValues.tone);
+        if (initialValues.kind) setKind(initialValues.kind);
+        if (initialValues.peer_anonymous !== undefined) setPeerAnonymous(initialValues.peer_anonymous);
+        if (initialValues.kudos_categories) setKudosCategories(initialValues.kudos_categories as string[]);
+        if (initialValues.kudos_channel !== undefined) setKudosChannel(initialValues.kudos_channel || "");
+        if (initialValues.prompt_text !== undefined) setPromptText(initialValues.prompt_text || "");
+        if (initialValues.frequency) setFrequency(initialValues.frequency);
+        if (initialValues.target_scope) setTargetScope(initialValues.target_scope);
+        if (initialValues.target_team_id !== undefined) setTargetTeamId(initialValues.target_team_id || "");
+        if (initialValues.target_person_ids) setTargetPersonIds(initialValues.target_person_ids);
+        if (initialValues.questions && initialValues.questions.length) setQuestions(initialValues.questions);
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, survey?.id]);
+  }, [open, survey?.id, initialValues]);
 
   useEffect(() => {
     if (isEdit && existingQuestions && existingQuestions.length) {

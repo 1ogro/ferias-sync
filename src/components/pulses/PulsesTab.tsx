@@ -3,11 +3,13 @@ import { usePulseSurveys, useTogglePulseActive, useDeletePulseSurvey, useDuplica
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Send, Power, Trash2, Pencil, Copy } from "lucide-react";
+import { Plus, Send, Power, Trash2, Pencil, Copy, Sparkles } from "lucide-react";
 import { PulseFormDialog } from "./PulseFormDialog";
 import { PulseResultsPanel } from "./PulseResultsPanel";
+import { PULSE_TEMPLATES, PulseTemplate } from "./pulseTemplates";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import type { CreateSurveyInput } from "@/hooks/usePulses";
 
 export function PulsesTab() {
   const { person } = useAuth();
@@ -19,7 +21,14 @@ export function PulsesTab() {
 
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<PulseSurvey | null>(null);
+  const [templateValues, setTemplateValues] = useState<Partial<CreateSurveyInput> | null>(null);
   const [selected, setSelected] = useState<PulseSurvey | null>(null);
+
+  const openFromTemplate = (t: PulseTemplate) => {
+    setEditing(null);
+    setTemplateValues(t.values);
+    setOpen(true);
+  };
 
 
   const canCreate = person && (person.is_admin || ["DIRETOR", "ADMIN", "GESTOR"].includes(person.papel || ""));
@@ -61,12 +70,39 @@ export function PulsesTab() {
           <p className="text-sm text-muted-foreground">Enquetes periódicas enviadas via DM no Slack.</p>
         </div>
         {canCreate && (
-          <Button onClick={() => { setEditing(null); setOpen(true); }}>
+          <Button onClick={() => { setEditing(null); setTemplateValues(null); setOpen(true); }}>
             <Plus className="w-4 h-4 mr-1" /> Nova enquete
           </Button>
         )}
 
       </div>
+
+      {canCreate && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-primary" /> Modelos prontos
+            </CardTitle>
+            <p className="text-xs text-muted-foreground">
+              Crie uma enquete a partir de um modelo recorrente pré-configurado. Você ajusta o alvo e a periodicidade antes de salvar.
+            </p>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              {PULSE_TEMPLATES.map((t) => (
+                <div key={t.id} className="rounded-lg border p-3 flex flex-col gap-2 hover:border-primary transition">
+                  <div className="text-2xl">{t.emoji}</div>
+                  <div className="font-medium text-sm">{t.label}</div>
+                  <p className="text-xs text-muted-foreground flex-1">{t.description}</p>
+                  <Button size="sm" variant="outline" onClick={() => openFromTemplate(t)}>
+                    Usar este modelo
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {isLoading ? (
         <p className="text-muted-foreground">Carregando...</p>
@@ -163,8 +199,9 @@ export function PulsesTab() {
 
       <PulseFormDialog
         open={open}
-        onOpenChange={(v) => { setOpen(v); if (!v) setEditing(null); }}
+        onOpenChange={(v) => { setOpen(v); if (!v) { setEditing(null); setTemplateValues(null); } }}
         survey={editing}
+        initialValues={templateValues}
       />
 
     </div>
