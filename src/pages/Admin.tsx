@@ -48,6 +48,8 @@ import {
   TooltipProvider,
   TooltipTrigger 
 } from "@/components/ui/tooltip";
+import { SheetsSync } from "@/components/SheetsSync";
+import { UsersSheetsSync } from "@/components/UsersSheetsSync";
 import { useToast } from "@/hooks/use-toast";
 import { Navigate } from "react-router-dom";
 import { Header } from "@/components/Header";
