@@ -178,16 +178,9 @@ serve(async (req) => {
       });
     }
 
-    // Replace awardPoints helper inline (already in scope) — define a small wrapper:
-    async function awardPoints(supabaseClient: any, personId: string, points: number, reason: string, sourceId: string) {
-      const { error } = await supabaseClient.rpc("award_points", {
-        p_person_id: personId,
-        p_points: points,
-        p_reason: reason,
-        p_source_id: sourceId,
-      });
-      if (error) console.error("[award_points] error:", error);
-    }
+    // (awardPoints / completePeerPair are defined at module scope above)
+
+
 
     // view_submission for open-text pulse question
     if (payload.type === "view_submission" && payload.view?.callback_id?.startsWith("pulse_text:")) {
