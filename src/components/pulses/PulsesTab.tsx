@@ -114,6 +114,24 @@ export function PulsesTab() {
                       <Pencil className="w-3 h-3 mr-1" /> Editar
                     </Button>
                   )}
+                  {canCreate && person?.id && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={duplicateMut.isPending}
+                      onClick={async () => {
+                        try {
+                          await duplicateMut.mutateAsync({ surveyId: s.id, createdBy: person.id });
+                          toast({ title: "Enquete duplicada", description: "Criada como inativa. Revise e ative quando quiser disparar." });
+                        } catch (e: any) {
+                          toast({ title: "Erro ao duplicar", description: e.message, variant: "destructive" });
+                        }
+                      }}
+                    >
+                      <Copy className="w-3 h-3 mr-1" /> Duplicar
+                    </Button>
+                  )}
+
                   <Button
                     size="sm"
                     variant="outline"
