@@ -492,6 +492,196 @@ export type Database = {
           },
         ]
       }
+      pulse_questions: {
+        Row: {
+          created_at: string
+          id: string
+          position: number
+          question_text: string
+          question_type: string
+          required: boolean
+          survey_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          position?: number
+          question_text: string
+          question_type: string
+          required?: boolean
+          survey_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          position?: number
+          question_text?: string
+          question_type?: string
+          required?: boolean
+          survey_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pulse_questions_survey_id_fkey"
+            columns: ["survey_id"]
+            isOneToOne: false
+            referencedRelation: "pulse_surveys"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pulse_responses: {
+        Row: {
+          id: string
+          question_id: string
+          respondent_id: string
+          run_id: string
+          scale_value: number | null
+          slack_message_ts: string | null
+          submitted_at: string
+          text_value: string | null
+        }
+        Insert: {
+          id?: string
+          question_id: string
+          respondent_id: string
+          run_id: string
+          scale_value?: number | null
+          slack_message_ts?: string | null
+          submitted_at?: string
+          text_value?: string | null
+        }
+        Update: {
+          id?: string
+          question_id?: string
+          respondent_id?: string
+          run_id?: string
+          scale_value?: number | null
+          slack_message_ts?: string | null
+          submitted_at?: string
+          text_value?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pulse_responses_question_id_fkey"
+            columns: ["question_id"]
+            isOneToOne: false
+            referencedRelation: "pulse_questions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pulse_responses_respondent_id_fkey"
+            columns: ["respondent_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pulse_responses_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "pulse_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pulse_runs: {
+        Row: {
+          dispatched_at: string
+          error_message: string | null
+          id: string
+          recipients_count: number
+          responses_count: number
+          status: string
+          survey_id: string
+        }
+        Insert: {
+          dispatched_at?: string
+          error_message?: string | null
+          id?: string
+          recipients_count?: number
+          responses_count?: number
+          status?: string
+          survey_id: string
+        }
+        Update: {
+          dispatched_at?: string
+          error_message?: string | null
+          id?: string
+          recipients_count?: number
+          responses_count?: number
+          status?: string
+          survey_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pulse_runs_survey_id_fkey"
+            columns: ["survey_id"]
+            isOneToOne: false
+            referencedRelation: "pulse_surveys"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pulse_surveys: {
+        Row: {
+          active: boolean
+          anonymous: boolean
+          created_at: string
+          created_by: string
+          description: string | null
+          frequency: string
+          id: string
+          last_run_at: string | null
+          next_run_at: string | null
+          target_person_ids: string[] | null
+          target_scope: string
+          target_team_id: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          anonymous?: boolean
+          created_at?: string
+          created_by: string
+          description?: string | null
+          frequency?: string
+          id?: string
+          last_run_at?: string | null
+          next_run_at?: string | null
+          target_person_ids?: string[] | null
+          target_scope?: string
+          target_team_id?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          anonymous?: boolean
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          frequency?: string
+          id?: string
+          last_run_at?: string | null
+          next_run_at?: string | null
+          target_person_ids?: string[] | null
+          target_scope?: string
+          target_team_id?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pulse_surveys_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       requests: {
         Row: {
           admin_observations: string | null
@@ -752,7 +942,42 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      pulse_responses_safe: {
+        Row: {
+          anonymous_label: string | null
+          id: string | null
+          question_id: string | null
+          respondent_id: string | null
+          run_id: string | null
+          scale_value: number | null
+          submitted_at: string | null
+          survey_id: string | null
+          text_value: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pulse_responses_question_id_fkey"
+            columns: ["question_id"]
+            isOneToOne: false
+            referencedRelation: "pulse_questions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pulse_responses_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "pulse_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pulse_runs_survey_id_fkey"
+            columns: ["survey_id"]
+            isOneToOne: false
+            referencedRelation: "pulse_surveys"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       approve_pending_person: {
@@ -774,6 +999,7 @@ export type Database = {
         Returns: Json
       }
       cleanup_orphan_profiles: { Args: never; Returns: number }
+      current_person_id: { Args: never; Returns: string }
       get_active_people_for_signup: {
         Args: never
         Returns: {
@@ -815,6 +1041,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_admin_or_director: { Args: never; Returns: boolean }
       is_current_user_admin: { Args: never; Returns: boolean }
       link_profile_with_figma_email: {
         Args: { p_figma_email: string; p_person_id: string }
