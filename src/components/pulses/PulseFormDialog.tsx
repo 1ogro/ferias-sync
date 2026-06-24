@@ -48,8 +48,13 @@ export function PulseFormDialog({ open, onOpenChange, survey }: Props) {
   const [description, setDescription] = useState("");
   const [anonymous, setAnonymous] = useState(true);
   const [tone, setTone] = useState<"formal" | "neutral" | "casual">("neutral");
-  const [kind, setKind] = useState<"self" | "peer">("self");
+  const [kind, setKind] = useState<"self" | "peer" | "kudos">("self");
   const [peerAnonymous, setPeerAnonymous] = useState(true);
+  const [kudosCategories, setKudosCategories] = useState<string[]>([
+    "teamwork", "innovation", "delivery", "leadership", "customer",
+  ]);
+  const [kudosChannel, setKudosChannel] = useState<string>("");
+  const [promptText, setPromptText] = useState<string>("");
   const [frequency, setFrequency] = useState<PulseFrequency>("once");
   const [nextRunAt, setNextRunAt] = useState<string>(() => toLocalInput(null));
   const [targetScope, setTargetScope] = useState<"team" | "custom">("team");
@@ -90,6 +95,11 @@ export function PulseFormDialog({ open, onOpenChange, survey }: Props) {
       setTone(((survey as any).tone || "neutral") as any);
       setKind(((survey as any).kind || "self") as any);
       setPeerAnonymous((survey as any).peer_anonymous ?? true);
+      setKudosCategories(((survey as any).kudos_categories as string[] | null) ?? [
+        "teamwork", "innovation", "delivery", "leadership", "customer",
+      ]);
+      setKudosChannel((survey as any).kudos_channel || "");
+      setPromptText((survey as any).prompt_text || "");
 
       setFrequency(survey.frequency);
       setNextRunAt(toLocalInput(survey.next_run_at));
@@ -117,6 +127,8 @@ export function PulseFormDialog({ open, onOpenChange, survey }: Props) {
   const reset = () => {
     setTitle(""); setDescription(""); setAnonymous(true);
     setTone("neutral"); setKind("self"); setPeerAnonymous(true);
+    setKudosCategories(["teamwork", "innovation", "delivery", "leadership", "customer"]);
+    setKudosChannel(""); setPromptText("");
     setFrequency("once");
     setNextRunAt(toLocalInput(null));
     setTargetScope("team"); setTargetTeamId(""); setTargetPersonIds([]);
@@ -129,8 +141,11 @@ export function PulseFormDialog({ open, onOpenChange, survey }: Props) {
     if (!title.trim()) {
       toast({ title: "Título obrigatório", variant: "destructive" }); return;
     }
-    if (questions.some((q) => !q.question_text.trim())) {
+    if (kind !== "kudos" && questions.some((q) => !q.question_text.trim())) {
       toast({ title: "Preencha todas as perguntas", variant: "destructive" }); return;
+    }
+    if (kind === "kudos" && kudosCategories.length === 0) {
+      toast({ title: "Selecione ao menos uma categoria de kudos", variant: "destructive" }); return;
     }
     if (targetScope === "team" && !targetTeamId) {
       toast({ title: "Selecione um time", variant: "destructive" }); return;
@@ -139,6 +154,11 @@ export function PulseFormDialog({ open, onOpenChange, survey }: Props) {
       toast({ title: "Selecione ao menos uma pessoa", variant: "destructive" }); return;
     }
     try {
+      const commonKudos = {
+        kudos_categories: kind === "kudos" ? kudosCategories : null,
+        kudos_channel: kind === "kudos" ? (kudosChannel.trim() || null) : null,
+        prompt_text: kind === "kudos" ? (promptText.trim() || null) : null,
+      };
       if (isEdit && survey) {
         await updateMut.mutateAsync({
           id: survey.id,
@@ -148,12 +168,13 @@ export function PulseFormDialog({ open, onOpenChange, survey }: Props) {
           tone,
           kind,
           peer_anonymous: peerAnonymous,
+          ...commonKudos,
           frequency,
           next_run_at: new Date(nextRunAt).toISOString(),
           target_scope: targetScope,
           target_team_id: targetScope === "team" ? targetTeamId : null,
           target_person_ids: targetScope === "custom" ? targetPersonIds : null,
-          questions: hasResponses ? undefined : questions,
+          questions: kind === "kudos" ? undefined : (hasResponses ? undefined : questions),
         } as any);
         toast({ title: "Enquete atualizada" });
       } else {
@@ -165,12 +186,13 @@ export function PulseFormDialog({ open, onOpenChange, survey }: Props) {
           tone,
           kind,
           peer_anonymous: peerAnonymous,
+          ...commonKudos,
           frequency,
           next_run_at: new Date(nextRunAt).toISOString(),
           target_scope: targetScope,
           target_team_id: targetScope === "team" ? targetTeamId : null,
           target_person_ids: targetScope === "custom" ? targetPersonIds : null,
-          questions,
+          questions: kind === "kudos" ? [] : questions,
         } as any);
 
         toast({ title: "Enquete criada" });
@@ -203,13 +225,15 @@ export function PulseFormDialog({ open, onOpenChange, survey }: Props) {
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <div className="flex items-center justify-between rounded border p-3">
-              <div>
-                <Label>Anônimo</Label>
-                <p className="text-xs text-muted-foreground">Oculta respondentes</p>
+            {kind !== "kudos" ? (
+              <div className="flex items-center justify-between rounded border p-3">
+                <div>
+                  <Label>Anônimo</Label>
+                  <p className="text-xs text-muted-foreground">Oculta respondentes</p>
+                </div>
+                <Switch checked={anonymous} onCheckedChange={setAnonymous} />
               </div>
-              <Switch checked={anonymous} onCheckedChange={setAnonymous} />
-            </div>
+            ) : <div />}
             <div className="space-y-2">
               <Label>Frequência</Label>
               <Select value={frequency} onValueChange={(v) => setFrequency(v as PulseFrequency)}>
@@ -244,6 +268,7 @@ export function PulseFormDialog({ open, onOpenChange, survey }: Props) {
                 <SelectContent>
                   <SelectItem value="self">Autoavaliação</SelectItem>
                   <SelectItem value="peer">Avaliação entre pares</SelectItem>
+                  <SelectItem value="kudos">Kudos (reconhecimento)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -256,6 +281,62 @@ export function PulseFormDialog({ open, onOpenChange, survey }: Props) {
                 <p className="text-xs text-muted-foreground">Se ativado, o avaliado não sabe quem o avaliou.</p>
               </div>
               <Switch checked={peerAnonymous} onCheckedChange={setPeerAnonymous} />
+            </div>
+          )}
+
+          {kind === "kudos" && (
+            <div className="space-y-3 rounded border p-3 bg-muted/30">
+              <div>
+                <Label>Categorias permitidas</Label>
+                <p className="text-xs text-muted-foreground mb-2">Quais categorias o colaborador poderá escolher ao reconhecer um colega.</p>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    { id: "teamwork", label: "🤝 Trabalho em equipe" },
+                    { id: "innovation", label: "💡 Inovação" },
+                    { id: "delivery", label: "🚀 Entrega" },
+                    { id: "leadership", label: "🏆 Liderança" },
+                    { id: "customer", label: "❤️ Foco no cliente" },
+                  ].map((c) => {
+                    const active = kudosCategories.includes(c.id);
+                    return (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => setKudosCategories((cur) =>
+                          active ? cur.filter((x) => x !== c.id) : [...cur, c.id]
+                        )}
+                        className={`px-3 py-1 rounded-full text-xs border transition ${
+                          active ? "bg-primary text-primary-foreground border-primary" : "bg-background hover:bg-muted"
+                        }`}
+                      >
+                        {c.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Canal Slack para postagem (opcional)</Label>
+                <Input
+                  value={kudosChannel}
+                  onChange={(e) => setKudosChannel(e.target.value)}
+                  placeholder="#kudos"
+                />
+                <p className="text-xs text-muted-foreground">Se preenchido, cada kudo enviado a partir desta enquete também é postado nesse canal.</p>
+              </div>
+              <div className="space-y-2">
+                <Label>Texto do prompt no Slack</Label>
+                <Textarea
+                  rows={2}
+                  value={promptText}
+                  onChange={(e) => setPromptText(e.target.value)}
+                  placeholder={
+                    tone === "formal" ? "Reconheça um colega que se destacou nesta semana." :
+                    tone === "casual" ? "Bora reconhecer quem brilhou essa semana? 🌟" :
+                    "Quem do time merece um kudo hoje?"
+                  }
+                />
+              </div>
             </div>
           )}
 
@@ -300,60 +381,62 @@ export function PulseFormDialog({ open, onOpenChange, survey }: Props) {
             </div>
           )}
 
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label>Perguntas</Label>
-              {!hasResponses && (
-                <Button type="button" variant="outline" size="sm" onClick={addQuestion}>
-                  <Plus className="w-3 h-3 mr-1" /> Adicionar
-                </Button>
-              )}
-            </div>
-            {hasResponses && (
-              <p className="text-xs text-amber-600 dark:text-amber-400">
-                Esta enquete já tem respostas. Perguntas não podem ser alteradas para preservar os dados.
-              </p>
-            )}
-            {questions.map((q, i) => (
-              <div key={i} className={`space-y-2 rounded border p-3 ${hasResponses ? "opacity-60" : ""}`}>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium">#{i + 1}</span>
-                  <Select
-                    value={q.question_type}
-                    onValueChange={(v) => updateQuestion(i, { question_type: v as any })}
-                    disabled={hasResponses}
-                  >
-                    <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="scale_1_5">Escala 1–5</SelectItem>
-                      <SelectItem value="open_text">Texto aberto</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <label className="flex items-center gap-1 text-xs">
-                    <input
-                      type="checkbox"
-                      checked={q.required}
-                      onChange={(e) => updateQuestion(i, { required: e.target.checked })}
-                      disabled={hasResponses}
-                    />
-                    Obrigatória
-                  </label>
-                  {!hasResponses && questions.length > 1 && (
-                    <Button type="button" variant="ghost" size="icon" onClick={() => removeQuestion(i)} className="ml-auto">
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  )}
-                </div>
-                <Textarea
-                  placeholder="Pergunta"
-                  rows={2}
-                  value={q.question_text}
-                  onChange={(e) => updateQuestion(i, { question_text: e.target.value })}
-                  disabled={hasResponses}
-                />
+          {kind !== "kudos" && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label>Perguntas</Label>
+                {!hasResponses && (
+                  <Button type="button" variant="outline" size="sm" onClick={addQuestion}>
+                    <Plus className="w-3 h-3 mr-1" /> Adicionar
+                  </Button>
+                )}
               </div>
-            ))}
-          </div>
+              {hasResponses && (
+                <p className="text-xs text-amber-600 dark:text-amber-400">
+                  Esta enquete já tem respostas. Perguntas não podem ser alteradas para preservar os dados.
+                </p>
+              )}
+              {questions.map((q, i) => (
+                <div key={i} className={`space-y-2 rounded border p-3 ${hasResponses ? "opacity-60" : ""}`}>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium">#{i + 1}</span>
+                    <Select
+                      value={q.question_type}
+                      onValueChange={(v) => updateQuestion(i, { question_type: v as any })}
+                      disabled={hasResponses}
+                    >
+                      <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="scale_1_5">Escala 1–5</SelectItem>
+                        <SelectItem value="open_text">Texto aberto</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <label className="flex items-center gap-1 text-xs">
+                      <input
+                        type="checkbox"
+                        checked={q.required}
+                        onChange={(e) => updateQuestion(i, { required: e.target.checked })}
+                        disabled={hasResponses}
+                      />
+                      Obrigatória
+                    </label>
+                    {!hasResponses && questions.length > 1 && (
+                      <Button type="button" variant="ghost" size="icon" onClick={() => removeQuestion(i)} className="ml-auto">
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    )}
+                  </div>
+                  <Textarea
+                    placeholder="Pergunta"
+                    rows={2}
+                    value={q.question_text}
+                    onChange={(e) => updateQuestion(i, { question_text: e.target.value })}
+                    disabled={hasResponses}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <DialogFooter>

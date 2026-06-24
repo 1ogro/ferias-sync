@@ -202,16 +202,47 @@ function generatePeerPairs(people: { id: string }[]): { reviewer: string; subjec
   return pairs;
 }
 
+function buildKudosBlocks(survey: any) {
+  const tone = (survey.tone || "neutral") as Tone;
+  const tpl = TONE[tone] || TONE.neutral;
+  const defaultPrompt =
+    tone === "formal" ? "Reconheça um colega que se destacou nesta semana."
+    : tone === "casual" ? "Bora reconhecer quem brilhou essa semana? 🌟"
+    : "Quem do time merece um kudo hoje?";
+  const text = survey.prompt_text?.trim() || defaultPrompt;
+  return [
+    { type: "header", text: { type: "plain_text", text: tpl.header(survey.title) } },
+    { type: "section", text: { type: "mrkdwn", text } },
+    {
+      type: "actions",
+      elements: [
+        {
+          type: "button",
+          text: { type: "plain_text", text: "🎉 Dar kudos" },
+          action_id: `give_kudos_open:${survey.id}`,
+          value: survey.id,
+          style: "primary",
+        },
+      ],
+    },
+    { type: "context", elements: [{ type: "mrkdwn", text: tpl.thanks }] },
+  ];
+}
+
 async function dispatchSurvey(supabase: any, survey: any): Promise<{ sent: number; total: number; deferred: number; diagnostics: any[] }> {
   const diagnostics: any[] = [];
-  const { data: questions } = await supabase
-    .from("pulse_questions")
-    .select("*")
-    .eq("survey_id", survey.id)
-    .order("position", { ascending: true });
-
-  if (!questions || questions.length === 0) {
-    return { sent: 0, total: 0, deferred: 0, diagnostics: [{ status: "no_questions" }] };
+  const isKudos = survey.kind === "kudos";
+  let questions: any[] = [];
+  if (!isKudos) {
+    const { data } = await supabase
+      .from("pulse_questions")
+      .select("*")
+      .eq("survey_id", survey.id)
+      .order("position", { ascending: true });
+    questions = data || [];
+    if (questions.length === 0) {
+      return { sent: 0, total: 0, deferred: 0, diagnostics: [{ status: "no_questions" }] };
+    }
   }
 
   let recipients: any[] = [];
@@ -296,13 +327,15 @@ async function dispatchSurvey(supabase: any, survey: any): Promise<{ sent: numbe
       diag.status = "no_subject_assigned"; diagnostics.push(diag); continue;
     }
 
-    const blocks = buildBlocks(survey, questions, run.id, { subjectName: subject?.nome });
+    const blocks = isKudos
+      ? buildKudosBlocks(survey)
+      : buildBlocks(survey, questions, run.id, { subjectName: subject?.nome });
     const res = await fetch("https://slack.com/api/chat.postMessage", {
       method: "POST",
       headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}`, "Content-Type": "application/json" },
       body: JSON.stringify({
         channel: im.channel,
-        text: `Nova enquete: ${survey.title}`,
+        text: isKudos ? `Kudos: ${survey.title}` : `Nova enquete: ${survey.title}`,
         blocks,
         metadata: subject ? { event_type: "pulse_peer", event_payload: { subject_id: subject.id } } : undefined,
       }),
