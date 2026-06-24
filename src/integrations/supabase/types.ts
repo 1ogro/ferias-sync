@@ -798,6 +798,7 @@ export type Database = {
           target_person_ids: string[] | null
           target_scope: string
           target_team_id: string | null
+          target_team_ids: string[] | null
           title: string
           tone: Database["public"]["Enums"]["pulse_tone"]
           updated_at: string
@@ -822,6 +823,7 @@ export type Database = {
           target_person_ids?: string[] | null
           target_scope?: string
           target_team_id?: string | null
+          target_team_ids?: string[] | null
           title: string
           tone?: Database["public"]["Enums"]["pulse_tone"]
           updated_at?: string
@@ -846,6 +848,7 @@ export type Database = {
           target_person_ids?: string[] | null
           target_scope?: string
           target_team_id?: string | null
+          target_team_ids?: string[] | null
           title?: string
           tone?: Database["public"]["Enums"]["pulse_tone"]
           updated_at?: string

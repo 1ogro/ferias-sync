@@ -23,8 +23,9 @@ export interface PulseSurvey {
   next_run_at: string | null;
   last_run_at: string | null;
   active: boolean;
-  target_scope: "team" | "custom";
+  target_scope: "all" | "teams" | "custom";
   target_team_id: string | null;
+  target_team_ids: string[] | null;
   target_person_ids: string[] | null;
   tone?: "formal" | "neutral" | "casual";
   kind?: "self" | "peer" | "kudos";
@@ -50,8 +51,9 @@ export interface CreateSurveyInput {
   prompt_text?: string | null;
   frequency: PulseFrequency;
   next_run_at: string;
-  target_scope: "team" | "custom";
+  target_scope: "all" | "teams" | "custom";
   target_team_id?: string | null;
+  target_team_ids?: string[] | null;
   target_person_ids?: string[] | null;
   questions: PulseQuestion[];
 }
