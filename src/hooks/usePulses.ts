@@ -302,6 +302,7 @@ export function useDuplicatePulseSurvey() {
           next_run_at: nextRun,
           target_scope: orig.target_scope,
           target_team_id: orig.target_team_id,
+          target_team_ids: (orig as any).target_team_ids ?? null,
           target_person_ids: orig.target_person_ids,
           active: false,
         } as any)
