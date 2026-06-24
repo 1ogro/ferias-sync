@@ -115,11 +115,14 @@ export function PulseFormDialog({ open, onOpenChange, survey }: Props) {
     setQuestions((q) => q.map((qq, idx) => (idx === i ? { ...qq, ...patch } : qq)));
 
   const reset = () => {
-    setTitle(""); setDescription(""); setAnonymous(true); setFrequency("once");
+    setTitle(""); setDescription(""); setAnonymous(true);
+    setTone("neutral"); setKind("self"); setPeerAnonymous(true);
+    setFrequency("once");
     setNextRunAt(toLocalInput(null));
     setTargetScope("team"); setTargetTeamId(""); setTargetPersonIds([]);
     setQuestions([{ position: 0, question_text: "", question_type: "scale_1_5", required: true }]);
   };
+
 
   const handleSubmit = async () => {
     if (!person?.id) return;
