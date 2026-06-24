@@ -225,6 +225,41 @@ export function PulseFormDialog({ open, onOpenChange, survey }: Props) {
             </div>
           </div>
 
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Tom da mensagem</Label>
+              <Select value={tone} onValueChange={(v) => setTone(v as any)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="formal">Formal</SelectItem>
+                  <SelectItem value="neutral">Neutro</SelectItem>
+                  <SelectItem value="casual">Descontraído</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Tipo</Label>
+              <Select value={kind} onValueChange={(v) => setKind(v as any)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="self">Autoavaliação</SelectItem>
+                  <SelectItem value="peer">Avaliação entre pares</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {kind === "peer" && (
+            <div className="flex items-center justify-between rounded border p-3 bg-muted/30">
+              <div>
+                <Label>Revisor anônimo</Label>
+                <p className="text-xs text-muted-foreground">Se ativado, o avaliado não sabe quem o avaliou.</p>
+              </div>
+              <Switch checked={peerAnonymous} onCheckedChange={setPeerAnonymous} />
+            </div>
+          )}
+
+
           <div className="space-y-2">
             <Label>{isEdit ? "Próximo disparo" : "Primeiro disparo"}</Label>
             <Input type="datetime-local" value={nextRunAt} onChange={(e) => setNextRunAt(e.target.value)} />
