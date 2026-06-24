@@ -1,62 +1,39 @@
-
 ## Objetivo
+Hoje o painel de Pulses está vazio porque nada vem pré-configurado. Vou popular 3 enquetes recorrentes padrão (criadas inativas, para você revisar antes de ligar) **e** adicionar uma seção "Templates" no painel para recriar/duplicar qualquer um dos modelos com 1 clique.
 
-Unificar a configuração das enquetes de engajamento (autoavaliação, avaliação entre pares e kudos) dentro do painel **Pulses**, permitindo criar, editar, duplicar, pausar e disparar qualquer um dos três tipos pela mesma interface já existente.
+## 1. Seed inicial (via SQL de dados, inativo)
 
-Hoje a autoavaliação e peer review já são editáveis (campo `kind` em `pulse_surveys`), mas **kudos** vivem fora — não há agendamento configurável nem prompts editáveis pelo painel. Esta entrega cobre essa lacuna.
+Insere 3 linhas em `pulse_surveys` com `active = false`, `created_by = 'pessoa_016'` (você), escopo = toda a empresa:
 
-## Mudanças
+| Título | kind | frequency | Perguntas / Config |
+|---|---|---|---|
+| Check-in semanal de bem-estar | self | weekly | 1 pergunta escala 1–5: "Como você está se sentindo nesta semana?" + 1 texto opcional |
+| Avaliação entre pares — mensal | peer | monthly | 1 escala 1–5 "Como foi colaborar com essa pessoa?" + 1 texto "Um feedback construtivo" (anônimo) |
+| Kudos da semana | kudos | weekly | Sem perguntas. `kudos_categories` = todas, `kudos_channel` = null, `prompt_text` = "🎉 Reconheça um colega que fez a diferença esta semana!" |
 
-### 1. Schema (`pulse_surveys`)
-- Estender o enum `pulse_kind` adicionando o valor `'kudos'` (além de `self` e `peer`).
-- Adicionar colunas opcionais usadas só quando `kind = 'kudos'`:
-  - `kudos_categories kudos_category[]` — categorias permitidas no prompt (default = todas).
-  - `kudos_channel text` — canal Slack opcional para postagem pública do kudo.
-  - `prompt_text text` — texto do prompt enviado no Slack (ex.: "Quem brilhou essa semana?"). Default por tom.
-- Quando `kind = 'kudos'`, perguntas (`pulse_questions`) são ignoradas — o "formulário" é o modal de kudos no Slack.
+Como combinado: todos entram com `active = false` — aparecem no painel mas não disparam até você revisar e ativar.
 
-### 2. Painel de Pulses (`PulseFormDialog`)
-- Selector "Tipo" passa a ter 3 opções: **Autoavaliação**, **Avaliação entre pares**, **Kudos**.
-- Quando `kind = 'kudos'`:
-  - Esconder o editor de perguntas e o switch "anônimo".
-  - Mostrar bloco "Configuração de Kudos":
-    - Categorias permitidas (multi-select com chips: Teamwork, Innovation, Delivery, Leadership, Customer).
-    - Canal Slack para broadcast (input opcional `#canal`).
-    - Texto do prompt (textarea, com placeholder por tom).
-- Mantém tom, frequência, próximo disparo e alvo (já existentes).
+## 2. Galeria de templates no painel de Pulses
 
-### 3. Card da enquete (`PulsesTab`)
-- Badge extra com o tipo: `self` / `peer` / `kudos`.
-- Botão "Disparar" funciona para os três tipos.
+Em `src/components/pulses/PulsesTab.tsx`, adicionar um bloco "Modelos prontos" acima da lista de pulses, com 3 cards (Autoavaliação, Pares, Kudos). Cada card tem botão "Usar este modelo" que:
 
-### 4. Dispatch (`pulse-dispatch` edge function)
-- Quando `kind = 'kudos'`, em vez de enviar perguntas:
-  - Enviar DM para cada alvo com o `prompt_text` + botão **"Dar kudos"** (Slack `actions` block).
-  - O `value` do botão carrega `survey_id` para o handler de interações.
-- Continua respeitando quiet hours e janela preferida.
+- Abre o `PulseFormDialog` já preenchido com os defaults do template correspondente
+- Usuário ajusta título/escopo/cadência e salva como novo pulse
 
-### 5. Interações Slack (`slack-interactions`)
-- Tratar `action_id = 'give_kudos_open'`: abrir Slack modal (`views.open`) com:
-  - Select de destinatário (people da org).
-  - Select de categoria (limitado a `kudos_categories` da survey).
-  - Textarea da mensagem.
-- No `view_submission`, chamar a mesma lógica de `kudos-send` (registro + pontos + broadcast no `kudos_channel` da survey, se preenchido).
-- Pontos: mantém 10 ao receptor / 2 ao emissor já implementados.
+Implementação: criar `src/components/pulses/pulseTemplates.ts` exportando 3 objetos `CreateSurveyInput` (os mesmos defaults do seed). `PulsesTab` passa o template selecionado como `initialValues` para o dialog.
 
-### 6. Hook (`usePulses.ts`)
-- Atualizar tipos `PulseSurvey`, `CreateSurveyInput`, `UpdateSurveyInput` com os novos campos (`kudos_categories`, `kudos_channel`, `prompt_text`).
-- Em create/update: pular insert/replace de `pulse_questions` quando `kind = 'kudos'`.
-- `useDuplicatePulseSurvey`: copiar os novos campos.
+## 3. Pequeno ajuste no PulseFormDialog
 
-### 7. Feed de Kudos (`Engagement.tsx`)
-- Sem mudanças funcionais — continua lendo a tabela `kudos`. Os kudos vindos por survey carregam o mesmo schema, então aparecem naturalmente no feed.
+Aceitar prop opcional `initialValues?: Partial<CreateSurveyInput>` para hidratar o formulário ao abrir a partir de um template (hoje só aceita `survey` para edição).
 
-## Fora do escopo
-- Nenhuma alteração na página `/engagement` (leaderboard, prefs, feed) além de continuar consumindo a tabela `kudos`.
-- Sem alteração no relatório mensal — ele já agrega tudo de `kudos` e `engagement_points`.
+## Detalhes técnicos
+- Seed via `supabase--insert` (não migration — são dados, não schema).
+- Nenhuma mudança de schema. `pulse_questions` recebe as 3 perguntas dos pulses self/peer; kudos não tem perguntas.
+- Não há agendamento ativado: como `active=false`, o `pulse-dispatch` ignora todos os 3 até você ligar pela UI.
+- Templates ficam disponíveis para sempre — se você apagar um dos 3 seed, pode recriar pelo botão.
 
 ## Validação
-1. Criar uma survey `kind=kudos` semanal, time X, categorias `[teamwork, delivery]`, canal `#kudos`.
-2. Clicar "Disparar" → cada membro recebe DM com botão "Dar kudos".
-3. Submeter o modal → row em `kudos`, pontos creditados, mensagem postada em `#kudos`.
-4. Editar a survey, mudar prompt e categorias → próximo disparo reflete.
+1. Recarregar `/pulses` → ver os 3 cards inativos + a seção "Modelos prontos".
+2. Clicar "Usar este modelo" em Kudos → dialog abre pré-preenchido com prompt e categorias.
+3. Editar e salvar → novo pulse criado normalmente.
+4. Ativar o pulse semanal de Kudos → confirmar que o `pulse-dispatch` o pega no próximo cron.
