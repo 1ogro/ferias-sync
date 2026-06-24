@@ -196,6 +196,13 @@ export function PulseFormDialog({ open, onOpenChange, survey, initialValues }: P
         kudos_channel: kind === "kudos" ? (kudosChannel.trim() || null) : null,
         prompt_text: kind === "kudos" ? (promptText.trim() || null) : null,
       };
+      const notifyFields = {
+        notify_manager_on_negative: kind === "kudos" ? false : notifyNegative,
+        notify_manager_on_positive: kind === "kudos" ? false : notifyPositive,
+        notify_negative_threshold: Math.min(5, Math.max(1, negThreshold || 2)),
+        notify_positive_threshold: Math.min(5, Math.max(1, posThreshold || 4)),
+        notify_include_text_responses: kind === "kudos" ? false : notifyIncludeText,
+      };
       if (isEdit && survey) {
         await updateMut.mutateAsync({
           id: survey.id,
