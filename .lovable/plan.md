@@ -1,39 +1,37 @@
 ## Objetivo
-Hoje o painel de Pulses está vazio porque nada vem pré-configurado. Vou popular 3 enquetes recorrentes padrão (criadas inativas, para você revisar antes de ligar) **e** adicionar uma seção "Templates" no painel para recriar/duplicar qualquer um dos modelos com 1 clique.
+Expandir as opções de público-alvo dos Pulses para cobrir três cenários:
 
-## 1. Seed inicial (via SQL de dados, inativo)
+1. **Empresa inteira** — dispara para todos os usuários ativos do sistema.
+2. **Time(s) específico(s)** — seleção de um ou mais times (hoje só permite um).
+3. **Pessoas específicas** — seleção individual (já existe).
 
-Insere 3 linhas em `pulse_surveys` com `active = false`, `created_by = 'pessoa_016'` (você), escopo = toda a empresa:
+## Mudanças
 
-| Título | kind | frequency | Perguntas / Config |
-|---|---|---|---|
-| Check-in semanal de bem-estar | self | weekly | 1 pergunta escala 1–5: "Como você está se sentindo nesta semana?" + 1 texto opcional |
-| Avaliação entre pares — mensal | peer | monthly | 1 escala 1–5 "Como foi colaborar com essa pessoa?" + 1 texto "Um feedback construtivo" (anônimo) |
-| Kudos da semana | kudos | weekly | Sem perguntas. `kudos_categories` = todas, `kudos_channel` = null, `prompt_text` = "🎉 Reconheça um colega que fez a diferença esta semana!" |
+### Banco (`pulse_surveys`)
+- Atualizar o enum/valor permitido em `target_scope` para aceitar: `all`, `teams`, `custom`.
+  - Migrar registros existentes com `target_scope = 'team'` → `'teams'` e mover `target_team_id` para um novo array `target_team_ids text[]`.
+- Adicionar coluna `target_team_ids text[]` (array de times) e manter `target_team_id` por compatibilidade (ou descartar após migração).
+- Atualizar o `check constraint` de `target_scope`.
 
-Como combinado: todos entram com `active = false` — aparecem no painel mas não disparam até você revisar e ativar.
+### Edge function `pulse-dispatch`
+- Quando `target_scope = 'all'`: buscar todos de `people` onde `ativo = true`.
+- Quando `target_scope = 'teams'`: buscar todos de `people` onde `sub_time = ANY(target_team_ids)` e `ativo = true`.
+- Quando `target_scope = 'custom'`: usar `target_person_ids` (sem mudança).
 
-## 2. Galeria de templates no painel de Pulses
-
-Em `src/components/pulses/PulsesTab.tsx`, adicionar um bloco "Modelos prontos" acima da lista de pulses, com 3 cards (Autoavaliação, Pares, Kudos). Cada card tem botão "Usar este modelo" que:
-
-- Abre o `PulseFormDialog` já preenchido com os defaults do template correspondente
-- Usuário ajusta título/escopo/cadência e salva como novo pulse
-
-Implementação: criar `src/components/pulses/pulseTemplates.ts` exportando 3 objetos `CreateSurveyInput` (os mesmos defaults do seed). `PulsesTab` passa o template selecionado como `initialValues` para o dialog.
-
-## 3. Pequeno ajuste no PulseFormDialog
-
-Aceitar prop opcional `initialValues?: Partial<CreateSurveyInput>` para hidratar o formulário ao abrir a partir de um template (hoje só aceita `survey` para edição).
+### Frontend
+- **`usePulses.ts`**: tipo `target_scope: "all" | "teams" | "custom"`, adicionar `target_team_ids?: string[] | null` em `CreateSurveyInput` / `UpdateSurveyInput` / `PulseSurvey`, propagar nos hooks de criar/atualizar/duplicar.
+- **`PulseFormDialog.tsx`**: trocar o seletor de escopo por 3 opções (rádio):
+  - "Empresa inteira" — sem seletor adicional.
+  - "Time(s) específico(s)" — multi-select de times.
+  - "Pessoas específicas" — multi-select de pessoas (já existe).
+- **`PulsesTab.tsx`**: ajustar exibição do escopo na lista (mostrar "Empresa inteira", contagem de times ou pessoas).
+- **`pulseTemplates.ts`**: ajustar os 3 modelos padrão para usar `target_scope: "all"` (faz mais sentido como ponto de partida).
 
 ## Detalhes técnicos
-- Seed via `supabase--insert` (não migration — são dados, não schema).
-- Nenhuma mudança de schema. `pulse_questions` recebe as 3 perguntas dos pulses self/peer; kudos não tem perguntas.
-- Não há agendamento ativado: como `active=false`, o `pulse-dispatch` ignora todos os 3 até você ligar pela UI.
-- Templates ficam disponíveis para sempre — se você apagar um dos 3 seed, pode recriar pelo botão.
+- Multi-select de times pode reaproveitar componente existente ou usar `Command`/`Popover` com checkboxes (padrão shadcn já usado no projeto).
+- Renderização compacta na lista: "Empresa inteira" / "3 times" / "5 pessoas".
+- Não há alteração no fluxo de respostas/Slack — só na resolução de destinatários no dispatch.
 
-## Validação
-1. Recarregar `/pulses` → ver os 3 cards inativos + a seção "Modelos prontos".
-2. Clicar "Usar este modelo" em Kudos → dialog abre pré-preenchido com prompt e categorias.
-3. Editar e salvar → novo pulse criado normalmente.
-4. Ativar o pulse semanal de Kudos → confirmar que o `pulse-dispatch` o pega no próximo cron.
+## Fora de escopo
+- Mudanças no fluxo de kudos além da seleção de público.
+- Disparo de kudos (mantém só configuração, conforme decidido antes).
