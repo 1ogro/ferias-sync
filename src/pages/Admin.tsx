@@ -48,6 +48,8 @@ import {
   TooltipProvider,
   TooltipTrigger 
 } from "@/components/ui/tooltip";
+import { SheetsSync } from "@/components/SheetsSync";
+import { UsersSheetsSync } from "@/components/UsersSheetsSync";
 import { useToast } from "@/hooks/use-toast";
 import { Navigate } from "react-router-dom";
 import { Header } from "@/components/Header";
@@ -1089,6 +1091,20 @@ const Admin = () => {
           </div>
         </CardContent>
       </Card>
+
+      {/* Google Sheets Sync */}
+      <section className="space-y-6 pt-6 border-t">
+        <div>
+          <h2 className="text-xl font-semibold">Sincronização Google Sheets</h2>
+          <p className="text-sm text-muted-foreground">
+            Importação de colaboradores e dados de férias a partir das planilhas oficiais.
+          </p>
+        </div>
+        <SheetsSync />
+        <UsersSheetsSync />
+      </section>
+
+
 
       {/* Create/Edit Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
