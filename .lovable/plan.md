@@ -1,36 +1,53 @@
-## Diagnóstico
+# Plano: Filtro por mês da data de contrato na tabela de saldos de férias
 
-A função `slack-notification` é chamada corretamente do `NewRequestForm` quando uma nova solicitação é criada (passa `approverEmail` + `approverName` do gestor). Mas o código tem dois problemas que fazem a DM não chegar:
-
-1. **Fallback silencioso para canal**: quando o `users.lookupByEmail` do Slack falha (escopo ausente, email do Slack diferente do email no `people`, etc.) e o lookup por nome também falha, a mensagem vai para o canal `SLACK_CHANNEL_APPROVALS` em vez do gestor — então a DM nunca chega, mas o sistema acha que "deu certo".
-2. **Lookup por nome muito frouxo**: usa `.includes()` em vez de match exato — pode encontrar a pessoa errada ou nenhuma.
-
-Sem logs históricos disponíveis (>7 dias) não dá para confirmar qual dos dois está disparando, mas a arquitetura atual mascara qualquer falha. Também identifiquei um gap relacionado: **quando o gestor aprova no 1º nível, o diretor não recebe nenhuma DM** para o 2º nível.
+## Contexto
+Na página `/vacation-management`, aba "Saldos de Férias", a tabela já possui filtros avançados por **Time**, **Modelo de Contrato** e **Status** (Manual/Automático). O usuário deseja filtrar os colaboradores também pelo **mês da data de contrato** (ex: todos que iniciaram em Janeiro).
 
 ## O que será feito
+Adicionar um novo filtro avançado de **Mês do Contrato** na interface de filtros da tabela de saldos de férias, seguindo o padrão de multi-seleção já existente nos outros filtros. A mudança será aplicada em ambas as renderizações da tabela: mobile (via `renderTabContent`) e desktop (via `TabsContent value="vacation"`).
 
-### 1. Endurecer `slack-notification` para garantir DM (sem regredir comportamento atual)
-- Trocar `users.list` `.includes()` por match exato em `real_name` / `display_name` / `name`.
-- Adicionar log claro de qual caminho foi usado (`email_lookup_ok`, `name_lookup_ok`, `channel_fallback`) e o motivo da falha (resposta do Slack incluída no log).
-- Para tipos de notificação que devem ser DM ao gestor/aprovador (`NEW_REQUEST`, `APPROVAL`, `REJECTION`, `REQUEST_INFO`), se a DM falhar, postar no canal **mencionando o email do destinatário** (ex: "⚠️ Não consegui enviar DM para `email@...` — quem aprova esta solicitação?"). Hoje vai silencioso.
-- Persistir `audit_logs` com cada tentativa (`entidade='slack_notification'`, payload contendo `type`, `targetEmail`, `slackUserId`, `delivery`).
+## Alterações técnicas
 
-### 2. Notificar diretores quando solicitação sobe para 2º nível
-- Em `Inbox.tsx`, quando a aprovação do gestor muda status para `EM_ANALISE_DIRETOR`, invocar `slack-notification` para cada diretor ativo com `type='NEW_REQUEST'` (DM individual). Hoje só o solicitante é avisado.
+### Arquivo: `src/pages/VacationManagement.tsx`
 
-### 3. Endpoint de diagnóstico rápido
-- Adicionar suporte a `?diagnose=true` em `slack-notification` que tenta resolver o `approverEmail` para um `slackUserId` **sem enviar mensagem** e retorna `{ found, slackUserId, method }`. Útil para verificar todos os gestores ativos de uma vez.
+1. **Estado do filtro**
+   - Adicionar `const [selectedContractMonths, setSelectedContractMonths] = useState<string[]>([]);` junto aos demais estados de filtros.
 
-### 4. Verificações de escopo do bot (apenas docs no plano, não código)
-- A função precisa que o Slack bot tenha `users:read` e `users:read.email`. Sem o segundo, `lookupByEmail` falha com `missing_scope` para todos os usuários. Se o diagnóstico mostrar que NENHUM email é encontrado, o caminho é o usuário reconectar o Slack com esses escopos (memória já documentada em `Slack Integration Requirements`).
+2. **Opções de meses**
+   - Criar array constante com os 12 meses: `01` a `12`, com labels em português (Janeiro, Fevereiro, ..., Dezembro).
 
-## Detalhes técnicos
+3. **Lógica de toggle/remoção**
+   - Estender `toggleFilter` para aceitar o tipo `'contractMonth'` e adicionar/remover o mês do array `selectedContractMonths`.
+   - Estender `removeFilter` para remover um mês específico.
+   - Atualizar `clearAllFilters` para também limpar `selectedContractMonths`.
+   - Atualizar `activeFiltersCount` para incluir `selectedContractMonths.length`.
 
-- Sem mudanças de schema.
-- `audit_logs` reutilizado (entidade nova `slack_notification`) para rastreabilidade.
-- Sem novas secrets.
-- Frontend: 1 chamada adicional dentro do bloco já existente de aprovação no `Inbox.tsx`.
+4. **Lógica de filtragem**
+   - Em `filteredData`, adicionar a condição `matchesContractMonth`:
+     - Se `selectedContractMonths` estiver vazio, retorna `true`.
+     - Caso contrário, extrai o mês de `item.person.data_contrato` usando `parseDateSafely` e compara com os valores selecionados (com padding de dois dígitos).
+     - Colaboradores sem data de contrato não aparecem quando o filtro está ativo.
 
-## Fora de escopo
-- Não mexer no template de email (o email para o gestor já funciona via outro caminho).
-- Não alterar `SLACK_CHANNEL_APPROVALS` — continua sendo fallback visível.
+5. **Interface de filtros**
+   - Adicionar um novo `<Select>` de "+ Mês do Contrato" após o filtro de Status, tanto na versão mobile (dentro de `renderTabContent` para `case 'vacation'`) quanto na versão desktop (dentro do `TabsContent value="vacation"`).
+   - O select exibirá os 12 meses com labels em português e valores numéricos `01` a `12`.
+
+6. **Chips de filtros ativos**
+   - Adicionar, junto aos chips existentes de Time/Contrato/Status, chips para cada mês selecionado (ex: "Mês: Janeiro"), com botão de remoção individual.
+
+7. **Exportação CSV**
+   - A exportação `exportToCSV` já itera sobre `filteredData`, portanto respeitará automaticamente o novo filtro. Nenhuma alteração necessária.
+
+## Fora do escopo
+- Não alteraremos o `CollaboratorSummaryTable` (aba "Resumo do Colaborador"), pois o usuário se referiu especificamente à tabela de gerenciamento de saldos de férias.
+- Não alteraremos a estrutura do banco de dados, nem adicionaremos novos campos.
+- Não alteraremos os cálculos de saldo de férias.
+
+## Critérios de aceitação
+- O usuário pode selecionar um ou mais meses no filtro "Mês do Contrato".
+- A tabela exibe apenas colaboradores cuja `data_contrato` pertença aos meses selecionados.
+- Colaboradores sem data de contrato são excluídos quando o filtro está ativo.
+- Os chips de filtros ativos mostram os meses selecionados e permitem remoção individual.
+- O botão "Limpar todos" remove também os meses selecionados.
+- A exportação CSV respeita o filtro de mês.
+- Funciona tanto em desktop quanto em mobile.
