@@ -787,9 +787,14 @@ export type Database = {
           frequency: string
           id: string
           kind: Database["public"]["Enums"]["pulse_kind"]
+          kudos_categories:
+            | Database["public"]["Enums"]["kudos_category"][]
+            | null
+          kudos_channel: string | null
           last_run_at: string | null
           next_run_at: string | null
           peer_anonymous: boolean
+          prompt_text: string | null
           target_person_ids: string[] | null
           target_scope: string
           target_team_id: string | null
@@ -806,9 +811,14 @@ export type Database = {
           frequency?: string
           id?: string
           kind?: Database["public"]["Enums"]["pulse_kind"]
+          kudos_categories?:
+            | Database["public"]["Enums"]["kudos_category"][]
+            | null
+          kudos_channel?: string | null
           last_run_at?: string | null
           next_run_at?: string | null
           peer_anonymous?: boolean
+          prompt_text?: string | null
           target_person_ids?: string[] | null
           target_scope?: string
           target_team_id?: string | null
@@ -825,9 +835,14 @@ export type Database = {
           frequency?: string
           id?: string
           kind?: Database["public"]["Enums"]["pulse_kind"]
+          kudos_categories?:
+            | Database["public"]["Enums"]["kudos_category"][]
+            | null
+          kudos_channel?: string | null
           last_run_at?: string | null
           next_run_at?: string | null
           peer_anonymous?: boolean
+          prompt_text?: string | null
           target_person_ids?: string[] | null
           target_scope?: string
           target_team_id?: string | null
@@ -1294,7 +1309,7 @@ export type Database = {
         | "delivery"
         | "leadership"
         | "customer"
-      pulse_kind: "self" | "peer"
+      pulse_kind: "self" | "peer" | "kudos"
       pulse_tone: "formal" | "neutral" | "casual"
       status:
         | "PENDENTE"
@@ -1453,7 +1468,7 @@ export const Constants = {
         "leadership",
         "customer",
       ],
-      pulse_kind: ["self", "peer"],
+      pulse_kind: ["self", "peer", "kudos"],
       pulse_tone: ["formal", "neutral", "casual"],
       status: [
         "PENDENTE",
