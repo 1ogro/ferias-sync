@@ -148,8 +148,11 @@ serve(async (req) => {
             console.error("[pulse_answer] upsert error:", upErr);
           } else {
             await bumpResponseCount(runId, supabase);
+            await awardPoints(supabase, respondent.id, 5, "pulse_response", runId);
+            await completePeerPair(supabase, runId, respondent.id);
             await postEphemeralAck(payload, `✅ Resposta registrada: *${value}/5*`);
           }
+
         } else {
           await postEphemeralAck(payload, `⚠️ Não consegui identificar seu usuário no sistema (email do Slack não bate com nenhum colaborador).`);
         }
