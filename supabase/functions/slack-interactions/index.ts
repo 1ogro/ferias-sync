@@ -102,7 +102,93 @@ serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // ============ PULSE FLOW ============
+    // ============ PULSE / KUDOS FLOW ============
+
+    const CATEGORY_LABEL: Record<string, string> = {
+      teamwork: "🤝 Trabalho em equipe",
+      innovation: "💡 Inovação",
+      delivery: "🚀 Entrega",
+      leadership: "🏆 Liderança",
+      customer: "❤️ Foco no cliente",
+    };
+
+    // view_submission for kudos modal
+    if (payload.type === "view_submission" && payload.view?.callback_id?.startsWith("kudos_submit:")) {
+      const [, surveyId] = payload.view.callback_id.split(":");
+      const v = payload.view.state.values || {};
+      const toPersonId = v.kudo_to_block?.kudo_to_select?.selected_option?.value;
+      const category = v.kudo_cat_block?.kudo_cat_select?.selected_option?.value || "teamwork";
+      const message = (v.kudo_msg_block?.kudo_msg_input?.value || "").trim();
+      const slackUserId = payload.user.id;
+
+      const sender = await resolveRespondent(slackUserId, supabase);
+      const errors: Record<string, string> = {};
+      if (!sender) errors["kudo_msg_block"] = "Usuário não encontrado.";
+      if (!toPersonId) errors["kudo_to_block"] = "Selecione um colega.";
+      if (!message || message.length < 3) errors["kudo_msg_block"] = "Mensagem muito curta.";
+      if (message.length > 500) errors["kudo_msg_block"] = "Máximo 500 caracteres.";
+      if (sender && toPersonId === sender.id) errors["kudo_to_block"] = "Não dá para mandar kudos pra si mesmo 😉";
+      if (Object.keys(errors).length) {
+        return new Response(JSON.stringify({ response_action: "errors", errors }), {
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+
+      const { data: survey } = await supabase
+        .from("pulse_surveys")
+        .select("kudos_channel, title")
+        .eq("id", surveyId)
+        .maybeSingle();
+
+      const { data: to } = await supabase.from("people").select("nome, ativo").eq("id", toPersonId).maybeSingle();
+      if (!to || !to.ativo) {
+        return new Response(JSON.stringify({ response_action: "errors", errors: { kudo_to_block: "Destinatário inativo." } }), {
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+
+      const channelToPost = survey?.kudos_channel?.trim() || null;
+      const { data: kudo, error: insErr } = await supabase.from("kudos").insert({
+        from_person_id: sender!.id,
+        to_person_id: toPersonId,
+        message,
+        category,
+        slack_channel_posted: channelToPost,
+      }).select().single();
+
+      if (!insErr && kudo) {
+        await awardPoints(supabase, toPersonId, 10, "kudo_received", kudo.id);
+        await awardPoints(supabase, sender!.id, 2, "kudo_given", kudo.id);
+
+        if (channelToPost) {
+          const { data: fromP } = await supabase.from("people").select("nome").eq("id", sender!.id).maybeSingle();
+          const text = `${CATEGORY_LABEL[category] || "🎉"} *${fromP?.nome || "Alguém"}* deu kudos para *${to.nome}*\n> ${message}`;
+          await fetch("https://slack.com/api/chat.postMessage", {
+            method: "POST",
+            headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ channel: channelToPost, text }),
+          });
+        }
+      } else if (insErr) {
+        console.error("[kudos_submit] insert error:", insErr);
+      }
+
+      return new Response(JSON.stringify({ response_action: "clear" }), {
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    // Replace awardPoints helper inline (already in scope) — define a small wrapper:
+    async function awardPoints(supabaseClient: any, personId: string, points: number, reason: string, sourceId: string) {
+      const { error } = await supabaseClient.rpc("award_points", {
+        p_person_id: personId,
+        p_points: points,
+        p_reason: reason,
+        p_source_id: sourceId,
+      });
+      if (error) console.error("[award_points] error:", error);
+    }
+
     // view_submission for open-text pulse question
     if (payload.type === "view_submission" && payload.view?.callback_id?.startsWith("pulse_text:")) {
       const [, runId, questionId] = payload.view.callback_id.split(":");
