@@ -82,13 +82,16 @@ serve(async (req) => {
       const [, runId, questionId] = payload.view.callback_id.split(":");
       const text = payload.view.state.values?.pulse_text_block?.pulse_text_input?.value || "";
       const slackUserId = payload.user.id;
+      console.log(`[pulse view_submission] run=${runId} q=${questionId} slack_user=${slackUserId}`);
       const respondent = await resolveRespondent(slackUserId, supabase);
+      console.log(`[pulse view_submission] respondent=${respondent?.id ?? "NOT_FOUND"}`);
       if (respondent) {
-        await supabase.from("pulse_responses").upsert(
+        const { error: upErr } = await supabase.from("pulse_responses").upsert(
           { run_id: runId, question_id: questionId, respondent_id: respondent.id, text_value: text },
           { onConflict: "run_id,question_id,respondent_id" }
         );
-        await bumpResponseCount(runId, supabase);
+        if (upErr) console.error("[pulse view_submission] upsert error:", upErr);
+        else await bumpResponseCount(runId, supabase);
       }
       return new Response(JSON.stringify({ response_action: "clear" }), {
         headers: { "Content-Type": "application/json" },
@@ -98,23 +101,32 @@ serve(async (req) => {
     // block_actions for pulse
     if (payload.type === "block_actions" && payload.actions?.[0]) {
       const act = payload.actions[0];
+      console.log(`[block_actions] action_id=${act.action_id}`);
       if (act.action_id?.startsWith("pulse_answer:")) {
         const [, runId, questionId, value] = act.action_id.split(":");
         const slackUserId = payload.user.id;
+        console.log(`[pulse_answer] run=${runId} q=${questionId} value=${value} slack_user=${slackUserId}`);
         const respondent = await resolveRespondent(slackUserId, supabase);
+        console.log(`[pulse_answer] respondent=${respondent?.id ?? "NOT_FOUND"}`);
         if (respondent) {
-          await supabase.from("pulse_responses").upsert(
+          const { error: upErr } = await supabase.from("pulse_responses").upsert(
             { run_id: runId, question_id: questionId, respondent_id: respondent.id, scale_value: parseInt(value, 10), slack_message_ts: payload.message?.ts },
             { onConflict: "run_id,question_id,respondent_id" }
           );
-          await bumpResponseCount(runId, supabase);
-          await postEphemeralAck(payload, `✅ Resposta registrada: *${value}/5*`);
+          if (upErr) {
+            console.error("[pulse_answer] upsert error:", upErr);
+          } else {
+            await bumpResponseCount(runId, supabase);
+            await postEphemeralAck(payload, `✅ Resposta registrada: *${value}/5*`);
+          }
+        } else {
+          await postEphemeralAck(payload, `⚠️ Não consegui identificar seu usuário no sistema (email do Slack não bate com nenhum colaborador).`);
         }
         return new Response(JSON.stringify({ ok: true }), { headers: { "Content-Type": "application/json" } });
       }
       if (act.action_id?.startsWith("pulse_text_open:")) {
         const [, runId, questionId] = act.action_id.split(":");
-        await fetch("https://slack.com/api/views.open", {
+        const r = await fetch("https://slack.com/api/views.open", {
           method: "POST",
           headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}`, "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -140,11 +152,24 @@ serve(async (req) => {
             },
           }),
         });
+        const d = await r.json();
+        if (!d.ok) console.error("[pulse_text_open] views.open error:", d);
+        return new Response(JSON.stringify({ ok: true }), { headers: { "Content-Type": "application/json" } });
+      }
+
+      // Unknown pulse-like or other block_action — don't fall into legacy approval handler
+      if (!act.value) {
+        console.log(`[block_actions] no value, ignoring action_id=${act.action_id}`);
         return new Response(JSON.stringify({ ok: true }), { headers: { "Content-Type": "application/json" } });
       }
     }
 
     // ============ APPROVAL FLOW (legado) ============
+    if (payload.type !== "block_actions" || !payload.actions?.[0]?.value) {
+      console.log("[slack-interactions] no matching handler for payload type:", payload.type);
+      return new Response(JSON.stringify({ ok: true }), { headers: { "Content-Type": "application/json" } });
+    }
+
     const action = payload.actions[0];
     const requestId = action.value;
     const actionId = action.action_id;
