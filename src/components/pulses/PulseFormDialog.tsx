@@ -87,6 +87,10 @@ export function PulseFormDialog({ open, onOpenChange, survey }: Props) {
       setTitle(survey.title);
       setDescription(survey.description || "");
       setAnonymous(survey.anonymous);
+      setTone(((survey as any).tone || "neutral") as any);
+      setKind(((survey as any).kind || "self") as any);
+      setPeerAnonymous((survey as any).peer_anonymous ?? true);
+
       setFrequency(survey.frequency);
       setNextRunAt(toLocalInput(survey.next_run_at));
       setTargetScope(survey.target_scope);
