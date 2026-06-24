@@ -33,6 +33,11 @@ export interface PulseSurvey {
   kudos_categories?: string[] | null;
   kudos_channel?: string | null;
   prompt_text?: string | null;
+  notify_manager_on_negative?: boolean;
+  notify_manager_on_positive?: boolean;
+  notify_negative_threshold?: number;
+  notify_positive_threshold?: number;
+  notify_include_text_responses?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -55,6 +60,11 @@ export interface CreateSurveyInput {
   target_team_id?: string | null;
   target_team_ids?: string[] | null;
   target_person_ids?: string[] | null;
+  notify_manager_on_negative?: boolean;
+  notify_manager_on_positive?: boolean;
+  notify_negative_threshold?: number;
+  notify_positive_threshold?: number;
+  notify_include_text_responses?: boolean;
   questions: PulseQuestion[];
 }
 
@@ -146,6 +156,11 @@ export function useCreatePulseSurvey() {
           target_team_id: survey.target_team_id ?? null,
           target_team_ids: survey.target_team_ids ?? null,
           target_person_ids: survey.target_person_ids ?? null,
+          notify_manager_on_negative: survey.notify_manager_on_negative ?? false,
+          notify_manager_on_positive: survey.notify_manager_on_positive ?? false,
+          notify_negative_threshold: survey.notify_negative_threshold ?? 2,
+          notify_positive_threshold: survey.notify_positive_threshold ?? 4,
+          notify_include_text_responses: survey.notify_include_text_responses ?? false,
           active: true,
         } as any)
         .select()
@@ -198,6 +213,11 @@ export interface UpdateSurveyInput {
   target_team_id?: string | null;
   target_team_ids?: string[] | null;
   target_person_ids?: string[] | null;
+  notify_manager_on_negative?: boolean;
+  notify_manager_on_positive?: boolean;
+  notify_negative_threshold?: number;
+  notify_positive_threshold?: number;
+  notify_include_text_responses?: boolean;
   questions?: PulseQuestion[]; // if provided, replaces all questions (ignored for kudos)
 }
 
@@ -225,6 +245,11 @@ export function useUpdatePulseSurvey() {
           target_team_id: fields.target_team_id ?? null,
           target_team_ids: fields.target_team_ids ?? null,
           target_person_ids: fields.target_person_ids ?? null,
+          notify_manager_on_negative: fields.notify_manager_on_negative ?? false,
+          notify_manager_on_positive: fields.notify_manager_on_positive ?? false,
+          notify_negative_threshold: fields.notify_negative_threshold ?? 2,
+          notify_positive_threshold: fields.notify_positive_threshold ?? 4,
+          notify_include_text_responses: fields.notify_include_text_responses ?? false,
         } as any)
         .eq("id", id);
       if (error) throw error;

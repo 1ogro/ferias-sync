@@ -793,6 +793,11 @@ export type Database = {
           kudos_channel: string | null
           last_run_at: string | null
           next_run_at: string | null
+          notify_include_text_responses: boolean
+          notify_manager_on_negative: boolean
+          notify_manager_on_positive: boolean
+          notify_negative_threshold: number
+          notify_positive_threshold: number
           peer_anonymous: boolean
           prompt_text: string | null
           target_person_ids: string[] | null
@@ -818,6 +823,11 @@ export type Database = {
           kudos_channel?: string | null
           last_run_at?: string | null
           next_run_at?: string | null
+          notify_include_text_responses?: boolean
+          notify_manager_on_negative?: boolean
+          notify_manager_on_positive?: boolean
+          notify_negative_threshold?: number
+          notify_positive_threshold?: number
           peer_anonymous?: boolean
           prompt_text?: string | null
           target_person_ids?: string[] | null
@@ -843,6 +853,11 @@ export type Database = {
           kudos_channel?: string | null
           last_run_at?: string | null
           next_run_at?: string | null
+          notify_include_text_responses?: boolean
+          notify_manager_on_negative?: boolean
+          notify_manager_on_positive?: boolean
+          notify_negative_threshold?: number
+          notify_positive_threshold?: number
           peer_anonymous?: boolean
           prompt_text?: string | null
           target_person_ids?: string[] | null

@@ -62,6 +62,11 @@ export function PulseFormDialog({ open, onOpenChange, survey, initialValues }: P
   const [targetScope, setTargetScope] = useState<"all" | "teams" | "custom">("all");
   const [targetTeamIds, setTargetTeamIds] = useState<string[]>([]);
   const [targetPersonIds, setTargetPersonIds] = useState<string[]>([]);
+  const [notifyNegative, setNotifyNegative] = useState(false);
+  const [notifyPositive, setNotifyPositive] = useState(false);
+  const [negThreshold, setNegThreshold] = useState(2);
+  const [posThreshold, setPosThreshold] = useState(4);
+  const [notifyIncludeText, setNotifyIncludeText] = useState(false);
   const [questions, setQuestions] = useState<PulseQuestion[]>([
     { position: 0, question_text: "", question_type: "scale_1_5", required: true },
   ]);
@@ -114,6 +119,11 @@ export function PulseFormDialog({ open, onOpenChange, survey, initialValues }: P
           (survey.target_team_id ? [survey.target_team_id] : [])
       );
       setTargetPersonIds(survey.target_person_ids || []);
+      setNotifyNegative(!!(survey as any).notify_manager_on_negative);
+      setNotifyPositive(!!(survey as any).notify_manager_on_positive);
+      setNegThreshold((survey as any).notify_negative_threshold ?? 2);
+      setPosThreshold((survey as any).notify_positive_threshold ?? 4);
+      setNotifyIncludeText(!!(survey as any).notify_include_text_responses);
     } else if (!isEdit) {
       reset();
       if (initialValues) {
@@ -157,6 +167,8 @@ export function PulseFormDialog({ open, onOpenChange, survey, initialValues }: P
     setFrequency("once");
     setNextRunAt(toLocalInput(null));
     setTargetScope("all"); setTargetTeamIds([]); setTargetPersonIds([]);
+    setNotifyNegative(false); setNotifyPositive(false);
+    setNegThreshold(2); setPosThreshold(4); setNotifyIncludeText(false);
     setQuestions([{ position: 0, question_text: "", question_type: "scale_1_5", required: true }]);
   };
 
@@ -184,6 +196,13 @@ export function PulseFormDialog({ open, onOpenChange, survey, initialValues }: P
         kudos_channel: kind === "kudos" ? (kudosChannel.trim() || null) : null,
         prompt_text: kind === "kudos" ? (promptText.trim() || null) : null,
       };
+      const notifyFields = {
+        notify_manager_on_negative: kind === "kudos" ? false : notifyNegative,
+        notify_manager_on_positive: kind === "kudos" ? false : notifyPositive,
+        notify_negative_threshold: Math.min(5, Math.max(1, negThreshold || 2)),
+        notify_positive_threshold: Math.min(5, Math.max(1, posThreshold || 4)),
+        notify_include_text_responses: kind === "kudos" ? false : notifyIncludeText,
+      };
       if (isEdit && survey) {
         await updateMut.mutateAsync({
           id: survey.id,
@@ -194,6 +213,7 @@ export function PulseFormDialog({ open, onOpenChange, survey, initialValues }: P
           kind,
           peer_anonymous: peerAnonymous,
           ...commonKudos,
+          ...notifyFields,
           frequency,
           next_run_at: new Date(nextRunAt).toISOString(),
           target_scope: targetScope,
@@ -213,6 +233,7 @@ export function PulseFormDialog({ open, onOpenChange, survey, initialValues }: P
           kind,
           peer_anonymous: peerAnonymous,
           ...commonKudos,
+          ...notifyFields,
           frequency,
           next_run_at: new Date(nextRunAt).toISOString(),
           target_scope: targetScope,
@@ -367,6 +388,64 @@ export function PulseFormDialog({ open, onOpenChange, survey, initialValues }: P
             </div>
           )}
 
+
+          {kind !== "kudos" && (
+            <div className="space-y-3 rounded border p-3">
+              <div>
+                <Label className="text-sm font-semibold">Notificações ao gestor</Label>
+                <p className="text-xs text-muted-foreground">
+                  Avisa o gestor direto do respondente quando uma resposta cai na faixa configurada.
+                </p>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex-1">
+                  <Label className="text-sm">Notificar em respostas negativas</Label>
+                  <p className="text-xs text-muted-foreground">Dispara quando a nota for menor ou igual ao limite.</p>
+                </div>
+                <Switch checked={notifyNegative} onCheckedChange={setNotifyNegative} />
+                <Input
+                  type="number"
+                  min={1}
+                  max={5}
+                  className="w-16"
+                  value={negThreshold}
+                  onChange={(e) => setNegThreshold(parseInt(e.target.value, 10) || 1)}
+                  disabled={!notifyNegative}
+                />
+              </div>
+              {notifyNegative && (
+                <label className="flex items-center gap-2 text-xs text-muted-foreground pl-1">
+                  <input
+                    type="checkbox"
+                    checked={notifyIncludeText}
+                    onChange={(e) => setNotifyIncludeText(e.target.checked)}
+                  />
+                  Incluir respostas em texto livre como feedback negativo
+                </label>
+              )}
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex-1">
+                  <Label className="text-sm">Notificar em respostas positivas</Label>
+                  <p className="text-xs text-muted-foreground">Dispara quando a nota for maior ou igual ao limite.</p>
+                </div>
+                <Switch checked={notifyPositive} onCheckedChange={setNotifyPositive} />
+                <Input
+                  type="number"
+                  min={1}
+                  max={5}
+                  className="w-16"
+                  value={posThreshold}
+                  onChange={(e) => setPosThreshold(parseInt(e.target.value, 10) || 5)}
+                  disabled={!notifyPositive}
+                />
+              </div>
+              {anonymous && (notifyNegative || notifyPositive) && (
+                <p className="text-xs text-muted-foreground">
+                  ℹ️ A enquete é anônima — o gestor receberá o alerta sem o nome do respondente.
+                </p>
+              )}
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label>{isEdit ? "Próximo disparo" : "Primeiro disparo"}</Label>
