@@ -34,6 +34,9 @@ export interface CreateSurveyInput {
   title: string;
   description?: string;
   anonymous: boolean;
+  tone?: "formal" | "neutral" | "casual";
+  kind?: "self" | "peer";
+  peer_anonymous?: boolean;
   frequency: PulseFrequency;
   next_run_at: string;
   target_scope: "team" | "custom";
@@ -41,6 +44,7 @@ export interface CreateSurveyInput {
   target_person_ids?: string[] | null;
   questions: PulseQuestion[];
 }
+
 
 export function usePulseSurveys() {
   return useQuery({
