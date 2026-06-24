@@ -169,6 +169,9 @@ export interface UpdateSurveyInput {
   title: string;
   description?: string | null;
   anonymous: boolean;
+  tone?: "formal" | "neutral" | "casual";
+  kind?: "self" | "peer";
+  peer_anonymous?: boolean;
   frequency: PulseFrequency;
   next_run_at: string;
   target_scope: "team" | "custom";
@@ -188,6 +191,9 @@ export function useUpdatePulseSurvey() {
           title: fields.title,
           description: fields.description ?? null,
           anonymous: fields.anonymous,
+          tone: fields.tone ?? "neutral",
+          kind: fields.kind ?? "self",
+          peer_anonymous: fields.peer_anonymous ?? true,
           frequency: fields.frequency,
           next_run_at: fields.next_run_at,
           target_scope: fields.target_scope,
@@ -196,6 +202,7 @@ export function useUpdatePulseSurvey() {
         })
         .eq("id", id);
       if (error) throw error;
+
 
       if (questions) {
         const { error: delErr } = await supabase.from("pulse_questions").delete().eq("survey_id", id);
