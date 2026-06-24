@@ -1270,6 +1270,15 @@ const VacationManagement = () => {
             <UsersSheetsSync />
           </div>
         );
+
+      case 'pulses':
+        return (
+          <div className="mt-6 space-y-6">
+            <PulsesTab />
+          </div>
+        );
+      
+
       
       default:
         return null;
