@@ -301,7 +301,7 @@ const VacationManagement = () => {
     }
   };
 
-  const toggleFilter = (filterType: 'time' | 'contract' | 'status', value: string) => {
+  const toggleFilter = (filterType: 'time' | 'contract' | 'status' | 'contractMonth', value: string) => {
     switch (filterType) {
       case 'time':
         setSelectedTimes(prev => 
@@ -318,10 +318,15 @@ const VacationManagement = () => {
           prev.includes(value) ? prev.filter(v => v !== value) : [...prev, value]
         );
         break;
+      case 'contractMonth':
+        setSelectedContractMonths(prev =>
+          prev.includes(value) ? prev.filter(v => v !== value) : [...prev, value]
+        );
+        break;
     }
   };
 
-  const removeFilter = (filterType: 'time' | 'contract' | 'status', value: string) => {
+  const removeFilter = (filterType: 'time' | 'contract' | 'status' | 'contractMonth', value: string) => {
     switch (filterType) {
       case 'time':
         setSelectedTimes(prev => prev.filter(v => v !== value));
@@ -332,6 +337,9 @@ const VacationManagement = () => {
       case 'status':
         setSelectedStatuses(prev => prev.filter(v => v !== value));
         break;
+      case 'contractMonth':
+        setSelectedContractMonths(prev => prev.filter(v => v !== value));
+        break;
     }
   };
 
@@ -339,9 +347,10 @@ const VacationManagement = () => {
     setSelectedTimes([]);
     setSelectedContractTypes([]);
     setSelectedStatuses([]);
+    setSelectedContractMonths([]);
   };
 
-  const activeFiltersCount = selectedTimes.length + selectedContractTypes.length + selectedStatuses.length;
+  const activeFiltersCount = selectedTimes.length + selectedContractTypes.length + selectedStatuses.length + selectedContractMonths.length;
 
   // Get unique values for filters
   const availableTimes = useMemo(() => {
