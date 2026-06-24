@@ -233,6 +233,7 @@ export function PulseFormDialog({ open, onOpenChange, survey, initialValues }: P
           kind,
           peer_anonymous: peerAnonymous,
           ...commonKudos,
+          ...notifyFields,
           frequency,
           next_run_at: new Date(nextRunAt).toISOString(),
           target_scope: targetScope,
