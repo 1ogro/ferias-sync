@@ -150,6 +150,14 @@ const App = () => (
                 </Suspense>
               </ProtectedRoute>
             } />
+            <Route path="/engagement" element={
+              <ProtectedRoute>
+                <Suspense fallback={<PageLoader />}>
+                  <Engagement />
+                </Suspense>
+              </ProtectedRoute>
+            } />
+
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={
               <Suspense fallback={<PageLoader />}>
