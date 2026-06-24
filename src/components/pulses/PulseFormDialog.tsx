@@ -35,7 +35,7 @@ function toLocalInput(iso: string | null | undefined): string {
   return local.toISOString().slice(0, 16);
 }
 
-export function PulseFormDialog({ open, onOpenChange, survey }: Props) {
+export function PulseFormDialog({ open, onOpenChange, survey, initialValues }: Props) {
   const { person } = useAuth();
   const { toast } = useToast();
   const createMut = useCreatePulseSurvey();
