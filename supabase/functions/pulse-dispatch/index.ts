@@ -327,13 +327,15 @@ async function dispatchSurvey(supabase: any, survey: any): Promise<{ sent: numbe
       diag.status = "no_subject_assigned"; diagnostics.push(diag); continue;
     }
 
-    const blocks = buildBlocks(survey, questions, run.id, { subjectName: subject?.nome });
+    const blocks = isKudos
+      ? buildKudosBlocks(survey)
+      : buildBlocks(survey, questions, run.id, { subjectName: subject?.nome });
     const res = await fetch("https://slack.com/api/chat.postMessage", {
       method: "POST",
       headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}`, "Content-Type": "application/json" },
       body: JSON.stringify({
         channel: im.channel,
-        text: `Nova enquete: ${survey.title}`,
+        text: isKudos ? `Kudos: ${survey.title}` : `Nova enquete: ${survey.title}`,
         blocks,
         metadata: subject ? { event_type: "pulse_peer", event_payload: { subject_id: subject.id } } : undefined,
       }),
