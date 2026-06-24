@@ -23,8 +23,9 @@ export interface PulseSurvey {
   next_run_at: string | null;
   last_run_at: string | null;
   active: boolean;
-  target_scope: "team" | "custom";
+  target_scope: "all" | "teams" | "custom";
   target_team_id: string | null;
+  target_team_ids: string[] | null;
   target_person_ids: string[] | null;
   tone?: "formal" | "neutral" | "casual";
   kind?: "self" | "peer" | "kudos";
@@ -50,8 +51,9 @@ export interface CreateSurveyInput {
   prompt_text?: string | null;
   frequency: PulseFrequency;
   next_run_at: string;
-  target_scope: "team" | "custom";
+  target_scope: "all" | "teams" | "custom";
   target_team_id?: string | null;
+  target_team_ids?: string[] | null;
   target_person_ids?: string[] | null;
   questions: PulseQuestion[];
 }
@@ -142,6 +144,7 @@ export function useCreatePulseSurvey() {
           next_run_at: survey.next_run_at,
           target_scope: survey.target_scope,
           target_team_id: survey.target_team_id ?? null,
+          target_team_ids: survey.target_team_ids ?? null,
           target_person_ids: survey.target_person_ids ?? null,
           active: true,
         } as any)
@@ -191,8 +194,9 @@ export interface UpdateSurveyInput {
   prompt_text?: string | null;
   frequency: PulseFrequency;
   next_run_at: string;
-  target_scope: "team" | "custom";
+  target_scope: "all" | "teams" | "custom";
   target_team_id?: string | null;
+  target_team_ids?: string[] | null;
   target_person_ids?: string[] | null;
   questions?: PulseQuestion[]; // if provided, replaces all questions (ignored for kudos)
 }
@@ -219,6 +223,7 @@ export function useUpdatePulseSurvey() {
           next_run_at: fields.next_run_at,
           target_scope: fields.target_scope,
           target_team_id: fields.target_team_id ?? null,
+          target_team_ids: fields.target_team_ids ?? null,
           target_person_ids: fields.target_person_ids ?? null,
         } as any)
         .eq("id", id);
@@ -297,6 +302,7 @@ export function useDuplicatePulseSurvey() {
           next_run_at: nextRun,
           target_scope: orig.target_scope,
           target_team_id: orig.target_team_id,
+          target_team_ids: (orig as any).target_team_ids ?? null,
           target_person_ids: orig.target_person_ids,
           active: false,
         } as any)

@@ -246,7 +246,26 @@ async function dispatchSurvey(supabase: any, survey: any): Promise<{ sent: numbe
   }
 
   let recipients: any[] = [];
-  if (survey.target_scope === "team" && survey.target_team_id) {
+  if (survey.target_scope === "all") {
+    const { data } = await supabase
+      .from("people")
+      .select("id, nome, email")
+      .eq("ativo", true);
+    recipients = data || [];
+  } else if (survey.target_scope === "teams") {
+    const teamIds: string[] = survey.target_team_ids?.length
+      ? survey.target_team_ids
+      : (survey.target_team_id ? [survey.target_team_id] : []);
+    if (teamIds.length) {
+      const { data } = await supabase
+        .from("people")
+        .select("id, nome, email")
+        .in("sub_time", teamIds)
+        .eq("ativo", true);
+      recipients = data || [];
+    }
+  } else if (survey.target_scope === "team" && survey.target_team_id) {
+    // legacy fallback
     const { data } = await supabase
       .from("people")
       .select("id, nome, email")
