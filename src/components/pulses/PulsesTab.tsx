@@ -15,6 +15,8 @@ export function PulsesTab() {
   const { data: surveys = [], isLoading } = usePulseSurveys();
   const toggleMut = useTogglePulseActive();
   const deleteMut = useDeletePulseSurvey();
+  const duplicateMut = useDuplicatePulseSurvey();
+
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<PulseSurvey | null>(null);
   const [selected, setSelected] = useState<PulseSurvey | null>(null);
