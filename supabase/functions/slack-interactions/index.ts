@@ -117,8 +117,13 @@ serve(async (req) => {
           { onConflict: "run_id,question_id,respondent_id" }
         );
         if (upErr) console.error("[pulse view_submission] upsert error:", upErr);
-        else await bumpResponseCount(runId, supabase);
+        else {
+          await bumpResponseCount(runId, supabase);
+          await awardPoints(supabase, respondent.id, 5, "pulse_response", runId);
+          await completePeerPair(supabase, runId, respondent.id);
+        }
       }
+
       return new Response(JSON.stringify({ response_action: "clear" }), {
         headers: { "Content-Type": "application/json" },
       });
