@@ -48,4 +48,11 @@ verify_jwt = false
 [functions.pulse-export]
 verify_jwt = true
 
+[functions.kudos-send]
+verify_jwt = true
+
+[functions.engagement-monthly-report]
+verify_jwt = false
+
+
 

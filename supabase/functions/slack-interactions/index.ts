@@ -42,6 +42,32 @@ async function resolveRespondent(slackUserId: string, supabase: any) {
   return data;
 }
 
+async function awardPoints(supabase: any, personId: string, points: number, reason: string, sourceId: string) {
+  const { error } = await supabase.rpc("award_points", {
+    p_person_id: personId,
+    p_points: points,
+    p_reason: reason,
+    p_source_id: sourceId,
+  });
+  if (error) console.error("[award_points] error:", error);
+}
+
+async function completePeerPair(supabase: any, runId: string, reviewerId: string) {
+  // Marks pair as completed and awards reviewer points (deduped via source_id).
+  const { data: pair } = await supabase
+    .from("peer_review_pairs")
+    .select("id, completed_at")
+    .eq("run_id", runId)
+    .eq("reviewer_id", reviewerId)
+    .maybeSingle();
+  if (!pair) return;
+  if (!pair.completed_at) {
+    await supabase.from("peer_review_pairs").update({ completed_at: new Date().toISOString() }).eq("id", pair.id);
+  }
+  await awardPoints(supabase, reviewerId, 8, "peer_review", pair.id);
+}
+
+
 async function bumpResponseCount(runId: string, supabase: any) {
   const { count } = await supabase
     .from("pulse_responses").select("*", { count: "exact", head: true }).eq("run_id", runId);
@@ -91,8 +117,13 @@ serve(async (req) => {
           { onConflict: "run_id,question_id,respondent_id" }
         );
         if (upErr) console.error("[pulse view_submission] upsert error:", upErr);
-        else await bumpResponseCount(runId, supabase);
+        else {
+          await bumpResponseCount(runId, supabase);
+          await awardPoints(supabase, respondent.id, 5, "pulse_response", runId);
+          await completePeerPair(supabase, runId, respondent.id);
+        }
       }
+
       return new Response(JSON.stringify({ response_action: "clear" }), {
         headers: { "Content-Type": "application/json" },
       });
@@ -117,8 +148,11 @@ serve(async (req) => {
             console.error("[pulse_answer] upsert error:", upErr);
           } else {
             await bumpResponseCount(runId, supabase);
+            await awardPoints(supabase, respondent.id, 5, "pulse_response", runId);
+            await completePeerPair(supabase, runId, respondent.id);
             await postEphemeralAck(payload, `✅ Resposta registrada: *${value}/5*`);
           }
+
         } else {
           await postEphemeralAck(payload, `⚠️ Não consegui identificar seu usuário no sistema (email do Slack não bate com nenhum colaborador).`);
         }

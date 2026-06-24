@@ -1,5 +1,7 @@
 // Pulse dispatch — chamada por pg_cron a cada 15 min.
 // Envia DMs no Slack para enquetes ativas cuja next_run_at já passou.
+// Respeita janelas silenciosas (quiet_hours_*), aplica tom (formal/neutral/casual),
+// e gera pares quando kind=peer.
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -12,6 +14,28 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+type Tone = "formal" | "neutral" | "casual";
+const TONE: Record<Tone, { header: (t: string) => string; anon: string; peer: (n: string) => string; thanks: string }> = {
+  formal: {
+    header: (t) => `📋 ${t}`,
+    anon: "Suas respostas serão tratadas de forma anônima.",
+    peer: (n) => `Sua avaliação será sobre o(a) colega *${n}*.`,
+    thanks: "Agradecemos sua participação.",
+  },
+  neutral: {
+    header: (t) => `📊 ${t}`,
+    anon: "🕶️ Suas respostas são anônimas.",
+    peer: (n) => `Você está avaliando *${n}* nesta rodada.`,
+    thanks: "Obrigado por responder!",
+  },
+  casual: {
+    header: (t) => `✨ ${t}`,
+    anon: "🤫 Pode mandar a real — é anônimo!",
+    peer: (n) => `Bora dar um feedback pro *${n}*? 🎯`,
+    thanks: "Valeu demais! 🙌",
+  },
+};
+
 async function slackAuthTest(): Promise<any> {
   try {
     const res = await fetch("https://slack.com/api/auth.test", {
@@ -20,7 +44,6 @@ async function slackAuthTest(): Promise<any> {
     });
     const data = await res.json();
     console.log("[slack auth.test]", JSON.stringify(data));
-    // scopes vêm no header
     const scopes = res.headers.get("x-oauth-scopes");
     console.log("[slack scopes]", scopes);
     return { ...data, scopes };
@@ -38,10 +61,8 @@ async function lookupSlackUserByEmail(email: string): Promise<{ id: string | nul
     );
     const data = await res.json();
     if (data.ok && data.user?.id) return { id: data.user.id };
-    console.warn(`[lookupByEmail] ${email} -> ${JSON.stringify(data)}`);
     return { id: null, error: data.error, needed: data.needed };
   } catch (err) {
-    console.error("lookupByEmail error:", err);
     return { id: null, error: String(err) };
   }
 }
@@ -49,15 +70,11 @@ async function lookupSlackUserByEmail(email: string): Promise<{ id: string | nul
 async function openIm(slackUserId: string): Promise<{ channel: string | null; error?: string; needed?: string }> {
   const res = await fetch("https://slack.com/api/conversations.open", {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${SLACK_BOT_TOKEN}`,
-      "Content-Type": "application/json",
-    },
+    headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}`, "Content-Type": "application/json" },
     body: JSON.stringify({ users: slackUserId }),
   });
   const data = await res.json();
   if (data.ok) return { channel: data.channel.id };
-  console.warn(`[conversations.open] ${slackUserId} -> ${JSON.stringify(data)}`);
   return { channel: null, error: data.error, needed: data.needed };
 }
 
@@ -68,24 +85,70 @@ function nextRunFromFrequency(freq: string, base: Date): Date | null {
     case "weekly": d.setDate(d.getDate() + 7); return d;
     case "biweekly": d.setDate(d.getDate() + 14); return d;
     case "monthly": d.setMonth(d.getMonth() + 1); return d;
-    default: return null; // once
+    default: return null;
   }
 }
 
-function buildBlocks(survey: any, questions: any[], runId: string) {
+// Returns minutes since midnight in the target timezone for `now`.
+function nowMinutesInTZ(timezone: string): number {
+  const fmt = new Intl.DateTimeFormat("en-US", {
+    timeZone: timezone,
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+  const parts = fmt.formatToParts(new Date());
+  const hh = parseInt(parts.find((p) => p.type === "hour")?.value || "0", 10);
+  const mm = parseInt(parts.find((p) => p.type === "minute")?.value || "0", 10);
+  return hh * 60 + mm;
+}
+
+function timeStrToMinutes(t: string): number {
+  const [hh, mm] = t.split(":").map((x) => parseInt(x, 10));
+  return hh * 60 + (mm || 0);
+}
+
+// Returns null if it's OK to send now; otherwise an ISO of when to retry.
+function shouldDeferUntil(prefs: {
+  quiet_hours_start?: string;
+  quiet_hours_end?: string;
+  preferred_window_start?: string;
+  preferred_window_end?: string;
+  timezone?: string;
+} | null): string | null {
+  if (!prefs) return null;
+  const tz = prefs.timezone || "America/Sao_Paulo";
+  const now = nowMinutesInTZ(tz);
+  const qs = timeStrToMinutes(prefs.quiet_hours_start || "12:00");
+  const qe = timeStrToMinutes(prefs.quiet_hours_end || "14:00");
+  const inQuiet = qs < qe ? (now >= qs && now < qe) : (now >= qs || now < qe);
+  if (!inQuiet) return null;
+  // Defer to end of quiet window (next occurrence) or preferred window start if later
+  const target = prefs.preferred_window_start
+    ? Math.max(qe, timeStrToMinutes(prefs.preferred_window_start))
+    : qe;
+  // Build target Date in tz. Simple approach: schedule N minutes ahead.
+  const minutesAhead = target > now ? target - now : (24 * 60 - now) + target;
+  const next = new Date(Date.now() + minutesAhead * 60_000);
+  return next.toISOString();
+}
+
+function buildBlocks(survey: any, questions: any[], runId: string, opts: { subjectName?: string } = {}) {
+  const tone = (survey.tone || "neutral") as Tone;
+  const tpl = TONE[tone] || TONE.neutral;
   const blocks: any[] = [
-    {
-      type: "header",
-      text: { type: "plain_text", text: `📊 ${survey.title}` },
-    },
+    { type: "header", text: { type: "plain_text", text: tpl.header(survey.title) } },
   ];
   if (survey.description) {
     blocks.push({ type: "section", text: { type: "mrkdwn", text: survey.description } });
   }
-  if (survey.anonymous) {
+  if (opts.subjectName) {
+    blocks.push({ type: "section", text: { type: "mrkdwn", text: tpl.peer(opts.subjectName) } });
+  }
+  if (survey.anonymous || (survey.kind === "peer" && survey.peer_anonymous)) {
     blocks.push({
       type: "context",
-      elements: [{ type: "mrkdwn", text: "🕶️ _Suas respostas são anônimas._" }],
+      elements: [{ type: "mrkdwn", text: tpl.anon }],
     });
   }
   blocks.push({ type: "divider" });
@@ -123,10 +186,23 @@ function buildBlocks(survey: any, questions: any[], runId: string) {
     }
   }
 
+  blocks.push({ type: "context", elements: [{ type: "mrkdwn", text: tpl.thanks }] });
   return blocks;
 }
 
-async function dispatchSurvey(supabase: any, survey: any): Promise<{ sent: number; total: number; diagnostics: any[] }> {
+// Round-robin pair generator for peer review (no self-pair).
+function generatePeerPairs(people: { id: string }[]): { reviewer: string; subject: string }[] {
+  if (people.length < 2) return [];
+  const shuffled = [...people].sort(() => Math.random() - 0.5);
+  const n = shuffled.length;
+  const pairs: { reviewer: string; subject: string }[] = [];
+  for (let i = 0; i < n; i++) {
+    pairs.push({ reviewer: shuffled[i].id, subject: shuffled[(i + 1) % n].id });
+  }
+  return pairs;
+}
+
+async function dispatchSurvey(supabase: any, survey: any): Promise<{ sent: number; total: number; deferred: number; diagnostics: any[] }> {
   const diagnostics: any[] = [];
   const { data: questions } = await supabase
     .from("pulse_questions")
@@ -135,8 +211,7 @@ async function dispatchSurvey(supabase: any, survey: any): Promise<{ sent: numbe
     .order("position", { ascending: true });
 
   if (!questions || questions.length === 0) {
-    console.warn(`Survey ${survey.id} has no questions, skipping`);
-    return { sent: 0, total: 0, diagnostics: [{ status: "no_questions" }] };
+    return { sent: 0, total: 0, deferred: 0, diagnostics: [{ status: "no_questions" }] };
   }
 
   let recipients: any[] = [];
@@ -156,101 +231,110 @@ async function dispatchSurvey(supabase: any, survey: any): Promise<{ sent: numbe
     recipients = data || [];
   }
 
-  console.log(`[survey ${survey.id}] ${recipients.length} recipients`);
+  console.log(`[survey ${survey.id}] kind=${survey.kind} tone=${survey.tone} recipients=${recipients.length}`);
 
   const { data: run, error: runErr } = await supabase
     .from("pulse_runs")
-    .insert({
-      survey_id: survey.id,
-      status: "pending",
-      recipients_count: recipients.length,
-    })
+    .insert({ survey_id: survey.id, status: "pending", recipients_count: recipients.length })
     .select()
     .single();
 
   if (runErr || !run) {
-    console.error("Failed to create run:", runErr);
-    return { sent: 0, total: recipients.length, diagnostics: [{ status: "run_create_failed", error: runErr?.message }] };
+    return { sent: 0, total: recipients.length, deferred: 0, diagnostics: [{ status: "run_create_failed", error: runErr?.message }] };
+  }
+
+  // Peer pairing
+  const subjectByReviewer = new Map<string, { id: string; nome: string }>();
+  if (survey.kind === "peer") {
+    const pairs = generatePeerPairs(recipients);
+    const peopleById = new Map(recipients.map((p) => [p.id, p]));
+    if (pairs.length) {
+      await supabase.from("peer_review_pairs").insert(
+        pairs.map((p) => ({ survey_id: survey.id, run_id: run.id, reviewer_id: p.reviewer, subject_id: p.subject }))
+      );
+      for (const p of pairs) subjectByReviewer.set(p.reviewer, peopleById.get(p.subject)!);
+    }
   }
 
   let sent = 0;
+  let deferred = 0;
+  let earliestDefer: string | null = null;
+
   for (const p of recipients) {
     const diag: any = { person_id: p.id, nome: p.nome, email: p.email };
-    if (!p.email) {
-      diag.status = "no_email";
-      diagnostics.push(diag);
-      continue;
-    }
+    if (!p.email) { diag.status = "no_email"; diagnostics.push(diag); continue; }
+
     const { data: pref } = await supabase
       .from("notification_preferences")
-      .select("request_updates_slack")
+      .select("request_updates_slack, quiet_hours_start, quiet_hours_end, preferred_window_start, preferred_window_end, timezone")
       .eq("person_id", p.id)
       .maybeSingle();
+
     if (pref && pref.request_updates_slack === false) {
-      diag.status = "opted_out";
+      diag.status = "opted_out"; diagnostics.push(diag); continue;
+    }
+
+    const deferUntil = shouldDeferUntil(pref);
+    if (deferUntil) {
+      diag.status = "deferred";
+      diag.defer_until = deferUntil;
+      deferred++;
+      if (!earliestDefer || deferUntil < earliestDefer) earliestDefer = deferUntil;
       diagnostics.push(diag);
       continue;
     }
 
     const lookup = await lookupSlackUserByEmail(p.email);
-    if (!lookup.id) {
-      diag.status = "lookup_failed";
-      diag.reason = lookup.error;
-      diag.needed = lookup.needed;
-      diagnostics.push(diag);
-      continue;
-    }
+    if (!lookup.id) { diag.status = "lookup_failed"; diag.reason = lookup.error; diag.needed = lookup.needed; diagnostics.push(diag); continue; }
     diag.slack_user_id = lookup.id;
 
     const im = await openIm(lookup.id);
-    if (!im.channel) {
-      diag.status = "im_failed";
-      diag.reason = im.error;
-      diag.needed = im.needed;
-      diagnostics.push(diag);
-      continue;
+    if (!im.channel) { diag.status = "im_failed"; diag.reason = im.error; diag.needed = im.needed; diagnostics.push(diag); continue; }
+
+    const subject = subjectByReviewer.get(p.id);
+    if (survey.kind === "peer" && !subject) {
+      diag.status = "no_subject_assigned"; diagnostics.push(diag); continue;
     }
 
-    const blocks = buildBlocks(survey, questions, run.id);
+    const blocks = buildBlocks(survey, questions, run.id, { subjectName: subject?.nome });
     const res = await fetch("https://slack.com/api/chat.postMessage", {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${SLACK_BOT_TOKEN}`,
-        "Content-Type": "application/json",
-      },
+      headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}`, "Content-Type": "application/json" },
       body: JSON.stringify({
         channel: im.channel,
         text: `Nova enquete: ${survey.title}`,
         blocks,
+        metadata: subject ? { event_type: "pulse_peer", event_payload: { subject_id: subject.id } } : undefined,
       }),
     });
     const data = await res.json();
-    if (data.ok) {
-      sent++;
-      diag.status = "sent";
-    } else {
-      console.warn(`[chat.postMessage] ${p.email} -> ${JSON.stringify(data)}`);
-      diag.status = "post_failed";
-      diag.reason = data.error;
-      diag.needed = data.needed;
-    }
+    if (data.ok) { sent++; diag.status = "sent"; }
+    else { diag.status = "post_failed"; diag.reason = data.error; diag.needed = data.needed; }
     diagnostics.push(diag);
   }
 
   const now = new Date();
   const next = nextRunFromFrequency(survey.frequency, now);
+
+  // If everyone was deferred (and nothing sent), reschedule the survey to the earliest defer time.
+  const allDeferred = deferred > 0 && sent === 0 && deferred === recipients.length;
+  const newNextRun = allDeferred && earliestDefer
+    ? earliestDefer
+    : (next ? next.toISOString() : null);
+
   await supabase
     .from("pulse_runs")
     .update({
-      status: sent === recipients.length && sent > 0 ? "sent" : sent > 0 ? "partial" : "failed",
+      status: allDeferred ? "deferred" : (sent === recipients.length && sent > 0 ? "sent" : sent > 0 ? "partial" : "failed"),
     })
     .eq("id", run.id);
+
   await supabase
     .from("pulse_surveys")
     .update({
-      last_run_at: now.toISOString(),
-      next_run_at: next ? next.toISOString() : null,
-      active: next ? survey.active : false,
+      last_run_at: allDeferred ? survey.last_run_at : now.toISOString(),
+      next_run_at: newNextRun,
+      active: allDeferred ? true : (next ? survey.active : false),
     })
     .eq("id", survey.id);
 
@@ -259,10 +343,10 @@ async function dispatchSurvey(supabase: any, survey: any): Promise<{ sent: numbe
     entidade_id: run.id,
     acao: "DISPATCH",
     actor_id: survey.created_by,
-    payload: { survey_id: survey.id, recipients: recipients.length, sent, diagnostics },
+    payload: { survey_id: survey.id, recipients: recipients.length, sent, deferred, diagnostics },
   });
 
-  return { sent, total: recipients.length, diagnostics };
+  return { sent, total: recipients.length, deferred, diagnostics };
 }
 
 serve(async (req) => {

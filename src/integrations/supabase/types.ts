@@ -97,6 +97,41 @@ export type Database = {
           },
         ]
       }
+      engagement_points: {
+        Row: {
+          created_at: string
+          id: string
+          person_id: string
+          points: number
+          reason: Database["public"]["Enums"]["engagement_reason"]
+          source_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          person_id: string
+          points: number
+          reason: Database["public"]["Enums"]["engagement_reason"]
+          source_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          person_id?: string
+          points?: number
+          reason?: Database["public"]["Enums"]["engagement_reason"]
+          source_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "engagement_points_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       integration_settings: {
         Row: {
           configured_at: string | null
@@ -202,6 +237,51 @@ export type Database = {
         }
         Relationships: []
       }
+      kudos: {
+        Row: {
+          category: Database["public"]["Enums"]["kudos_category"]
+          created_at: string
+          from_person_id: string
+          id: string
+          message: string
+          slack_channel_posted: string | null
+          to_person_id: string
+        }
+        Insert: {
+          category?: Database["public"]["Enums"]["kudos_category"]
+          created_at?: string
+          from_person_id: string
+          id?: string
+          message: string
+          slack_channel_posted?: string | null
+          to_person_id: string
+        }
+        Update: {
+          category?: Database["public"]["Enums"]["kudos_category"]
+          created_at?: string
+          from_person_id?: string
+          id?: string
+          message?: string
+          slack_channel_posted?: string | null
+          to_person_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "kudos_from_person_id_fkey"
+            columns: ["from_person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "kudos_to_person_id_fkey"
+            columns: ["to_person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       medical_leaves: {
         Row: {
           affects_team_capacity: boolean
@@ -265,10 +345,15 @@ export type Database = {
           created_at: string
           id: string
           person_id: string
+          preferred_window_end: string
+          preferred_window_start: string
+          quiet_hours_end: string
+          quiet_hours_start: string
           request_updates_email: boolean
           request_updates_slack: boolean
           system_alerts_email: boolean
           system_alerts_slack: boolean
+          timezone: string
           updated_at: string
         }
         Insert: {
@@ -279,10 +364,15 @@ export type Database = {
           created_at?: string
           id?: string
           person_id: string
+          preferred_window_end?: string
+          preferred_window_start?: string
+          quiet_hours_end?: string
+          quiet_hours_start?: string
           request_updates_email?: boolean
           request_updates_slack?: boolean
           system_alerts_email?: boolean
           system_alerts_slack?: boolean
+          timezone?: string
           updated_at?: string
         }
         Update: {
@@ -293,10 +383,15 @@ export type Database = {
           created_at?: string
           id?: string
           person_id?: string
+          preferred_window_end?: string
+          preferred_window_start?: string
+          quiet_hours_end?: string
+          quiet_hours_start?: string
           request_updates_email?: boolean
           request_updates_slack?: boolean
           system_alerts_email?: boolean
           system_alerts_slack?: boolean
+          timezone?: string
           updated_at?: string
         }
         Relationships: [
@@ -305,6 +400,65 @@ export type Database = {
             columns: ["person_id"]
             isOneToOne: true
             referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      peer_review_pairs: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          id: string
+          reviewer_id: string
+          run_id: string
+          subject_id: string
+          survey_id: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          reviewer_id: string
+          run_id: string
+          subject_id: string
+          survey_id: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          reviewer_id?: string
+          run_id?: string
+          subject_id?: string
+          survey_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "peer_review_pairs_reviewer_id_fkey"
+            columns: ["reviewer_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "peer_review_pairs_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "pulse_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "peer_review_pairs_subject_id_fkey"
+            columns: ["subject_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "peer_review_pairs_survey_id_fkey"
+            columns: ["survey_id"]
+            isOneToOne: false
+            referencedRelation: "pulse_surveys"
             referencedColumns: ["id"]
           },
         ]
@@ -632,12 +786,15 @@ export type Database = {
           description: string | null
           frequency: string
           id: string
+          kind: Database["public"]["Enums"]["pulse_kind"]
           last_run_at: string | null
           next_run_at: string | null
+          peer_anonymous: boolean
           target_person_ids: string[] | null
           target_scope: string
           target_team_id: string | null
           title: string
+          tone: Database["public"]["Enums"]["pulse_tone"]
           updated_at: string
         }
         Insert: {
@@ -648,12 +805,15 @@ export type Database = {
           description?: string | null
           frequency?: string
           id?: string
+          kind?: Database["public"]["Enums"]["pulse_kind"]
           last_run_at?: string | null
           next_run_at?: string | null
+          peer_anonymous?: boolean
           target_person_ids?: string[] | null
           target_scope?: string
           target_team_id?: string | null
           title: string
+          tone?: Database["public"]["Enums"]["pulse_tone"]
           updated_at?: string
         }
         Update: {
@@ -664,12 +824,15 @@ export type Database = {
           description?: string | null
           frequency?: string
           id?: string
+          kind?: Database["public"]["Enums"]["pulse_kind"]
           last_run_at?: string | null
           next_run_at?: string | null
+          peer_anonymous?: boolean
           target_person_ids?: string[] | null
           target_scope?: string
           target_team_id?: string | null
           title?: string
+          tone?: Database["public"]["Enums"]["pulse_tone"]
           updated_at?: string
         }
         Relationships: [
@@ -998,6 +1161,15 @@ export type Database = {
         }
         Returns: Json
       }
+      award_points: {
+        Args: {
+          p_person_id: string
+          p_points: number
+          p_reason: Database["public"]["Enums"]["engagement_reason"]
+          p_source_id?: string
+        }
+        Returns: string
+      }
       cleanup_orphan_profiles: { Args: never; Returns: number }
       current_person_id: { Args: never; Returns: string }
       get_active_people_for_signup: {
@@ -1012,6 +1184,15 @@ export type Database = {
         Args: never
         Returns: {
           email: string
+        }[]
+      }
+      get_engagement_leaderboard: {
+        Args: { p_period?: string; p_scope?: string }
+        Returns: {
+          nome: string
+          person_id: string
+          sub_time: string
+          total_points: number
         }[]
       }
       get_figma_login_status: {
@@ -1101,6 +1282,20 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "director" | "manager" | "user"
+      engagement_reason:
+        | "pulse_response"
+        | "kudo_received"
+        | "kudo_given"
+        | "streak"
+        | "peer_review"
+      kudos_category:
+        | "teamwork"
+        | "innovation"
+        | "delivery"
+        | "leadership"
+        | "customer"
+      pulse_kind: "self" | "peer"
+      pulse_tone: "formal" | "neutral" | "casual"
       status:
         | "PENDENTE"
         | "EM_ANALISE_GESTOR"
@@ -1244,6 +1439,22 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "director", "manager", "user"],
+      engagement_reason: [
+        "pulse_response",
+        "kudo_received",
+        "kudo_given",
+        "streak",
+        "peer_review",
+      ],
+      kudos_category: [
+        "teamwork",
+        "innovation",
+        "delivery",
+        "leadership",
+        "customer",
+      ],
+      pulse_kind: ["self", "peer"],
+      pulse_tone: ["formal", "neutral", "casual"],
       status: [
         "PENDENTE",
         "EM_ANALISE_GESTOR",
