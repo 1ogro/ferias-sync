@@ -202,16 +202,47 @@ function generatePeerPairs(people: { id: string }[]): { reviewer: string; subjec
   return pairs;
 }
 
+function buildKudosBlocks(survey: any) {
+  const tone = (survey.tone || "neutral") as Tone;
+  const tpl = TONE[tone] || TONE.neutral;
+  const defaultPrompt =
+    tone === "formal" ? "Reconheça um colega que se destacou nesta semana."
+    : tone === "casual" ? "Bora reconhecer quem brilhou essa semana? 🌟"
+    : "Quem do time merece um kudo hoje?";
+  const text = survey.prompt_text?.trim() || defaultPrompt;
+  return [
+    { type: "header", text: { type: "plain_text", text: tpl.header(survey.title) } },
+    { type: "section", text: { type: "mrkdwn", text } },
+    {
+      type: "actions",
+      elements: [
+        {
+          type: "button",
+          text: { type: "plain_text", text: "🎉 Dar kudos" },
+          action_id: `give_kudos_open:${survey.id}`,
+          value: survey.id,
+          style: "primary",
+        },
+      ],
+    },
+    { type: "context", elements: [{ type: "mrkdwn", text: tpl.thanks }] },
+  ];
+}
+
 async function dispatchSurvey(supabase: any, survey: any): Promise<{ sent: number; total: number; deferred: number; diagnostics: any[] }> {
   const diagnostics: any[] = [];
-  const { data: questions } = await supabase
-    .from("pulse_questions")
-    .select("*")
-    .eq("survey_id", survey.id)
-    .order("position", { ascending: true });
-
-  if (!questions || questions.length === 0) {
-    return { sent: 0, total: 0, deferred: 0, diagnostics: [{ status: "no_questions" }] };
+  const isKudos = survey.kind === "kudos";
+  let questions: any[] = [];
+  if (!isKudos) {
+    const { data } = await supabase
+      .from("pulse_questions")
+      .select("*")
+      .eq("survey_id", survey.id)
+      .order("position", { ascending: true });
+    questions = data || [];
+    if (questions.length === 0) {
+      return { sent: 0, total: 0, deferred: 0, diagnostics: [{ status: "no_questions" }] };
+    }
   }
 
   let recipients: any[] = [];
