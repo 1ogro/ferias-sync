@@ -26,9 +26,13 @@ export interface PulseSurvey {
   target_scope: "team" | "custom";
   target_team_id: string | null;
   target_person_ids: string[] | null;
+  tone?: "formal" | "neutral" | "casual";
+  kind?: "self" | "peer";
+  peer_anonymous?: boolean;
   created_at: string;
   updated_at: string;
 }
+
 
 export interface CreateSurveyInput {
   title: string;
