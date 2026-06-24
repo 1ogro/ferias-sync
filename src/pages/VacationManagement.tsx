@@ -147,6 +147,22 @@ const VacationManagement = () => {
   const [selectedTimes, setSelectedTimes] = useState<string[]>([]);
   const [selectedContractTypes, setSelectedContractTypes] = useState<string[]>([]);
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
+  const [selectedContractMonths, setSelectedContractMonths] = useState<string[]>([]);
+
+  const MONTH_OPTIONS = [
+    { value: '01', label: 'Janeiro' },
+    { value: '02', label: 'Fevereiro' },
+    { value: '03', label: 'Março' },
+    { value: '04', label: 'Abril' },
+    { value: '05', label: 'Maio' },
+    { value: '06', label: 'Junho' },
+    { value: '07', label: 'Julho' },
+    { value: '08', label: 'Agosto' },
+    { value: '09', label: 'Setembro' },
+    { value: '10', label: 'Outubro' },
+    { value: '11', label: 'Novembro' },
+    { value: '12', label: 'Dezembro' },
+  ];
   
   // Get tab from URL query params
   const [searchParams] = useSearchParams();
@@ -285,7 +301,7 @@ const VacationManagement = () => {
     }
   };
 
-  const toggleFilter = (filterType: 'time' | 'contract' | 'status', value: string) => {
+  const toggleFilter = (filterType: 'time' | 'contract' | 'status' | 'contractMonth', value: string) => {
     switch (filterType) {
       case 'time':
         setSelectedTimes(prev => 
@@ -302,10 +318,15 @@ const VacationManagement = () => {
           prev.includes(value) ? prev.filter(v => v !== value) : [...prev, value]
         );
         break;
+      case 'contractMonth':
+        setSelectedContractMonths(prev =>
+          prev.includes(value) ? prev.filter(v => v !== value) : [...prev, value]
+        );
+        break;
     }
   };
 
-  const removeFilter = (filterType: 'time' | 'contract' | 'status', value: string) => {
+  const removeFilter = (filterType: 'time' | 'contract' | 'status' | 'contractMonth', value: string) => {
     switch (filterType) {
       case 'time':
         setSelectedTimes(prev => prev.filter(v => v !== value));
@@ -316,6 +337,9 @@ const VacationManagement = () => {
       case 'status':
         setSelectedStatuses(prev => prev.filter(v => v !== value));
         break;
+      case 'contractMonth':
+        setSelectedContractMonths(prev => prev.filter(v => v !== value));
+        break;
     }
   };
 
@@ -323,9 +347,10 @@ const VacationManagement = () => {
     setSelectedTimes([]);
     setSelectedContractTypes([]);
     setSelectedStatuses([]);
+    setSelectedContractMonths([]);
   };
 
-  const activeFiltersCount = selectedTimes.length + selectedContractTypes.length + selectedStatuses.length;
+  const activeFiltersCount = selectedTimes.length + selectedContractTypes.length + selectedStatuses.length + selectedContractMonths.length;
 
   // Get unique values for filters
   const availableTimes = useMemo(() => {
@@ -349,7 +374,15 @@ const VacationManagement = () => {
         (selectedStatuses.includes('manual') && item.is_manual) ||
         (selectedStatuses.includes('auto') && !item.is_manual);
       
-      return matchesSearch && matchesTime && matchesContractType && matchesStatus;
+      const matchesContractMonth = selectedContractMonths.length === 0 || (
+        item.person.data_contrato
+          ? selectedContractMonths.includes(
+              String(parseDateSafely(item.person.data_contrato).getMonth() + 1).padStart(2, '0')
+            )
+          : false
+      );
+      
+      return matchesSearch && matchesTime && matchesContractType && matchesStatus && matchesContractMonth;
     });
 
     // Aplicar ordenação se houver coluna selecionada
@@ -402,7 +435,7 @@ const VacationManagement = () => {
     }
 
     return filtered;
-  }, [vacationData, searchTerm, selectedTimes, selectedContractTypes, selectedStatuses, sortColumn, sortDirection]);
+  }, [vacationData, searchTerm, selectedTimes, selectedContractTypes, selectedStatuses, selectedContractMonths, sortColumn, sortDirection]);
 
   const stats = useMemo(() => {
     const contractTypeCounts = vacationData.reduce((acc, item) => {
@@ -1001,6 +1034,19 @@ const VacationManagement = () => {
                       </SelectContent>
                     </Select>
 
+                    {/* Contract Month Filter */}
+                    <Select onValueChange={(value) => toggleFilter('contractMonth', value)}>
+                      <SelectTrigger className="w-[200px] h-8">
+                        <SelectValue placeholder="+ Mês do Contrato" />
+                      </SelectTrigger>
+                      <SelectContent className="z-50 bg-background">
+                        {MONTH_OPTIONS.map((m) => (
+                          <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+
+
                     {activeFiltersCount > 0 && (
                       <Button
                         variant="ghost"
@@ -1066,6 +1112,25 @@ const VacationManagement = () => {
                             size="sm"
                             className="h-4 w-4 p-0 hover:bg-transparent"
                             onClick={() => removeFilter('status', status)}
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </Badge>
+                      ))}
+                      {selectedContractMonths.map((m) => (
+                        <Badge
+                          key={`month-${m}`}
+                          variant="secondary"
+                          className="gap-1 pl-2 pr-1 py-1 hover:bg-secondary/80"
+                        >
+                          <span className="text-xs">
+                            Mês: {MONTH_OPTIONS.find(o => o.value === m)?.label || m}
+                          </span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-4 w-4 p-0 hover:bg-transparent"
+                            onClick={() => removeFilter('contractMonth', m)}
                           >
                             <X className="h-3 w-3" />
                           </Button>
@@ -1433,6 +1498,19 @@ const VacationManagement = () => {
                       </SelectContent>
                     </Select>
 
+                    {/* Contract Month Filter */}
+                    <Select onValueChange={(value) => toggleFilter('contractMonth', value)}>
+                      <SelectTrigger className="w-[200px] h-8">
+                        <SelectValue placeholder="+ Mês do Contrato" />
+                      </SelectTrigger>
+                      <SelectContent className="z-50 bg-background">
+                        {MONTH_OPTIONS.map((m) => (
+                          <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+
+
                     {activeFiltersCount > 0 && (
                       <Button
                         variant="ghost"
@@ -1498,6 +1576,25 @@ const VacationManagement = () => {
                             size="sm"
                             className="h-4 w-4 p-0 hover:bg-transparent"
                             onClick={() => removeFilter('status', status)}
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </Badge>
+                      ))}
+                      {selectedContractMonths.map((m) => (
+                        <Badge
+                          key={`month-${m}`}
+                          variant="secondary"
+                          className="gap-1 pl-2 pr-1 py-1 hover:bg-secondary/80"
+                        >
+                          <span className="text-xs">
+                            Mês: {MONTH_OPTIONS.find(o => o.value === m)?.label || m}
+                          </span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-4 w-4 p-0 hover:bg-transparent"
+                            onClick={() => removeFilter('contractMonth', m)}
                           >
                             <X className="h-3 w-3" />
                           </Button>
