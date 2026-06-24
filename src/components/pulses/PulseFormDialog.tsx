@@ -119,6 +119,11 @@ export function PulseFormDialog({ open, onOpenChange, survey, initialValues }: P
           (survey.target_team_id ? [survey.target_team_id] : [])
       );
       setTargetPersonIds(survey.target_person_ids || []);
+      setNotifyNegative(!!(survey as any).notify_manager_on_negative);
+      setNotifyPositive(!!(survey as any).notify_manager_on_positive);
+      setNegThreshold((survey as any).notify_negative_threshold ?? 2);
+      setPosThreshold((survey as any).notify_positive_threshold ?? 4);
+      setNotifyIncludeText(!!(survey as any).notify_include_text_responses);
     } else if (!isEdit) {
       reset();
       if (initialValues) {
