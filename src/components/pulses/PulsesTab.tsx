@@ -91,7 +91,10 @@ export function PulsesTab() {
                     <div className="flex gap-1 mt-1 flex-wrap">
                       <Badge variant={s.active ? "default" : "secondary"}>{s.active ? "Ativa" : "Inativa"}</Badge>
                       <Badge variant="outline">{s.frequency}</Badge>
-                      {s.anonymous && <Badge variant="outline">🕶️</Badge>}
+                      <Badge variant="outline">
+                        {(s as any).kind === "kudos" ? "🎉 Kudos" : (s as any).kind === "peer" ? "👥 Pares" : "👤 Auto"}
+                      </Badge>
+                      {s.anonymous && (s as any).kind !== "kudos" && <Badge variant="outline">🕶️</Badge>}
                     </div>
                   </div>
                 </div>
