@@ -169,6 +169,10 @@ serve(async (req) => {
             body: JSON.stringify({ channel: channelToPost, text }),
           });
         }
+
+        // Fire-and-forget notification to direct manager + all directors
+        supabase.functions.invoke("kudos-notify-managers", { body: { kudo_id: kudo.id } })
+          .catch((e: any) => console.error("[kudos_submit] notify invoke failed", e?.message));
       } else if (insErr) {
         console.error("[kudos_submit] insert error:", insErr);
       }
