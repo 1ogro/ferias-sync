@@ -374,7 +374,15 @@ const VacationManagement = () => {
         (selectedStatuses.includes('manual') && item.is_manual) ||
         (selectedStatuses.includes('auto') && !item.is_manual);
       
-      return matchesSearch && matchesTime && matchesContractType && matchesStatus;
+      const matchesContractMonth = selectedContractMonths.length === 0 || (
+        item.person.data_contrato
+          ? selectedContractMonths.includes(
+              String(parseDateSafely(item.person.data_contrato).getMonth() + 1).padStart(2, '0')
+            )
+          : false
+      );
+      
+      return matchesSearch && matchesTime && matchesContractType && matchesStatus && matchesContractMonth;
     });
 
     // Aplicar ordenação se houver coluna selecionada
