@@ -225,13 +225,15 @@ export function PulseFormDialog({ open, onOpenChange, survey }: Props) {
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <div className="flex items-center justify-between rounded border p-3">
-              <div>
-                <Label>Anônimo</Label>
-                <p className="text-xs text-muted-foreground">Oculta respondentes</p>
+            {kind !== "kudos" ? (
+              <div className="flex items-center justify-between rounded border p-3">
+                <div>
+                  <Label>Anônimo</Label>
+                  <p className="text-xs text-muted-foreground">Oculta respondentes</p>
+                </div>
+                <Switch checked={anonymous} onCheckedChange={setAnonymous} />
               </div>
-              <Switch checked={anonymous} onCheckedChange={setAnonymous} />
-            </div>
+            ) : <div />}
             <div className="space-y-2">
               <Label>Frequência</Label>
               <Select value={frequency} onValueChange={(v) => setFrequency(v as PulseFrequency)}>
@@ -266,6 +268,7 @@ export function PulseFormDialog({ open, onOpenChange, survey }: Props) {
                 <SelectContent>
                   <SelectItem value="self">Autoavaliação</SelectItem>
                   <SelectItem value="peer">Avaliação entre pares</SelectItem>
+                  <SelectItem value="kudos">Kudos (reconhecimento)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -278,6 +281,62 @@ export function PulseFormDialog({ open, onOpenChange, survey }: Props) {
                 <p className="text-xs text-muted-foreground">Se ativado, o avaliado não sabe quem o avaliou.</p>
               </div>
               <Switch checked={peerAnonymous} onCheckedChange={setPeerAnonymous} />
+            </div>
+          )}
+
+          {kind === "kudos" && (
+            <div className="space-y-3 rounded border p-3 bg-muted/30">
+              <div>
+                <Label>Categorias permitidas</Label>
+                <p className="text-xs text-muted-foreground mb-2">Quais categorias o colaborador poderá escolher ao reconhecer um colega.</p>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    { id: "teamwork", label: "🤝 Trabalho em equipe" },
+                    { id: "innovation", label: "💡 Inovação" },
+                    { id: "delivery", label: "🚀 Entrega" },
+                    { id: "leadership", label: "🏆 Liderança" },
+                    { id: "customer", label: "❤️ Foco no cliente" },
+                  ].map((c) => {
+                    const active = kudosCategories.includes(c.id);
+                    return (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => setKudosCategories((cur) =>
+                          active ? cur.filter((x) => x !== c.id) : [...cur, c.id]
+                        )}
+                        className={`px-3 py-1 rounded-full text-xs border transition ${
+                          active ? "bg-primary text-primary-foreground border-primary" : "bg-background hover:bg-muted"
+                        }`}
+                      >
+                        {c.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Canal Slack para postagem (opcional)</Label>
+                <Input
+                  value={kudosChannel}
+                  onChange={(e) => setKudosChannel(e.target.value)}
+                  placeholder="#kudos"
+                />
+                <p className="text-xs text-muted-foreground">Se preenchido, cada kudo enviado a partir desta enquete também é postado nesse canal.</p>
+              </div>
+              <div className="space-y-2">
+                <Label>Texto do prompt no Slack</Label>
+                <Textarea
+                  rows={2}
+                  value={promptText}
+                  onChange={(e) => setPromptText(e.target.value)}
+                  placeholder={
+                    tone === "formal" ? "Reconheça um colega que se destacou nesta semana." :
+                    tone === "casual" ? "Bora reconhecer quem brilhou essa semana? 🌟" :
+                    "Quem do time merece um kudo hoje?"
+                  }
+                />
+              </div>
             </div>
           )}
 
