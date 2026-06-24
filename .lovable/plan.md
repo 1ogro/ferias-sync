@@ -1,41 +1,28 @@
-## Diagnóstico
+## Plano: edição de enquete
 
-A função `slack-interactions` **não recebeu nenhuma chamada** (zero logs). Isso significa que o Slack não está enviando os cliques de volta para o nosso endpoint — não é um bug de código, é configuração do app no Slack.
+### 1. Hook (`src/hooks/usePulses.ts`)
+- Adicionar `useUpdatePulseSurvey()`: recebe `id` + campos editáveis (title, description, anonymous, frequency, next_run_at, target_scope, target_team_id, target_person_ids) e faz `update` na tabela `pulse_surveys`.
+- Adicionar `useUpsertPulseQuestions()`: dado `surveyId` e o array de perguntas, faz **delete + insert** das perguntas em uma transação simples (delete todas as `pulse_questions` daquele survey, depois insere o novo array). Isso evita ter que reconciliar IDs individuais e é seguro porque `pulse_responses` referencia `question_id` — **ATENÇÃO**: se já houver respostas, deletar perguntas quebra a FK. Solução: **bloquear edição de perguntas se já existir qualquer `pulse_run` com `responses_count > 0`**; nesse caso permitir editar apenas metadados (título, descrição, alvo, frequência, próximo disparo, anonimato).
 
-Quando o usuário clica em um botão (escala 1–5) ou abre o modal de texto, o Slack precisa de uma **Request URL de Interactivity** configurada apontando para a nossa edge function. Sem ela, o clique acontece na interface mas nada é POSTado.
+### 2. Dialog (`src/components/pulses/PulseFormDialog.tsx`)
+- Aceitar prop opcional `survey?: PulseSurvey` (e suas `questions`). Quando presente:
+  - Título do dialog vira "Editar enquete"
+  - Pré-popula todos os campos no `useEffect` quando `open && survey`
+  - Chama `useUpdatePulseSurvey` em vez de `useCreatePulseSurvey`
+  - Se já houver respostas, desabilita a seção de perguntas com aviso "Perguntas não podem ser alteradas após a primeira resposta".
+- Usar a query `pulse_runs` (já existe `usePulseRuns`) para detectar se há respostas: `runs.some(r => r.responses_count > 0)`.
 
-## Plano
+### 3. UI (`src/components/pulses/PulsesTab.tsx`)
+- Estado `editing: PulseSurvey | null`.
+- Botão "Editar" (ícone Pencil) em cada card, ao lado de Pause/Excluir, visível apenas para `canCreate`.
+- Ao clicar: `setEditing(survey); setOpen(true)`.
+- Passar `survey={editing}` ao `PulseFormDialog`; limpar `editing` no `onOpenChange(false)`.
 
-### 1. Configurar Interactivity no Slack App (ação manual do usuário, sem código)
+### 4. Validação
+- TypeScript build
+- Testar manualmente: editar título de enquete existente, salvar, ver mudança refletida; tentar editar perguntas em enquete com respostas e ver bloqueio.
 
-No painel https://api.slack.com/apps → app `sync-ferias` → **Interactivity & Shortcuts**:
-
-- Ativar **Interactivity** (toggle On)
-- **Request URL**:
-  ```
-  https://uhphxyhffpbnmsrlggbe.supabase.co/functions/v1/slack-interactions
-  ```
-- Salvar
-
-Não precisa reinstalar o app (não muda escopos), basta salvar a URL.
-
-### 2. Pequenas melhorias defensivas em `supabase/functions/slack-interactions/index.ts`
-
-Hoje a função tem dois problemas que podem atrapalhar o fluxo de pulses mesmo depois da URL configurada:
-
-- **a)** Depois do bloco de pulses (`block_actions` com `action_id` começando com `pulse_*`), o código retorna corretamente, mas **se o `action_id` não bater com `pulse_answer:` nem `pulse_text_open:`** (ex.: variação futura), ele cai no fluxo legado de aprovação e tenta acessar `payload.actions[0].value` como `requestId` → erro silencioso. Vou adicionar um fallback que retorna 200 quando o `action_id` é desconhecido.
-- **b)** O `resolveRespondent` depende de `users.info` retornar email. O escopo `users:read.email` já está concedido (vimos nos logs do dispatch), então deve funcionar — mas vou adicionar logs (`[slack-interactions] payload type`, email resolvido, person_id encontrado, upsert ok/erro) para que da próxima vez consigamos depurar em segundos sem alteração de código.
-- **c)** Confirmar o ack ephemeral também para o caminho de texto (hoje só o de escala faz ack).
-
-### 3. Validação
-
-Após o usuário salvar a Request URL:
-1. Disparar o pulse de novo.
-2. Clicar em uma nota (1–5) no Slack.
-3. Conferir nos logs de `slack-interactions` que apareceu `payload type: block_actions` e `respondent resolvido: <id>`.
-4. Conferir na tabela `pulse_responses` que a linha foi inserida e `pulse_runs.responses_count` incrementou.
-
-## Detalhes técnicos
-
-- Arquivos alterados: apenas `supabase/functions/slack-interactions/index.ts` (logs e fallback). Nada de migration, nada de novos scopes, nada de frontend.
-- A URL é fixa por projeto Supabase, então uma vez configurada não precisa mexer mais.
+### Detalhes técnicos
+- Arquivos: `src/hooks/usePulses.ts`, `src/components/pulses/PulseFormDialog.tsx`, `src/components/pulses/PulsesTab.tsx`.
+- Sem migrations: RLS de `pulse_surveys` já permite UPDATE pelo criador (verificar; se necessário ajustar, faço migration).
+- Sem mudanças em edge functions.
