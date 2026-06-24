@@ -31,6 +31,33 @@ async function verifySlackRequest(body: string, timestamp: string, signature: st
   return computedSignature === signature;
 }
 
+async function resolveRespondent(slackUserId: string, supabase: any) {
+  const r = await fetch(`https://slack.com/api/users.info?user=${slackUserId}`, {
+    headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}` },
+  });
+  const d = await r.json();
+  const email = d?.user?.profile?.email;
+  if (!email) return null;
+  const { data } = await supabase.from("people").select("id, nome").eq("email", email).maybeSingle();
+  return data;
+}
+
+async function bumpResponseCount(runId: string, supabase: any) {
+  const { count } = await supabase
+    .from("pulse_responses").select("*", { count: "exact", head: true }).eq("run_id", runId);
+  await supabase.from("pulse_runs").update({ responses_count: count || 0 }).eq("id", runId);
+}
+
+async function postEphemeralAck(payload: any, text: string) {
+  if (!payload.channel?.id || !payload.user?.id) return;
+  await fetch("https://slack.com/api/chat.postEphemeral", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ channel: payload.channel.id, user: payload.user.id, text }),
+  });
+}
+
+
 serve(async (req) => {
   try {
     const body = await req.text();
