@@ -1,50 +1,88 @@
-## Problema
 
-Em surveys não-anônimas, o painel "Respostas recentes" exibe `respondent_id` (ex.: `pessoa_016`) na coluna "Respondente". Deve exibir o nome da pessoa.
+## Objetivo
 
-## Correção
+1. Permitir, em cada survey, configurar notificação ao gestor direto quando a resposta cair em faixas "positiva" e/ou "negativa" definidas por survey.
+2. Quando alguém recebe um kudo, notificar automaticamente o gestor direto + todos os diretores ativos.
 
-Ajuste apenas de leitura/exibição — duas alterações:
+Canais de envio: Slack DM + Email, respeitando `notification_preferences` de cada destinatário.
 
-1. **View `pulse_responses_safe`** — incluir o nome do respondente (via join com `people`), preservando o anonimato quando a survey for anônima.
+---
 
-```sql
-DROP VIEW IF EXISTS public.pulse_responses_safe;
+## Mudanças no banco (`pulse_surveys`)
 
-CREATE VIEW public.pulse_responses_safe
-WITH (security_invoker=true) AS
-SELECT
-  resp.id,
-  resp.run_id,
-  resp.question_id,
-  CASE WHEN s.anonymous THEN NULL ELSE resp.respondent_id END AS respondent_id,
-  CASE WHEN s.anonymous THEN NULL ELSE p.nome END AS respondent_name,
-  CASE
-    WHEN s.anonymous THEN 'R' || dense_rank() OVER (PARTITION BY r.survey_id ORDER BY resp.respondent_id)
-    ELSE NULL
-  END AS anonymous_label,
-  resp.scale_value,
-  resp.text_value,
-  resp.submitted_at,
-  r.survey_id
-FROM public.pulse_responses resp
-JOIN public.pulse_runs r ON r.id = resp.run_id
-JOIN public.pulse_surveys s ON s.id = r.survey_id
-LEFT JOIN public.people p ON p.id = resp.respondent_id
-WHERE public.is_admin_or_director() OR s.created_by = public.current_person_id();
+Novos campos opcionais por survey:
 
-GRANT SELECT ON public.pulse_responses_safe TO authenticated;
-```
+- `notify_manager_on_negative boolean default false`
+- `notify_manager_on_positive boolean default false`
+- `notify_negative_threshold int` (notifica quando `scale_value <=` este valor; default `2`)
+- `notify_positive_threshold int` (notifica quando `scale_value >=` este valor; default `4`)
+- `notify_include_text_responses boolean default false` — se ativo, dispara também em respostas de texto (sem classificar; tratado como "feedback negativo a revisar" se a survey marcou negativa).
 
-2. **`PulseResultsPanel.tsx`** — usar `respondent_name` na coluna "Respondente" (fallback para `anonymous_label` em surveys anônimas).
+Sem mudança de tabela para kudos: a regra "gestor + diretores" é fixa no servidor.
 
-```tsx
-<TableCell className="text-xs">
-  {survey.anonymous ? (r.anonymous_label || "—") : (r.respondent_name || "—")}
-</TableCell>
-```
+## UI — `PulseFormDialog`
 
-## Validação
+Nova seção colapsável **"Notificações ao gestor"** (visível para `kind` ∈ {`self`,`peer`}; oculta em `kudos`):
 
-- Survey não-anônima: coluna "Respondente" mostra "Raul Queiroz" em vez de "pessoa_016".
-- Survey anônima (check-in de bem-estar): continua mostrando "R1", "R2", etc., sem nome.
+- Switch **Notificar em respostas negativas** + input numérico "limite" (1–5, padrão 2, texto: "Quando a resposta for ≤ X").
+- Switch **Notificar em respostas positivas** + input numérico (1–5, padrão 4, texto: "Quando a resposta for ≥ X").
+- Checkbox **Incluir respostas de texto** (apenas se "negativas" estiver ativo).
+- Nota de privacidade: "Em surveys anônimas, o alerta é enviado sem revelar o respondente."
+
+Estado e payload no `handleSubmit` propagam os novos campos.
+
+## Lógica de disparo — pulses
+
+Centralizar em um único caminho no backend para que respostas vindas tanto do Slack quanto da UI sigam a mesma regra.
+
+- Criar Edge Function **`pulse-response-notify`** (invocada com idempotência por `response_id`).
+- Chamadas:
+  - `supabase/functions/slack-interactions/index.ts`: após gravar `pulse_responses` (blocos `pulse_answer:` e `view_submission` de texto), `invoke('pulse-response-notify', { response_id })` (fire-and-forget).
+  - Hook UI equivalente (se houver submissão de respostas direta na app — verificar `usePulses`; se não existir, ignorar).
+- Função:
+  1. Carrega resposta + survey + pergunta + respondente + gestor do respondente.
+  2. Decide se classifica como negativa/positiva conforme flags e limites da survey (apenas `scale_*`; texto entra só se `notify_include_text_responses` + flag negativa).
+  3. Se sim, monta payload:
+     - Título: "Resposta negativa em '<survey>'" / "Resposta positiva..."
+     - Survey/pergunta + valor (1-5).
+     - Identidade: nome do respondente se `anonymous = false`; em caso de anônima, texto "Respondente anônimo (#R<n>)" usando o `anonymous_label` existente.
+  4. Para o gestor direto (`people.gestor_id`):
+     - Slack DM via lookup por email (helper já usado em `slack-interactions`/`kudos-send`).
+     - Email via `send-transactional-email` com template novo `pulse-response-alert`.
+     - Cada canal é enviado somente se `notification_preferences` do gestor permitir (consulta tabela existente).
+  5. Grava `audit_logs` (`acao = 'PULSE_NOTIFY_MANAGER'`).
+
+## Lógica de disparo — kudos
+
+- Editar `supabase/functions/kudos-send/index.ts` e o branch `kudos_submit:` em `slack-interactions/index.ts` para, após inserir em `public.kudos`, chamar `invoke('kudos-notify-managers', { kudo_id })`.
+- Nova Edge Function **`kudos-notify-managers`**:
+  1. Carrega o kudo + destinatário (`to_person_id`) + remetente.
+  2. Resolve destinatários:
+     - Gestor direto (`people.gestor_id` do destinatário, se ativo).
+     - Todos com `papel = 'DIRETOR' AND ativo = true`.
+     - Deduplica e remove o próprio destinatário e o remetente.
+  3. Envia para cada um:
+     - Slack DM (se preferência permitir): "🎉 <Remetente> deu um kudo para <Destinatário> (<categoria>): \"<mensagem>\"".
+     - Email (template novo `kudo-notification`) se preferência permitir.
+  4. Idempotência por `kudo_id + recipient_person_id`.
+  5. Audit log `acao = 'KUDOS_NOTIFY'`.
+
+## Templates de email (React Email)
+
+Adicionar em `supabase/functions/_shared/transactional-email-templates/`:
+
+- `pulse-response-alert.tsx` — props: survey title, question, value, sentiment ("positive"/"negative"), respondent label.
+- `kudo-notification.tsx` — props: from name, to name, category, message.
+
+Registrar ambos em `registry.ts` e fazer deploy de `send-transactional-email`.
+
+## Detalhes técnicos
+
+- Reaproveitar o padrão fire-and-forget já documentado em `mem://arch/padrao-notificacoes-assincronas`.
+- Consultas devem usar service role dentro das edge functions; nenhuma alteração de RLS necessária além dos novos campos em `pulse_surveys` (já cobertos pelas policies atuais da tabela).
+- `notification_preferences`: respeitar campos existentes (Slack/Email habilitados por categoria — adicionar/usar categoria existente "alertas gerenciais" se já houver; caso contrário, usar Slack/Email globais já presentes).
+
+## Itens fora do escopo desta entrega
+
+- Não muda regras de exibição na UI de resultados (já feito em entregas anteriores).
+- Não cria configuração de notificação de kudos — é automático e fixo conforme combinado.
