@@ -167,6 +167,8 @@ export function PulseFormDialog({ open, onOpenChange, survey, initialValues }: P
     setFrequency("once");
     setNextRunAt(toLocalInput(null));
     setTargetScope("all"); setTargetTeamIds([]); setTargetPersonIds([]);
+    setNotifyNegative(false); setNotifyPositive(false);
+    setNegThreshold(2); setPosThreshold(4); setNotifyIncludeText(false);
     setQuestions([{ position: 0, question_text: "", question_type: "scale_1_5", required: true }]);
   };
 
