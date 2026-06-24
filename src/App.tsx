@@ -27,6 +27,8 @@ const Admin = lazy(() => import("./pages/Admin"));
 const VacationManagement = lazy(() => import("./pages/VacationManagement"));
 const HistoricalRequests = lazy(() => import("./pages/HistoricalRequests"));
 const Settings = lazy(() => import("./pages/Settings"));
+const Engagement = lazy(() => import("./pages/Engagement"));
+
 const FigmaCallback = lazy(() => import("./pages/FigmaCallback"));
 const FigmaDiagnostic = lazy(() => import("./pages/FigmaDiagnostic"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
@@ -148,6 +150,14 @@ const App = () => (
                 </Suspense>
               </ProtectedRoute>
             } />
+            <Route path="/engagement" element={
+              <ProtectedRoute>
+                <Suspense fallback={<PageLoader />}>
+                  <Engagement />
+                </Suspense>
+              </ProtectedRoute>
+            } />
+
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={
               <Suspense fallback={<PageLoader />}>

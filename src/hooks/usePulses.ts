@@ -26,14 +26,21 @@ export interface PulseSurvey {
   target_scope: "team" | "custom";
   target_team_id: string | null;
   target_person_ids: string[] | null;
+  tone?: "formal" | "neutral" | "casual";
+  kind?: "self" | "peer";
+  peer_anonymous?: boolean;
   created_at: string;
   updated_at: string;
 }
+
 
 export interface CreateSurveyInput {
   title: string;
   description?: string;
   anonymous: boolean;
+  tone?: "formal" | "neutral" | "casual";
+  kind?: "self" | "peer";
+  peer_anonymous?: boolean;
   frequency: PulseFrequency;
   next_run_at: string;
   target_scope: "team" | "custom";
@@ -41,6 +48,7 @@ export interface CreateSurveyInput {
   target_person_ids?: string[] | null;
   questions: PulseQuestion[];
 }
+
 
 export function usePulseSurveys() {
   return useQuery({
@@ -116,6 +124,9 @@ export function useCreatePulseSurvey() {
           title: survey.title,
           description: survey.description ?? null,
           anonymous: survey.anonymous,
+          tone: survey.tone ?? "neutral",
+          kind: survey.kind ?? "self",
+          peer_anonymous: survey.peer_anonymous ?? true,
           frequency: survey.frequency,
           next_run_at: survey.next_run_at,
           target_scope: survey.target_scope,
@@ -123,6 +134,7 @@ export function useCreatePulseSurvey() {
           target_person_ids: survey.target_person_ids ?? null,
           active: true,
         })
+
         .select()
         .single();
       if (error) throw error;
@@ -161,6 +173,9 @@ export interface UpdateSurveyInput {
   title: string;
   description?: string | null;
   anonymous: boolean;
+  tone?: "formal" | "neutral" | "casual";
+  kind?: "self" | "peer";
+  peer_anonymous?: boolean;
   frequency: PulseFrequency;
   next_run_at: string;
   target_scope: "team" | "custom";
@@ -180,6 +195,9 @@ export function useUpdatePulseSurvey() {
           title: fields.title,
           description: fields.description ?? null,
           anonymous: fields.anonymous,
+          tone: fields.tone ?? "neutral",
+          kind: fields.kind ?? "self",
+          peer_anonymous: fields.peer_anonymous ?? true,
           frequency: fields.frequency,
           next_run_at: fields.next_run_at,
           target_scope: fields.target_scope,
@@ -188,6 +206,7 @@ export function useUpdatePulseSurvey() {
         })
         .eq("id", id);
       if (error) throw error;
+
 
       if (questions) {
         const { error: delErr } = await supabase.from("pulse_questions").delete().eq("survey_id", id);

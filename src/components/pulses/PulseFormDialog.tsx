@@ -47,6 +47,9 @@ export function PulseFormDialog({ open, onOpenChange, survey }: Props) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [anonymous, setAnonymous] = useState(true);
+  const [tone, setTone] = useState<"formal" | "neutral" | "casual">("neutral");
+  const [kind, setKind] = useState<"self" | "peer">("self");
+  const [peerAnonymous, setPeerAnonymous] = useState(true);
   const [frequency, setFrequency] = useState<PulseFrequency>("once");
   const [nextRunAt, setNextRunAt] = useState<string>(() => toLocalInput(null));
   const [targetScope, setTargetScope] = useState<"team" | "custom">("team");
@@ -55,6 +58,7 @@ export function PulseFormDialog({ open, onOpenChange, survey }: Props) {
   const [questions, setQuestions] = useState<PulseQuestion[]>([
     { position: 0, question_text: "", question_type: "scale_1_5", required: true },
   ]);
+
 
   const [teams, setTeams] = useState<string[]>([]);
   const [people, setPeople] = useState<{ id: string; nome: string; sub_time: string | null }[]>([]);
@@ -83,6 +87,10 @@ export function PulseFormDialog({ open, onOpenChange, survey }: Props) {
       setTitle(survey.title);
       setDescription(survey.description || "");
       setAnonymous(survey.anonymous);
+      setTone(((survey as any).tone || "neutral") as any);
+      setKind(((survey as any).kind || "self") as any);
+      setPeerAnonymous((survey as any).peer_anonymous ?? true);
+
       setFrequency(survey.frequency);
       setNextRunAt(toLocalInput(survey.next_run_at));
       setTargetScope(survey.target_scope);
@@ -107,11 +115,14 @@ export function PulseFormDialog({ open, onOpenChange, survey }: Props) {
     setQuestions((q) => q.map((qq, idx) => (idx === i ? { ...qq, ...patch } : qq)));
 
   const reset = () => {
-    setTitle(""); setDescription(""); setAnonymous(true); setFrequency("once");
+    setTitle(""); setDescription(""); setAnonymous(true);
+    setTone("neutral"); setKind("self"); setPeerAnonymous(true);
+    setFrequency("once");
     setNextRunAt(toLocalInput(null));
     setTargetScope("team"); setTargetTeamId(""); setTargetPersonIds([]);
     setQuestions([{ position: 0, question_text: "", question_type: "scale_1_5", required: true }]);
   };
+
 
   const handleSubmit = async () => {
     if (!person?.id) return;
@@ -134,13 +145,16 @@ export function PulseFormDialog({ open, onOpenChange, survey }: Props) {
           title: title.trim(),
           description: description.trim() || null,
           anonymous,
+          tone,
+          kind,
+          peer_anonymous: peerAnonymous,
           frequency,
           next_run_at: new Date(nextRunAt).toISOString(),
           target_scope: targetScope,
           target_team_id: targetScope === "team" ? targetTeamId : null,
           target_person_ids: targetScope === "custom" ? targetPersonIds : null,
           questions: hasResponses ? undefined : questions,
-        });
+        } as any);
         toast({ title: "Enquete atualizada" });
       } else {
         await createMut.mutateAsync({
@@ -148,13 +162,17 @@ export function PulseFormDialog({ open, onOpenChange, survey }: Props) {
           title: title.trim(),
           description: description.trim() || undefined,
           anonymous,
+          tone,
+          kind,
+          peer_anonymous: peerAnonymous,
           frequency,
           next_run_at: new Date(nextRunAt).toISOString(),
           target_scope: targetScope,
           target_team_id: targetScope === "team" ? targetTeamId : null,
           target_person_ids: targetScope === "custom" ? targetPersonIds : null,
           questions,
-        });
+        } as any);
+
         toast({ title: "Enquete criada" });
       }
       reset();
@@ -206,6 +224,41 @@ export function PulseFormDialog({ open, onOpenChange, survey }: Props) {
               </Select>
             </div>
           </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Tom da mensagem</Label>
+              <Select value={tone} onValueChange={(v) => setTone(v as any)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="formal">Formal</SelectItem>
+                  <SelectItem value="neutral">Neutro</SelectItem>
+                  <SelectItem value="casual">Descontraído</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Tipo</Label>
+              <Select value={kind} onValueChange={(v) => setKind(v as any)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="self">Autoavaliação</SelectItem>
+                  <SelectItem value="peer">Avaliação entre pares</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {kind === "peer" && (
+            <div className="flex items-center justify-between rounded border p-3 bg-muted/30">
+              <div>
+                <Label>Revisor anônimo</Label>
+                <p className="text-xs text-muted-foreground">Se ativado, o avaliado não sabe quem o avaliou.</p>
+              </div>
+              <Switch checked={peerAnonymous} onCheckedChange={setPeerAnonymous} />
+            </div>
+          )}
+
 
           <div className="space-y-2">
             <Label>{isEdit ? "Próximo disparo" : "Primeiro disparo"}</Label>
