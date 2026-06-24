@@ -99,10 +99,19 @@ export function PulsesTab() {
                 <div className="text-xs text-muted-foreground">
                   Próximo: {s.next_run_at ? new Date(s.next_run_at).toLocaleString("pt-BR") : "—"}
                 </div>
-                <div className="flex gap-2 pt-2" onClick={(e) => e.stopPropagation()}>
+                <div className="flex gap-2 pt-2 flex-wrap" onClick={(e) => e.stopPropagation()}>
                   <Button size="sm" variant="outline" onClick={() => handleDispatch(s.id)}>
                     <Send className="w-3 h-3 mr-1" /> Disparar
                   </Button>
+                  {canCreate && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => { setEditing(s); setOpen(true); }}
+                    >
+                      <Pencil className="w-3 h-3 mr-1" /> Editar
+                    </Button>
+                  )}
                   <Button
                     size="sm"
                     variant="outline"
@@ -120,6 +129,7 @@ export function PulsesTab() {
                     <Trash2 className="w-3 h-3" />
                   </Button>
                 </div>
+
               </CardContent>
             </Card>
           ))}
