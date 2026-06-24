@@ -48,13 +48,13 @@ export function PulseFormDialog({ open, onOpenChange }: Props) {
     (async () => {
       let q = supabase.from("people").select("id, nome, sub_time").eq("ativo", true);
       if (!isDirectorOrAdmin && person?.sub_time) {
-        q = q.eq("sub_time", person.sub_time);
+        q = q.eq("sub_time", person.subTime);
       }
       const { data } = await q.order("nome");
       const list = (data || []) as any[];
       setPeople(list);
       setTeams([...new Set(list.map((p) => p.sub_time).filter(Boolean))] as string[]);
-      if (!isDirectorOrAdmin && person?.sub_time) setTargetTeamId(person.sub_time);
+      if (!isDirectorOrAdmin && person?.sub_time) setTargetTeamId(person.subTime);
     })();
   }, [open, isDirectorOrAdmin, person?.sub_time]);
 
