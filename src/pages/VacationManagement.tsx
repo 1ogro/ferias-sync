@@ -1581,6 +1581,25 @@ const VacationManagement = () => {
                           </Button>
                         </Badge>
                       ))}
+                      {selectedContractMonths.map((m) => (
+                        <Badge
+                          key={`month-${m}`}
+                          variant="secondary"
+                          className="gap-1 pl-2 pr-1 py-1 hover:bg-secondary/80"
+                        >
+                          <span className="text-xs">
+                            Mês: {MONTH_OPTIONS.find(o => o.value === m)?.label || m}
+                          </span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-4 w-4 p-0 hover:bg-transparent"
+                            onClick={() => removeFilter('contractMonth', m)}
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </Badge>
+                      ))}
                     </div>
                   )}
                 </div>
