@@ -20,6 +20,7 @@ import { HistoricalRequestForm } from "@/components/HistoricalRequestForm";
 import { SheetsSync } from "@/components/SheetsSync";
 import { UsersSheetsSync } from "@/components/UsersSheetsSync";
 import { CollaboratorSummaryTable } from "@/components/CollaboratorSummaryTable";
+import { PulsesTab } from "@/components/pulses/PulsesTab";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -172,8 +173,8 @@ const VacationManagement = () => {
   const isDirectorOrAdmin = person?.papel === 'DIRETOR' || person?.is_admin;
   
   // Manager-specific tabs
-  const managerTabs = ['active', 'dashboard', 'medical'];
-  const allTabs = ['vacation', 'summary', 'medical', 'active', 'dashboard', 'historical', 'sheets'];
+  const managerTabs = ['active', 'dashboard', 'medical', 'pulses'];
+  const allTabs = ['vacation', 'summary', 'medical', 'active', 'dashboard', 'pulses', 'historical', 'sheets'];
   const availableTabs = isManager && !isDirectorOrAdmin ? managerTabs : allTabs;
   
   const initialTab = searchParams.get('tab') || (isManager && !isDirectorOrAdmin ? 'active' : 'vacation');
@@ -1269,6 +1270,15 @@ const VacationManagement = () => {
             <UsersSheetsSync />
           </div>
         );
+
+      case 'pulses':
+        return (
+          <div className="mt-6 space-y-6">
+            <PulsesTab />
+          </div>
+        );
+      
+
       
       default:
         return null;
@@ -1308,6 +1318,7 @@ const VacationManagement = () => {
                 {availableTabs.includes('medical') && <TabsTrigger value="medical">Licenças Médicas</TabsTrigger>}
                 {availableTabs.includes('active') && <TabsTrigger value="active">Ausências Ativas</TabsTrigger>}
                 {availableTabs.includes('dashboard') && <TabsTrigger value="dashboard">Dashboard</TabsTrigger>}
+                {availableTabs.includes('pulses') && <TabsTrigger value="pulses">Pulses</TabsTrigger>}
                 {availableTabs.includes('historical') && (
                   <TabsTrigger value="historical" className="flex items-center gap-2">
                     <History className="w-4 h-4" />
@@ -1328,6 +1339,7 @@ const VacationManagement = () => {
               {availableTabs.includes('medical') && <TabsTrigger value="medical">Licenças Médicas</TabsTrigger>}
               {availableTabs.includes('active') && <TabsTrigger value="active">Ausências Ativas</TabsTrigger>}
               {availableTabs.includes('dashboard') && <TabsTrigger value="dashboard">Dashboard</TabsTrigger>}
+              {availableTabs.includes('pulses') && <TabsTrigger value="pulses">Pulses</TabsTrigger>}
               {availableTabs.includes('historical') && (
                 <TabsTrigger value="historical" className="flex items-center gap-2">
                   <History className="w-4 h-4" />
@@ -1813,6 +1825,13 @@ const VacationManagement = () => {
               <HistoricalRequestForm onSuccess={() => {}} />
             </div>
           </TabsContent>
+
+          {/* Pulses Tab */}
+          <TabsContent value="pulses" className="space-y-6">
+            <PulsesTab />
+          </TabsContent>
+
+
 
           {/* Collaborator Summary Tab */}
           <TabsContent value="summary" className="space-y-6 hidden lg:block">
