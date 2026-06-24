@@ -47,6 +47,9 @@ export function PulseFormDialog({ open, onOpenChange, survey }: Props) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [anonymous, setAnonymous] = useState(true);
+  const [tone, setTone] = useState<"formal" | "neutral" | "casual">("neutral");
+  const [kind, setKind] = useState<"self" | "peer">("self");
+  const [peerAnonymous, setPeerAnonymous] = useState(true);
   const [frequency, setFrequency] = useState<PulseFrequency>("once");
   const [nextRunAt, setNextRunAt] = useState<string>(() => toLocalInput(null));
   const [targetScope, setTargetScope] = useState<"team" | "custom">("team");
@@ -55,6 +58,7 @@ export function PulseFormDialog({ open, onOpenChange, survey }: Props) {
   const [questions, setQuestions] = useState<PulseQuestion[]>([
     { position: 0, question_text: "", question_type: "scale_1_5", required: true },
   ]);
+
 
   const [teams, setTeams] = useState<string[]>([]);
   const [people, setPeople] = useState<{ id: string; nome: string; sub_time: string | null }[]>([]);
