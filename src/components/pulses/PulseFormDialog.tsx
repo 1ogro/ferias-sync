@@ -17,6 +17,7 @@ import {
   PulseQuestion,
   PulseFrequency,
   PulseSurvey,
+  CreateSurveyInput,
 } from "@/hooks/usePulses";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -24,6 +25,7 @@ interface Props {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   survey?: PulseSurvey | null;
+  initialValues?: Partial<CreateSurveyInput> | null;
 }
 
 function toLocalInput(iso: string | null | undefined): string {
