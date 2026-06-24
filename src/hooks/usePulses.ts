@@ -156,6 +156,65 @@ export function useTogglePulseActive() {
   });
 }
 
+export interface UpdateSurveyInput {
+  id: string;
+  title: string;
+  description?: string | null;
+  anonymous: boolean;
+  frequency: PulseFrequency;
+  next_run_at: string;
+  target_scope: "team" | "custom";
+  target_team_id?: string | null;
+  target_person_ids?: string[] | null;
+  questions?: PulseQuestion[]; // if provided, replaces all questions
+}
+
+export function useUpdatePulseSurvey() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: UpdateSurveyInput) => {
+      const { id, questions, ...fields } = input;
+      const { error } = await supabase
+        .from("pulse_surveys")
+        .update({
+          title: fields.title,
+          description: fields.description ?? null,
+          anonymous: fields.anonymous,
+          frequency: fields.frequency,
+          next_run_at: fields.next_run_at,
+          target_scope: fields.target_scope,
+          target_team_id: fields.target_team_id ?? null,
+          target_person_ids: fields.target_person_ids ?? null,
+        })
+        .eq("id", id);
+      if (error) throw error;
+
+      if (questions) {
+        const { error: delErr } = await supabase.from("pulse_questions").delete().eq("survey_id", id);
+        if (delErr) throw delErr;
+        if (questions.length) {
+          const { error: insErr } = await supabase.from("pulse_questions").insert(
+            questions.map((q, i) => ({
+              survey_id: id,
+              position: i,
+              question_text: q.question_text,
+              question_type: q.question_type,
+              required: q.required,
+            }))
+          );
+          if (insErr) throw insErr;
+        }
+      }
+      return id;
+    },
+    onSuccess: (id) => {
+      qc.invalidateQueries({ queryKey: ["pulse_surveys"] });
+      qc.invalidateQueries({ queryKey: ["pulse_questions", id] });
+    },
+  });
+}
+
+
 export function useDeletePulseSurvey() {
   const qc = useQueryClient();
   return useMutation({
