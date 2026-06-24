@@ -1817,6 +1817,13 @@ const VacationManagement = () => {
             </div>
           </TabsContent>
 
+          {/* Pulses Tab */}
+          <TabsContent value="pulses" className="space-y-6">
+            <PulsesTab />
+          </TabsContent>
+
+
+
           {/* Collaborator Summary Tab */}
           <TabsContent value="summary" className="space-y-6 hidden lg:block">
             <CollaboratorSummaryTable />
