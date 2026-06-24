@@ -123,8 +123,10 @@ export const Header = ({ showNavigation = true }: HeaderProps) => {
     { name: "Nova Solicitação", href: "/new-request", icon: Menu },
     { name: "Caixa de Entrada", href: "/inbox", icon: Bell, roles: ['GESTOR', 'DIRETOR'], showInboxBadge: true },
     { name: "Gestão do Time", href: "/vacation-management", icon: Users, roles: ['GESTOR', 'DIRETOR'], showBadge: true },
+    { name: "Engajamento", href: "/engagement", icon: Sparkles },
     { name: "Administração", href: "/admin", icon: Shield, isAdmin: true },
   ];
+
 
   // Only filter navigation when profile is fully loaded
   const isProfileReady = !loading && profileChecked && !!person;
