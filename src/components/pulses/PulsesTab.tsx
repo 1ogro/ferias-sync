@@ -16,7 +16,9 @@ export function PulsesTab() {
   const toggleMut = useTogglePulseActive();
   const deleteMut = useDeletePulseSurvey();
   const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<PulseSurvey | null>(null);
   const [selected, setSelected] = useState<PulseSurvey | null>(null);
+
 
   const canCreate = person && (person.is_admin || ["DIRETOR", "ADMIN", "GESTOR"].includes(person.papel || ""));
 
