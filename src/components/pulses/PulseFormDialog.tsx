@@ -145,13 +145,16 @@ export function PulseFormDialog({ open, onOpenChange, survey }: Props) {
           title: title.trim(),
           description: description.trim() || null,
           anonymous,
+          tone,
+          kind,
+          peer_anonymous: peerAnonymous,
           frequency,
           next_run_at: new Date(nextRunAt).toISOString(),
           target_scope: targetScope,
           target_team_id: targetScope === "team" ? targetTeamId : null,
           target_person_ids: targetScope === "custom" ? targetPersonIds : null,
           questions: hasResponses ? undefined : questions,
-        });
+        } as any);
         toast({ title: "Enquete atualizada" });
       } else {
         await createMut.mutateAsync({
@@ -159,13 +162,17 @@ export function PulseFormDialog({ open, onOpenChange, survey }: Props) {
           title: title.trim(),
           description: description.trim() || undefined,
           anonymous,
+          tone,
+          kind,
+          peer_anonymous: peerAnonymous,
           frequency,
           next_run_at: new Date(nextRunAt).toISOString(),
           target_scope: targetScope,
           target_team_id: targetScope === "team" ? targetTeamId : null,
           target_person_ids: targetScope === "custom" ? targetPersonIds : null,
           questions,
-        });
+        } as any);
+
         toast({ title: "Enquete criada" });
       }
       reset();
