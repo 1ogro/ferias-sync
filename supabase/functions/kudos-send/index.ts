@@ -99,6 +99,10 @@ serve(async (req) => {
       await postToChannel(channelToPost, from?.nome || "Alguém", to.nome, category, message.trim());
     }
 
+    // Fire-and-forget notification to direct manager + all directors
+    admin.functions.invoke("kudos-notify-managers", { body: { kudo_id: kudo.id } })
+      .catch((e: any) => console.error("[kudos-send] notify invoke failed", e?.message));
+
     return new Response(JSON.stringify({ ok: true, kudo }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
