@@ -199,8 +199,9 @@ export function PulsesTab() {
 
       <PulseFormDialog
         open={open}
-        onOpenChange={(v) => { setOpen(v); if (!v) setEditing(null); }}
+        onOpenChange={(v) => { setOpen(v); if (!v) { setEditing(null); setTemplateValues(null); } }}
         survey={editing}
+        initialValues={templateValues}
       />
 
     </div>
