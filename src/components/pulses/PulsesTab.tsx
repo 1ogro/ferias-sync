@@ -22,8 +22,28 @@ export function PulsesTab() {
 
   const handleDispatch = async (id: string) => {
     try {
-      const r = await dispatchPulseNow(id);
-      toast({ title: "Disparo iniciado", description: JSON.stringify(r?.results || r) });
+      const r: any = await dispatchPulseNow(id);
+      const result = r?.results?.[0];
+      if (!result) {
+        toast({ title: "Sem resultado", description: "Enquete não encontrada ou sem destinatários." });
+        return;
+      }
+      const { sent, total, diagnostics = [] } = result;
+      if (sent === total && total > 0) {
+        toast({ title: "Disparado", description: `${sent}/${total} DMs enviadas.` });
+      } else {
+        const failures = diagnostics.filter((d: any) => d.status !== "sent");
+        const summary = failures
+          .slice(0, 5)
+          .map((d: any) => `• ${d.nome || d.email}: ${d.status}${d.reason ? ` (${d.reason})` : ""}${d.needed ? ` [precisa: ${d.needed}]` : ""}`)
+          .join("\n");
+        console.warn("[pulse-dispatch diagnostics]", r);
+        toast({
+          title: `Disparo: ${sent}/${total} enviadas`,
+          description: summary + (failures.length > 5 ? `\n…+${failures.length - 5}` : ""),
+          variant: sent === 0 ? "destructive" : "default",
+        });
+      }
     } catch (e: any) {
       toast({ title: "Erro", description: e.message, variant: "destructive" });
     }
