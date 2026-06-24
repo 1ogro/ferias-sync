@@ -59,10 +59,11 @@ export function PulsesTab() {
           <p className="text-sm text-muted-foreground">Enquetes periódicas enviadas via DM no Slack.</p>
         </div>
         {canCreate && (
-          <Button onClick={() => setOpen(true)}>
+          <Button onClick={() => { setEditing(null); setOpen(true); }}>
             <Plus className="w-4 h-4 mr-1" /> Nova enquete
           </Button>
         )}
+
       </div>
 
       {isLoading ? (
