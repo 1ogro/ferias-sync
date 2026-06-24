@@ -1330,6 +1330,7 @@ const VacationManagement = () => {
               {availableTabs.includes('medical') && <TabsTrigger value="medical">Licenças Médicas</TabsTrigger>}
               {availableTabs.includes('active') && <TabsTrigger value="active">Ausências Ativas</TabsTrigger>}
               {availableTabs.includes('dashboard') && <TabsTrigger value="dashboard">Dashboard</TabsTrigger>}
+              {availableTabs.includes('pulses') && <TabsTrigger value="pulses">Pulses</TabsTrigger>}
               {availableTabs.includes('historical') && (
                 <TabsTrigger value="historical" className="flex items-center gap-2">
                   <History className="w-4 h-4" />
