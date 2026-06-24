@@ -138,6 +138,14 @@ export function PulsesTab() {
               <CardContent className="space-y-2">
                 {s.description && <p className="text-sm text-muted-foreground line-clamp-2">{s.description}</p>}
                 <div className="text-xs text-muted-foreground">
+                  Alvo: {
+                    s.target_scope === "all" ? "Empresa inteira" :
+                    s.target_scope === "teams" ? `${(s.target_team_ids?.length ?? (s.target_team_id ? 1 : 0))} time(s)` :
+                    s.target_scope === "custom" ? `${s.target_person_ids?.length ?? 0} pessoa(s)` :
+                    s.target_team_id || "—"
+                  }
+                </div>
+                <div className="text-xs text-muted-foreground">
                   Próximo: {s.next_run_at ? new Date(s.next_run_at).toLocaleString("pt-BR") : "—"}
                 </div>
                 <div className="flex gap-2 pt-2 flex-wrap" onClick={(e) => e.stopPropagation()}>
