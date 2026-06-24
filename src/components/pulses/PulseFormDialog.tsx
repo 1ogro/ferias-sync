@@ -389,6 +389,64 @@ export function PulseFormDialog({ open, onOpenChange, survey, initialValues }: P
           )}
 
 
+          {kind !== "kudos" && (
+            <div className="space-y-3 rounded border p-3">
+              <div>
+                <Label className="text-sm font-semibold">Notificações ao gestor</Label>
+                <p className="text-xs text-muted-foreground">
+                  Avisa o gestor direto do respondente quando uma resposta cai na faixa configurada.
+                </p>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex-1">
+                  <Label className="text-sm">Notificar em respostas negativas</Label>
+                  <p className="text-xs text-muted-foreground">Dispara quando a nota for menor ou igual ao limite.</p>
+                </div>
+                <Switch checked={notifyNegative} onCheckedChange={setNotifyNegative} />
+                <Input
+                  type="number"
+                  min={1}
+                  max={5}
+                  className="w-16"
+                  value={negThreshold}
+                  onChange={(e) => setNegThreshold(parseInt(e.target.value, 10) || 1)}
+                  disabled={!notifyNegative}
+                />
+              </div>
+              {notifyNegative && (
+                <label className="flex items-center gap-2 text-xs text-muted-foreground pl-1">
+                  <input
+                    type="checkbox"
+                    checked={notifyIncludeText}
+                    onChange={(e) => setNotifyIncludeText(e.target.checked)}
+                  />
+                  Incluir respostas em texto livre como feedback negativo
+                </label>
+              )}
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex-1">
+                  <Label className="text-sm">Notificar em respostas positivas</Label>
+                  <p className="text-xs text-muted-foreground">Dispara quando a nota for maior ou igual ao limite.</p>
+                </div>
+                <Switch checked={notifyPositive} onCheckedChange={setNotifyPositive} />
+                <Input
+                  type="number"
+                  min={1}
+                  max={5}
+                  className="w-16"
+                  value={posThreshold}
+                  onChange={(e) => setPosThreshold(parseInt(e.target.value, 10) || 5)}
+                  disabled={!notifyPositive}
+                />
+              </div>
+              {anonymous && (notifyNegative || notifyPositive) && (
+                <p className="text-xs text-muted-foreground">
+                  ℹ️ A enquete é anônima — o gestor receberá o alerta sem o nome do respondente.
+                </p>
+              )}
+            </div>
+          )}
+
           <div className="space-y-2">
             <Label>{isEdit ? "Próximo disparo" : "Primeiro disparo"}</Label>
             <Input type="datetime-local" value={nextRunAt} onChange={(e) => setNextRunAt(e.target.value)} />
