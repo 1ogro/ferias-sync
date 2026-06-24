@@ -138,7 +138,12 @@ export function PulsesTab() {
 
       {selected && <PulseResultsPanel survey={selected} />}
 
-      <PulseFormDialog open={open} onOpenChange={setOpen} />
+      <PulseFormDialog
+        open={open}
+        onOpenChange={(v) => { setOpen(v); if (!v) setEditing(null); }}
+        survey={editing}
+      />
+
     </div>
   );
 }
