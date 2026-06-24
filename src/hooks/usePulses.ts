@@ -194,8 +194,9 @@ export interface UpdateSurveyInput {
   prompt_text?: string | null;
   frequency: PulseFrequency;
   next_run_at: string;
-  target_scope: "team" | "custom";
+  target_scope: "all" | "teams" | "custom";
   target_team_id?: string | null;
+  target_team_ids?: string[] | null;
   target_person_ids?: string[] | null;
   questions?: PulseQuestion[]; // if provided, replaces all questions (ignored for kudos)
 }
@@ -222,6 +223,7 @@ export function useUpdatePulseSurvey() {
           next_run_at: fields.next_run_at,
           target_scope: fields.target_scope,
           target_team_id: fields.target_team_id ?? null,
+          target_team_ids: fields.target_team_ids ?? null,
           target_person_ids: fields.target_person_ids ?? null,
         } as any)
         .eq("id", id);
