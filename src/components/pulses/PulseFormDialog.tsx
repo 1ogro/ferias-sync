@@ -62,6 +62,11 @@ export function PulseFormDialog({ open, onOpenChange, survey, initialValues }: P
   const [targetScope, setTargetScope] = useState<"all" | "teams" | "custom">("all");
   const [targetTeamIds, setTargetTeamIds] = useState<string[]>([]);
   const [targetPersonIds, setTargetPersonIds] = useState<string[]>([]);
+  const [notifyNegative, setNotifyNegative] = useState(false);
+  const [notifyPositive, setNotifyPositive] = useState(false);
+  const [negThreshold, setNegThreshold] = useState(2);
+  const [posThreshold, setPosThreshold] = useState(4);
+  const [notifyIncludeText, setNotifyIncludeText] = useState(false);
   const [questions, setQuestions] = useState<PulseQuestion[]>([
     { position: 0, question_text: "", question_type: "scale_1_5", required: true },
   ]);
