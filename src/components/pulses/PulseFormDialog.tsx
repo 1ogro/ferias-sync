@@ -59,8 +59,8 @@ export function PulseFormDialog({ open, onOpenChange, survey, initialValues }: P
   const [promptText, setPromptText] = useState<string>("");
   const [frequency, setFrequency] = useState<PulseFrequency>("once");
   const [nextRunAt, setNextRunAt] = useState<string>(() => toLocalInput(null));
-  const [targetScope, setTargetScope] = useState<"team" | "custom">("team");
-  const [targetTeamId, setTargetTeamId] = useState<string>("");
+  const [targetScope, setTargetScope] = useState<"all" | "teams" | "custom">("all");
+  const [targetTeamIds, setTargetTeamIds] = useState<string[]>([]);
   const [targetPersonIds, setTargetPersonIds] = useState<string[]>([]);
   const [questions, setQuestions] = useState<PulseQuestion[]>([
     { position: 0, question_text: "", question_type: "scale_1_5", required: true },
@@ -83,7 +83,10 @@ export function PulseFormDialog({ open, onOpenChange, survey, initialValues }: P
       const list = (data || []) as any[];
       setPeople(list);
       setTeams([...new Set(list.map((p) => p.sub_time).filter(Boolean))] as string[]);
-      if (!isEdit && !isDirectorOrAdmin && person?.subTime) setTargetTeamId(person.subTime);
+      if (!isEdit && !isDirectorOrAdmin && person?.subTime) {
+        setTargetScope("teams");
+        setTargetTeamIds([person.subTime]);
+      }
     })();
   }, [open, isDirectorOrAdmin, person?.subTime, isEdit]);
 
@@ -105,8 +108,11 @@ export function PulseFormDialog({ open, onOpenChange, survey, initialValues }: P
 
       setFrequency(survey.frequency);
       setNextRunAt(toLocalInput(survey.next_run_at));
-      setTargetScope(survey.target_scope);
-      setTargetTeamId(survey.target_team_id || "");
+      setTargetScope(survey.target_scope as any);
+      setTargetTeamIds(
+        (survey as any).target_team_ids ??
+          (survey.target_team_id ? [survey.target_team_id] : [])
+      );
       setTargetPersonIds(survey.target_person_ids || []);
     } else if (!isEdit) {
       reset();
@@ -122,7 +128,8 @@ export function PulseFormDialog({ open, onOpenChange, survey, initialValues }: P
         if (initialValues.prompt_text !== undefined) setPromptText(initialValues.prompt_text || "");
         if (initialValues.frequency) setFrequency(initialValues.frequency);
         if (initialValues.target_scope) setTargetScope(initialValues.target_scope);
-        if (initialValues.target_team_id !== undefined) setTargetTeamId(initialValues.target_team_id || "");
+        if (initialValues.target_team_ids) setTargetTeamIds(initialValues.target_team_ids as string[]);
+        else if (initialValues.target_team_id) setTargetTeamIds([initialValues.target_team_id]);
         if (initialValues.target_person_ids) setTargetPersonIds(initialValues.target_person_ids);
         if (initialValues.questions && initialValues.questions.length) setQuestions(initialValues.questions);
       }
@@ -149,7 +156,7 @@ export function PulseFormDialog({ open, onOpenChange, survey, initialValues }: P
     setKudosChannel(""); setPromptText("");
     setFrequency("once");
     setNextRunAt(toLocalInput(null));
-    setTargetScope("team"); setTargetTeamId(""); setTargetPersonIds([]);
+    setTargetScope("all"); setTargetTeamIds([]); setTargetPersonIds([]);
     setQuestions([{ position: 0, question_text: "", question_type: "scale_1_5", required: true }]);
   };
 
@@ -165,8 +172,8 @@ export function PulseFormDialog({ open, onOpenChange, survey, initialValues }: P
     if (kind === "kudos" && kudosCategories.length === 0) {
       toast({ title: "Selecione ao menos uma categoria de kudos", variant: "destructive" }); return;
     }
-    if (targetScope === "team" && !targetTeamId) {
-      toast({ title: "Selecione um time", variant: "destructive" }); return;
+    if (targetScope === "teams" && targetTeamIds.length === 0) {
+      toast({ title: "Selecione ao menos um time", variant: "destructive" }); return;
     }
     if (targetScope === "custom" && targetPersonIds.length === 0) {
       toast({ title: "Selecione ao menos uma pessoa", variant: "destructive" }); return;
@@ -190,7 +197,8 @@ export function PulseFormDialog({ open, onOpenChange, survey, initialValues }: P
           frequency,
           next_run_at: new Date(nextRunAt).toISOString(),
           target_scope: targetScope,
-          target_team_id: targetScope === "team" ? targetTeamId : null,
+          target_team_id: null,
+          target_team_ids: targetScope === "teams" ? targetTeamIds : null,
           target_person_ids: targetScope === "custom" ? targetPersonIds : null,
           questions: kind === "kudos" ? undefined : (hasResponses ? undefined : questions),
         } as any);
@@ -208,7 +216,8 @@ export function PulseFormDialog({ open, onOpenChange, survey, initialValues }: P
           frequency,
           next_run_at: new Date(nextRunAt).toISOString(),
           target_scope: targetScope,
-          target_team_id: targetScope === "team" ? targetTeamId : null,
+          target_team_id: null,
+          target_team_ids: targetScope === "teams" ? targetTeamIds : null,
           target_person_ids: targetScope === "custom" ? targetPersonIds : null,
           questions: kind === "kudos" ? [] : questions,
         } as any);
