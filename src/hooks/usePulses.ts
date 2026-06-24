@@ -156,6 +156,11 @@ export function useCreatePulseSurvey() {
           target_team_id: survey.target_team_id ?? null,
           target_team_ids: survey.target_team_ids ?? null,
           target_person_ids: survey.target_person_ids ?? null,
+          notify_manager_on_negative: survey.notify_manager_on_negative ?? false,
+          notify_manager_on_positive: survey.notify_manager_on_positive ?? false,
+          notify_negative_threshold: survey.notify_negative_threshold ?? 2,
+          notify_positive_threshold: survey.notify_positive_threshold ?? 4,
+          notify_include_text_responses: survey.notify_include_text_responses ?? false,
           active: true,
         } as any)
         .select()
