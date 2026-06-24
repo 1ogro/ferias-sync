@@ -31,6 +31,33 @@ async function verifySlackRequest(body: string, timestamp: string, signature: st
   return computedSignature === signature;
 }
 
+async function resolveRespondent(slackUserId: string, supabase: any) {
+  const r = await fetch(`https://slack.com/api/users.info?user=${slackUserId}`, {
+    headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}` },
+  });
+  const d = await r.json();
+  const email = d?.user?.profile?.email;
+  if (!email) return null;
+  const { data } = await supabase.from("people").select("id, nome").eq("email", email).maybeSingle();
+  return data;
+}
+
+async function bumpResponseCount(runId: string, supabase: any) {
+  const { count } = await supabase
+    .from("pulse_responses").select("*", { count: "exact", head: true }).eq("run_id", runId);
+  await supabase.from("pulse_runs").update({ responses_count: count || 0 }).eq("id", runId);
+}
+
+async function postEphemeralAck(payload: any, text: string) {
+  if (!payload.channel?.id || !payload.user?.id) return;
+  await fetch("https://slack.com/api/chat.postEphemeral", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ channel: payload.channel.id, user: payload.user.id, text }),
+  });
+}
+
+
 serve(async (req) => {
   try {
     const body = await req.text();
@@ -45,14 +72,83 @@ serve(async (req) => {
     }
 
     const payload = JSON.parse(decodeURIComponent(body.replace("payload=", "")));
-    console.log("Slack interaction payload:", payload);
+    console.log("Slack interaction payload type:", payload.type);
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Handle different action types
+    // ============ PULSE FLOW ============
+    // view_submission for open-text pulse question
+    if (payload.type === "view_submission" && payload.view?.callback_id?.startsWith("pulse_text:")) {
+      const [, runId, questionId] = payload.view.callback_id.split(":");
+      const text = payload.view.state.values?.pulse_text_block?.pulse_text_input?.value || "";
+      const slackUserId = payload.user.id;
+      const respondent = await resolveRespondent(slackUserId, supabase);
+      if (respondent) {
+        await supabase.from("pulse_responses").upsert(
+          { run_id: runId, question_id: questionId, respondent_id: respondent.id, text_value: text },
+          { onConflict: "run_id,question_id,respondent_id" }
+        );
+        await bumpResponseCount(runId, supabase);
+      }
+      return new Response(JSON.stringify({ response_action: "clear" }), {
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    // block_actions for pulse
+    if (payload.type === "block_actions" && payload.actions?.[0]) {
+      const act = payload.actions[0];
+      if (act.action_id?.startsWith("pulse_answer:")) {
+        const [, runId, questionId, value] = act.action_id.split(":");
+        const slackUserId = payload.user.id;
+        const respondent = await resolveRespondent(slackUserId, supabase);
+        if (respondent) {
+          await supabase.from("pulse_responses").upsert(
+            { run_id: runId, question_id: questionId, respondent_id: respondent.id, scale_value: parseInt(value, 10), slack_message_ts: payload.message?.ts },
+            { onConflict: "run_id,question_id,respondent_id" }
+          );
+          await bumpResponseCount(runId, supabase);
+          await postEphemeralAck(payload, `✅ Resposta registrada: *${value}/5*`);
+        }
+        return new Response(JSON.stringify({ ok: true }), { headers: { "Content-Type": "application/json" } });
+      }
+      if (act.action_id?.startsWith("pulse_text_open:")) {
+        const [, runId, questionId] = act.action_id.split(":");
+        await fetch("https://slack.com/api/views.open", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            trigger_id: payload.trigger_id,
+            view: {
+              type: "modal",
+              callback_id: `pulse_text:${runId}:${questionId}`,
+              title: { type: "plain_text", text: "Responder" },
+              submit: { type: "plain_text", text: "Enviar" },
+              close: { type: "plain_text", text: "Cancelar" },
+              blocks: [
+                {
+                  type: "input",
+                  block_id: "pulse_text_block",
+                  label: { type: "plain_text", text: "Sua resposta" },
+                  element: {
+                    type: "plain_text_input",
+                    action_id: "pulse_text_input",
+                    multiline: true,
+                  },
+                },
+              ],
+            },
+          }),
+        });
+        return new Response(JSON.stringify({ ok: true }), { headers: { "Content-Type": "application/json" } });
+      }
+    }
+
+    // ============ APPROVAL FLOW (legado) ============
     const action = payload.actions[0];
     const requestId = action.value;
     const actionId = action.action_id;
+
 
     // Get request details
     const { data: request, error: requestError } = await supabase
