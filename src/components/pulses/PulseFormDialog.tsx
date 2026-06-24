@@ -95,6 +95,11 @@ export function PulseFormDialog({ open, onOpenChange, survey }: Props) {
       setTone(((survey as any).tone || "neutral") as any);
       setKind(((survey as any).kind || "self") as any);
       setPeerAnonymous((survey as any).peer_anonymous ?? true);
+      setKudosCategories(((survey as any).kudos_categories as string[] | null) ?? [
+        "teamwork", "innovation", "delivery", "leadership", "customer",
+      ]);
+      setKudosChannel((survey as any).kudos_channel || "");
+      setPromptText((survey as any).prompt_text || "");
 
       setFrequency(survey.frequency);
       setNextRunAt(toLocalInput(survey.next_run_at));
@@ -122,6 +127,8 @@ export function PulseFormDialog({ open, onOpenChange, survey }: Props) {
   const reset = () => {
     setTitle(""); setDescription(""); setAnonymous(true);
     setTone("neutral"); setKind("self"); setPeerAnonymous(true);
+    setKudosCategories(["teamwork", "innovation", "delivery", "leadership", "customer"]);
+    setKudosChannel(""); setPromptText("");
     setFrequency("once");
     setNextRunAt(toLocalInput(null));
     setTargetScope("team"); setTargetTeamId(""); setTargetPersonIds([]);
