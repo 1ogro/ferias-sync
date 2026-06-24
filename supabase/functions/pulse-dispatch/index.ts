@@ -126,8 +126,8 @@ function buildBlocks(survey: any, questions: any[], runId: string) {
   return blocks;
 }
 
-async function dispatchSurvey(supabase: any, survey: any): Promise<{ sent: number; total: number }> {
-  // Carregar perguntas
+async function dispatchSurvey(supabase: any, survey: any): Promise<{ sent: number; total: number; diagnostics: any[] }> {
+  const diagnostics: any[] = [];
   const { data: questions } = await supabase
     .from("pulse_questions")
     .select("*")
@@ -136,10 +136,9 @@ async function dispatchSurvey(supabase: any, survey: any): Promise<{ sent: numbe
 
   if (!questions || questions.length === 0) {
     console.warn(`Survey ${survey.id} has no questions, skipping`);
-    return { sent: 0, total: 0 };
+    return { sent: 0, total: 0, diagnostics: [{ status: "no_questions" }] };
   }
 
-  // Resolver destinatários
   let recipients: any[] = [];
   if (survey.target_scope === "team" && survey.target_team_id) {
     const { data } = await supabase
@@ -157,7 +156,8 @@ async function dispatchSurvey(supabase: any, survey: any): Promise<{ sent: numbe
     recipients = data || [];
   }
 
-  // Criar run
+  console.log(`[survey ${survey.id}] ${recipients.length} recipients`);
+
   const { data: run, error: runErr } = await supabase
     .from("pulse_runs")
     .insert({
@@ -170,24 +170,46 @@ async function dispatchSurvey(supabase: any, survey: any): Promise<{ sent: numbe
 
   if (runErr || !run) {
     console.error("Failed to create run:", runErr);
-    return { sent: 0, total: recipients.length };
+    return { sent: 0, total: recipients.length, diagnostics: [{ status: "run_create_failed", error: runErr?.message }] };
   }
 
   let sent = 0;
   for (const p of recipients) {
-    if (!p.email) continue;
-    // Respeitar notification_preferences (Slack)
+    const diag: any = { person_id: p.id, nome: p.nome, email: p.email };
+    if (!p.email) {
+      diag.status = "no_email";
+      diagnostics.push(diag);
+      continue;
+    }
     const { data: pref } = await supabase
       .from("notification_preferences")
       .select("request_updates_slack")
       .eq("person_id", p.id)
       .maybeSingle();
-    if (pref && pref.request_updates_slack === false) continue;
+    if (pref && pref.request_updates_slack === false) {
+      diag.status = "opted_out";
+      diagnostics.push(diag);
+      continue;
+    }
 
-    const slackUserId = await lookupSlackUserByEmail(p.email);
-    if (!slackUserId) continue;
-    const channel = await openIm(slackUserId);
-    if (!channel) continue;
+    const lookup = await lookupSlackUserByEmail(p.email);
+    if (!lookup.id) {
+      diag.status = "lookup_failed";
+      diag.reason = lookup.error;
+      diag.needed = lookup.needed;
+      diagnostics.push(diag);
+      continue;
+    }
+    diag.slack_user_id = lookup.id;
+
+    const im = await openIm(lookup.id);
+    if (!im.channel) {
+      diag.status = "im_failed";
+      diag.reason = im.error;
+      diag.needed = im.needed;
+      diagnostics.push(diag);
+      continue;
+    }
 
     const blocks = buildBlocks(survey, questions, run.id);
     const res = await fetch("https://slack.com/api/chat.postMessage", {
@@ -197,23 +219,30 @@ async function dispatchSurvey(supabase: any, survey: any): Promise<{ sent: numbe
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        channel,
+        channel: im.channel,
         text: `Nova enquete: ${survey.title}`,
         blocks,
       }),
     });
     const data = await res.json();
-    if (data.ok) sent++;
-    else console.warn(`postMessage failed for ${p.email}: ${data.error}`);
+    if (data.ok) {
+      sent++;
+      diag.status = "sent";
+    } else {
+      console.warn(`[chat.postMessage] ${p.email} -> ${JSON.stringify(data)}`);
+      diag.status = "post_failed";
+      diag.reason = data.error;
+      diag.needed = data.needed;
+    }
+    diagnostics.push(diag);
   }
 
-  // Atualizar run + survey
   const now = new Date();
   const next = nextRunFromFrequency(survey.frequency, now);
   await supabase
     .from("pulse_runs")
     .update({
-      status: sent === recipients.length ? "sent" : sent > 0 ? "partial" : "failed",
+      status: sent === recipients.length && sent > 0 ? "sent" : sent > 0 ? "partial" : "failed",
     })
     .eq("id", run.id);
   await supabase
@@ -225,16 +254,15 @@ async function dispatchSurvey(supabase: any, survey: any): Promise<{ sent: numbe
     })
     .eq("id", survey.id);
 
-  // Audit
   await supabase.from("audit_logs").insert({
     entidade: "pulse_runs",
     entidade_id: run.id,
     acao: "DISPATCH",
     actor_id: survey.created_by,
-    payload: { survey_id: survey.id, recipients: recipients.length, sent },
+    payload: { survey_id: survey.id, recipients: recipients.length, sent, diagnostics },
   });
 
-  return { sent, total: recipients.length };
+  return { sent, total: recipients.length, diagnostics };
 }
 
 serve(async (req) => {
@@ -244,11 +272,13 @@ serve(async (req) => {
     const body = req.method === "POST" ? await req.json().catch(() => ({})) : {};
     const surveyId = body?.surveyId;
 
-    let query = supabase.from("pulse_surveys").select("*").eq("active", true);
+    const auth = await slackAuthTest();
+
+    let query = supabase.from("pulse_surveys").select("*");
     if (surveyId) {
       query = query.eq("id", surveyId);
     } else {
-      query = query.lte("next_run_at", new Date().toISOString());
+      query = query.eq("active", true).lte("next_run_at", new Date().toISOString());
     }
     const { data: surveys, error } = await query;
     if (error) throw error;
@@ -256,10 +286,10 @@ serve(async (req) => {
     const results: any[] = [];
     for (const s of surveys || []) {
       const r = await dispatchSurvey(supabase, s);
-      results.push({ survey_id: s.id, ...r });
+      results.push({ survey_id: s.id, title: s.title, ...r });
     }
 
-    return new Response(JSON.stringify({ ok: true, processed: results.length, results }), {
+    return new Response(JSON.stringify({ ok: true, slack: auth, processed: results.length, results }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err: any) {
