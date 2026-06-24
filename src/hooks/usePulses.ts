@@ -144,6 +144,7 @@ export function useCreatePulseSurvey() {
           next_run_at: survey.next_run_at,
           target_scope: survey.target_scope,
           target_team_id: survey.target_team_id ?? null,
+          target_team_ids: survey.target_team_ids ?? null,
           target_person_ids: survey.target_person_ids ?? null,
           active: true,
         } as any)
