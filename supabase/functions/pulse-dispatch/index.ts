@@ -12,23 +12,41 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-async function lookupSlackUserByEmail(email: string): Promise<string | null> {
+async function slackAuthTest(): Promise<any> {
+  try {
+    const res = await fetch("https://slack.com/api/auth.test", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}` },
+    });
+    const data = await res.json();
+    console.log("[slack auth.test]", JSON.stringify(data));
+    // scopes vêm no header
+    const scopes = res.headers.get("x-oauth-scopes");
+    console.log("[slack scopes]", scopes);
+    return { ...data, scopes };
+  } catch (err) {
+    console.error("auth.test error:", err);
+    return { ok: false, error: String(err) };
+  }
+}
+
+async function lookupSlackUserByEmail(email: string): Promise<{ id: string | null; error?: string; needed?: string }> {
   try {
     const res = await fetch(
       `https://slack.com/api/users.lookupByEmail?email=${encodeURIComponent(email)}`,
       { headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}` } }
     );
     const data = await res.json();
-    if (data.ok && data.user?.id) return data.user.id;
-    console.warn(`users.lookupByEmail failed for ${email}: ${data.error}`);
-    return null;
+    if (data.ok && data.user?.id) return { id: data.user.id };
+    console.warn(`[lookupByEmail] ${email} -> ${JSON.stringify(data)}`);
+    return { id: null, error: data.error, needed: data.needed };
   } catch (err) {
     console.error("lookupByEmail error:", err);
-    return null;
+    return { id: null, error: String(err) };
   }
 }
 
-async function openIm(slackUserId: string): Promise<string | null> {
+async function openIm(slackUserId: string): Promise<{ channel: string | null; error?: string; needed?: string }> {
   const res = await fetch("https://slack.com/api/conversations.open", {
     method: "POST",
     headers: {
@@ -38,7 +56,9 @@ async function openIm(slackUserId: string): Promise<string | null> {
     body: JSON.stringify({ users: slackUserId }),
   });
   const data = await res.json();
-  return data.ok ? data.channel.id : null;
+  if (data.ok) return { channel: data.channel.id };
+  console.warn(`[conversations.open] ${slackUserId} -> ${JSON.stringify(data)}`);
+  return { channel: null, error: data.error, needed: data.needed };
 }
 
 function nextRunFromFrequency(freq: string, base: Date): Date | null {
