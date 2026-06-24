@@ -1129,6 +1129,7 @@ export type Database = {
           id: string | null
           question_id: string | null
           respondent_id: string | null
+          respondent_name: string | null
           run_id: string | null
           scale_value: number | null
           submitted_at: string | null

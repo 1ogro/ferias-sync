@@ -110,7 +110,7 @@ export function PulseResultsPanel({ survey }: Props) {
                     <TableRow key={r.id}>
                       <TableCell className="text-xs">{new Date(r.submitted_at).toLocaleString("pt-BR")}</TableCell>
                       <TableCell className="text-xs">
-                        {survey.anonymous ? r.anonymous_label || "—" : r.respondent_id || "—"}
+                        {survey.anonymous ? r.anonymous_label || "—" : r.respondent_name || r.respondent_id || "—"}
                       </TableCell>
                       <TableCell className="text-xs">{q?.question_text || "—"}</TableCell>
                       <TableCell className="text-xs">
