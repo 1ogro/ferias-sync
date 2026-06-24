@@ -245,6 +245,11 @@ export function useUpdatePulseSurvey() {
           target_team_id: fields.target_team_id ?? null,
           target_team_ids: fields.target_team_ids ?? null,
           target_person_ids: fields.target_person_ids ?? null,
+          notify_manager_on_negative: fields.notify_manager_on_negative ?? false,
+          notify_manager_on_positive: fields.notify_manager_on_positive ?? false,
+          notify_negative_threshold: fields.notify_negative_threshold ?? 2,
+          notify_positive_threshold: fields.notify_positive_threshold ?? 4,
+          notify_include_text_responses: fields.notify_include_text_responses ?? false,
         } as any)
         .eq("id", id);
       if (error) throw error;
