@@ -20,6 +20,7 @@ import { HistoricalRequestForm } from "@/components/HistoricalRequestForm";
 import { SheetsSync } from "@/components/SheetsSync";
 import { UsersSheetsSync } from "@/components/UsersSheetsSync";
 import { CollaboratorSummaryTable } from "@/components/CollaboratorSummaryTable";
+import { PulsesTab } from "@/components/pulses/PulsesTab";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -172,8 +173,8 @@ const VacationManagement = () => {
   const isDirectorOrAdmin = person?.papel === 'DIRETOR' || person?.is_admin;
   
   // Manager-specific tabs
-  const managerTabs = ['active', 'dashboard', 'medical'];
-  const allTabs = ['vacation', 'summary', 'medical', 'active', 'dashboard', 'historical', 'sheets'];
+  const managerTabs = ['active', 'dashboard', 'medical', 'pulses'];
+  const allTabs = ['vacation', 'summary', 'medical', 'active', 'dashboard', 'pulses', 'historical', 'sheets'];
   const availableTabs = isManager && !isDirectorOrAdmin ? managerTabs : allTabs;
   
   const initialTab = searchParams.get('tab') || (isManager && !isDirectorOrAdmin ? 'active' : 'vacation');
