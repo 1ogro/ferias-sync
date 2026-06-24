@@ -17,8 +17,6 @@ import { ApprovedVacationsExecutiveView } from "@/components/ApprovedVacationsEx
 import { ActiveAbsencesDashboard } from "@/components/ActiveAbsencesDashboard";
 import { ActiveAbsencesBanner } from "@/components/ActiveAbsencesBanner";
 import { HistoricalRequestForm } from "@/components/HistoricalRequestForm";
-import { SheetsSync } from "@/components/SheetsSync";
-import { UsersSheetsSync } from "@/components/UsersSheetsSync";
 import { CollaboratorSummaryTable } from "@/components/CollaboratorSummaryTable";
 import { PulsesTab } from "@/components/pulses/PulsesTab";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -174,7 +172,7 @@ const VacationManagement = () => {
   
   // Manager-specific tabs
   const managerTabs = ['active', 'dashboard', 'medical', 'pulses'];
-  const allTabs = ['vacation', 'summary', 'medical', 'active', 'dashboard', 'pulses', 'historical', 'sheets'];
+  const allTabs = ['active', 'vacation', 'medical', 'summary', 'dashboard', 'pulses', 'historical'];
   const availableTabs = isManager && !isDirectorOrAdmin ? managerTabs : allTabs;
   
   const initialTab = searchParams.get('tab') || (isManager && !isDirectorOrAdmin ? 'active' : 'vacation');
@@ -1263,13 +1261,6 @@ const VacationManagement = () => {
           </div>
         );
 
-      case 'sheets':
-        return (
-          <div className="mt-6 space-y-6">
-            <SheetsSync />
-            <UsersSheetsSync />
-          </div>
-        );
 
       case 'pulses':
         return (
@@ -1313,19 +1304,18 @@ const VacationManagement = () => {
           <div className="block lg:hidden">
             <ScrollArea className="w-full whitespace-nowrap">
               <TabsList className="inline-flex w-max">
-                {availableTabs.includes('vacation') && <TabsTrigger value="vacation">Saldos de Férias</TabsTrigger>}
-                {availableTabs.includes('summary') && <TabsTrigger value="summary">Resumo do Colaborador</TabsTrigger>}
-                {availableTabs.includes('medical') && <TabsTrigger value="medical">Licenças Médicas</TabsTrigger>}
                 {availableTabs.includes('active') && <TabsTrigger value="active">Ausências Ativas</TabsTrigger>}
+                {availableTabs.includes('vacation') && <TabsTrigger value="vacation">Saldos de Férias</TabsTrigger>}
+                {availableTabs.includes('medical') && <TabsTrigger value="medical">Licenças Médicas</TabsTrigger>}
+                {availableTabs.includes('summary') && <TabsTrigger value="summary">Resumo do Colaborador</TabsTrigger>}
                 {availableTabs.includes('dashboard') && <TabsTrigger value="dashboard">Dashboard</TabsTrigger>}
                 {availableTabs.includes('pulses') && <TabsTrigger value="pulses">Pulses</TabsTrigger>}
                 {availableTabs.includes('historical') && (
                   <TabsTrigger value="historical" className="flex items-center gap-2">
                     <History className="w-4 h-4" />
-                    Regularização
+                    Histórico
                   </TabsTrigger>
                 )}
-                {availableTabs.includes('sheets') && <TabsTrigger value="sheets">Google Sheets</TabsTrigger>}
               </TabsList>
               <ScrollBar orientation="horizontal" />
             </ScrollArea>
@@ -1334,19 +1324,18 @@ const VacationManagement = () => {
           {/* Desktop: Grid layout */}
           <div className="hidden lg:block">
             <TabsList className={`grid w-full grid-cols-${availableTabs.length}`}>
-              {availableTabs.includes('vacation') && <TabsTrigger value="vacation">Saldos de Férias</TabsTrigger>}
-              {availableTabs.includes('summary') && <TabsTrigger value="summary">Resumo</TabsTrigger>}
-              {availableTabs.includes('medical') && <TabsTrigger value="medical">Licenças Médicas</TabsTrigger>}
               {availableTabs.includes('active') && <TabsTrigger value="active">Ausências Ativas</TabsTrigger>}
+              {availableTabs.includes('vacation') && <TabsTrigger value="vacation">Saldos de Férias</TabsTrigger>}
+              {availableTabs.includes('medical') && <TabsTrigger value="medical">Licenças Médicas</TabsTrigger>}
+              {availableTabs.includes('summary') && <TabsTrigger value="summary">Resumo</TabsTrigger>}
               {availableTabs.includes('dashboard') && <TabsTrigger value="dashboard">Dashboard</TabsTrigger>}
               {availableTabs.includes('pulses') && <TabsTrigger value="pulses">Pulses</TabsTrigger>}
               {availableTabs.includes('historical') && (
                 <TabsTrigger value="historical" className="flex items-center gap-2">
                   <History className="w-4 h-4" />
-                  Regularização
+                  Histórico
                 </TabsTrigger>
               )}
-              {availableTabs.includes('sheets') && <TabsTrigger value="sheets">Google Sheets</TabsTrigger>}
             </TabsList>
           </div>
 
@@ -1838,11 +1827,6 @@ const VacationManagement = () => {
             <CollaboratorSummaryTable />
           </TabsContent>
 
-          {/* Google Sheets Sync Tab */}
-          <TabsContent value="sheets" className="space-y-6 hidden lg:block">
-            <SheetsSync />
-            <UsersSheetsSync />
-          </TabsContent>
 
           {/* Mobile: Carousel com swipe gestures */}
           <div className="lg:hidden">
