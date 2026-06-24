@@ -33,6 +33,11 @@ export interface PulseSurvey {
   kudos_categories?: string[] | null;
   kudos_channel?: string | null;
   prompt_text?: string | null;
+  notify_manager_on_negative?: boolean;
+  notify_manager_on_positive?: boolean;
+  notify_negative_threshold?: number;
+  notify_positive_threshold?: number;
+  notify_include_text_responses?: boolean;
   created_at: string;
   updated_at: string;
 }
