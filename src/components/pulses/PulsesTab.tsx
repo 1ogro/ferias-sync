@@ -3,7 +3,7 @@ import { usePulseSurveys, useTogglePulseActive, useDeletePulseSurvey, dispatchPu
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Send, Power, Trash2 } from "lucide-react";
+import { Plus, Send, Power, Trash2, Pencil } from "lucide-react";
 import { PulseFormDialog } from "./PulseFormDialog";
 import { PulseResultsPanel } from "./PulseResultsPanel";
 import { useAuth } from "@/hooks/useAuth";
@@ -16,7 +16,9 @@ export function PulsesTab() {
   const toggleMut = useTogglePulseActive();
   const deleteMut = useDeletePulseSurvey();
   const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<PulseSurvey | null>(null);
   const [selected, setSelected] = useState<PulseSurvey | null>(null);
+
 
   const canCreate = person && (person.is_admin || ["DIRETOR", "ADMIN", "GESTOR"].includes(person.papel || ""));
 
@@ -57,10 +59,11 @@ export function PulsesTab() {
           <p className="text-sm text-muted-foreground">Enquetes periódicas enviadas via DM no Slack.</p>
         </div>
         {canCreate && (
-          <Button onClick={() => setOpen(true)}>
+          <Button onClick={() => { setEditing(null); setOpen(true); }}>
             <Plus className="w-4 h-4 mr-1" /> Nova enquete
           </Button>
         )}
+
       </div>
 
       {isLoading ? (
@@ -96,10 +99,19 @@ export function PulsesTab() {
                 <div className="text-xs text-muted-foreground">
                   Próximo: {s.next_run_at ? new Date(s.next_run_at).toLocaleString("pt-BR") : "—"}
                 </div>
-                <div className="flex gap-2 pt-2" onClick={(e) => e.stopPropagation()}>
+                <div className="flex gap-2 pt-2 flex-wrap" onClick={(e) => e.stopPropagation()}>
                   <Button size="sm" variant="outline" onClick={() => handleDispatch(s.id)}>
                     <Send className="w-3 h-3 mr-1" /> Disparar
                   </Button>
+                  {canCreate && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => { setEditing(s); setOpen(true); }}
+                    >
+                      <Pencil className="w-3 h-3 mr-1" /> Editar
+                    </Button>
+                  )}
                   <Button
                     size="sm"
                     variant="outline"
@@ -117,6 +129,7 @@ export function PulsesTab() {
                     <Trash2 className="w-3 h-3" />
                   </Button>
                 </div>
+
               </CardContent>
             </Card>
           ))}
@@ -125,7 +138,12 @@ export function PulsesTab() {
 
       {selected && <PulseResultsPanel survey={selected} />}
 
-      <PulseFormDialog open={open} onOpenChange={setOpen} />
+      <PulseFormDialog
+        open={open}
+        onOpenChange={(v) => { setOpen(v); if (!v) setEditing(null); }}
+        survey={editing}
+      />
+
     </div>
   );
 }

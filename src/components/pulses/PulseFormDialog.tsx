@@ -9,28 +9,46 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Plus, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { useCreatePulseSurvey, PulseQuestion, PulseFrequency } from "@/hooks/usePulses";
+import {
+  useCreatePulseSurvey,
+  useUpdatePulseSurvey,
+  usePulseQuestions,
+  usePulseRuns,
+  PulseQuestion,
+  PulseFrequency,
+  PulseSurvey,
+} from "@/hooks/usePulses";
 import { useAuth } from "@/hooks/useAuth";
 
 interface Props {
   open: boolean;
   onOpenChange: (v: boolean) => void;
+  survey?: PulseSurvey | null;
 }
 
-export function PulseFormDialog({ open, onOpenChange }: Props) {
+function toLocalInput(iso: string | null | undefined): string {
+  const d = iso ? new Date(iso) : new Date(Date.now() + 30 * 60_000);
+  const off = d.getTimezoneOffset();
+  const local = new Date(d.getTime() - off * 60_000);
+  return local.toISOString().slice(0, 16);
+}
+
+export function PulseFormDialog({ open, onOpenChange, survey }: Props) {
   const { person } = useAuth();
   const { toast } = useToast();
   const createMut = useCreatePulseSurvey();
+  const updateMut = useUpdatePulseSurvey();
+  const isEdit = !!survey;
+
+  const { data: existingQuestions } = usePulseQuestions(survey?.id);
+  const { data: runs } = usePulseRuns(survey?.id);
+  const hasResponses = (runs || []).some((r: any) => (r.responses_count || 0) > 0);
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [anonymous, setAnonymous] = useState(true);
   const [frequency, setFrequency] = useState<PulseFrequency>("once");
-  const [nextRunAt, setNextRunAt] = useState<string>(() => {
-    const d = new Date();
-    d.setMinutes(d.getMinutes() + 30);
-    return d.toISOString().slice(0, 16);
-  });
+  const [nextRunAt, setNextRunAt] = useState<string>(() => toLocalInput(null));
   const [targetScope, setTargetScope] = useState<"team" | "custom">("team");
   const [targetTeamId, setTargetTeamId] = useState<string>("");
   const [targetPersonIds, setTargetPersonIds] = useState<string[]>([]);
@@ -54,9 +72,33 @@ export function PulseFormDialog({ open, onOpenChange }: Props) {
       const list = (data || []) as any[];
       setPeople(list);
       setTeams([...new Set(list.map((p) => p.sub_time).filter(Boolean))] as string[]);
-      if (!isDirectorOrAdmin && person?.subTime) setTargetTeamId(person.subTime);
+      if (!isEdit && !isDirectorOrAdmin && person?.subTime) setTargetTeamId(person.subTime);
     })();
-  }, [open, isDirectorOrAdmin, person?.subTime]);
+  }, [open, isDirectorOrAdmin, person?.subTime, isEdit]);
+
+  // Pre-populate when editing
+  useEffect(() => {
+    if (!open) return;
+    if (isEdit && survey) {
+      setTitle(survey.title);
+      setDescription(survey.description || "");
+      setAnonymous(survey.anonymous);
+      setFrequency(survey.frequency);
+      setNextRunAt(toLocalInput(survey.next_run_at));
+      setTargetScope(survey.target_scope);
+      setTargetTeamId(survey.target_team_id || "");
+      setTargetPersonIds(survey.target_person_ids || []);
+    } else if (!isEdit) {
+      reset();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, survey?.id]);
+
+  useEffect(() => {
+    if (isEdit && existingQuestions && existingQuestions.length) {
+      setQuestions(existingQuestions.map((q, i) => ({ ...q, position: i })));
+    }
+  }, [isEdit, existingQuestions]);
 
   const addQuestion = () =>
     setQuestions((q) => [...q, { position: q.length, question_text: "", question_type: "scale_1_5", required: true }]);
@@ -66,6 +108,7 @@ export function PulseFormDialog({ open, onOpenChange }: Props) {
 
   const reset = () => {
     setTitle(""); setDescription(""); setAnonymous(true); setFrequency("once");
+    setNextRunAt(toLocalInput(null));
     setTargetScope("team"); setTargetTeamId(""); setTargetPersonIds([]);
     setQuestions([{ position: 0, question_text: "", question_type: "scale_1_5", required: true }]);
   };
@@ -85,31 +128,49 @@ export function PulseFormDialog({ open, onOpenChange }: Props) {
       toast({ title: "Selecione ao menos uma pessoa", variant: "destructive" }); return;
     }
     try {
-      await createMut.mutateAsync({
-        created_by: person.id,
-        title: title.trim(),
-        description: description.trim() || undefined,
-        anonymous,
-        frequency,
-        next_run_at: new Date(nextRunAt).toISOString(),
-        target_scope: targetScope,
-        target_team_id: targetScope === "team" ? targetTeamId : null,
-        target_person_ids: targetScope === "custom" ? targetPersonIds : null,
-        questions,
-      });
-      toast({ title: "Enquete criada" });
+      if (isEdit && survey) {
+        await updateMut.mutateAsync({
+          id: survey.id,
+          title: title.trim(),
+          description: description.trim() || null,
+          anonymous,
+          frequency,
+          next_run_at: new Date(nextRunAt).toISOString(),
+          target_scope: targetScope,
+          target_team_id: targetScope === "team" ? targetTeamId : null,
+          target_person_ids: targetScope === "custom" ? targetPersonIds : null,
+          questions: hasResponses ? undefined : questions,
+        });
+        toast({ title: "Enquete atualizada" });
+      } else {
+        await createMut.mutateAsync({
+          created_by: person.id,
+          title: title.trim(),
+          description: description.trim() || undefined,
+          anonymous,
+          frequency,
+          next_run_at: new Date(nextRunAt).toISOString(),
+          target_scope: targetScope,
+          target_team_id: targetScope === "team" ? targetTeamId : null,
+          target_person_ids: targetScope === "custom" ? targetPersonIds : null,
+          questions,
+        });
+        toast({ title: "Enquete criada" });
+      }
       reset();
       onOpenChange(false);
     } catch (e: any) {
-      toast({ title: "Erro ao criar", description: e.message, variant: "destructive" });
+      toast({ title: "Erro ao salvar", description: e.message, variant: "destructive" });
     }
   };
+
+  const pending = createMut.isPending || updateMut.isPending;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Nova enquete de pulse</DialogTitle>
+          <DialogTitle>{isEdit ? "Editar enquete" : "Nova enquete de pulse"}</DialogTitle>
           <DialogDescription>Configure perguntas, alvo e periodicidade.</DialogDescription>
         </DialogHeader>
 
@@ -147,7 +208,7 @@ export function PulseFormDialog({ open, onOpenChange }: Props) {
           </div>
 
           <div className="space-y-2">
-            <Label>Primeiro disparo</Label>
+            <Label>{isEdit ? "Próximo disparo" : "Primeiro disparo"}</Label>
             <Input type="datetime-local" value={nextRunAt} onChange={(e) => setNextRunAt(e.target.value)} />
           </div>
 
@@ -189,15 +250,26 @@ export function PulseFormDialog({ open, onOpenChange }: Props) {
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <Label>Perguntas</Label>
-              <Button type="button" variant="outline" size="sm" onClick={addQuestion}>
-                <Plus className="w-3 h-3 mr-1" /> Adicionar
-              </Button>
+              {!hasResponses && (
+                <Button type="button" variant="outline" size="sm" onClick={addQuestion}>
+                  <Plus className="w-3 h-3 mr-1" /> Adicionar
+                </Button>
+              )}
             </div>
+            {hasResponses && (
+              <p className="text-xs text-amber-600 dark:text-amber-400">
+                Esta enquete já tem respostas. Perguntas não podem ser alteradas para preservar os dados.
+              </p>
+            )}
             {questions.map((q, i) => (
-              <div key={i} className="space-y-2 rounded border p-3">
+              <div key={i} className={`space-y-2 rounded border p-3 ${hasResponses ? "opacity-60" : ""}`}>
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-medium">#{i + 1}</span>
-                  <Select value={q.question_type} onValueChange={(v) => updateQuestion(i, { question_type: v as any })}>
+                  <Select
+                    value={q.question_type}
+                    onValueChange={(v) => updateQuestion(i, { question_type: v as any })}
+                    disabled={hasResponses}
+                  >
                     <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="scale_1_5">Escala 1–5</SelectItem>
@@ -205,10 +277,15 @@ export function PulseFormDialog({ open, onOpenChange }: Props) {
                     </SelectContent>
                   </Select>
                   <label className="flex items-center gap-1 text-xs">
-                    <input type="checkbox" checked={q.required} onChange={(e) => updateQuestion(i, { required: e.target.checked })} />
+                    <input
+                      type="checkbox"
+                      checked={q.required}
+                      onChange={(e) => updateQuestion(i, { required: e.target.checked })}
+                      disabled={hasResponses}
+                    />
                     Obrigatória
                   </label>
-                  {questions.length > 1 && (
+                  {!hasResponses && questions.length > 1 && (
                     <Button type="button" variant="ghost" size="icon" onClick={() => removeQuestion(i)} className="ml-auto">
                       <Trash2 className="w-4 h-4" />
                     </Button>
@@ -219,6 +296,7 @@ export function PulseFormDialog({ open, onOpenChange }: Props) {
                   rows={2}
                   value={q.question_text}
                   onChange={(e) => updateQuestion(i, { question_text: e.target.value })}
+                  disabled={hasResponses}
                 />
               </div>
             ))}
@@ -227,8 +305,8 @@ export function PulseFormDialog({ open, onOpenChange }: Props) {
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-          <Button onClick={handleSubmit} disabled={createMut.isPending}>
-            {createMut.isPending ? "Criando..." : "Criar enquete"}
+          <Button onClick={handleSubmit} disabled={pending}>
+            {pending ? "Salvando..." : isEdit ? "Salvar alterações" : "Criar enquete"}
           </Button>
         </DialogFooter>
       </DialogContent>
