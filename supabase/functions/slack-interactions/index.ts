@@ -306,9 +306,11 @@ serve(async (req) => {
         await awardPoints(supabase, toPersonId, 10, "kudo_received", kudo.id);
         await awardPoints(supabase, sender!.id, 2, "kudo_given", kudo.id);
 
+        const { data: fromP } = await supabase.from("people").select("nome").eq("id", sender!.id).maybeSingle();
+        const fromName = fromP?.nome || "Alguém";
+
         if (channelToPost) {
-          const { data: fromP } = await supabase.from("people").select("nome").eq("id", sender!.id).maybeSingle();
-          const text = `${CATEGORY_LABEL[category] || "🍪"} *${fromP?.nome || "Alguém"}* deu um biscoito para *${to.nome}*\n> ${message}`;
+          const text = `${CATEGORY_LABEL[category] || "🍪"} *${fromName}* deu um biscoito para *${to.nome}*\n> ${message}`;
           await fetch("https://slack.com/api/chat.postMessage", {
             method: "POST",
             headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}`, "Content-Type": "application/json" },
@@ -316,8 +318,11 @@ serve(async (req) => {
           });
         }
 
+        await notifyRecipientDM(supabase, toPersonId, fromName, category, message, "biscoito_submit");
+
         supabase.functions.invoke("kudos-notify-managers", { body: { kudo_id: kudo.id } })
           .catch((e: any) => console.error("[biscoito_submit] notify invoke failed", e?.message));
+
       } else if (insErr) {
         console.error("[biscoito_submit] insert error:", insErr);
         return new Response(
