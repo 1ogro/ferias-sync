@@ -1,28 +1,19 @@
 ## Diagnóstico
-A mensagem `"/biscoito falhou porque o app não respondeu"` (`operation_timeout`) significa que o Slack não recebeu HTTP 200 do nosso endpoint em até **3 segundos**. A função atual faz, **antes** de responder:
 
-1. `users.info` no Slack
-2. 2 queries no Postgres (`people` sender + `people` lista de 100)
-3. `views.open` no Slack
-4. Só então retorna `200`
+- A função `slack-slash-biscoito` existe no código local e está em `supabase/config.toml` com `verify_jwt = false`.
+- Não há logs nem chamadas registradas no Supabase para `slack-slash-biscoito`.
+- Isso indica que o Slack provavelmente está apontando para uma URL que não existe no Supabase, ou a função ainda não foi publicada/deployada no projeto.
 
-Em cold start de edge function isso passa fácil dos 3s → timeout.
+## Plano
 
-## Correção
-Reordenar para o padrão recomendado do Slack: **ack imediato + trabalho assíncrono**.
+1. Publicar explicitamente a Edge Function `slack-slash-biscoito` no Supabase.
+2. Validar que a função aparece no Supabase e responde a uma chamada HTTP.
+3. Se a função responder, confirmar a URL correta para configurar no Slack:
+   - `https://uhphxyhffpbnmsrlggbe.supabase.co/functions/v1/slack-slash-biscoito`
+4. Se ainda houver falha após o deploy, revisar logs da função e ajustar o handler conforme o erro real.
 
-### Mudanças em `supabase/functions/slack-slash-biscoito/index.ts`
-1. Verificar assinatura HMAC (rápido, fica antes do ack).
-2. Capturar `trigger_id`, `user_id`, `channel_id`, `channel_name` do form.
-3. **Responder `200` imediatamente** (corpo vazio ou `response_type: ephemeral` com "Abrindo formulário…").
-4. Mover todo o resto (resolve email → sender → lista de people → `views.open`) para uma função `openModal()` disparada via `EdgeRuntime.waitUntil(openModal(...))` antes do `return`.
-5. Se algo falhar dentro de `openModal`, enviar mensagem ephemeral via `response_url` (o Slack manda esse campo no payload do slash command e ele aceita POSTs por até 30min) explicando o erro — em vez de só logar.
+## Fora de escopo
 
-### Detalhes técnicos
-- `trigger_id` do Slack expira em **3 segundos**, então `views.open` precisa rodar logo após o ack — o `waitUntil` continua executando após o response, mas começa imediatamente.
-- Nenhuma mudança em tabelas, em `slack-interactions` (o handler `view_submission` para `biscoito_submit` já existe e continua válido) ou no `config.toml`.
-- Nenhuma mudança de UI.
-
-## Fora do escopo
-- Fila/worker separado (overkill — `waitUntil` resolve dentro do mesmo runtime e mantém o `trigger_id` válido).
-- Mudanças no fluxo de submissão do modal.
+- Não alterar o fluxo de submissão do modal.
+- Não mexer em banco de dados.
+- Não alterar o comando `/biscoito` no Slack automaticamente, pois isso precisa ser configurado no painel do Slack.
