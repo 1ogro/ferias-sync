@@ -1,22 +1,35 @@
 ## Objetivo
-Resolver as vulnerabilidades high severity em dependências atualizando 3 pacotes.
+Garantir que o sorteio de avaliação entre pares (peer review) aconteça sempre **dentro do mesmo time**, nunca cruzando times diferentes.
 
-## Mudanças
+## Mudança
+No arquivo `supabase/functions/pulse-dispatch/index.ts`:
 
-1. **`@supabase/supabase-js`**: `2.57.4` → `^2.78.0` (corrige `ws` DoS)
-2. **`react-router-dom`**: `6.30.1` → `^7.9.4` (corrige XSS via open redirect)
-   - React Router 7 mantém compatibilidade com a API v6 quando usado em modo "library" (que é como o projeto usa via `BrowserRouter` em `src/App.tsx`). Não requer migração para framework mode.
-3. **`recharts`**: `2.15.4` → `^3.2.1` (remove dependência de `lodash` vulnerável)
-   - v3 muda apenas APIs avançadas; os componentes usados em `src/components/ui/chart.tsx` (ChartContainer/Tooltip/Legend wrappers) continuam compatíveis.
+1. Incluir `sub_time` no `select` dos recipients (em todos os ramos: `all`, `teams`, `team`, `custom`).
+2. Substituir a chamada única de `generatePeerPairs(recipients)` por um agrupamento por `sub_time`:
+   - Agrupar recipients por `sub_time`.
+   - Rodar `generatePeerPairs` separadamente para cada grupo.
+   - Concatenar os pares resultantes.
+3. Tratamento de grupos pequenos:
+   - Time com 1 pessoa → ignorado no sorteio; pessoa marcada em diagnostics como `no_subject_assigned` (já existe a lógica).
+   - Pessoas sem `sub_time` (null) → agrupadas separadamente entre si, ou ignoradas se isoladas.
 
-## Execução
+## Fora do escopo
+- UI de configuração das enquetes.
+- Outras edge functions (kudos, etc.).
+- Estrutura de tabelas.
 
-- Atualizar `package.json` e rodar `bun install`
-- Validar build (`tsgo` + vite build automático do harness)
-- Se houver quebra de tipos em `chart.tsx` ou nas rotas, ajustar pontualmente
-- Marcar finding como resolvido via `security--manage_security_finding`
+## Detalhes técnicos
+Trecho atualizado (conceitual):
 
-## Fora de escopo
-
-- Findings medium severity (mesmos pacotes, resolvidos no mesmo upgrade — serão marcados juntos se o scan confirmar)
-- Refatoração para React Router v7 framework mode
+```ts
+if (survey.kind === "peer") {
+  const groups = new Map<string, typeof recipients>();
+  for (const p of recipients) {
+    const key = p.sub_time ?? "__no_team__";
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push(p);
+  }
+  const pairs = [...groups.values()].flatMap(g => generatePeerPairs(g));
+  // ...resto igual
+}
+```
