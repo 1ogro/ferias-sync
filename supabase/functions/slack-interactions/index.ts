@@ -240,13 +240,23 @@ serve(async (req) => {
           .catch((e: any) => console.error("[biscoito_submit] notify invoke failed", e?.message));
       } else if (insErr) {
         console.error("[biscoito_submit] insert error:", insErr);
+        return new Response(
+          JSON.stringify({ response_action: "errors", errors: { kudo_msg_block: "Não consegui registrar seu biscoito. Tente novamente." } }),
+          { headers: { "Content-Type": "application/json" } }
+        );
       }
 
+      console.log(`[biscoito_submit] inserted kudo ${kudo?.id} from=${sender!.id} to=${toPersonId}`);
       return new Response(JSON.stringify({ response_action: "clear" }), {
         headers: { "Content-Type": "application/json" },
       });
+    }
 
     // (awardPoints / completePeerPair are defined at module scope above)
+
+
+
+
 
 
 
