@@ -85,7 +85,9 @@ async function openModal(opts: {
       { value: "customer", text: "❤️ Foco no cliente" },
     ];
 
-    const privateMetadata = JSON.stringify({ channel_id: channelId, channel_name: channelName });
+    const SHARE_CHANNEL = "#time";
+    const privateMetadata = JSON.stringify({ channel_id: SHARE_CHANNEL });
+
 
     const view = {
       type: "modal",
