@@ -311,12 +311,17 @@ serve(async (req) => {
 
         if (channelToPost) {
           const text = `${CATEGORY_LABEL[category] || "🍪"} *${fromName}* deu um biscoito para *${to.nome}*\n> ${message}`;
-          await fetch("https://slack.com/api/chat.postMessage", {
+          const postRes = await fetch("https://slack.com/api/chat.postMessage", {
             method: "POST",
             headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}`, "Content-Type": "application/json" },
             body: JSON.stringify({ channel: channelToPost, text }),
           });
+          const postJson = await postRes.json();
+          if (!postJson.ok) {
+            console.log(`[biscoito_submit] channel post skipped: ${postJson.error || "unknown"} (channel=${channelToPost})`);
+          }
         }
+
 
         await notifyRecipientDM(supabase, toPersonId, fromName, category, message, "biscoito_submit");
 
