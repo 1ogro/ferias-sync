@@ -138,7 +138,7 @@ async function openModal(opts: {
             placeholder: { type: "plain_text", text: "Diga por que esse colega merece um biscoito 🍪" },
           },
         },
-        ...(channelId ? [{
+        {
           type: "input",
           block_id: "kudo_share_block",
           optional: true,
@@ -147,11 +147,12 @@ async function openModal(opts: {
             type: "checkboxes",
             action_id: "kudo_share_check",
             options: [{
-              text: { type: "plain_text", text: `Postar em #${channelName || "canal atual"}` },
+              text: { type: "plain_text", text: `Postar em ${SHARE_CHANNEL}` },
               value: "share",
             }],
           },
-        }] : []),
+        },
+
       ],
     };
 
