@@ -1,4 +1,5 @@
 // Slash command /biscoito — abre modal de kudos no Slack.
+// Padrão: ack em <3s, abre o modal em background via EdgeRuntime.waitUntil.
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -27,45 +28,54 @@ async function resolveSenderEmail(slackUserId: string): Promise<string | null> {
   return d?.user?.profile?.email ?? null;
 }
 
-function ephemeral(text: string): Response {
-  return new Response(JSON.stringify({ response_type: "ephemeral", text }), {
-    headers: { "Content-Type": "application/json" },
-  });
+async function postEphemeral(responseUrl: string, text: string) {
+  try {
+    await fetch(responseUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ response_type: "ephemeral", text }),
+    });
+  } catch (e) {
+    console.error("[response_url] post failed:", e);
+  }
 }
 
-serve(async (req) => {
+async function openModal(opts: {
+  slackUserId: string;
+  triggerId: string;
+  channelId: string;
+  channelName: string;
+  responseUrl: string;
+}) {
+  const { slackUserId, triggerId, channelId, channelName, responseUrl } = opts;
   try {
-    const raw = await req.text();
-    const ts = req.headers.get("X-Slack-Request-Timestamp") || "";
-    const sig = req.headers.get("X-Slack-Signature") || "";
-    if (!(await verifySlackRequest(raw, ts, sig))) {
-      return new Response("Unauthorized", { status: 401 });
-    }
-
-    const params = new URLSearchParams(raw);
-    const slackUserId = params.get("user_id") || "";
-    const triggerId = params.get("trigger_id") || "";
-    const channelId = params.get("channel_id") || "";
-    const channelName = params.get("channel_name") || "";
-
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const email = await resolveSenderEmail(slackUserId);
-    if (!email) return ephemeral("⚠️ Não consegui ler seu email no Slack. Verifique permissões do app.");
+    if (!email) {
+      await postEphemeral(responseUrl, "⚠️ Não consegui ler seu email no Slack. Verifique permissões do app.");
+      return;
+    }
 
     const { data: sender } = await supabase
       .from("people").select("id").eq("email", email).eq("ativo", true).maybeSingle();
-    if (!sender) return ephemeral("⚠️ Seu email do Slack não está cadastrado no sistema. Fale com um admin.");
+    if (!sender) {
+      await postEphemeral(responseUrl, "⚠️ Seu email do Slack não está cadastrado no sistema. Fale com um admin.");
+      return;
+    }
 
     const { data: people } = await supabase
       .from("people").select("id, nome").eq("ativo", true).neq("id", sender.id).order("nome").limit(100);
 
-    const peopleOptions = (people || []).map(p => ({
+    const peopleOptions = (people || []).map((p: any) => ({
       text: { type: "plain_text", text: p.nome.slice(0, 75) },
       value: p.id,
     }));
 
-    if (peopleOptions.length === 0) return ephemeral("⚠️ Nenhum colega disponível para receber biscoitos.");
+    if (peopleOptions.length === 0) {
+      await postEphemeral(responseUrl, "⚠️ Nenhum colega disponível para receber biscoitos.");
+      return;
+    }
 
     const categories = [
       { value: "teamwork", text: "🤝 Trabalho em equipe" },
@@ -151,12 +161,44 @@ serve(async (req) => {
     const data = await res.json();
     if (!data.ok) {
       console.error("[views.open]", data);
-      return ephemeral(`⚠️ Não consegui abrir o formulário: ${data.error}`);
+      await postEphemeral(responseUrl, `⚠️ Não consegui abrir o formulário: ${data.error}`);
+    }
+  } catch (err: any) {
+    console.error("openModal error:", err);
+    await postEphemeral(responseUrl, "⚠️ Erro inesperado ao abrir o formulário.");
+  }
+}
+
+serve(async (req) => {
+  try {
+    const raw = await req.text();
+    const ts = req.headers.get("X-Slack-Request-Timestamp") || "";
+    const sig = req.headers.get("X-Slack-Signature") || "";
+    if (!(await verifySlackRequest(raw, ts, sig))) {
+      return new Response("Unauthorized", { status: 401 });
     }
 
-    return new Response("", { status: 200 });
+    const params = new URLSearchParams(raw);
+    const slackUserId = params.get("user_id") || "";
+    const triggerId = params.get("trigger_id") || "";
+    const channelId = params.get("channel_id") || "";
+    const channelName = params.get("channel_name") || "";
+    const responseUrl = params.get("response_url") || "";
+
+    // Dispara abertura do modal em background — o trigger_id expira em 3s,
+    // então precisamos responder o Slack agora.
+    // @ts-ignore EdgeRuntime é disponibilizado pelo runtime do Supabase.
+    EdgeRuntime.waitUntil(openModal({ slackUserId, triggerId, channelId, channelName, responseUrl }));
+
+    return new Response(
+      JSON.stringify({ response_type: "ephemeral", text: "🍪 Abrindo o formulário…" }),
+      { headers: { "Content-Type": "application/json" }, status: 200 },
+    );
   } catch (err: any) {
     console.error("slack-slash-biscoito error:", err);
-    return ephemeral("⚠️ Erro inesperado ao processar o comando.");
+    return new Response(
+      JSON.stringify({ response_type: "ephemeral", text: "⚠️ Erro inesperado ao processar o comando." }),
+      { headers: { "Content-Type": "application/json" }, status: 200 },
+    );
   }
 });
