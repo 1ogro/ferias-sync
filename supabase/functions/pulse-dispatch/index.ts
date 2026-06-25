@@ -296,7 +296,14 @@ async function dispatchSurvey(supabase: any, survey: any): Promise<{ sent: numbe
   // Peer pairing
   const subjectByReviewer = new Map<string, { id: string; nome: string }>();
   if (survey.kind === "peer") {
-    const pairs = generatePeerPairs(recipients);
+    // Sortear pares apenas dentro do mesmo time (sub_time).
+    const groups = new Map<string, typeof recipients>();
+    for (const p of recipients) {
+      const key = p.sub_time ?? "__no_team__";
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(p);
+    }
+    const pairs = [...groups.values()].flatMap((g) => generatePeerPairs(g));
     const peopleById = new Map(recipients.map((p) => [p.id, p]));
     if (pairs.length) {
       await supabase.from("peer_review_pairs").insert(
