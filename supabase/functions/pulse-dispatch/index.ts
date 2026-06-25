@@ -249,7 +249,7 @@ async function dispatchSurvey(supabase: any, survey: any): Promise<{ sent: numbe
   if (survey.target_scope === "all") {
     const { data } = await supabase
       .from("people")
-      .select("id, nome, email")
+      .select("id, nome, email, sub_time")
       .eq("ativo", true);
     recipients = data || [];
   } else if (survey.target_scope === "teams") {
@@ -259,7 +259,7 @@ async function dispatchSurvey(supabase: any, survey: any): Promise<{ sent: numbe
     if (teamIds.length) {
       const { data } = await supabase
         .from("people")
-        .select("id, nome, email")
+        .select("id, nome, email, sub_time")
         .in("sub_time", teamIds)
         .eq("ativo", true);
       recipients = data || [];
@@ -268,14 +268,14 @@ async function dispatchSurvey(supabase: any, survey: any): Promise<{ sent: numbe
     // legacy fallback
     const { data } = await supabase
       .from("people")
-      .select("id, nome, email")
+      .select("id, nome, email, sub_time")
       .eq("sub_time", survey.target_team_id)
       .eq("ativo", true);
     recipients = data || [];
   } else if (survey.target_scope === "custom" && survey.target_person_ids?.length) {
     const { data } = await supabase
       .from("people")
-      .select("id, nome, email")
+      .select("id, nome, email, sub_time")
       .in("id", survey.target_person_ids)
       .eq("ativo", true);
     recipients = data || [];
@@ -296,7 +296,14 @@ async function dispatchSurvey(supabase: any, survey: any): Promise<{ sent: numbe
   // Peer pairing
   const subjectByReviewer = new Map<string, { id: string; nome: string }>();
   if (survey.kind === "peer") {
-    const pairs = generatePeerPairs(recipients);
+    // Sortear pares apenas dentro do mesmo time (sub_time).
+    const groups = new Map<string, typeof recipients>();
+    for (const p of recipients) {
+      const key = p.sub_time ?? "__no_team__";
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(p);
+    }
+    const pairs = [...groups.values()].flatMap((g) => generatePeerPairs(g));
     const peopleById = new Map(recipients.map((p) => [p.id, p]));
     if (pairs.length) {
       await supabase.from("peer_review_pairs").insert(
