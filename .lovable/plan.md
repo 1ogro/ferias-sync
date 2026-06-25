@@ -1,49 +1,44 @@
-## Diagnóstico
+## Situação atual
 
-O erro no modal do Slack (“Tivemos alguns problemas de conexão”) acontece quando a URL de Interactivity não responde corretamente ao `view_submission` em até poucos segundos ou retorna um formato inesperado.
+Hoje, ao enviar um biscoito via `/biscoito`, o handler `biscoito_submit` em `supabase/functions/slack-interactions/index.ts`:
 
-Os logs mostram que `slack-interactions` recebeu `view_submission`, mas caiu em:
+1. Grava o registro em `public.kudos` (aparece no Feed de Engajamento).
+2. Dá pontos para quem enviou e quem recebeu.
+3. Se a pessoa marcou "Compartilhar em #canal", posta a mensagem pública no canal.
+4. Dispara `kudos-notify-managers` para avisar o gestor direto e diretores.
 
-```text
-[slack-interactions] no matching handler for payload type: view_submission
-```
-
-Isso indica que a função publicada não está tratando o callback do modal `/biscoito`. Como consequência, o insert em `public.kudos` não acontece e o item não aparece no “Feed de kudos”.
+**O que NÃO acontece hoje:** o destinatário não recebe DM do app avisando que ganhou um biscoito. Se a opção "Compartilhar" não for marcada, ele simplesmente não fica sabendo pelo Slack (só veria entrando no dashboard de Engajamento).
 
 ## Plano
 
-1. **Ajustar `slack-interactions` para aceitar o modal atual do `/biscoito`**
-   - Tratar `payload.type === "view_submission"` quando o `callback_id` for `biscoito_submit`.
-   - Também aceitar variações seguras, caso o Slack esteja enviando callback com sufixo/prefixo, por exemplo `biscoito_submit:*`.
+Enviar uma DM do app para o destinatário sempre que ele receber um biscoito, independente da opção "Compartilhar".
 
-2. **Responder ao Slack no formato correto**
-   - Se houver erro de validação, retornar `response_action: "errors"` com campos específicos.
-   - Se o kudo for registrado com sucesso, retornar `response_action: "clear"` rapidamente para fechar o modal sem erro de conexão.
-   - Se o insert falhar, não fechar o modal como sucesso: retornar erro visível no próprio modal.
-
-3. **Registrar no Feed de kudos**
-   - Inserir o registro em `public.kudos` com:
-     - `from_person_id`
-     - `to_person_id`
-     - `message`
-     - `category`
-     - `slack_channel_posted`
-   - Manter a pontuação via `award_points`.
-   - Manter o post no canal quando “Compartilhar” estiver marcado.
-
-4. **Adicionar logs mínimos de auditoria**
-   - Logar quando o callback recebido não bate com nenhum handler, incluindo o `callback_id`.
-   - Logar quando um `/biscoito` for salvo com sucesso, sem expor dados sensíveis.
-   - Logar erro real de insert para diagnóstico futuro.
-
-5. **Publicar e validar**
-   - Republicar a função `slack-interactions`.
-   - Confirmar nos logs que o callback `biscoito_submit` é reconhecido.
-   - Conferir que uma linha aparece em `public.kudos`.
-   - Confirmar que `/engagement` mostra o item no “Feed de kudos”.
+1. **No handler `biscoito_submit**` (`supabase/functions/slack-interactions/index.ts`):
+  - Após o insert bem-sucedido em `kudos`, buscar o e-mail do destinatário em `people`.
+  - Usar `users.lookupByEmail` do Slack para achar o `slack_user_id` dele.
+  - Abrir um canal de DM via `conversations.open` e enviar `chat.postMessage` com:
+    - Emoji + categoria
+    - Nome de quem enviou
+    - A mensagem original
+    - Linha curta tipo "Veja seu feed em /engagement"
+  - Se o lookup falhar (e-mail não bate com nenhum usuário do Slack), apenas logar — não quebrar o fluxo.
+2. **Mesma cortesia no handler `kudos_submit**` (kudos enviados pelo botão dentro do Pulse) para manter consistência: também mandar DM pro destinatário.
+3. **Evitar duplicidade quando o usuário marcar "Compartilhar em #time"**:
+  - Postar no canal #time (visibilidade pública).
+  - Continuar mandando DM (garantia de entrega individual).
+  - Os dois não se sobrepõem: canal é coletivo, DM é direta.
+4. **Logs**:
+  - `[biscoito_submit] dm sent to <slack_user_id>` em caso de sucesso.
+  - `[biscoito_submit] dm skipped: <motivo>` em caso de falha.
+5. **Validação end-to-end**:
+  - Enviar `/biscoito` para um colega.
+  - Conferir nos logs de `slack-interactions` o `dm sent`.
+  - Confirmar que a pessoa recebeu a DM do app "UX TD" no Slack.
+  - Confirmar que o card aparece no Feed.
 
 ## Fora de escopo
 
-- Alterar layout do dashboard de Engajamento.
-- Mudar schema de banco.
-- Recriar o slash command no Slack.
+- Mudar o layout do dashboard.
+- Adicionar reações automáticas no canal.
+- Permitir que o destinatário responda/agradeça pela DM (botões interativos).
+- Notificações por e-mail do destinatário (não foi pedido).

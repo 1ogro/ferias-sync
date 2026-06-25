@@ -83,6 +83,81 @@ async function postEphemeralAck(payload: any, text: string) {
   });
 }
 
+async function notifyRecipientDM(
+  supabase: any,
+  toPersonId: string,
+  fromName: string,
+  category: string,
+  message: string,
+  context: string
+) {
+  try {
+    const { data: toP } = await supabase
+      .from("people")
+      .select("email, nome")
+      .eq("id", toPersonId)
+      .maybeSingle();
+    if (!toP?.email) {
+      console.log(`[${context}] dm skipped: recipient has no email (${toPersonId})`);
+      return;
+    }
+
+    const lookupRes = await fetch(
+      `https://slack.com/api/users.lookupByEmail?email=${encodeURIComponent(toP.email)}`,
+      { headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}` } }
+    );
+    const lookup = await lookupRes.json();
+    if (!lookup.ok || !lookup.user?.id) {
+      console.log(`[${context}] dm skipped: slack user not found for ${toP.email} (${lookup.error || "unknown"})`);
+      return;
+    }
+    const slackUserId = lookup.user.id;
+
+    const openRes = await fetch("https://slack.com/api/conversations.open", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ users: slackUserId }),
+    });
+    const open = await openRes.json();
+    const channelId = open?.channel?.id;
+    if (!open.ok || !channelId) {
+      console.log(`[${context}] dm skipped: conversations.open failed (${open.error || "unknown"})`);
+      return;
+    }
+
+    const CATEGORY_LABEL_LOCAL: Record<string, string> = {
+      teamwork: "🤝 Trabalho em equipe",
+      innovation: "💡 Inovação",
+      delivery: "🚀 Entrega",
+      leadership: "🏆 Liderança",
+      customer: "❤️ Foco no cliente",
+    };
+    const catLabel = CATEGORY_LABEL_LOCAL[category] || "🍪";
+    const text =
+      `🍪 *Você ganhou um biscoito!*\n` +
+      `${catLabel}\n` +
+      `De: *${fromName}*\n` +
+      `> ${message}\n\n` +
+      `Veja seu feed em /engagement`;
+
+    const postRes = await fetch("https://slack.com/api/chat.postMessage", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ channel: channelId, text }),
+    });
+    const post = await postRes.json();
+    if (!post.ok) {
+      console.log(`[${context}] dm skipped: chat.postMessage failed (${post.error || "unknown"})`);
+      return;
+    }
+    console.log(`[${context}] dm sent to ${slackUserId}`);
+  } catch (e: any) {
+    console.error(`[${context}] dm error:`, e?.message || e);
+  }
+}
+
+
+
 
 serve(async (req) => {
   try {
@@ -160,9 +235,11 @@ serve(async (req) => {
         await awardPoints(supabase, toPersonId, 10, "kudo_received", kudo.id);
         await awardPoints(supabase, sender!.id, 2, "kudo_given", kudo.id);
 
+        const { data: fromP } = await supabase.from("people").select("nome").eq("id", sender!.id).maybeSingle();
+        const fromName = fromP?.nome || "Alguém";
+
         if (channelToPost) {
-          const { data: fromP } = await supabase.from("people").select("nome").eq("id", sender!.id).maybeSingle();
-          const text = `${CATEGORY_LABEL[category] || "🎉"} *${fromP?.nome || "Alguém"}* deu kudos para *${to.nome}*\n> ${message}`;
+          const text = `${CATEGORY_LABEL[category] || "🎉"} *${fromName}* deu kudos para *${to.nome}*\n> ${message}`;
           await fetch("https://slack.com/api/chat.postMessage", {
             method: "POST",
             headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}`, "Content-Type": "application/json" },
@@ -170,9 +247,12 @@ serve(async (req) => {
           });
         }
 
+        await notifyRecipientDM(supabase, toPersonId, fromName, category, message, "kudos_submit");
+
         // Fire-and-forget notification to direct manager + all directors
         supabase.functions.invoke("kudos-notify-managers", { body: { kudo_id: kudo.id } })
           .catch((e: any) => console.error("[kudos_submit] notify invoke failed", e?.message));
+
       } else if (insErr) {
         console.error("[kudos_submit] insert error:", insErr);
       }
@@ -226,9 +306,11 @@ serve(async (req) => {
         await awardPoints(supabase, toPersonId, 10, "kudo_received", kudo.id);
         await awardPoints(supabase, sender!.id, 2, "kudo_given", kudo.id);
 
+        const { data: fromP } = await supabase.from("people").select("nome").eq("id", sender!.id).maybeSingle();
+        const fromName = fromP?.nome || "Alguém";
+
         if (channelToPost) {
-          const { data: fromP } = await supabase.from("people").select("nome").eq("id", sender!.id).maybeSingle();
-          const text = `${CATEGORY_LABEL[category] || "🍪"} *${fromP?.nome || "Alguém"}* deu um biscoito para *${to.nome}*\n> ${message}`;
+          const text = `${CATEGORY_LABEL[category] || "🍪"} *${fromName}* deu um biscoito para *${to.nome}*\n> ${message}`;
           await fetch("https://slack.com/api/chat.postMessage", {
             method: "POST",
             headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}`, "Content-Type": "application/json" },
@@ -236,8 +318,11 @@ serve(async (req) => {
           });
         }
 
+        await notifyRecipientDM(supabase, toPersonId, fromName, category, message, "biscoito_submit");
+
         supabase.functions.invoke("kudos-notify-managers", { body: { kudo_id: kudo.id } })
           .catch((e: any) => console.error("[biscoito_submit] notify invoke failed", e?.message));
+
       } else if (insErr) {
         console.error("[biscoito_submit] insert error:", insErr);
         return new Response(
