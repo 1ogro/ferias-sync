@@ -54,5 +54,8 @@ verify_jwt = true
 [functions.engagement-monthly-report]
 verify_jwt = false
 
+[functions.slack-slash-biscoito]
+verify_jwt = false
+
 
 
