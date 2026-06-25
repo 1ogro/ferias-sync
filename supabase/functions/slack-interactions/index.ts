@@ -182,6 +182,70 @@ serve(async (req) => {
       });
     }
 
+    // view_submission for /biscoito slash command
+    if (payload.type === "view_submission" && payload.view?.callback_id === "biscoito_submit") {
+      const v = payload.view.state.values || {};
+      const toPersonId = v.kudo_to_block?.kudo_to_select?.selected_option?.value;
+      const category = v.kudo_cat_block?.kudo_cat_select?.selected_option?.value || "teamwork";
+      const message = (v.kudo_msg_block?.kudo_msg_input?.value || "").trim();
+      const shareSelected = (v.kudo_share_block?.kudo_share_check?.selected_options || []).length > 0;
+      let meta: { channel_id?: string; channel_name?: string } = {};
+      try { meta = JSON.parse(payload.view.private_metadata || "{}"); } catch (_) { /* noop */ }
+      const slackUserId = payload.user.id;
+
+      const sender = await resolveRespondent(slackUserId, supabase);
+      const errors: Record<string, string> = {};
+      if (!sender) errors["kudo_msg_block"] = "Usuário não encontrado.";
+      if (!toPersonId) errors["kudo_to_block"] = "Selecione um colega.";
+      if (!message || message.length < 3) errors["kudo_msg_block"] = "Mensagem muito curta.";
+      if (message.length > 500) errors["kudo_msg_block"] = "Máximo 500 caracteres.";
+      if (sender && toPersonId === sender.id) errors["kudo_to_block"] = "Não dá para mandar biscoito pra si mesmo 😉";
+      if (Object.keys(errors).length) {
+        return new Response(JSON.stringify({ response_action: "errors", errors }), {
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+
+      const { data: to } = await supabase.from("people").select("nome, ativo").eq("id", toPersonId).maybeSingle();
+      if (!to || !to.ativo) {
+        return new Response(JSON.stringify({ response_action: "errors", errors: { kudo_to_block: "Destinatário inativo." } }), {
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+
+      const channelToPost = shareSelected && meta.channel_id ? meta.channel_id : null;
+      const { data: kudo, error: insErr } = await supabase.from("kudos").insert({
+        from_person_id: sender!.id,
+        to_person_id: toPersonId,
+        message,
+        category,
+        slack_channel_posted: channelToPost,
+      }).select().single();
+
+      if (!insErr && kudo) {
+        await awardPoints(supabase, toPersonId, 10, "kudo_received", kudo.id);
+        await awardPoints(supabase, sender!.id, 2, "kudo_given", kudo.id);
+
+        if (channelToPost) {
+          const { data: fromP } = await supabase.from("people").select("nome").eq("id", sender!.id).maybeSingle();
+          const text = `${CATEGORY_LABEL[category] || "🍪"} *${fromP?.nome || "Alguém"}* deu um biscoito para *${to.nome}*\n> ${message}`;
+          await fetch("https://slack.com/api/chat.postMessage", {
+            method: "POST",
+            headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ channel: channelToPost, text }),
+          });
+        }
+
+        supabase.functions.invoke("kudos-notify-managers", { body: { kudo_id: kudo.id } })
+          .catch((e: any) => console.error("[biscoito_submit] notify invoke failed", e?.message));
+      } else if (insErr) {
+        console.error("[biscoito_submit] insert error:", insErr);
+      }
+
+      return new Response(JSON.stringify({ response_action: "clear" }), {
+        headers: { "Content-Type": "application/json" },
+      });
+
     // (awardPoints / completePeerPair are defined at module scope above)
 
 
