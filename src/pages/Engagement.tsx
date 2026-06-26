@@ -181,10 +181,12 @@ function GiveKudosDialog({ personId, fromName }: { personId?: string; fromName?:
             <Textarea value={message} onChange={(e) => setMessage(e.target.value)} maxLength={500} placeholder="Conta o que rolou de bom..." rows={4} />
             <p className="text-xs text-muted-foreground mt-1">{message.length}/500</p>
           </div>
-          <div>
-            <Label>Postar também em um canal do Slack? (opcional)</Label>
-            <Input value={channel} onChange={(e) => setChannel(e.target.value)} placeholder="#geral ou ID do canal (ex: C0123…)" />
-            <p className="text-xs text-muted-foreground mt-1">O bot precisa ter acesso ao canal.</p>
+          <div className="flex items-start gap-2">
+            <Checkbox id="kudo-share" checked={share} onCheckedChange={(v) => setShare(v === true)} />
+            <div className="grid gap-1 leading-none">
+              <Label htmlFor="kudo-share" className="cursor-pointer">Postar em {SHARE_CHANNEL}</Label>
+              <p className="text-xs text-muted-foreground">Compartilha o kudos no canal do Slack. Se desmarcado, fica só no app.</p>
+            </div>
           </div>
         </div>
         <DialogFooter>
