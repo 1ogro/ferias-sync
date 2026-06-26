@@ -164,6 +164,21 @@ const App = () => (
                 </Suspense>
               </ProtectedRoute>
             } />
+            <Route path="/onboarding" element={
+              <ProtectedRoute>
+                <Suspense fallback={<PageLoader />}>
+                  <Onboarding />
+                </Suspense>
+              </ProtectedRoute>
+            } />
+            <Route path="/onboarding/:audience" element={
+              <ProtectedRoute>
+                <Suspense fallback={<PageLoader />}>
+                  <Onboarding />
+                </Suspense>
+              </ProtectedRoute>
+            } />
+
 
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={
