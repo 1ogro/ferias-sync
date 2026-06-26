@@ -655,7 +655,9 @@ Deno.serve(async (req) => {
             targetPerson.email,
             blocks,
             `Olá ${targetPerson.nome}! Você foi convidado(a) para criar sua conta. ${inviteLink || "Verifique seu email."}`,
-            targetPerson.nome
+            targetPerson.nome,
+            (targetPerson as any).slack_user_id ?? null,
+            []
           );
 
           if (dmResult.ok) {
