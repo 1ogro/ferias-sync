@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Calendar, Menu, Bell, User, Users, Settings, LogOut, Shield, Sparkles } from "lucide-react";
+import { Calendar, Menu, Bell, User, Users, Settings, LogOut, Shield, Sparkles, LifeBuoy } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { ProfileModal } from "./ProfileModal";
@@ -291,6 +291,12 @@ export const Header = ({ showNavigation = true }: HeaderProps) => {
                   <DropdownMenuItem onClick={() => setIsProfileModalOpen(true)}>
                     <User className="mr-2 h-4 w-4" />
                     <span>Perfil</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link to={person?.papel === 'GESTOR' || person?.papel === 'DIRETOR' ? '/onboarding/gestor' : '/onboarding/colaborador'}>
+                      <LifeBuoy className="mr-2 h-4 w-4" />
+                      <span>Onboarding</span>
+                    </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
                     <Link to="/settings">
