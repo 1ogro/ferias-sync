@@ -1,34 +1,39 @@
-# Corrigir espaços virando "+" nas mensagens de kudos enviadas pelo Slack
+## Problema
 
-## Diagnóstico
+1. **Lista vazia no modal "Dar um kudos"**: `useActivePeople` faz `SELECT` direto em `people`, mas a RLS atual só permite admins e o próprio usuário lerem essa tabela. Usuários comuns recebem zero linhas — daí o dropdown sem nomes.
+2. **Layout divergente do `/biscoito` no Slack**: a versão web pede um campo de texto livre "#geral ou ID do canal", enquanto no Slack o usuário só marca um checkbox "Postar em `#time`".
 
-Em `supabase/functions/slack-interactions/index.ts` (linha 304), o corpo `application/x-www-form-urlencoded` que o Slack envia é decodificado assim:
+## Correções
 
-```ts
-const payload = JSON.parse(decodeURIComponent(body.replace("payload=", "")));
+### 1. Carregar pessoas via RPC SECURITY DEFINER
+
+Nova migração criando `public.get_active_people_for_kudos()` (espelha `get_active_people_for_signup`, mas devolve só `id uuid, nome text`, sem email):
+
+```sql
+CREATE OR REPLACE FUNCTION public.get_active_people_for_kudos()
+RETURNS TABLE(id uuid, nome text)
+LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$
+  SELECT p.id, p.nome FROM people p WHERE p.ativo = true ORDER BY p.nome;
+$$;
+REVOKE EXECUTE ON FUNCTION public.get_active_people_for_kudos() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.get_active_people_for_kudos() TO authenticated;
 ```
 
-No padrão form-urlencoded, espaços são codificados como `+`. O `decodeURIComponent` **não** converte `+` em espaço — ele só trata sequências `%xx`. Resultado: todo texto vindo de um `view_submission` (mensagem do modal `/biscoito`, modal de kudos do pulse, texto livre do pulse) chega com `+` em vez de espaço, e esse valor é persistido em `kudos.message` e ecoado nos posts/DMs do Slack.
+Em `src/hooks/useEngagement.ts`, trocar a query do `useActivePeople` por `supabase.rpc("get_active_people_for_kudos")`. Mantém o mesmo shape consumido em `Engagement.tsx`.
 
-Esse é o único ponto afetado: `kudos-send` (kudos pela UI web) já usa JSON puro e não tem o problema.
+### 2. Alinhar layout ao `/biscoito`
 
-## Mudança
+Em `src/pages/Engagement.tsx` (`GiveKudosDialog`):
 
-Substituir o parse manual por `URLSearchParams`, que decodifica corretamente o `+` como espaço:
+- Remover o `<Input>` de canal livre.
+- Adicionar um `<Checkbox>` opcional "Postar também em `#time`" (mesma constante `SHARE_CHANNEL = "#time"` usada em `slack-slash-biscoito`).
+- No submit, enviar `post_to_channel: share ? "#time" : null`.
+- Manter título, categorias, contador 0/500 e descrição como já estão (idênticos ao modal do Slack).
 
-```ts
-const params = new URLSearchParams(body);
-const payload = JSON.parse(params.get("payload") || "{}");
-```
-
-Arquivo afetado:
-- `supabase/functions/slack-interactions/index.ts` — apenas o trecho de parse do payload (linha ~304).
-
-## Escopo
-
-- Não toca em `slack-slash-biscoito`, `kudos-send`, `kudos-notify-managers` ou no frontend.
-- Não há migração: mensagens já gravadas com `+` permanecem como estão (posso opcionalmente rodar um `UPDATE` para sanitizar histórico — fora deste plano por padrão; me avise se quiser incluir).
+Sem mudanças em edge functions, `kudos-send` ou tipos do Supabase além da regeneração automática.
 
 ## Validação
 
-- Após o deploy automático da edge function, enviar um `/biscoito` ou kudo via pulse com uma mensagem contendo espaços e confirmar que o card postado no canal e o registro em `kudos.message` aparecem com espaços normais.
+- Logar como usuário não-admin: abrir o modal e confirmar a lista populada com colegas ativos.
+- Enviar um kudo com o checkbox marcado e verificar que aparece em `#time`; sem o checkbox, só vai como notificação interna.
+- Conferir paridade visual com o modal do Slack (campos e ordem).
