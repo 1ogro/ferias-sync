@@ -206,6 +206,23 @@ export function ApprovePendingCollaboratorDialog({
                 </p>
               </div>
 
+              <div className="space-y-2">
+                <Label htmlFor="email_pessoal">Email pessoal (opcional)</Label>
+                <Input
+                  id="email_pessoal"
+                  type="email"
+                  value={formData.email_pessoal}
+                  onChange={(e) => setFormData({ ...formData, email_pessoal: e.target.value })}
+                  disabled={loading}
+                  placeholder="joao@gmail.com"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Login alternativo e fallback de DMs no Slack quando o corporativo não estiver cadastrado lá.
+                </p>
+              </div>
+
+
+
 
 
               <div className="space-y-2">
