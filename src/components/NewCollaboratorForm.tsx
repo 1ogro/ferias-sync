@@ -18,6 +18,7 @@ interface NewCollaboratorFormProps {
 interface FormData {
   nome: string;
   email: string;
+  email_pessoal: string;
   cargo: string;
   local: string;
   sub_time: string;
@@ -53,6 +54,7 @@ export function NewCollaboratorForm({ isDirector = false, onSuccess, onCancel }:
   const [formData, setFormData] = useState<FormData>({
     nome: "",
     email: "",
+    email_pessoal: "",
     cargo: "",
     local: "",
     sub_time: "",
