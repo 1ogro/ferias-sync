@@ -214,15 +214,15 @@ serve(async (req) => {
     const channelName = params.get("channel_name") || "";
     const responseUrl = params.get("response_url") || "";
 
-    // Dispara abertura do modal em background — o trigger_id expira em 3s,
-    // então precisamos responder o Slack agora.
+    // Dispara abertura do modal e DM do app em background — o trigger_id expira em 3s.
     // @ts-ignore EdgeRuntime é disponibilizado pelo runtime do Supabase.
     EdgeRuntime.waitUntil(openModal({ slackUserId, triggerId, channelId, channelName, responseUrl }));
+    // @ts-ignore
+    EdgeRuntime.waitUntil(sendAppDM(slackUserId, "🍪 Abrindo o formulário do biscoito…"));
 
-    return new Response(
-      JSON.stringify({ response_type: "ephemeral", text: "🍪 Abrindo o formulário…" }),
-      { headers: { "Content-Type": "application/json" }, status: 200 },
-    );
+    // Resposta vazia: nada aparece no canal de origem.
+    return new Response("", { status: 200 });
+
   } catch (err: any) {
     console.error("slack-slash-biscoito error:", err);
     return new Response(
