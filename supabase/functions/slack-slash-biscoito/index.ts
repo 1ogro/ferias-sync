@@ -20,14 +20,6 @@ async function verifySlackRequest(body: string, timestamp: string, signature: st
   return `v0=${hex}` === signature;
 }
 
-async function resolveSenderEmail(slackUserId: string): Promise<string | null> {
-  const r = await fetch(`https://slack.com/api/users.info?user=${slackUserId}`, {
-    headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}` },
-  });
-  const d = await r.json();
-  return d?.user?.profile?.email ?? null;
-}
-
 async function postEphemeral(responseUrl: string, text: string) {
   try {
     await fetch(responseUrl, {
@@ -64,6 +56,48 @@ async function sendAppDM(slackUserId: string, text: string) {
   }
 }
 
+type SlackMember = {
+  id: string;
+  name?: string;
+  real_name?: string;
+  deleted?: boolean;
+  is_bot?: boolean;
+  profile?: { email?: string; display_name?: string; real_name?: string };
+};
+
+async function listAllSlackMembers(): Promise<SlackMember[]> {
+  const members: SlackMember[] = [];
+  let cursor = "";
+  for (let i = 0; i < 20; i++) { // safety cap
+    const url = `https://slack.com/api/users.list?limit=200${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`;
+    const r = await fetch(url, { headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}` } });
+    const d = await r.json();
+    if (!d.ok) {
+      console.error("[users.list]", d.error);
+      break;
+    }
+    for (const m of (d.members || []) as SlackMember[]) {
+      if (m.deleted) continue;
+      if (m.is_bot) continue;
+      if (m.id === "USLACKBOT") continue;
+      members.push(m);
+    }
+    cursor = d.response_metadata?.next_cursor || "";
+    if (!cursor) break;
+  }
+  return members;
+}
+
+function pickDisplayName(m: SlackMember): string {
+  return (
+    m.profile?.display_name?.trim() ||
+    m.profile?.real_name?.trim() ||
+    m.real_name?.trim() ||
+    m.name ||
+    m.id
+  );
+}
+
 async function openModal(opts: {
   slackUserId: string;
   triggerId: string;
@@ -71,36 +105,56 @@ async function openModal(opts: {
   channelName: string;
   responseUrl: string;
 }) {
-  const { slackUserId, triggerId, channelId, channelName, responseUrl } = opts;
+  const { slackUserId, triggerId, channelId, responseUrl } = opts;
 
   try {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const email = await resolveSenderEmail(slackUserId);
-    if (!email) {
-      await postEphemeral(responseUrl, "⚠️ Não consegui ler seu email no Slack. Verifique permissões do app.");
+    // Lista todos os usuários do Slack (não-bots, ativos)
+    const slackMembers = await listAllSlackMembers();
+    if (slackMembers.length === 0) {
+      await postEphemeral(responseUrl, "⚠️ Não consegui listar os usuários do Slack. Verifique as permissões do app (users:read, users:read.email).");
       return;
     }
 
-    const { data: sender } = await supabase
-      .from("people").select("id").eq("email", email).eq("ativo", true).maybeSingle();
-    if (!sender) {
-      await postEphemeral(responseUrl, "⚠️ Seu email do Slack não está cadastrado no sistema. Fale com um admin.");
-      return;
+    // Carrega pessoas cadastradas no app (por email)
+    const { data: peopleRows } = await supabase
+      .from("people")
+      .select("id, nome, email")
+      .eq("ativo", true);
+
+    const emailToPerson = new Map<string, { id: string; nome: string }>();
+    for (const p of (peopleRows || []) as Array<{ id: string; nome: string; email: string | null }>) {
+      if (p.email) emailToPerson.set(p.email.toLowerCase(), { id: p.id, nome: p.nome });
     }
 
-    const { data: people } = await supabase
-      .from("people").select("id, nome").eq("ativo", true).neq("id", sender.id).order("nome").limit(100);
+    // Monta opções, excluindo o próprio sender
+    type Opt = { text: string; value: string; sortKey: string };
+    const opts: Opt[] = [];
+    for (const m of slackMembers) {
+      if (m.id === slackUserId) continue;
+      const email = m.profile?.email?.toLowerCase();
+      const person = email ? emailToPerson.get(email) : undefined;
+      if (person) {
+        opts.push({ text: person.nome, value: `app:${person.id}`, sortKey: person.nome.toLowerCase() });
+      } else {
+        const name = pickDisplayName(m);
+        opts.push({ text: `${name} [slack only]`, value: `slack:${m.id}`, sortKey: name.toLowerCase() });
+      }
+    }
+    opts.sort((a, b) => a.sortKey.localeCompare(b.sortKey, "pt"));
 
-    const peopleOptions = (people || []).map((p: any) => ({
-      text: { type: "plain_text", text: p.nome.slice(0, 75) },
-      value: p.id,
-    }));
-
-    if (peopleOptions.length === 0) {
+    if (opts.length === 0) {
       await postEphemeral(responseUrl, "⚠️ Nenhum colega disponível para receber biscoitos.");
       return;
     }
+
+    // Slack limita 100 options em static_select
+    const limited = opts.slice(0, 100);
+    const peopleOptions = limited.map(o => ({
+      text: { type: "plain_text", text: o.text.slice(0, 75) },
+      value: o.value,
+    }));
 
     const categories = [
       { value: "teamwork", text: "🤝 Trabalho em equipe" },
@@ -112,8 +166,6 @@ async function openModal(opts: {
 
     const SHARE_CHANNEL = "#time";
     const privateMetadata = JSON.stringify({ channel_id: SHARE_CHANNEL, origin_channel_id: channelId || null });
-
-
 
     const view = {
       type: "modal",
@@ -130,7 +182,7 @@ async function openModal(opts: {
           element: {
             type: "static_select",
             action_id: "kudo_to_select",
-            placeholder: { type: "plain_text", text: "Escolha um colega" },
+            placeholder: { type: "plain_text", text: "Escolha um colega do Slack" },
             options: peopleOptions,
           },
         },
@@ -178,7 +230,12 @@ async function openModal(opts: {
             }],
           },
         },
-
+        {
+          type: "context",
+          elements: [
+            { type: "mrkdwn", text: "Colegas com [slack only] ainda não têm conta no app — o biscoito é registrado e os pontos entram no painel assim que o cadastro for aprovado." },
+          ],
+        },
       ],
     };
 
@@ -214,18 +271,15 @@ serve(async (req) => {
     const channelName = params.get("channel_name") || "";
     const responseUrl = params.get("response_url") || "";
 
-    // Dispara abertura do modal e DM do app em background — o trigger_id expira em 3s.
     // @ts-ignore EdgeRuntime é disponibilizado pelo runtime do Supabase.
     EdgeRuntime.waitUntil(openModal({ slackUserId, triggerId, channelId, channelName, responseUrl }));
     // @ts-ignore
     EdgeRuntime.waitUntil(sendAppDM(slackUserId, "🍪 Abrindo o formulário do biscoito…"));
 
-    // Resposta vazia: nada aparece no canal de origem.
     return new Response("", { status: 200 });
 
   } catch (err: any) {
     console.error("slack-slash-biscoito error:", err);
     return new Response("", { status: 200 });
   }
-
 });
