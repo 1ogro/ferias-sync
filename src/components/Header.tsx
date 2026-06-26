@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Calendar, Menu, Bell, User, Users, Settings, LogOut, Shield, Sparkles } from "lucide-react";
+import { Calendar, Menu, Bell, User, Users, Settings, LogOut, Shield, Sparkles, LifeBuoy } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { ProfileModal } from "./ProfileModal";
