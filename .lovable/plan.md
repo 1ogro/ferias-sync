@@ -1,47 +1,22 @@
-Atualizar o modal do comando `/biscoito` no Slack para remover a flag `[slack only]` dos nomes e ajustar o disclaimer, mantendo todo o funcionamento existente.
+Limpar todos os dados de engajamento existentes (kudos e pontuações) para reiniciar o sistema a partir de agora.
 
-## O que mudar
+## O que será apagado
 
-Arquivo: `supabase/functions/slack-slash-biscoito/index.ts`
+- **Tabela `kudos`**: todos os registros (kudos enviados, pendentes, vinculados ou não a pessoas)
+- **Tabela `engagement_points`**: todos os pontos acumulados (de kudos, pulses, streaks, peer reviews, etc.)
 
-### 1. Remover a flag `[slack only]` do texto das opções
+## O que NÃO será afetado
 
-Na construção das opções do `static_select`, o código atual faz:
+- Pessoas (`people`), perfis, papéis, gestores
+- Pulses (`pulse_surveys`, `pulse_questions`, `pulse_responses`, `pulse_runs`)
+- Preferências de notificação
+- Logs de auditoria
+- Qualquer outra tabela
 
-```ts
-opts.push({ text: `${name} [slack only]`, value: `slack:${m.id}`, sortKey: name.toLowerCase() });
-```
+## Execução
 
-Alterar para:
+`DELETE FROM public.kudos;` e `DELETE FROM public.engagement_points;` via ferramenta de dados (sem alterar schema, RLS ou estrutura).
 
-```ts
-opts.push({ text: name, value: `slack:${m.id}`, sortKey: name.toLowerCase() });
-```
+## Observação
 
-Os `value` continuam sendo `slack:${m.id}` para colegas não cadastrados, então a lógica de salvamento do biscoito (via `slack-interactions` ou `kudos-send`) não é afetada.
-
-### 2. Atualizar o disclaimer do modal
-
-Trocar o texto do bloco `context` de:
-
-> Colegas com [slack only] ainda não têm conta no app — o biscoito é registrado e os pontos entram no painel assim que o cadastro for aprovado.
-
-Para:
-
-> Alguns colegas podem ainda não ter conta no app. O biscoito será registrado e pontuado, assim que seu cadastro for aprovado.
-
-## O que não muda
-
-- A deduplicação por `seenPersonIds` e `seenSlackIds` permanece.
-- A lógica de match por email e nome contra a tabela `people` permanece.
-- A contagem de diagnóstico (`matchedByEmail`, `matchedByName`, `slackOnly`, `noEmailCount`) permanece, já que é apenas logging interno.
-- O valor `slack:${m.id}` continua sendo enviado para membros não cadastrados, preservando o funcionamento do fluxo de registro de biscoito.
-
-## Validação
-
-- Verificar via `supabase--test_edge_functions` ou `supabase--curl_edge_functions` que a função `slack-slash-biscoito` responde sem erros.
-- Confirmar no log que o modal continua sendo aberto (`views.open` ok) e que os contadores de diagnóstico ainda são impressos.
-
-## Resumo
-
-Esconde a distinção visual entre usuários cadastrados e não cadastrados no modal, mantendo a mesma lógica de backend e pontuação.
+Operação **irreversível**. Após confirmar, o feed de kudos e o ranking do mês ficarão zerados, e novos kudos/pontos passarão a contar a partir desse momento.
