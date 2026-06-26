@@ -111,7 +111,8 @@ async function openModal(opts: {
     ];
 
     const SHARE_CHANNEL = "#time";
-    const privateMetadata = JSON.stringify({ channel_id: SHARE_CHANNEL });
+    const privateMetadata = JSON.stringify({ channel_id: SHARE_CHANNEL, origin_channel_id: channelId || null });
+
 
 
     const view = {
