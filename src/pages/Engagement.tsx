@@ -210,10 +210,12 @@ function KudosFeed() {
                 return (
                   <li key={k.id} className="border rounded-lg p-3">
                     <div className="flex items-center justify-between mb-1">
-                      <div className="flex items-center gap-2 text-sm">
-                        <span className="font-semibold">{k.from?.nome ?? "Alguém"}</span>
+                      <div className="flex items-center gap-2 text-sm flex-wrap">
+                        <span className="font-semibold">{k.from?.nome ?? k.from_slack_name ?? "Alguém"}</span>
+                        {k.pending_from && <Badge variant="outline" className="text-[10px]">slack only</Badge>}
                         <span className="text-muted-foreground">→</span>
-                        <span className="font-semibold">{k.to?.nome ?? "?"}</span>
+                        <span className="font-semibold">{k.to?.nome ?? k.to_slack_name ?? "?"}</span>
+                        {k.pending_to && <Badge variant="outline" className="text-[10px]">slack only</Badge>}
                       </div>
                       <Badge className={meta.className} variant="secondary">{meta.emoji} {meta.label}</Badge>
                     </div>
