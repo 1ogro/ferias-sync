@@ -51,13 +51,14 @@ export function useKudosFeed(limit = 50) {
   return useQuery({
     queryKey: ["kudos_feed", limit],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("kudos_feed_safe" as any)
-        .select("*, from:from_person_id(nome), to:to_person_id(nome)")
-        .order("created_at", { ascending: false })
-        .limit(limit);
+      const { data, error } = await (supabase as any).rpc("get_kudos_feed", { p_limit: limit });
       if (error) throw error;
-      return (data || []) as unknown as Kudo[];
+      const rows = (data || []) as any[];
+      return rows.map((r) => ({
+        ...r,
+        from: r.from_person_nome ? { nome: r.from_person_nome } : null,
+        to: r.to_person_nome ? { nome: r.to_person_nome } : null,
+      })) as unknown as Kudo[];
     },
   });
 }

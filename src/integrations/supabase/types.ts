@@ -1180,106 +1180,7 @@ export type Database = {
       }
     }
     Views: {
-      kudos_feed_safe: {
-        Row: {
-          category: Database["public"]["Enums"]["kudos_category"] | null
-          created_at: string | null
-          from_person_id: string | null
-          from_slack_name: string | null
-          from_slack_user_id: string | null
-          id: string | null
-          message: string | null
-          pending_from: boolean | null
-          pending_to: boolean | null
-          slack_channel_posted: string | null
-          to_person_id: string | null
-          to_slack_name: string | null
-          to_slack_user_id: string | null
-        }
-        Insert: {
-          category?: Database["public"]["Enums"]["kudos_category"] | null
-          created_at?: string | null
-          from_person_id?: string | null
-          from_slack_name?: string | null
-          from_slack_user_id?: string | null
-          id?: string | null
-          message?: string | null
-          pending_from?: boolean | null
-          pending_to?: boolean | null
-          slack_channel_posted?: string | null
-          to_person_id?: string | null
-          to_slack_name?: string | null
-          to_slack_user_id?: string | null
-        }
-        Update: {
-          category?: Database["public"]["Enums"]["kudos_category"] | null
-          created_at?: string | null
-          from_person_id?: string | null
-          from_slack_name?: string | null
-          from_slack_user_id?: string | null
-          id?: string | null
-          message?: string | null
-          pending_from?: boolean | null
-          pending_to?: boolean | null
-          slack_channel_posted?: string | null
-          to_person_id?: string | null
-          to_slack_name?: string | null
-          to_slack_user_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "kudos_from_person_id_fkey"
-            columns: ["from_person_id"]
-            isOneToOne: false
-            referencedRelation: "people"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "kudos_to_person_id_fkey"
-            columns: ["to_person_id"]
-            isOneToOne: false
-            referencedRelation: "people"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      pulse_responses_safe: {
-        Row: {
-          anonymous_label: string | null
-          id: string | null
-          question_id: string | null
-          respondent_id: string | null
-          respondent_name: string | null
-          run_id: string | null
-          scale_value: number | null
-          submitted_at: string | null
-          survey_id: string | null
-          text_value: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "pulse_responses_question_id_fkey"
-            columns: ["question_id"]
-            isOneToOne: false
-            referencedRelation: "pulse_questions"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "pulse_responses_run_id_fkey"
-            columns: ["run_id"]
-            isOneToOne: false
-            referencedRelation: "pulse_runs"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "pulse_runs_survey_id_fkey"
-            columns: ["survey_id"]
-            isOneToOne: false
-            referencedRelation: "pulse_surveys"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
+      [_ in never]: never
     }
     Functions: {
       approve_pending_person: {
@@ -1353,9 +1254,44 @@ export type Database = {
           figma_status: string
         }[]
       }
+      get_kudos_feed: {
+        Args: { p_limit?: number }
+        Returns: {
+          category: Database["public"]["Enums"]["kudos_category"]
+          created_at: string
+          from_person_id: string
+          from_person_nome: string
+          from_slack_name: string
+          from_slack_user_id: string
+          id: string
+          message: string
+          pending_from: boolean
+          pending_to: boolean
+          slack_channel_posted: string
+          to_person_id: string
+          to_person_nome: string
+          to_slack_name: string
+          to_slack_user_id: string
+        }[]
+      }
       get_manager_deletion_impact: {
         Args: { p_person_id: string }
         Returns: Json
+      }
+      get_pulse_responses_safe: {
+        Args: { p_survey_id: string }
+        Returns: {
+          anonymous_label: string
+          id: string
+          question_id: string
+          respondent_id: string
+          respondent_name: string
+          run_id: string
+          scale_value: number
+          submitted_at: string
+          survey_id: string
+          text_value: string
+        }[]
       }
       get_vacation_summary: {
         Args: { p_year?: number }
