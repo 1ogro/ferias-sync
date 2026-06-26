@@ -155,10 +155,10 @@ async function sendSlackDM(
   const msgData = await msgRes.json();
 
   if (!msgData.ok) {
-    return { ok: false, error: `Erro ao enviar DM Slack: ${msgData.error}`, slackUserId, lookupMethod: "email" };
+    return { ok: false, error: `Erro ao enviar DM Slack: ${msgData.error}`, slackUserId, lookupMethod };
   }
 
-  return { ok: true, slackUserId, lookupMethod: "email", ts: msgData.ts };
+  return { ok: true, slackUserId, lookupMethod, ts: msgData.ts };
 }
 
 Deno.serve(async (req) => {
