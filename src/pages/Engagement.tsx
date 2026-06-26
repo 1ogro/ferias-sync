@@ -114,7 +114,7 @@ function GiveKudosDialog({ personId, fromName }: { personId?: string; fromName?:
   const [to, setTo] = useState<string>("");
   const [category, setCategory] = useState<KudosCategory>("teamwork");
   const [message, setMessage] = useState("");
-  const [channel, setChannel] = useState("");
+  
   const [share, setShare] = useState(false);
   const SHARE_CHANNEL = "#time";
   const { data: people = [] } = useActivePeople();
