@@ -310,18 +310,29 @@ serve(async (req) => {
         const { data: fromP } = await supabase.from("people").select("nome").eq("id", sender!.id).maybeSingle();
         const fromName = fromP?.nome || "Alguém";
 
-        if (channelToPost) {
-          const text = `${CATEGORY_LABEL[category] || "🍪"} *${fromName}* deu um biscoito para *${to.nome}*\n> ${message}`;
-          const postRes = await fetch("https://slack.com/api/chat.postMessage", {
+        const cardText = `${CATEGORY_LABEL[category] || "🍪"} *${fromName}* deu um biscoito para *${to.nome}*\n> ${message}`;
+
+        const postToChannel = async (channel: string, label: string) => {
+          const r = await fetch("https://slack.com/api/chat.postMessage", {
             method: "POST",
             headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ channel: channelToPost, text }),
+            body: JSON.stringify({ channel, text: cardText }),
           });
-          const postJson = await postRes.json();
-          if (!postJson.ok) {
-            console.log(`[biscoito_submit] channel post skipped: ${postJson.error || "unknown"} (channel=${channelToPost})`);
-          }
+          const j = await r.json();
+          if (!j.ok) console.log(`[biscoito_submit] ${label} post skipped: ${j.error || "unknown"} (channel=${channel})`);
+        };
+
+        // Post no canal de origem (se não for DM com o próprio bot)
+        const origin = meta.origin_channel_id;
+        if (origin && !origin.startsWith("D")) {
+          await postToChannel(origin, "origin");
         }
+
+        // Post no canal de compartilhamento (#time) se o checkbox foi marcado
+        if (channelToPost) {
+          await postToChannel(channelToPost, "share");
+        }
+
 
 
         await notifyRecipientDM(supabase, toPersonId, fromName, category, message, "biscoito_submit");
