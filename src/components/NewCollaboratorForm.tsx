@@ -244,6 +244,23 @@ export function NewCollaboratorForm({ isDirector = false, onSuccess, onCancel }:
       </div>
 
       <div className="space-y-2">
+        <Label htmlFor="email_pessoal">Email pessoal (opcional)</Label>
+        <Input
+          id="email_pessoal"
+          type="email"
+          value={formData.email_pessoal}
+          onChange={(e) => setFormData({ ...formData, email_pessoal: e.target.value })}
+          placeholder="joao@gmail.com"
+          disabled={loading}
+        />
+        <p className="text-xs text-muted-foreground">
+          Usado como login alternativo e para entregar convites/DMs no Slack quando o email corporativo não estiver cadastrado lá.
+        </p>
+        {errors.email_pessoal && <p className="text-sm text-destructive">{errors.email_pessoal}</p>}
+      </div>
+
+
+      <div className="space-y-2">
         <Label htmlFor="cargo">Cargo *</Label>
         <Input
           id="cargo"
