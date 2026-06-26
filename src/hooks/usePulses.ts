@@ -120,13 +120,11 @@ export function usePulseResponses(surveyId?: string) {
     queryKey: ["pulse_responses_safe", surveyId],
     enabled: !!surveyId,
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
-        .from("pulse_responses_safe")
-        .select("*")
-        .eq("survey_id", surveyId!)
-        .order("submitted_at", { ascending: false });
+      const { data, error } = await (supabase as any).rpc("get_pulse_responses_safe", {
+        p_survey_id: surveyId!,
+      });
       if (error) throw error;
-      return data as any[];
+      return (data || []) as any[];
     },
   });
 }
