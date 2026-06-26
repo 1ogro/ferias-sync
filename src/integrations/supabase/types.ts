@@ -605,6 +605,8 @@ export type Database = {
           modelo_contrato: string | null
           nome: string
           papel: string | null
+          profile_completed_at: string | null
+          slack_user_id: string | null
           sub_time: string | null
           updated_at: string | null
         }
@@ -625,6 +627,8 @@ export type Database = {
           modelo_contrato?: string | null
           nome: string
           papel?: string | null
+          profile_completed_at?: string | null
+          slack_user_id?: string | null
           sub_time?: string | null
           updated_at?: string | null
         }
@@ -645,6 +649,8 @@ export type Database = {
           modelo_contrato?: string | null
           nome?: string
           papel?: string | null
+          profile_completed_at?: string | null
+          slack_user_id?: string | null
           sub_time?: string | null
           updated_at?: string | null
         }
@@ -1298,6 +1304,7 @@ export type Database = {
         Args: { p_figma_email: string; p_person_id: string }
         Returns: Json
       }
+      mark_profile_completed: { Args: never; Returns: Json }
       reassign_and_delete_person: {
         Args: {
           p_justification?: string

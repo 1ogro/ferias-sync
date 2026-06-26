@@ -25,8 +25,12 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
         // User is authenticated but has no profile - redirect to setup
         console.log('User authenticated but no profile, redirecting to setup');
         navigate('/setup-profile');
+      } else if (user && person && !(person as any).profile_completed_at) {
+        // Approved but profile not completed yet (new flow)
+        console.log('Profile incomplete, redirecting to complete-profile');
+        navigate('/complete-profile');
       } else if (user && person && !person.data_contrato) {
-        // User has profile but no contract date - redirect to contract setup
+        // Legacy fallback for users from prior flow
         console.log('User has profile but no contract date, redirecting to contract setup');
         navigate('/setup-contract');
       }
