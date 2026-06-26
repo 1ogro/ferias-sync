@@ -122,6 +122,12 @@ export default function SetupProfile() {
         if (error) throw error;
         const result = data as { success: boolean; message: string } | null;
         if (!result?.success) {
+          // If already linked, treat as success and continue
+          if (result?.message && /já vinculado/i.test(result.message)) {
+            await fetchPersonData();
+            navigate('/');
+            return;
+          }
           throw new Error(result?.message || 'Falha ao vincular perfil');
         }
         await fetchPersonData();
@@ -136,17 +142,22 @@ export default function SetupProfile() {
       });
 
       navigate('/');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating profile:', error);
+      const description =
+        (error && typeof error === 'object' && (error.message || error.error_description || error.hint)) ||
+        (typeof error === 'string' ? error : null) ||
+        'Não foi possível criar o perfil. Tente novamente.';
       toast({
         variant: 'destructive',
         title: 'Erro ao criar perfil',
-        description: error instanceof Error ? error.message : 'Não foi possível criar o perfil. Tente novamente.',
+        description: String(description),
       });
     } finally {
       setSubmitting(false);
     }
   };
+
 
   if (!user) {
     navigate('/auth');
