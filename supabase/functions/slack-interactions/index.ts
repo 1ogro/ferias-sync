@@ -156,6 +156,135 @@ async function notifyRecipientDM(
   }
 }
 
+// ============ Shared helpers (parity with /biscoito) ============
+
+type SlackMember = {
+  id: string;
+  name?: string;
+  real_name?: string;
+  deleted?: boolean;
+  is_bot?: boolean;
+  profile?: { email?: string; display_name?: string; real_name?: string };
+};
+
+async function listAllSlackMembers(): Promise<SlackMember[]> {
+  const members: SlackMember[] = [];
+  let cursor = "";
+  for (let i = 0; i < 20; i++) {
+    const url = `https://slack.com/api/users.list?limit=200${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`;
+    const r = await fetch(url, { headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}` } });
+    const d = await r.json();
+    if (!d.ok) { console.error("[users.list]", d.error); break; }
+    for (const m of (d.members || []) as SlackMember[]) {
+      if (m.deleted || m.is_bot || m.id === "USLACKBOT") continue;
+      members.push(m);
+    }
+    cursor = d.response_metadata?.next_cursor || "";
+    if (!cursor) break;
+  }
+  return members;
+}
+
+function pickDisplayName(m: SlackMember): string {
+  return (
+    m.profile?.display_name?.trim() ||
+    m.profile?.real_name?.trim() ||
+    m.real_name?.trim() ||
+    m.name ||
+    m.id
+  );
+}
+
+const normEmail = (v: unknown): string => typeof v === "string" ? v.trim().toLowerCase() : "";
+const normName = (v: unknown): string => {
+  if (typeof v !== "string") return "";
+  return v.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase().replace(/\s+/g, " ").trim();
+};
+
+async function ensurePendingPerson(
+  supabase: any,
+  args: { slackId: string | null; email: string | null; nome: string | null; createdBy: string | null; source?: string }
+) {
+  const { slackId, email, nome, createdBy } = args;
+  const source = args.source || "slack_biscoito";
+  if (!slackId && !email) return;
+  try {
+    const { data: rows } = await supabase.from("pending_people").select("id, slack_request_count").eq("status", "PENDENTE");
+    const match = (rows || []).find((r: any) =>
+      (slackId && r.slack_user_id === slackId) ||
+      (email && r.email && r.email.toLowerCase() === email.toLowerCase())
+    );
+    if (match) {
+      await supabase.from("pending_people").update({
+        slack_request_count: (match.slack_request_count || 0) + 1,
+        last_slack_request_at: new Date().toISOString(),
+        slack_user_id: slackId || undefined,
+      }).eq("id", match.id);
+    } else {
+      await supabase.from("pending_people").insert({
+        nome: nome || email || "Usuário do Slack",
+        email,
+        papel: "COLABORADOR",
+        status: "PENDENTE",
+        source,
+        slack_user_id: slackId,
+        slack_request_count: 1,
+        last_slack_request_at: new Date().toISOString(),
+        created_by: createdBy,
+      });
+    }
+  } catch (e: any) {
+    console.error("[ensurePendingPerson] error:", e?.message || e);
+  }
+}
+
+async function notifyAdminsPending(
+  supabase: any,
+  args: { pendingFrom: boolean; pendingTo: boolean; senderName: string; senderEmail: string | null; toName: string | null; toEmail: string | null; origin: string }
+) {
+  try {
+    const { data: adminsRaw } = await supabase
+      .from("people")
+      .select("email, papel, is_admin")
+      .eq("ativo", true)
+      .or("is_admin.eq.true,papel.eq.DIRETOR");
+    const seen = new Set<string>();
+    const admins = (adminsRaw || []).filter((a: any) => {
+      const key = (a.email || "").toLowerCase();
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+    const lines: string[] = [];
+    if (args.pendingFrom) lines.push(`• *${args.senderName} enviou* um biscoito (${args.senderEmail || "(sem email)"})`);
+    if (args.pendingTo) lines.push(`• *${(args.toName || "Colega")} recebeu* um biscoito (${args.toEmail || "(sem email)"})`);
+    const text = `🔔 *Novo cadastro pendente via ${args.origin}*\n${lines.join("\n")}\n\nAprove em Administração → Cadastros Pendentes para creditar os pontos retroativamente.`;
+    for (const a of admins as Array<{ email: string | null }>) {
+      if (!a.email) continue;
+      const lookupRes = await fetch(`https://slack.com/api/users.lookupByEmail?email=${encodeURIComponent(a.email)}`,
+        { headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}` } });
+      const lookup = await lookupRes.json();
+      if (!lookup.ok || !lookup.user?.id) continue;
+      const openRes = await fetch("https://slack.com/api/conversations.open", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ users: lookup.user.id }),
+      });
+      const open = await openRes.json();
+      if (!open.ok || !open.channel?.id) continue;
+      await fetch("https://slack.com/api/chat.postMessage", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ channel: open.channel.id, text }),
+      });
+    }
+  } catch (e: any) {
+    console.error("[notifyAdminsPending] error:", e?.message || e);
+  }
+}
+
+
+
 
 
 
