@@ -97,7 +97,7 @@ export function ApprovePendingCollaboratorDialog({
 
       const result = data as any;
       if (result?.success) {
-        // Fire-and-forget Slack notification
+        // Fire-and-forget Slack notification (canal interno para diretores)
         supabase.functions.invoke('slack-notification', {
           body: {
             type: 'PERSON_APPROVED',
@@ -106,6 +106,13 @@ export function ApprovePendingCollaboratorDialog({
             directorName: person.nome,
           },
         }).catch((err) => console.warn('Slack notification failed:', err));
+
+        // Notifica o novo colaborador (DM Slack + email com link p/ completar perfil)
+        if (result.person_id) {
+          supabase.functions.invoke('notify-approved-collaborator', {
+            body: { person_id: result.person_id },
+          }).catch((err) => console.warn('notify-approved-collaborator failed:', err));
+        }
 
         toast({
           title: "Sucesso",
