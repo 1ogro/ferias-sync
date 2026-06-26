@@ -40,6 +40,30 @@ async function postEphemeral(responseUrl: string, text: string) {
   }
 }
 
+async function sendAppDM(slackUserId: string, text: string) {
+  try {
+    const openRes = await fetch("https://slack.com/api/conversations.open", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ users: slackUserId }),
+    });
+    const open = await openRes.json();
+    if (!open.ok || !open.channel?.id) {
+      console.log(`[slash-biscoito] app dm open failed: ${open.error || "unknown"}`);
+      return;
+    }
+    const postRes = await fetch("https://slack.com/api/chat.postMessage", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ channel: open.channel.id, text }),
+    });
+    const post = await postRes.json();
+    if (!post.ok) console.log(`[slash-biscoito] app dm post failed: ${post.error || "unknown"}`);
+  } catch (e: any) {
+    console.error("[slash-biscoito] app dm error:", e?.message || e);
+  }
+}
+
 async function openModal(opts: {
   slackUserId: string;
   triggerId: string;
@@ -48,6 +72,7 @@ async function openModal(opts: {
   responseUrl: string;
 }) {
   const { slackUserId, triggerId, channelId, channelName, responseUrl } = opts;
+
   try {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
