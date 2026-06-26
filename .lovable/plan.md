@@ -1,39 +1,49 @@
-## Problema
+## Resumo
 
-1. **Lista vazia no modal "Dar um kudos"**: `useActivePeople` faz `SELECT` direto em `people`, mas a RLS atual só permite admins e o próprio usuário lerem essa tabela. Usuários comuns recebem zero linhas — daí o dropdown sem nomes.
-2. **Layout divergente do `/biscoito` no Slack**: a versão web pede um campo de texto livre "#geral ou ID do canal", enquanto no Slack o usuário só marca um checkbox "Postar em `#time`".
+1. Permitir que um colaborador faça login com email pessoal e vincule-se a um cadastro existente **sem alterar `people.email`** — a vinculação só rola se a pessoa selecionada já tiver `slack_user_id` (sinal de que passou pelo fluxo aprovado via Slack).
+2. Exigir email `@rededor.com.br` em dois pontos: no `CompleteProfile` do colaborador e na aprovação do `pending_people` pelo diretor.
 
-## Correções
+## 1. Vincular email pessoal via `slack_user_id`
 
-### 1. Carregar pessoas via RPC SECURITY DEFINER
+### Migração
+Criar RPC `public.link_profile_personal_email(p_person_id text)`:
 
-Nova migração criando `public.get_active_people_for_kudos()` (espelha `get_active_people_for_signup`, mas devolve só `id uuid, nome text`, sem email):
+- `SECURITY DEFINER`, exige `auth.uid()`.
+- Falha se o user já tem profile.
+- Falha se `people` selecionado: não existe, está inativo, ou `slack_user_id IS NULL` (só perfis já validados pelo fluxo Slack podem ser linkados sem conferência de email).
+- Insere em `profiles(user_id, person_id)`. **Não toca em `people.email`.**
+- Log em `audit_logs` (`acao = 'LINK_PERSONAL_EMAIL'`, payload com `auth_email`).
 
-```sql
-CREATE OR REPLACE FUNCTION public.get_active_people_for_kudos()
-RETURNS TABLE(id uuid, nome text)
-LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$
-  SELECT p.id, p.nome FROM people p WHERE p.ativo = true ORDER BY p.nome;
-$$;
-REVOKE EXECUTE ON FUNCTION public.get_active_people_for_kudos() FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.get_active_people_for_kudos() TO authenticated;
-```
+### `src/pages/SetupProfile.tsx`
 
-Em `src/hooks/useEngagement.ts`, trocar a query do `useActivePeople` por `supabase.rpc("get_active_people_for_kudos")`. Mantém o mesmo shape consumido em `Engagement.tsx`.
+- Manter dropdown atual com `get_active_people_for_signup`.
+- Ao selecionar, comparar `user.email` (lower) com `people.email` da opção:
+  - **Match** → fluxo atual (`createProfile` direto / `link_profile_with_figma_email` para Figma).
+  - **Mismatch** → mostrar `<Alert>` "Vamos manter o email corporativo cadastrado e usar `<seu email>` apenas para login." e chamar `link_profile_personal_email`. Se a pessoa não tiver `slack_user_id`, exibir mensagem "Esse colaborador ainda não foi validado pelo Slack — peça ao diretor para aprovar primeiro."
 
-### 2. Alinhar layout ao `/biscoito`
+## 2. Exigir `@rededor.com.br` em novos cadastros
 
-Em `src/pages/Engagement.tsx` (`GiveKudosDialog`):
+### `src/pages/CompleteProfile.tsx`
 
-- Remover o `<Input>` de canal livre.
-- Adicionar um `<Checkbox>` opcional "Postar também em `#time`" (mesma constante `SHARE_CHANNEL = "#time"` usada em `slack-slash-biscoito`).
-- No submit, enviar `post_to_channel: share ? "#time" : null`.
-- Manter título, categorias, contador 0/500 e descrição como já estão (idênticos ao modal do Slack).
+- Novo campo `Email corporativo (@rededor.com.br)` (obrigatório só quando `person.email` atual **não** termina em `@rededor.com.br`).
+- Validação client-side: regex `/@rededor\.com\.br$/i`, trim, lowercase, max 255.
+- Estender `complete_own_profile` RPC com parâmetro opcional `p_corporate_email text`:
+  - Se informado, valida regex no servidor, checa unicidade (`lower(email)` em `people` exclui o próprio), atualiza `people.email` e loga em `audit_logs` (`CORPORATE_EMAIL_SET`).
+  - Se já tem `@rededor.com.br`, parâmetro é ignorado.
 
-Sem mudanças em edge functions, `kudos-send` ou tipos do Supabase além da regeneração automática.
+### `src/components/ApprovePendingCollaboratorDialog.tsx`
+
+- Validar no submit que `formData.email` termina em `@rededor.com.br` (regex + trim). Bloquear com toast destrutivo caso contrário, exibindo o domínio esperado abaixo do input.
+- Sem mudança no `approve_pending_person`; a validação do diretor já garante o domínio, e o domínio passa intacto para `p_email`.
+
+## Fora de escopo
+
+- Não criar tabela de aliases de email, não alterar `people.email` quando o login for por email pessoal e existir cadastro corporativo.
+- Não mexer em `auto_link_figma_user` (continua linkando automaticamente quando o email do auth bate com `people.email`).
 
 ## Validação
 
-- Logar como usuário não-admin: abrir o modal e confirmar a lista populada com colegas ativos.
-- Enviar um kudo com o checkbox marcado e verificar que aparece em `#time`; sem o checkbox, só vai como notificação interna.
-- Conferir paridade visual com o modal do Slack (campos e ordem).
+- Logar com email pessoal, abrir `/setup-profile`, escolher uma pessoa com `slack_user_id` preenchido e email corporativo — perfil é criado, `people.email` permanece corporativo, log `LINK_PERSONAL_EMAIL` registrado.
+- Mesma tela com pessoa sem `slack_user_id` → erro com instrução clara.
+- `/complete-profile` para alguém com email atual `gmail.com` → campo aparece, salva só com `@rededor.com.br`.
+- Aprovação de pending com email `gmail.com` → bloqueia até trocar para `@rededor.com.br`.
