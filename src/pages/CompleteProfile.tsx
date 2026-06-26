@@ -24,7 +24,11 @@ export default function CompleteProfile() {
   const [dataContrato, setDataContrato] = useState("");
   const [modeloContrato, setModeloContrato] = useState<ModeloContrato>(ModeloContrato.CLT);
   const [diaPagamento, setDiaPagamento] = useState<number | null>(null);
+  const [corporateEmail, setCorporateEmail] = useState("");
   const [saving, setSaving] = useState(false);
+
+  const currentEmail = (person?.email || "").toLowerCase();
+  const needsCorporateEmail = !!person && !/@rededor\.com\.br$/i.test(currentEmail);
 
   useEffect(() => {
     if (!person) return;
