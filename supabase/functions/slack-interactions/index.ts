@@ -269,8 +269,9 @@ serve(async (req) => {
       const category = v.kudo_cat_block?.kudo_cat_select?.selected_option?.value || "teamwork";
       const message = (v.kudo_msg_block?.kudo_msg_input?.value || "").trim();
       const shareSelected = (v.kudo_share_block?.kudo_share_check?.selected_options || []).length > 0;
-      let meta: { channel_id?: string; channel_name?: string } = {};
+      let meta: { channel_id?: string; origin_channel_id?: string | null } = {};
       try { meta = JSON.parse(payload.view.private_metadata || "{}"); } catch (_) { /* noop */ }
+
       const slackUserId = payload.user.id;
 
       const sender = await resolveRespondent(slackUserId, supabase);
