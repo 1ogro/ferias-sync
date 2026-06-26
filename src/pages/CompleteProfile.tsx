@@ -138,6 +138,23 @@ export default function CompleteProfile() {
                 max={new Date().toISOString().split("T")[0]}
               />
             </div>
+            {needsCorporateEmail && (
+              <div className="space-y-2">
+                <Label htmlFor="corp-email">Email corporativo *</Label>
+                <Input
+                  id="corp-email"
+                  type="email"
+                  value={corporateEmail}
+                  onChange={(e) => setCorporateEmail(e.target.value)}
+                  disabled={saving}
+                  placeholder="nome.sobrenome@rededor.com.br"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Seu email atual (<strong>{person?.email}</strong>) não é corporativo. Informe um email
+                  terminado em <strong>@rededor.com.br</strong> para concluir o cadastro.
+                </p>
+              </div>
+            )}
           </section>
 
           <section className="space-y-4">
