@@ -225,6 +225,17 @@ export default function SetupProfile() {
             </Select>
           </div>
 
+          {isPersonalEmailLink && (
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                Você está logado com <strong>{user?.email}</strong>, diferente do email corporativo
+                cadastrado (<strong>{selectedPerson?.email}</strong>). Vamos manter o email corporativo
+                no cadastro e usar o seu pessoal apenas para login.
+              </AlertDescription>
+            </Alert>
+          )}
+
           <Button 
             onClick={handleSubmit} 
             className="w-full" 
