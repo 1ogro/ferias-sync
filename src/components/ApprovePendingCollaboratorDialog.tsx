@@ -34,6 +34,7 @@ export function ApprovePendingCollaboratorDialog({
   const [formData, setFormData] = useState({
     nome: pending.nome,
     email: pending.email,
+    email_pessoal: pending.email_pessoal || "",
     cargo: pending.cargo || "",
     local: pending.local || "",
     sub_time: pending.sub_time || "",
@@ -76,6 +77,13 @@ export function ApprovePendingCollaboratorDialog({
 
     setLoading(true);
     try {
+      const emailPessoalNormalized = formData.email_pessoal.trim().toLowerCase() || null;
+      if (emailPessoalNormalized && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailPessoalNormalized)) {
+        toast({ title: "Email pessoal inválido", description: "Verifique o formato do email pessoal.", variant: "destructive" });
+        setLoading(false);
+        return;
+      }
+
       // Build RPC args dynamically — only include optional fields when they have real values
       const rpcArgs: Record<string, any> = {
         p_pending_id: pending.id,
@@ -88,6 +96,7 @@ export function ApprovePendingCollaboratorDialog({
         p_sub_time: formData.sub_time !== pending.sub_time ? formData.sub_time : null,
         p_gestor_id: formData.gestor_id !== pending.gestor_id ? formData.gestor_id : null,
         p_modelo_contrato: formData.modelo_contrato !== pending.modelo_contrato ? formData.modelo_contrato : null,
+        p_email_pessoal: emailPessoalNormalized,
       };
 
       // Only add date/integer fields if they have actual values to avoid PostgreSQL type errors
