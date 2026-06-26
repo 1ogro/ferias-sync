@@ -52,7 +52,7 @@ export function useKudosFeed(limit = 50) {
     queryKey: ["kudos_feed", limit],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("kudos")
+        .from("kudos_feed_safe" as any)
         .select("*, from:from_person_id(nome), to:to_person_id(nome)")
         .order("created_at", { ascending: false })
         .limit(limit);
@@ -80,11 +80,18 @@ export function useMyPoints(personId?: string) {
   const qc = useQueryClient();
   useEffect(() => {
     if (!personId) return;
+    // engagement_points was removed from the realtime publication to avoid
+    // broadcasting teammates' points; piggy-back on kudos inserts instead.
     const ch = supabase
       .channel(`my-points-${personId}`)
       .on(
         "postgres_changes",
-        { event: "INSERT", schema: "public", table: "engagement_points", filter: `person_id=eq.${personId}` },
+        { event: "INSERT", schema: "public", table: "kudos", filter: `to_person_id=eq.${personId}` },
+        () => qc.invalidateQueries({ queryKey: ["my_points", personId] })
+      )
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "kudos", filter: `from_person_id=eq.${personId}` },
         () => qc.invalidateQueries({ queryKey: ["my_points", personId] })
       )
       .subscribe();
