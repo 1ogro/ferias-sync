@@ -293,6 +293,12 @@ export const Header = ({ showNavigation = true }: HeaderProps) => {
                     <span>Perfil</span>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
+                    <Link to={person?.papel === 'GESTOR' || person?.papel === 'DIRETOR' ? '/onboarding/gestor' : '/onboarding/colaborador'}>
+                      <LifeBuoy className="mr-2 h-4 w-4" />
+                      <span>Onboarding</span>
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
                     <Link to="/settings">
                       <Settings className="mr-2 h-4 w-4" />
                       <span>Configurações</span>
