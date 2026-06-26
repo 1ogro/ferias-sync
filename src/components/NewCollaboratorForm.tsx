@@ -133,9 +133,12 @@ export function NewCollaboratorForm({ isDirector = false, onSuccess, onCancel }:
 
       const papelValue = isDirector ? formData.papel : Papel.COLABORADOR;
 
+      const emailPessoalNormalized = formData.email_pessoal.trim().toLowerCase() || null;
+
       const { data: insertedRows, error } = await supabase.from("pending_people").insert({
         nome: formData.nome.trim(),
         email: formData.email.trim().toLowerCase(),
+        email_pessoal: emailPessoalNormalized,
         cargo: formData.cargo.trim(),
         local: formData.local.trim() || null,
         sub_time: formData.sub_time.trim(),
@@ -147,7 +150,7 @@ export function NewCollaboratorForm({ isDirector = false, onSuccess, onCancel }:
         dia_pagamento: formData.modelo_contrato === ModeloContrato.PJ && formData.dia_pagamento ? parseInt(formData.dia_pagamento) : null,
         created_by: person.id,
         status: "PENDENTE",
-      }).select();
+      } as any).select();
 
       if (error) throw error;
 
