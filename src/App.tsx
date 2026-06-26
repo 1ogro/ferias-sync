@@ -34,6 +34,7 @@ const FigmaCallback = lazy(() => import("./pages/FigmaCallback"));
 const FigmaDiagnostic = lazy(() => import("./pages/FigmaDiagnostic"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const NotFound = lazy(() => import("./pages/NotFound"));
+const Onboarding = lazy(() => import("./pages/Onboarding"));
 
 const queryClient = new QueryClient();
 
