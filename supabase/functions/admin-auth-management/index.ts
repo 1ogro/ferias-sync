@@ -262,7 +262,7 @@ Deno.serve(async (req) => {
     // Get target person's email and role (may be missing for deletion notifications)
     const { data: targetPerson } = await adminClient
       .from("people")
-      .select("email, nome, papel, slack_user_id")
+      .select("email, email_pessoal, nome, papel, slack_user_id")
       .eq("id", person_id)
       .maybeSingle();
 
@@ -384,7 +384,7 @@ Deno.serve(async (req) => {
             `Olá ${targetPerson.nome}! Foi solicitada a recuperação da sua senha. ${recoveryLink || "Verifique seu email."}`,
             targetPerson.nome,
             (targetPerson as any).slack_user_id ?? null,
-            [loginEmail]
+            [loginEmail, (targetPerson as any).email_pessoal ?? null]
           );
           dmResultOuter = dmResult;
 
@@ -657,7 +657,7 @@ Deno.serve(async (req) => {
             `Olá ${targetPerson.nome}! Você foi convidado(a) para criar sua conta. ${inviteLink || "Verifique seu email."}`,
             targetPerson.nome,
             (targetPerson as any).slack_user_id ?? null,
-            []
+            [(targetPerson as any).email_pessoal ?? null]
           );
 
           if (dmResult.ok) {
