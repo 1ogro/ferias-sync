@@ -241,29 +241,53 @@ export type Database = {
         Row: {
           category: Database["public"]["Enums"]["kudos_category"]
           created_at: string
-          from_person_id: string
+          from_person_id: string | null
+          from_slack_email: string | null
+          from_slack_name: string | null
+          from_slack_user_id: string | null
           id: string
           message: string
+          pending_from: boolean
+          pending_to: boolean
           slack_channel_posted: string | null
-          to_person_id: string
+          to_person_id: string | null
+          to_slack_email: string | null
+          to_slack_name: string | null
+          to_slack_user_id: string | null
         }
         Insert: {
           category?: Database["public"]["Enums"]["kudos_category"]
           created_at?: string
-          from_person_id: string
+          from_person_id?: string | null
+          from_slack_email?: string | null
+          from_slack_name?: string | null
+          from_slack_user_id?: string | null
           id?: string
           message: string
+          pending_from?: boolean
+          pending_to?: boolean
           slack_channel_posted?: string | null
-          to_person_id: string
+          to_person_id?: string | null
+          to_slack_email?: string | null
+          to_slack_name?: string | null
+          to_slack_user_id?: string | null
         }
         Update: {
           category?: Database["public"]["Enums"]["kudos_category"]
           created_at?: string
-          from_person_id?: string
+          from_person_id?: string | null
+          from_slack_email?: string | null
+          from_slack_name?: string | null
+          from_slack_user_id?: string | null
           id?: string
           message?: string
+          pending_from?: boolean
+          pending_to?: boolean
           slack_channel_posted?: string | null
-          to_person_id?: string
+          to_person_id?: string | null
+          to_slack_email?: string | null
+          to_slack_name?: string | null
+          to_slack_user_id?: string | null
         }
         Relationships: [
           {
@@ -472,9 +496,10 @@ export type Database = {
           data_nascimento: string | null
           dia_pagamento: number | null
           director_notes: string | null
-          email: string
+          email: string | null
           gestor_id: string | null
           id: string
+          last_slack_request_at: string | null
           local: string | null
           modelo_contrato: string | null
           nome: string
@@ -482,6 +507,9 @@ export type Database = {
           rejection_reason: string | null
           reviewed_at: string | null
           reviewed_by: string | null
+          slack_request_count: number
+          slack_user_id: string | null
+          source: string
           status: string
           sub_time: string | null
         }
@@ -493,9 +521,10 @@ export type Database = {
           data_nascimento?: string | null
           dia_pagamento?: number | null
           director_notes?: string | null
-          email: string
+          email?: string | null
           gestor_id?: string | null
           id?: string
+          last_slack_request_at?: string | null
           local?: string | null
           modelo_contrato?: string | null
           nome: string
@@ -503,6 +532,9 @@ export type Database = {
           rejection_reason?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
+          slack_request_count?: number
+          slack_user_id?: string | null
+          source?: string
           status?: string
           sub_time?: string | null
         }
@@ -514,9 +546,10 @@ export type Database = {
           data_nascimento?: string | null
           dia_pagamento?: number | null
           director_notes?: string | null
-          email?: string
+          email?: string | null
           gestor_id?: string | null
           id?: string
+          last_slack_request_at?: string | null
           local?: string | null
           modelo_contrato?: string | null
           nome?: string
@@ -524,6 +557,9 @@ export type Database = {
           rejection_reason?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
+          slack_request_count?: number
+          slack_user_id?: string | null
+          source?: string
           status?: string
           sub_time?: string | null
         }
