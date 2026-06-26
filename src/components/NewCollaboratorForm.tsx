@@ -171,7 +171,8 @@ export function NewCollaboratorForm({ isDirector = false, onSuccess, onCancel }:
           p_data_nascimento: formData.data_nascimento || null,
           p_modelo_contrato: formData.modelo_contrato,
           p_dia_pagamento: formData.modelo_contrato === ModeloContrato.PJ && formData.dia_pagamento ? parseInt(formData.dia_pagamento) : null,
-        });
+          p_email_pessoal: emailPessoalNormalized,
+        } as any);
 
         if (approveError) throw approveError;
 
