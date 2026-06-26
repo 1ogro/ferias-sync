@@ -424,8 +424,18 @@ serve(async (req) => {
       if (pendingFrom || pendingTo) {
         const notifyAdmins = async () => {
           try {
-            const { data: admins } = await supabase
-              .from("people").select("email, nome").eq("is_admin", true).eq("ativo", true);
+            const { data: adminsRaw } = await supabase
+              .from("people")
+              .select("email, nome, papel, is_admin")
+              .eq("ativo", true)
+              .or("is_admin.eq.true,papel.eq.DIRETOR");
+            const seen = new Set<string>();
+            const admins = (adminsRaw || []).filter((a: any) => {
+              const key = (a.email || "").toLowerCase();
+              if (!key || seen.has(key)) return false;
+              seen.add(key);
+              return true;
+            });
             const targets: Array<{ email: string; slackName: string }> = [];
             for (const lado of [
               pendingFrom ? { who: senderName, email: senderEmail, role: "enviou" } : null,
