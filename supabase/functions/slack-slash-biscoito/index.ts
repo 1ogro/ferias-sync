@@ -225,9 +225,7 @@ serve(async (req) => {
 
   } catch (err: any) {
     console.error("slack-slash-biscoito error:", err);
-    return new Response(
-      JSON.stringify({ response_type: "ephemeral", text: "⚠️ Erro inesperado ao processar o comando." }),
-      { headers: { "Content-Type": "application/json" }, status: 200 },
-    );
+    return new Response("", { status: 200 });
   }
+
 });
