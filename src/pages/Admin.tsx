@@ -85,6 +85,7 @@ interface FormData {
   id: string;
   nome: string;
   email: string;
+  email_pessoal: string;
   cargo: string;
   local: string;
   subTime: string;
@@ -133,6 +134,7 @@ const Admin = () => {
      id: '',
      nome: '',
      email: '',
+     email_pessoal: '',
      cargo: '',
      local: '',
      subTime: '',
@@ -308,10 +310,18 @@ const Admin = () => {
     setSubmitting(true);
 
     try {
+      const emailPessoalNormalized = formData.email_pessoal.trim().toLowerCase() || null;
+      if (emailPessoalNormalized && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailPessoalNormalized)) {
+        toast({ title: "Email pessoal inválido", description: "Verifique o formato.", variant: "destructive" });
+        setSubmitting(false);
+        return;
+      }
+
       const data = {
         id: formData.id,
         nome: formData.nome,
         email: formData.email,
+        email_pessoal: emailPessoalNormalized,
         cargo: formData.cargo || null,
         local: formData.local || null,
         sub_time: formData.subTime || null,
@@ -395,6 +405,7 @@ const Admin = () => {
        id: personToEdit.id,
        nome: personToEdit.nome,
        email: personToEdit.email,
+       email_pessoal: personToEdit.email_pessoal || '',
        cargo: personToEdit.cargo || '',
        local: personToEdit.local || '',
        subTime: personToEdit.subTime || '',
