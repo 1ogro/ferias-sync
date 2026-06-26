@@ -82,28 +82,63 @@ async function sendSlackDM(
   email: string,
   blocks: any[],
   fallbackText: string,
-  _personName?: string
+  personName?: string,
+  knownSlackUserId?: string | null,
+  extraEmails: (string | null | undefined)[] = []
 ): Promise<{ ok: boolean; error?: string; slackUserId?: string; lookupMethod?: string; ts?: string }> {
-  // Lookup Slack user STRICTLY by email — no silent name fallback
-  const lookupRes = await fetch(
-    `https://slack.com/api/users.lookupByEmail?email=${encodeURIComponent(email)}`,
-    {
-      headers: { Authorization: `Bearer ${slackToken}` },
-    }
-  );
-  const lookupData = await lookupRes.json();
+  let slackUserId: string | null = null;
+  let lookupMethod = "";
 
-  if (!lookupData.ok) {
-    console.warn(`Slack lookupByEmail failed for ${email}: ${lookupData.error}`);
-    return {
-      ok: false,
-      error: `Usuário não encontrado no Slack pelo email ${email} (${lookupData.error}). Confirme que o email do colaborador é o mesmo cadastrado no Slack ou tente o método de Email.`,
-    };
+  // 1) Direct slack_user_id (stored on people / found via Slack approval flow)
+  if (knownSlackUserId && knownSlackUserId.trim().length > 0) {
+    slackUserId = knownSlackUserId.trim();
+    lookupMethod = "slack_user_id";
   }
 
-  const slackUserId: string = lookupData.user.id;
-  const slackUserName: string = lookupData.user?.profile?.real_name || lookupData.user?.real_name || lookupData.user?.name || "";
-  console.log(`Slack DM target resolved by email ${email} -> ${slackUserId} (${slackUserName})`);
+  // 2) Try lookupByEmail across all candidate emails (corporate + personal login email)
+  if (!slackUserId) {
+    const tried: string[] = [];
+    const candidates = [email, ...extraEmails]
+      .map((e) => (e || "").trim().toLowerCase())
+      .filter((e, i, arr) => e && arr.indexOf(e) === i);
+    for (const candidate of candidates) {
+      tried.push(candidate);
+      const lookupRes = await fetch(
+        `https://slack.com/api/users.lookupByEmail?email=${encodeURIComponent(candidate)}`,
+        { headers: { Authorization: `Bearer ${slackToken}` } }
+      );
+      const lookupData = await lookupRes.json();
+      if (lookupData.ok) {
+        slackUserId = lookupData.user.id;
+        lookupMethod = `email:${candidate}`;
+        break;
+      }
+      console.warn(`Slack lookupByEmail failed for ${candidate}: ${lookupData.error}`);
+    }
+
+    // 3) Fall back to name match
+    if (!slackUserId && personName) {
+      const byName = await findSlackUserByName(slackToken, personName);
+      if (byName.id) {
+        slackUserId = byName.id;
+        lookupMethod = "name";
+      } else if (byName.reason === "multiple_matches") {
+        return {
+          ok: false,
+          error: `Vários usuários no Slack têm o nome "${personName}". Cadastre o email correto no Slack ou use o método de Email.`,
+        };
+      }
+    }
+
+    if (!slackUserId) {
+      return {
+        ok: false,
+        error: `Usuário não encontrado no Slack (tentei: ${tried.join(", ") || "—"}${personName ? ` e nome "${personName}"` : ""}). Confirme o email cadastrado no Slack ou use o método de Email.`,
+      };
+    }
+  }
+
+  console.log(`Slack DM target resolved via ${lookupMethod} -> ${slackUserId}`);
 
   const msgRes = await fetch("https://slack.com/api/chat.postMessage", {
     method: "POST",
@@ -120,10 +155,10 @@ async function sendSlackDM(
   const msgData = await msgRes.json();
 
   if (!msgData.ok) {
-    return { ok: false, error: `Erro ao enviar DM Slack: ${msgData.error}`, slackUserId, lookupMethod: "email" };
+    return { ok: false, error: `Erro ao enviar DM Slack: ${msgData.error}`, slackUserId, lookupMethod };
   }
 
-  return { ok: true, slackUserId, lookupMethod: "email", ts: msgData.ts };
+  return { ok: true, slackUserId, lookupMethod, ts: msgData.ts };
 }
 
 Deno.serve(async (req) => {
@@ -224,9 +259,10 @@ Deno.serve(async (req) => {
     }
 
     // Get target person's email and role (may be missing for deletion notifications)
+    // Get target person's email and role (may be missing for deletion notifications)
     const { data: targetPerson } = await adminClient
       .from("people")
-      .select("email, nome, papel")
+      .select("email, nome, papel, slack_user_id")
       .eq("id", person_id)
       .maybeSingle();
 
@@ -330,12 +366,25 @@ Deno.serve(async (req) => {
             },
           ];
 
+          // Also try the user's auth (login) email — may be a personal email registered in Slack
+          let loginEmail: string | null = null;
+          try {
+            const { data: profRow } = await adminClient
+              .from("profiles").select("user_id").eq("person_id", person_id).maybeSingle();
+            if (profRow?.user_id) {
+              const { data: authUserRes } = await adminClient.auth.admin.getUserById(profRow.user_id);
+              loginEmail = authUserRes?.user?.email ?? null;
+            }
+          } catch (_) { /* ignore */ }
+
           const dmResult = await sendSlackDM(
             slackToken,
             targetPerson.email,
             blocks,
             `Olá ${targetPerson.nome}! Foi solicitada a recuperação da sua senha. ${recoveryLink || "Verifique seu email."}`,
-            targetPerson.nome
+            targetPerson.nome,
+            (targetPerson as any).slack_user_id ?? null,
+            [loginEmail]
           );
           dmResultOuter = dmResult;
 
@@ -606,7 +655,9 @@ Deno.serve(async (req) => {
             targetPerson.email,
             blocks,
             `Olá ${targetPerson.nome}! Você foi convidado(a) para criar sua conta. ${inviteLink || "Verifique seu email."}`,
-            targetPerson.nome
+            targetPerson.nome,
+            (targetPerson as any).slack_user_id ?? null,
+            []
           );
 
           if (dmResult.ok) {
