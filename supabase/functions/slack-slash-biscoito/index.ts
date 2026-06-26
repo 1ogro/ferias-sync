@@ -119,58 +119,108 @@ async function openModal(opts: {
 
     const normEmail = (v: unknown): string =>
       typeof v === "string" ? v.trim().toLowerCase() : "";
+    const normName = (v: unknown): string => {
+      if (typeof v !== "string") return "";
+      return v
+        .normalize("NFD")
+        .replace(/\p{Diacritic}/gu, "")
+        .toLowerCase()
+        .replace(/\s+/g, " ")
+        .trim();
+    };
 
-    // Carrega pessoas cadastradas no app (por email normalizado)
+    // Carrega pessoas cadastradas no app
     const { data: peopleRows } = await supabase
       .from("people")
       .select("id, nome, email")
       .eq("ativo", true);
 
     const emailToPerson = new Map<string, { id: string; nome: string }>();
+    const nameToPerson = new Map<string, { id: string; nome: string }>();
     for (const p of (peopleRows || []) as Array<{ id: string; nome: string; email: string | null }>) {
       const e = normEmail(p.email);
       if (e) emailToPerson.set(e, { id: p.id, nome: p.nome });
+      const n = normName(p.nome);
+      if (n) {
+        if (nameToPerson.has(n)) {
+          console.warn(`[slash-biscoito] duplicate normalized name in people: "${n}"`);
+        } else {
+          nameToPerson.set(n, { id: p.id, nome: p.nome });
+        }
+      }
     }
 
-    // Descobre o email do sender (pode ter múltiplas contas Slack)
+    // Descobre email e nome do sender (pode ter múltiplas contas Slack)
     let senderEmail = "";
+    let senderName = "";
     try {
       const r = await fetch(`https://slack.com/api/users.info?user=${encodeURIComponent(slackUserId)}`, {
         headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}` },
       });
       const d = await r.json();
-      if (d.ok) senderEmail = normEmail(d.user?.profile?.email);
+      if (d.ok) {
+        senderEmail = normEmail(d.user?.profile?.email);
+        senderName = normName(pickDisplayName(d.user || {}));
+      }
     } catch (e) {
       console.warn("[slash-biscoito] users.info sender failed:", e);
     }
+
+    const memberNameCandidates = (m: SlackMember): string[] => {
+      const list = [
+        m.profile?.display_name,
+        m.profile?.real_name,
+        m.real_name,
+        m.name,
+      ];
+      const out: string[] = [];
+      for (const v of list) {
+        const n = normName(v);
+        if (n && !out.includes(n)) out.push(n);
+      }
+      return out;
+    };
 
     type Opt = { text: string; value: string; sortKey: string };
     const opts: Opt[] = [];
     const seenPersonIds = new Set<string>();
     const seenSlackIds = new Set<string>();
+    let matchedByEmail = 0;
+    let matchedByName = 0;
+    let slackOnly = 0;
     let noEmailCount = 0;
 
     for (const m of slackMembers) {
       if (m.id === slackUserId) continue;
       const email = normEmail(m.profile?.email);
-      if (senderEmail && email && email === senderEmail) continue; // outra conta do próprio sender
+      const names = memberNameCandidates(m);
+      if (senderEmail && email && email === senderEmail) continue;
+      if (senderName && names.includes(senderName)) continue;
 
-      const person = email ? emailToPerson.get(email) : undefined;
+      let person = email ? emailToPerson.get(email) : undefined;
+      let matchType: "email" | "name" | null = person ? "email" : null;
+      if (!person) {
+        for (const n of names) {
+          const hit = nameToPerson.get(n);
+          if (hit) { person = hit; matchType = "name"; break; }
+        }
+      }
+
       if (person) {
         if (seenPersonIds.has(person.id)) continue;
         seenPersonIds.add(person.id);
+        if (matchType === "email") matchedByEmail++; else matchedByName++;
         opts.push({ text: person.nome, value: `app:${person.id}`, sortKey: person.nome.toLowerCase() });
       } else {
         if (!email) noEmailCount++;
         if (seenSlackIds.has(m.id)) continue;
         seenSlackIds.add(m.id);
+        slackOnly++;
         const name = pickDisplayName(m);
         opts.push({ text: `${name} [slack only]`, value: `slack:${m.id}`, sortKey: name.toLowerCase() });
       }
     }
-    if (noEmailCount > 0) {
-      console.log(`[slash-biscoito] ${noEmailCount} Slack members without email (check users:read.email scope)`);
-    }
+    console.log(`[slash-biscoito] matches → email:${matchedByEmail} name:${matchedByName} slack_only:${slackOnly} (no_email:${noEmailCount})`);
     opts.sort((a, b) => a.sortKey.localeCompare(b.sortKey, "pt"));
 
     if (opts.length === 0) {
