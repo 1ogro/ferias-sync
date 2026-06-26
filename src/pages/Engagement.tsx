@@ -133,11 +133,11 @@ function GiveKudosDialog({ personId, fromName }: { personId?: string; fromName?:
         to_person_id: to,
         message: message.trim(),
         category,
-        post_to_channel: channel.trim() || null,
+        post_to_channel: share ? SHARE_CHANNEL : null,
       });
       toast({ title: "Kudos enviado! 🎉", description: fromName ? `De ${fromName}` : undefined });
       setOpen(false);
-      setTo(""); setMessage(""); setChannel(""); setCategory("teamwork");
+      setTo(""); setMessage(""); setShare(false); setCategory("teamwork");
     } catch (e: any) {
       toast({ title: "Falha ao enviar kudos", description: e.message, variant: "destructive" });
     }
