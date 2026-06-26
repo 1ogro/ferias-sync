@@ -1180,6 +1180,69 @@ export type Database = {
       }
     }
     Views: {
+      kudos_feed_safe: {
+        Row: {
+          category: Database["public"]["Enums"]["kudos_category"] | null
+          created_at: string | null
+          from_person_id: string | null
+          from_slack_name: string | null
+          from_slack_user_id: string | null
+          id: string | null
+          message: string | null
+          pending_from: boolean | null
+          pending_to: boolean | null
+          slack_channel_posted: string | null
+          to_person_id: string | null
+          to_slack_name: string | null
+          to_slack_user_id: string | null
+        }
+        Insert: {
+          category?: Database["public"]["Enums"]["kudos_category"] | null
+          created_at?: string | null
+          from_person_id?: string | null
+          from_slack_name?: string | null
+          from_slack_user_id?: string | null
+          id?: string | null
+          message?: string | null
+          pending_from?: boolean | null
+          pending_to?: boolean | null
+          slack_channel_posted?: string | null
+          to_person_id?: string | null
+          to_slack_name?: string | null
+          to_slack_user_id?: string | null
+        }
+        Update: {
+          category?: Database["public"]["Enums"]["kudos_category"] | null
+          created_at?: string | null
+          from_person_id?: string | null
+          from_slack_name?: string | null
+          from_slack_user_id?: string | null
+          id?: string | null
+          message?: string | null
+          pending_from?: boolean | null
+          pending_to?: boolean | null
+          slack_channel_posted?: string | null
+          to_person_id?: string | null
+          to_slack_name?: string | null
+          to_slack_user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "kudos_from_person_id_fkey"
+            columns: ["from_person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "kudos_to_person_id_fkey"
+            columns: ["to_person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pulse_responses_safe: {
         Row: {
           anonymous_label: string | null
