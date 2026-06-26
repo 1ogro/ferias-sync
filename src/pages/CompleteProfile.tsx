@@ -56,36 +56,18 @@ export default function CompleteProfile() {
 
     setSaving(true);
     try {
-      // 1) Dados pessoais (nome/email mantidos)
-      const { error: profErr } = await supabase.rpc("update_profile_for_current_user", {
-        p_nome: person.nome,
-        p_email: person.email,
+      const { data, error } = await supabase.rpc("complete_own_profile" as any, {
         p_data_nascimento: dataNascimento,
+        p_cargo: cargo,
+        p_sub_time: subTime,
+        p_local: local || null,
+        p_data_contrato: dataContrato,
+        p_modelo_contrato: modeloContrato,
+        p_dia_pagamento: modeloContrato === ModeloContrato.PJ ? diaPagamento : null,
       });
-      if (profErr) throw profErr;
-
-      // 2) Cargo / time / local — update direto (RLS já permite o próprio usuário via policy de people)
-      const { error: personUpdErr } = await supabase
-        .from("people")
-        .update({
-          cargo,
-          sub_time: subTime,
-          local: local || null,
-        })
-        .eq("id", person.id);
-      if (personUpdErr) throw personUpdErr;
-
-      // 3) Contrato
-      const rpcParams: any = { p_date: dataContrato, p_model: modeloContrato };
-      if (modeloContrato === ModeloContrato.PJ && diaPagamento) {
-        rpcParams.p_dia_pagamento = diaPagamento;
-      }
-      const { error: contractErr } = await supabase.rpc("set_contract_data_for_current_user", rpcParams);
-      if (contractErr) throw contractErr;
-
-      // 4) Marcar perfil como concluído
-      const { error: markErr } = await supabase.rpc("mark_profile_completed" as any);
-      if (markErr) throw markErr;
+      if (error) throw error;
+      const result = data as { success: boolean; message?: string } | null;
+      if (!result?.success) throw new Error(result?.message || "Falha ao salvar perfil");
 
       toast({ title: "Tudo certo!", description: "Perfil completo. Bem-vindo(a)!" });
       await fetchPersonData();

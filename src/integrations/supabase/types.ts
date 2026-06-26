@@ -1247,6 +1247,18 @@ export type Database = {
         Returns: string
       }
       cleanup_orphan_profiles: { Args: never; Returns: number }
+      complete_own_profile: {
+        Args: {
+          p_cargo: string
+          p_data_contrato: string
+          p_data_nascimento: string
+          p_dia_pagamento?: number
+          p_local: string
+          p_modelo_contrato: string
+          p_sub_time: string
+        }
+        Returns: Json
+      }
       current_person_id: { Args: never; Returns: string }
       get_active_people_for_signup: {
         Args: never
