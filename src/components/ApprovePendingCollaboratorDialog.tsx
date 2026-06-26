@@ -64,6 +64,16 @@ export function ApprovePendingCollaboratorDialog({
   const handleApprove = async () => {
     if (!person?.id) return;
 
+    const emailNormalized = formData.email.trim().toLowerCase();
+    if (!/@rededor\.com\.br$/i.test(emailNormalized)) {
+      toast({
+        title: "Email corporativo obrigatório",
+        description: "Informe um email @rededor.com.br para aprovar o cadastro.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setLoading(true);
     try {
       // Build RPC args dynamically — only include optional fields when they have real values
