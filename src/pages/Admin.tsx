@@ -575,6 +575,7 @@ const Admin = () => {
       id: '',
       nome: '',
       email: '',
+      email_pessoal: '',
       cargo: '',
       local: '',
       subTime: '',
