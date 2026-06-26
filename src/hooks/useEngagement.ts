@@ -18,9 +18,6 @@ export interface Kudo {
   pending_to?: boolean;
   from?: { nome: string } | null;
   to?: { nome: string } | null;
-  created_at: string;
-  from?: { nome: string } | null;
-  to?: { nome: string } | null;
 }
 
 export interface LeaderboardRow {
