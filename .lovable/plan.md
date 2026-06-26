@@ -1,22 +1,41 @@
-Limpar todos os dados de engajamento existentes (kudos e pontuações) para reiniciar o sistema a partir de agora.
+## Objetivo
 
-## O que será apagado
+Quando um `/biscoito` gerar um cadastro pendente (lado remetente ou destinatário), enviar DM no Slack também para os **Diretores**, e não apenas para Admins.
 
-- **Tabela `kudos`**: todos os registros (kudos enviados, pendentes, vinculados ou não a pessoas)
-- **Tabela `engagement_points`**: todos os pontos acumulados (de kudos, pulses, streaks, peer reviews, etc.)
+## Situação atual
 
-## O que NÃO será afetado
+Em `supabase/functions/slack-interactions/index.ts` (função `notifyAdmins`, linha ~427), a query busca destinatários apenas com `is_admin = true`:
 
-- Pessoas (`people`), perfis, papéis, gestores
-- Pulses (`pulse_surveys`, `pulse_questions`, `pulse_responses`, `pulse_runs`)
-- Preferências de notificação
-- Logs de auditoria
-- Qualquer outra tabela
+```ts
+.from("people").select("email, nome").eq("is_admin", true).eq("ativo", true)
+```
 
-## Execução
+Diretores que não tenham `is_admin = true` ficam de fora da notificação.
 
-`DELETE FROM public.kudos;` e `DELETE FROM public.engagement_points;` via ferramenta de dados (sem alterar schema, RLS ou estrutura).
+## Mudança
 
-## Observação
+Ampliar a query para incluir também `papel = 'DIRETOR'`, deduplicando por email:
 
-Operação **irreversível**. Após confirmar, o feed de kudos e o ranking do mês ficarão zerados, e novos kudos/pontos passarão a contar a partir desse momento.
+```ts
+const { data: recipients } = await supabase
+  .from("people")
+  .select("email, nome, papel, is_admin")
+  .eq("ativo", true)
+  .or("is_admin.eq.true,papel.eq.DIRETOR");
+```
+
+O restante do fluxo (lookup por email → `conversations.open` → `chat.postMessage`) permanece igual. O texto da DM continua o mesmo:
+
+> 🔔 Novo cadastro pendente via /biscoito
+> • *Fulano enviou* um biscoito (email)
+> Aprove em Administração → Cadastros Pendentes para creditar os pontos retroativamente.
+
+## Escopo
+
+- **Alterado**: apenas a função `notifyAdmins` dentro do bloco `biscoito_submit` em `supabase/functions/slack-interactions/index.ts`.
+- **Não alterado**: modal, inserção de kudo/pending_people, cards nos canais, DM ao destinatário, pontuação, RLS, schema.
+
+## Observações
+
+- A DM respeita o já existente `users.lookupByEmail`; diretores sem email no Slack são silenciosamente ignorados (mesmo comportamento atual para admins).
+- Não há preferência de notificação específica para esse evento hoje — mantemos consistente com o comportamento atual de admins.
