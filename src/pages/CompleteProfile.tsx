@@ -24,7 +24,11 @@ export default function CompleteProfile() {
   const [dataContrato, setDataContrato] = useState("");
   const [modeloContrato, setModeloContrato] = useState<ModeloContrato>(ModeloContrato.CLT);
   const [diaPagamento, setDiaPagamento] = useState<number | null>(null);
+  const [corporateEmail, setCorporateEmail] = useState("");
   const [saving, setSaving] = useState(false);
+
+  const currentEmail = (person?.email || "").toLowerCase();
+  const needsCorporateEmail = !!person && !/@rededor\.com\.br$/i.test(currentEmail);
 
   useEffect(() => {
     if (!person) return;
@@ -53,6 +57,13 @@ export default function CompleteProfile() {
       toast({ title: "Dia de pagamento", description: "Selecione o dia de pagamento para contrato PJ.", variant: "destructive" });
       return;
     }
+    const normalizedCorpEmail = corporateEmail.trim().toLowerCase();
+    if (needsCorporateEmail) {
+      if (!normalizedCorpEmail || !/@rededor\.com\.br$/i.test(normalizedCorpEmail)) {
+        toast({ title: "Email corporativo", description: "Informe um email @rededor.com.br para concluir o cadastro.", variant: "destructive" });
+        return;
+      }
+    }
 
     setSaving(true);
     try {
@@ -64,6 +75,7 @@ export default function CompleteProfile() {
         p_data_contrato: dataContrato,
         p_modelo_contrato: modeloContrato,
         p_dia_pagamento: modeloContrato === ModeloContrato.PJ ? diaPagamento : null,
+        p_corporate_email: needsCorporateEmail ? normalizedCorpEmail : null,
       });
       if (error) throw error;
       const result = data as { success: boolean; message?: string } | null;
@@ -126,6 +138,23 @@ export default function CompleteProfile() {
                 max={new Date().toISOString().split("T")[0]}
               />
             </div>
+            {needsCorporateEmail && (
+              <div className="space-y-2">
+                <Label htmlFor="corp-email">Email corporativo *</Label>
+                <Input
+                  id="corp-email"
+                  type="email"
+                  value={corporateEmail}
+                  onChange={(e) => setCorporateEmail(e.target.value)}
+                  disabled={saving}
+                  placeholder="nome.sobrenome@rededor.com.br"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Seu email atual (<strong>{person?.email}</strong>) não é corporativo. Informe um email
+                  terminado em <strong>@rededor.com.br</strong> para concluir o cadastro.
+                </p>
+              </div>
+            )}
           </section>
 
           <section className="space-y-4">

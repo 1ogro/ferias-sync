@@ -1211,18 +1211,32 @@ export type Database = {
         Returns: string
       }
       cleanup_orphan_profiles: { Args: never; Returns: number }
-      complete_own_profile: {
-        Args: {
-          p_cargo: string
-          p_data_contrato: string
-          p_data_nascimento: string
-          p_dia_pagamento?: number
-          p_local: string
-          p_modelo_contrato: string
-          p_sub_time: string
-        }
-        Returns: Json
-      }
+      complete_own_profile:
+        | {
+            Args: {
+              p_cargo: string
+              p_data_contrato: string
+              p_data_nascimento: string
+              p_dia_pagamento?: number
+              p_local: string
+              p_modelo_contrato: string
+              p_sub_time: string
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_cargo: string
+              p_corporate_email?: string
+              p_data_contrato: string
+              p_data_nascimento: string
+              p_dia_pagamento?: number
+              p_local: string
+              p_modelo_contrato: string
+              p_sub_time: string
+            }
+            Returns: Json
+          }
       current_person_id: { Args: never; Returns: string }
       get_active_people_for_kudos: {
         Args: never
@@ -1319,6 +1333,10 @@ export type Database = {
       }
       is_admin_or_director: { Args: never; Returns: boolean }
       is_current_user_admin: { Args: never; Returns: boolean }
+      link_profile_personal_email: {
+        Args: { p_person_id: string }
+        Returns: Json
+      }
       link_profile_with_figma_email: {
         Args: { p_figma_email: string; p_person_id: string }
         Returns: Json
