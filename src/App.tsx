@@ -17,6 +17,7 @@ import ContractDateSetup from "./components/ContractDateSetup";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import SetupProfile from "./pages/SetupProfile";
+const CompleteProfile = lazy(() => import("./pages/CompleteProfile"));
 
 // Lazy-loaded pages for better performance
 const NewRequest = lazy(() => import("./pages/NewRequest"));
