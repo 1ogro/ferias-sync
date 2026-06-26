@@ -259,9 +259,10 @@ Deno.serve(async (req) => {
     }
 
     // Get target person's email and role (may be missing for deletion notifications)
+    // Get target person's email and role (may be missing for deletion notifications)
     const { data: targetPerson } = await adminClient
       .from("people")
-      .select("email, nome, papel")
+      .select("email, nome, papel, slack_user_id")
       .eq("id", person_id)
       .maybeSingle();
 
