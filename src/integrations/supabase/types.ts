@@ -497,6 +497,7 @@ export type Database = {
           dia_pagamento: number | null
           director_notes: string | null
           email: string | null
+          email_pessoal: string | null
           gestor_id: string | null
           id: string
           last_slack_request_at: string | null
@@ -522,6 +523,7 @@ export type Database = {
           dia_pagamento?: number | null
           director_notes?: string | null
           email?: string | null
+          email_pessoal?: string | null
           gestor_id?: string | null
           id?: string
           last_slack_request_at?: string | null
@@ -547,6 +549,7 @@ export type Database = {
           dia_pagamento?: number | null
           director_notes?: string | null
           email?: string | null
+          email_pessoal?: string | null
           gestor_id?: string | null
           id?: string
           last_slack_request_at?: string | null
@@ -596,6 +599,7 @@ export type Database = {
           data_nascimento: string | null
           dia_pagamento: number | null
           email: string
+          email_pessoal: string | null
           gestor_direto_email: string | null
           gestor_id: string | null
           id: string
@@ -618,6 +622,7 @@ export type Database = {
           data_nascimento?: string | null
           dia_pagamento?: number | null
           email: string
+          email_pessoal?: string | null
           gestor_direto_email?: string | null
           gestor_id?: string | null
           id: string
@@ -640,6 +645,7 @@ export type Database = {
           data_nascimento?: string | null
           dia_pagamento?: number | null
           email?: string
+          email_pessoal?: string | null
           gestor_direto_email?: string | null
           gestor_id?: string | null
           id?: string
@@ -1183,24 +1189,44 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      approve_pending_person: {
-        Args: {
-          p_cargo?: string
-          p_data_contrato?: string
-          p_data_nascimento?: string
-          p_dia_pagamento?: number
-          p_director_notes?: string
-          p_email?: string
-          p_gestor_id?: string
-          p_local?: string
-          p_modelo_contrato?: string
-          p_nome?: string
-          p_pending_id: string
-          p_reviewer_id: string
-          p_sub_time?: string
-        }
-        Returns: Json
-      }
+      approve_pending_person:
+        | {
+            Args: {
+              p_cargo?: string
+              p_data_contrato?: string
+              p_data_nascimento?: string
+              p_dia_pagamento?: number
+              p_director_notes?: string
+              p_email?: string
+              p_gestor_id?: string
+              p_local?: string
+              p_modelo_contrato?: string
+              p_nome?: string
+              p_pending_id: string
+              p_reviewer_id: string
+              p_sub_time?: string
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_cargo?: string
+              p_data_contrato?: string
+              p_data_nascimento?: string
+              p_dia_pagamento?: number
+              p_director_notes?: string
+              p_email?: string
+              p_email_pessoal?: string
+              p_gestor_id?: string
+              p_local?: string
+              p_modelo_contrato?: string
+              p_nome?: string
+              p_pending_id: string
+              p_reviewer_id: string
+              p_sub_time?: string
+            }
+            Returns: Json
+          }
       award_points: {
         Args: {
           p_person_id: string
@@ -1231,6 +1257,20 @@ export type Database = {
               p_data_contrato: string
               p_data_nascimento: string
               p_dia_pagamento?: number
+              p_local: string
+              p_modelo_contrato: string
+              p_sub_time: string
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_cargo: string
+              p_corporate_email?: string
+              p_data_contrato: string
+              p_data_nascimento: string
+              p_dia_pagamento?: number
+              p_email_pessoal?: string
               p_local: string
               p_modelo_contrato: string
               p_sub_time: string
@@ -1385,10 +1425,20 @@ export type Database = {
         }
         Returns: Json
       }
-      update_profile_for_current_user: {
-        Args: { p_data_nascimento: string; p_email: string; p_nome: string }
-        Returns: undefined
-      }
+      update_profile_for_current_user:
+        | {
+            Args: { p_data_nascimento: string; p_email: string; p_nome: string }
+            Returns: undefined
+          }
+        | {
+            Args: {
+              p_data_nascimento: string
+              p_email: string
+              p_email_pessoal?: string
+              p_nome: string
+            }
+            Returns: undefined
+          }
       validate_maternity_leave: {
         Args: { p_person_id: string; p_start_date: string }
         Returns: Json

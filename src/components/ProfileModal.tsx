@@ -32,6 +32,7 @@ export const ProfileModal = ({ open, onOpenChange }: ProfileModalProps) => {
   const [formData, setFormData] = useState({
     nome: "",
     email: "",
+    email_pessoal: "",
     data_nascimento: undefined as Date | undefined,
   });
   const [birthdateInput, setBirthdateInput] = useState("");
@@ -57,6 +58,7 @@ export const ProfileModal = ({ open, onOpenChange }: ProfileModalProps) => {
       setFormData({
         nome: person.nome || "",
         email: person.email || "",
+        email_pessoal: person.email_pessoal || "",
         data_nascimento: birthDate,
       });
       setBirthdateInput(formatDateToBRString(birthDate));
@@ -88,11 +90,18 @@ export const ProfileModal = ({ open, onOpenChange }: ProfileModalProps) => {
     if (!person) return;
     setIsSubmitting(true);
     try {
+      const normalizedPessoal = formData.email_pessoal.trim().toLowerCase();
+      if (normalizedPessoal && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedPessoal)) {
+        toast({ title: "Email pessoal inválido", description: "Verifique o formato.", variant: "destructive" });
+        setIsSubmitting(false);
+        return;
+      }
       const { error } = await supabase.rpc('update_profile_for_current_user', {
         p_nome: formData.nome,
         p_email: formData.email,
         p_data_nascimento: formData.data_nascimento ? formatDateToYYYYMMDD(formData.data_nascimento) : null,
-      });
+        p_email_pessoal: normalizedPessoal || null,
+      } as any);
       if (error) throw error;
       // Fire-and-forget Slack notification
       const changedFields: string[] = [];
@@ -201,6 +210,21 @@ export const ProfileModal = ({ open, onOpenChange }: ProfileModalProps) => {
               placeholder="seu.email@empresa.com"
             />
           </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="email_pessoal">Email pessoal (opcional)</Label>
+            <Input
+              id="email_pessoal"
+              type="email"
+              value={formData.email_pessoal}
+              onChange={(e) => setFormData(prev => ({ ...prev, email_pessoal: e.target.value }))}
+              placeholder="seu.email@gmail.com"
+            />
+            <p className="text-xs text-muted-foreground">
+              Login alternativo e fallback de DMs no Slack.
+            </p>
+          </div>
+
 
           <div className="space-y-2">
             <Label>Data de Nascimento</Label>

@@ -18,6 +18,7 @@ interface NewCollaboratorFormProps {
 interface FormData {
   nome: string;
   email: string;
+  email_pessoal: string;
   cargo: string;
   local: string;
   sub_time: string;
@@ -32,6 +33,7 @@ interface FormData {
 interface FormErrors {
   nome?: string;
   email?: string;
+  email_pessoal?: string;
   cargo?: string;
   sub_time?: string;
   gestor_id?: string;
@@ -53,6 +55,7 @@ export function NewCollaboratorForm({ isDirector = false, onSuccess, onCancel }:
   const [formData, setFormData] = useState<FormData>({
     nome: "",
     email: "",
+    email_pessoal: "",
     cargo: "",
     local: "",
     sub_time: "",
@@ -91,6 +94,10 @@ export function NewCollaboratorForm({ isDirector = false, onSuccess, onCancel }:
       newErrors.email = "Email inválido";
     }
 
+    if (formData.email_pessoal.trim() && !emailRegex.test(formData.email_pessoal.trim())) {
+      newErrors.email_pessoal = "Email pessoal inválido";
+    }
+
     if (!formData.cargo.trim() || formData.cargo.trim().length < 2) {
       newErrors.cargo = "Cargo é obrigatório";
     }
@@ -126,9 +133,12 @@ export function NewCollaboratorForm({ isDirector = false, onSuccess, onCancel }:
 
       const papelValue = isDirector ? formData.papel : Papel.COLABORADOR;
 
+      const emailPessoalNormalized = formData.email_pessoal.trim().toLowerCase() || null;
+
       const { data: insertedRows, error } = await supabase.from("pending_people").insert({
         nome: formData.nome.trim(),
         email: formData.email.trim().toLowerCase(),
+        email_pessoal: emailPessoalNormalized,
         cargo: formData.cargo.trim(),
         local: formData.local.trim() || null,
         sub_time: formData.sub_time.trim(),
@@ -140,7 +150,7 @@ export function NewCollaboratorForm({ isDirector = false, onSuccess, onCancel }:
         dia_pagamento: formData.modelo_contrato === ModeloContrato.PJ && formData.dia_pagamento ? parseInt(formData.dia_pagamento) : null,
         created_by: person.id,
         status: "PENDENTE",
-      }).select();
+      } as any).select();
 
       if (error) throw error;
 
@@ -161,7 +171,8 @@ export function NewCollaboratorForm({ isDirector = false, onSuccess, onCancel }:
           p_data_nascimento: formData.data_nascimento || null,
           p_modelo_contrato: formData.modelo_contrato,
           p_dia_pagamento: formData.modelo_contrato === ModeloContrato.PJ && formData.dia_pagamento ? parseInt(formData.dia_pagamento) : null,
-        });
+          p_email_pessoal: emailPessoalNormalized,
+        } as any);
 
         if (approveError) throw approveError;
 
@@ -231,6 +242,23 @@ export function NewCollaboratorForm({ isDirector = false, onSuccess, onCancel }:
         />
         {errors.email && <p className="text-sm text-destructive">{errors.email}</p>}
       </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="email_pessoal">Email pessoal (opcional)</Label>
+        <Input
+          id="email_pessoal"
+          type="email"
+          value={formData.email_pessoal}
+          onChange={(e) => setFormData({ ...formData, email_pessoal: e.target.value })}
+          placeholder="joao@gmail.com"
+          disabled={loading}
+        />
+        <p className="text-xs text-muted-foreground">
+          Usado como login alternativo e para entregar convites/DMs no Slack quando o email corporativo não estiver cadastrado lá.
+        </p>
+        {errors.email_pessoal && <p className="text-sm text-destructive">{errors.email_pessoal}</p>}
+      </div>
+
 
       <div className="space-y-2">
         <Label htmlFor="cargo">Cargo *</Label>

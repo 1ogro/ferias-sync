@@ -25,6 +25,7 @@ export default function CompleteProfile() {
   const [modeloContrato, setModeloContrato] = useState<ModeloContrato>(ModeloContrato.CLT);
   const [diaPagamento, setDiaPagamento] = useState<number | null>(null);
   const [corporateEmail, setCorporateEmail] = useState("");
+  const [emailPessoal, setEmailPessoal] = useState("");
   const [saving, setSaving] = useState(false);
 
   const currentEmail = (person?.email || "").toLowerCase();
@@ -39,6 +40,7 @@ export default function CompleteProfile() {
     setDataContrato(person.data_contrato || "");
     if (person.modelo_contrato) setModeloContrato(person.modelo_contrato);
     if (person.dia_pagamento) setDiaPagamento(person.dia_pagamento);
+    setEmailPessoal(person.email_pessoal || "");
   }, [person]);
 
   useEffect(() => {
@@ -65,6 +67,12 @@ export default function CompleteProfile() {
       }
     }
 
+    const normalizedPessoal = emailPessoal.trim().toLowerCase();
+    if (normalizedPessoal && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedPessoal)) {
+      toast({ title: "Email pessoal inválido", description: "Verifique o formato do email pessoal.", variant: "destructive" });
+      return;
+    }
+
     setSaving(true);
     try {
       const { data, error } = await supabase.rpc("complete_own_profile" as any, {
@@ -76,6 +84,7 @@ export default function CompleteProfile() {
         p_modelo_contrato: modeloContrato,
         p_dia_pagamento: modeloContrato === ModeloContrato.PJ ? diaPagamento : null,
         p_corporate_email: needsCorporateEmail ? normalizedCorpEmail : null,
+        p_email_pessoal: normalizedPessoal || null,
       });
       if (error) throw error;
       const result = data as { success: boolean; message?: string } | null;
@@ -155,7 +164,22 @@ export default function CompleteProfile() {
                 </p>
               </div>
             )}
+            <div className="space-y-2">
+              <Label htmlFor="email-pessoal">Email pessoal (opcional)</Label>
+              <Input
+                id="email-pessoal"
+                type="email"
+                value={emailPessoal}
+                onChange={(e) => setEmailPessoal(e.target.value)}
+                disabled={saving}
+                placeholder="seu.email@gmail.com"
+              />
+              <p className="text-xs text-muted-foreground">
+                Usado como login alternativo e para entregar avisos do Slack caso seu email corporativo não esteja cadastrado lá.
+              </p>
+            </div>
           </section>
+
 
           <section className="space-y-4">
             <h3 className="text-sm font-semibold uppercase text-muted-foreground">Cargo e time</h3>

@@ -165,6 +165,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           ...raw,
           gestorId: raw.gestor_id ?? raw.gestorId ?? undefined,
           subTime: raw.sub_time ?? raw.subTime ?? undefined,
+          email_pessoal: raw.email_pessoal ?? null,
         };
         setPerson(personData);
         

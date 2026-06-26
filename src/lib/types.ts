@@ -43,6 +43,7 @@ export interface Person {
   id: string;
   nome: string;
   email: string;
+  email_pessoal?: string | null; // Email pessoal/secundário (login alternativo + fallback Slack)
   cargo?: string;
   local?: string;
   subTime?: string;
@@ -167,6 +168,7 @@ export interface PendingPerson {
   id: string;
   nome: string;
   email: string;
+  email_pessoal?: string | null;
   cargo?: string;
   local?: string;
   sub_time?: string;
