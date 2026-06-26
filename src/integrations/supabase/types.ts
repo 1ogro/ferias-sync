@@ -1224,6 +1224,14 @@ export type Database = {
         Returns: Json
       }
       current_person_id: { Args: never; Returns: string }
+      get_active_people_for_kudos: {
+        Args: never
+        Returns: {
+          id: string
+          nome: string
+          sub_time: string
+        }[]
+      }
       get_active_people_for_signup: {
         Args: never
         Returns: {
