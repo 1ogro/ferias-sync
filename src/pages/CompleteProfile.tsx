@@ -164,7 +164,22 @@ export default function CompleteProfile() {
                 </p>
               </div>
             )}
+            <div className="space-y-2">
+              <Label htmlFor="email-pessoal">Email pessoal (opcional)</Label>
+              <Input
+                id="email-pessoal"
+                type="email"
+                value={emailPessoal}
+                onChange={(e) => setEmailPessoal(e.target.value)}
+                disabled={saving}
+                placeholder="seu.email@gmail.com"
+              />
+              <p className="text-xs text-muted-foreground">
+                Usado como login alternativo e para entregar avisos do Slack caso seu email corporativo não esteja cadastrado lá.
+              </p>
+            </div>
           </section>
+
 
           <section className="space-y-4">
             <h3 className="text-sm font-semibold uppercase text-muted-foreground">Cargo e time</h3>
