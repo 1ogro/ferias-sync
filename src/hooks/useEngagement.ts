@@ -6,11 +6,18 @@ export type KudosCategory = "teamwork" | "innovation" | "delivery" | "leadership
 
 export interface Kudo {
   id: string;
-  from_person_id: string;
-  to_person_id: string;
+  from_person_id: string | null;
+  to_person_id: string | null;
   message: string;
   category: KudosCategory;
   slack_channel_posted: string | null;
+  created_at: string;
+  from_slack_name?: string | null;
+  to_slack_name?: string | null;
+  pending_from?: boolean;
+  pending_to?: boolean;
+  from?: { nome: string } | null;
+  to?: { nome: string } | null;
   created_at: string;
   from?: { nome: string } | null;
   to?: { nome: string } | null;
