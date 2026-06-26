@@ -33,6 +33,7 @@ interface FormData {
 interface FormErrors {
   nome?: string;
   email?: string;
+  email_pessoal?: string;
   cargo?: string;
   sub_time?: string;
   gestor_id?: string;
@@ -91,6 +92,10 @@ export function NewCollaboratorForm({ isDirector = false, onSuccess, onCancel }:
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!formData.email.trim() || !emailRegex.test(formData.email.trim())) {
       newErrors.email = "Email inválido";
+    }
+
+    if (formData.email_pessoal.trim() && !emailRegex.test(formData.email_pessoal.trim())) {
+      newErrors.email_pessoal = "Email pessoal inválido";
     }
 
     if (!formData.cargo.trim() || formData.cargo.trim().length < 2) {
