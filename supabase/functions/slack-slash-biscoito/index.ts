@@ -117,7 +117,10 @@ async function openModal(opts: {
       return;
     }
 
-    // Carrega pessoas cadastradas no app (por email)
+    const normEmail = (v: unknown): string =>
+      typeof v === "string" ? v.trim().toLowerCase() : "";
+
+    // Carrega pessoas cadastradas no app (por email normalizado)
     const { data: peopleRows } = await supabase
       .from("people")
       .select("id, nome, email")
@@ -125,22 +128,48 @@ async function openModal(opts: {
 
     const emailToPerson = new Map<string, { id: string; nome: string }>();
     for (const p of (peopleRows || []) as Array<{ id: string; nome: string; email: string | null }>) {
-      if (p.email) emailToPerson.set(p.email.toLowerCase(), { id: p.id, nome: p.nome });
+      const e = normEmail(p.email);
+      if (e) emailToPerson.set(e, { id: p.id, nome: p.nome });
     }
 
-    // Monta opções, excluindo o próprio sender
+    // Descobre o email do sender (pode ter múltiplas contas Slack)
+    let senderEmail = "";
+    try {
+      const r = await fetch(`https://slack.com/api/users.info?user=${encodeURIComponent(slackUserId)}`, {
+        headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}` },
+      });
+      const d = await r.json();
+      if (d.ok) senderEmail = normEmail(d.user?.profile?.email);
+    } catch (e) {
+      console.warn("[slash-biscoito] users.info sender failed:", e);
+    }
+
     type Opt = { text: string; value: string; sortKey: string };
     const opts: Opt[] = [];
+    const seenPersonIds = new Set<string>();
+    const seenSlackIds = new Set<string>();
+    let noEmailCount = 0;
+
     for (const m of slackMembers) {
       if (m.id === slackUserId) continue;
-      const email = m.profile?.email?.toLowerCase();
+      const email = normEmail(m.profile?.email);
+      if (senderEmail && email && email === senderEmail) continue; // outra conta do próprio sender
+
       const person = email ? emailToPerson.get(email) : undefined;
       if (person) {
+        if (seenPersonIds.has(person.id)) continue;
+        seenPersonIds.add(person.id);
         opts.push({ text: person.nome, value: `app:${person.id}`, sortKey: person.nome.toLowerCase() });
       } else {
+        if (!email) noEmailCount++;
+        if (seenSlackIds.has(m.id)) continue;
+        seenSlackIds.add(m.id);
         const name = pickDisplayName(m);
         opts.push({ text: `${name} [slack only]`, value: `slack:${m.id}`, sortKey: name.toLowerCase() });
       }
+    }
+    if (noEmailCount > 0) {
+      console.log(`[slash-biscoito] ${noEmailCount} Slack members without email (check users:read.email scope)`);
     }
     opts.sort((a, b) => a.sortKey.localeCompare(b.sortKey, "pt"));
 
