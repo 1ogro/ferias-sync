@@ -84,6 +84,12 @@ export default function SetupProfile() {
     }
   };
 
+  const selectedPerson = people.find((p) => p.id === selectedPersonId);
+  const authEmail = user?.email?.toLowerCase() || '';
+  const personEmail = selectedPerson?.email?.toLowerCase() || '';
+  const emailsMatch = !!authEmail && !!personEmail && authEmail === personEmail;
+  const isPersonalEmailLink = !!selectedPerson && !emailsMatch && authProvider !== 'figma';
+
   const handleSubmit = async () => {
     if (!selectedPersonId) {
       toast({
@@ -108,6 +114,16 @@ export default function SetupProfile() {
           throw new Error(result?.message || 'Falha ao vincular perfil');
         }
 
+        await fetchPersonData();
+      } else if (isPersonalEmailLink) {
+        const { data, error } = await supabase.rpc('link_profile_personal_email' as any, {
+          p_person_id: selectedPersonId,
+        });
+        if (error) throw error;
+        const result = data as { success: boolean; message: string } | null;
+        if (!result?.success) {
+          throw new Error(result?.message || 'Falha ao vincular perfil');
+        }
         await fetchPersonData();
       } else {
         const { error } = await createProfile(selectedPersonId);
