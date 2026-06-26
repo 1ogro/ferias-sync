@@ -1,38 +1,32 @@
-## Problema
+## Diagnóstico
 
-No modal do `/biscoito`:
-1. Usuários cadastrados no app aparecem com `[slack only]` — match por email está falhando em alguns casos (provável diferença de case, espaços em branco, ou Slack member sem `profile.email` por escopo).
-2. Mesma pessoa aparece duplicada (uma como app user, outra como `[slack only]`) — normalmente quando a pessoa tem mais de uma conta no Slack, ou quando uma das contas não expõe email e cai no fallback slack-only.
+Os emails em `people` são aliases corporativos no formato `<usuario>.<projeto>@rededor.com.br` (ex.: `rneto.rqon@rededor.com.br`, `amizarela.pj@rededor.com.br`). É praticamente certo que os emails das contas no Slack são diferentes (email pessoal ou outro formato corporativo), então o match por email falha para a maioria — por isso quase todo mundo aparece como `[slack only]`, mesmo já cadastrado.
 
 ## Correção em `supabase/functions/slack-slash-biscoito/index.ts`
 
-Reescrever a montagem do `peopleOptions` com foco em matching robusto por email e deduplicação:
+Adicionar **fallback por nome normalizado** depois do match por email.
 
-1. **Normalização de email** (helper `normEmail`): `String(x).trim().toLowerCase()`. Aplicar tanto ao indexar `people` quanto ao ler `m.profile.email`.
-2. **Index de people por email** continua igual, mas usando `normEmail`. Adicionar segundo index por `slack_user_id` se houver coluna (não existe hoje — pular).
-3. **Loop de Slack members**:
-   - `email = normEmail(m.profile?.email)`.
-   - Se `email && emailToPerson.has(email)` → opção `app:<person_id>` (sem flag).
-   - Senão → opção `slack:<slack_user_id>` com sufixo `[slack only]`.
-   - Logar `console.log` quando um Slack member sem email cair em slack-only (ajuda a diagnosticar escopo `users:read.email` faltando).
-4. **Deduplicação**:
-   - `seenPersonIds = new Set<string>()`: ao adicionar uma opção `app:<id>`, pular se já visto. Isso elimina o caso de várias contas Slack do mesmo humano.
-   - `seenSlackIds = new Set<string>()`: idem para `slack:<id>` (defensivo; `users.list` não deveria repetir).
-   - Garantir que, se um humano tem conta app + conta Slack secundária sem email, a versão `app:` prevalece. Para isso, fazer **duas passadas**:
-     - Passada 1: indexar todos os Slack members por email; para cada `email` que bate com `people`, registrar `person_id → preferred slack member` (o que tem email).
-     - Passada 2: emitir uma opção `app:<id>` por pessoa do `people` que tenha qualquer Slack member casado (independente da quantidade de contas Slack desse humano).
-     - Passada 3: emitir `slack:<id>` apenas para Slack members cujo email **não** casa com nenhum `people` (ou que não têm email e não estão associados a ninguém).
-5. **Remoção do próprio sender** continua, agora também removendo qualquer Slack member que case com o mesmo email do sender (caso o sender tenha duas contas Slack).
-6. **Ordenação** mantida por nome (pt).
+1. **Helper `normName`**: lowercase + trim + remover acentos (`normalize("NFD").replace(/\p{Diacritic}/gu, "")`) + colapsar espaços.
+2. **Indexar `people` por nome normalizado** (além do email):
+   - `nameToPerson: Map<string, Person>` usando `normName(p.nome)`.
+   - Em colisão de nomes idênticos, manter o primeiro e logar `console.warn` (workspace tem ~35 pessoas; baixa probabilidade).
+3. **Para cada Slack member**, depois de tentar email, tentar nome:
+   - Coletar candidatos: `profile.display_name`, `profile.real_name`, `real_name`, `name` — normalizar cada um.
+   - Para cada candidato não vazio, se `nameToPerson` tem match → usar como pessoa do app.
+   - Se nenhum bater → `[slack only]`.
+4. **Dedup** continua: `seenPersonIds` evita listar a mesma pessoa duas vezes quando email e nome batem em contas Slack diferentes.
+5. **Sender**: além de email, também remover Slack members cujo nome normalizado bata com o nome do sender (caso o sender também não tenha email casando).
+6. **Log de diagnóstico**: contar quantos casaram por email vs por nome vs ficaram slack-only, para validar.
 
 ## Validação
 
-- Abrir `/biscoito`: cada pessoa do app aparece **uma única vez**, sem `[slack only]`.
-- Apenas Slack members cujo email não está em `people` (ou sem email) aparecem com `[slack only]`.
-- Sender não aparece na lista, nem por uma conta Slack alternativa.
-- Logs da função mostram quantos Slack members ficaram sem email (para decidir se precisamos pedir escopo `users:read.email`).
+- Abrir `/biscoito`: praticamente todos os 32 cadastrados aparecem **sem** `[slack only]`.
+- `[slack only]` só aparece para Slack members que não casam por email nem por nome com ninguém em `people`.
+- Sender não aparece na lista.
+- Logs da função mostram a distribuição (email/nome/slack-only).
 
 ## Fora de escopo
 
-- Mudanças na função `slack-interactions` (resolução de recipient não muda — `app:<id>` e `slack:<id>` continuam tratados como antes).
-- Schema, RPCs, frontend.
+- Alterar `slack-interactions` (valores `app:<id>` / `slack:<id>` continuam iguais).
+- Schema, frontend, RPCs.
+- Fuzzy matching mais agressivo (sobrenome parcial, apelidos) — só adicionamos se os logs mostrarem que ainda sobra gente cadastrada como slack-only.
