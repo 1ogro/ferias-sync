@@ -301,7 +301,10 @@ serve(async (req) => {
       return new Response("Unauthorized", { status: 401 });
     }
 
-    const payload = JSON.parse(decodeURIComponent(body.replace("payload=", "")));
+    // Slack envia application/x-www-form-urlencoded com `payload=<json>`.
+    // URLSearchParams decodifica `+` como espaço; decodeURIComponent não — por isso
+    // mensagens de texto vinham com `+` no lugar dos espaços.
+    const payload = JSON.parse(new URLSearchParams(body).get("payload") || "{}");
     console.log("Slack interaction payload type:", payload.type);
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
