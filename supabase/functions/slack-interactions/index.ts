@@ -320,76 +320,190 @@ serve(async (req) => {
     if (payload.type === "view_submission" && payload.view?.callback_id?.startsWith("kudos_submit:")) {
       const [, surveyId] = payload.view.callback_id.split(":");
       const v = payload.view.state.values || {};
-      const toPersonId = v.kudo_to_block?.kudo_to_select?.selected_option?.value;
+      const toRaw: string = v.kudo_to_block?.kudo_to_select?.selected_option?.value || "";
       const category = v.kudo_cat_block?.kudo_cat_select?.selected_option?.value || "teamwork";
       const message = (v.kudo_msg_block?.kudo_msg_input?.value || "").trim();
+      const shareSelected = (v.kudo_share_block?.kudo_share_check?.selected_options || []).length > 0;
+      let meta: { kudos_channel?: string | null; origin_channel_id?: string | null } = {};
+      try { meta = JSON.parse(payload.view.private_metadata || "{}"); } catch (_) { /* noop */ }
+
       const slackUserId = payload.user.id;
 
-      const sender = await resolveRespondent(slackUserId, supabase);
+      // Resolve sender (app user OR slack-only)
+      const senderInfoRes = await fetch(`https://slack.com/api/users.info?user=${slackUserId}`, {
+        headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}` },
+      });
+      const senderInfo = await senderInfoRes.json();
+      const senderEmail: string | null = senderInfo?.user?.profile?.email ?? null;
+      const senderName: string =
+        senderInfo?.user?.profile?.display_name?.trim() ||
+        senderInfo?.user?.profile?.real_name?.trim() ||
+        senderInfo?.user?.real_name?.trim() ||
+        senderInfo?.user?.name ||
+        "Alguém";
+
+      let senderPersonId: string | null = null;
+      let senderPersonNome: string | null = null;
+      if (senderEmail) {
+        const { data: sp } = await supabase
+          .from("people").select("id, nome").eq("email", senderEmail).eq("ativo", true).maybeSingle();
+        if (sp) { senderPersonId = sp.id; senderPersonNome = sp.nome; }
+      }
+      const senderDisplay = senderPersonNome || senderName;
+
+      // Resolve recipient (app: or slack:)
       const errors: Record<string, string> = {};
-      if (!sender) errors["kudo_msg_block"] = "Usuário não encontrado.";
-      if (!toPersonId) errors["kudo_to_block"] = "Selecione um colega.";
+      if (!toRaw) errors["kudo_to_block"] = "Selecione um colega.";
       if (!message || message.length < 3) errors["kudo_msg_block"] = "Mensagem muito curta.";
       if (message.length > 500) errors["kudo_msg_block"] = "Máximo 500 caracteres.";
-      if (sender && toPersonId === sender.id) errors["kudo_to_block"] = "Não dá para mandar kudos pra si mesmo 😉";
+
+      let toPersonId: string | null = null;
+      let toPersonNome: string | null = null;
+      let toSlackUserId: string | null = null;
+      let toSlackEmail: string | null = null;
+      let toSlackName: string | null = null;
+
+      if (toRaw.startsWith("app:")) {
+        const pid = toRaw.slice(4);
+        const { data: tp } = await supabase.from("people").select("id, nome, ativo").eq("id", pid).maybeSingle();
+        if (!tp || !tp.ativo) errors["kudo_to_block"] = "Destinatário inativo.";
+        else { toPersonId = tp.id; toPersonNome = tp.nome; }
+      } else if (toRaw.startsWith("slack:")) {
+        toSlackUserId = toRaw.slice(6);
+        const r = await fetch(`https://slack.com/api/users.info?user=${toSlackUserId}`, {
+          headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}` },
+        });
+        const d = await r.json();
+        toSlackEmail = d?.user?.profile?.email ?? null;
+        toSlackName =
+          d?.user?.profile?.display_name?.trim() ||
+          d?.user?.profile?.real_name?.trim() ||
+          d?.user?.real_name?.trim() ||
+          d?.user?.name ||
+          "Colega";
+        if (toSlackEmail) {
+          const { data: tp } = await supabase
+            .from("people").select("id, nome").eq("email", toSlackEmail).eq("ativo", true).maybeSingle();
+          if (tp) { toPersonId = tp.id; toPersonNome = tp.nome; }
+        }
+      } else if (toRaw) {
+        errors["kudo_to_block"] = "Seleção inválida.";
+      }
+
+      if (senderPersonId && toPersonId && senderPersonId === toPersonId) {
+        errors["kudo_to_block"] = "Não dá para mandar kudos pra si mesmo 😉";
+      }
+      if (toSlackUserId && toSlackUserId === slackUserId) {
+        errors["kudo_to_block"] = "Não dá para mandar kudos pra si mesmo 😉";
+      }
+
       if (Object.keys(errors).length) {
         return new Response(JSON.stringify({ response_action: "errors", errors }), {
           headers: { "Content-Type": "application/json" },
         });
       }
 
-      const { data: survey } = await supabase
-        .from("pulse_surveys")
-        .select("kudos_channel, title")
-        .eq("id", surveyId)
-        .maybeSingle();
+      const channelToPost = shareSelected && meta.kudos_channel ? meta.kudos_channel : null;
+      const pendingFrom = !senderPersonId;
+      const pendingTo = !toPersonId;
 
-      const { data: to } = await supabase.from("people").select("nome, ativo").eq("id", toPersonId).maybeSingle();
-      if (!to || !to.ativo) {
-        return new Response(JSON.stringify({ response_action: "errors", errors: { kudo_to_block: "Destinatário inativo." } }), {
-          headers: { "Content-Type": "application/json" },
-        });
-      }
-
-      const channelToPost = survey?.kudos_channel?.trim() || null;
       const { data: kudo, error: insErr } = await supabase.from("kudos").insert({
-        from_person_id: sender!.id,
+        from_person_id: senderPersonId,
         to_person_id: toPersonId,
+        from_slack_user_id: pendingFrom ? slackUserId : null,
+        from_slack_email: pendingFrom ? senderEmail : null,
+        from_slack_name: pendingFrom ? senderName : null,
+        to_slack_user_id: pendingTo ? toSlackUserId : null,
+        to_slack_email: pendingTo ? toSlackEmail : null,
+        to_slack_name: pendingTo ? toSlackName : null,
+        pending_from: pendingFrom,
+        pending_to: pendingTo,
         message,
         category,
         slack_channel_posted: channelToPost,
       }).select().single();
 
-      if (!insErr && kudo) {
-        await awardPoints(supabase, toPersonId, 10, "kudo_received", kudo.id);
-        await awardPoints(supabase, sender!.id, 2, "kudo_given", kudo.id);
-
-        const { data: fromP } = await supabase.from("people").select("nome").eq("id", sender!.id).maybeSingle();
-        const fromName = fromP?.nome || "Alguém";
-
-        if (channelToPost) {
-          const text = `${CATEGORY_LABEL[category] || "🎉"} *${fromName}* deu kudos para *${to.nome}*\n> ${message}`;
-          await fetch("https://slack.com/api/chat.postMessage", {
-            method: "POST",
-            headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ channel: channelToPost, text }),
-          });
-        }
-
-        await notifyRecipientDM(supabase, toPersonId, fromName, category, message, "kudos_submit");
-
-        // Fire-and-forget notification to direct manager + all directors
-        supabase.functions.invoke("kudos-notify-managers", { body: { kudo_id: kudo.id } })
-          .catch((e: any) => console.error("[kudos_submit] notify invoke failed", e?.message));
-
-      } else if (insErr) {
+      if (insErr || !kudo) {
         console.error("[kudos_submit] insert error:", insErr);
+        return new Response(
+          JSON.stringify({ response_action: "errors", errors: { kudo_msg_block: "Não consegui registrar seu kudos. Tente novamente." } }),
+          { headers: { "Content-Type": "application/json" } }
+        );
       }
 
+      if (toPersonId) await awardPoints(supabase, toPersonId, 10, "kudo_received", kudo.id);
+      if (senderPersonId) await awardPoints(supabase, senderPersonId, 2, "kudo_given", kudo.id);
+
+      if (pendingFrom) await ensurePendingPerson(supabase, { slackId: slackUserId, email: senderEmail, nome: senderName, createdBy: senderPersonId });
+      if (pendingTo) await ensurePendingPerson(supabase, { slackId: toSlackUserId, email: toSlackEmail, nome: toSlackName, createdBy: senderPersonId });
+
+      if (pendingFrom || pendingTo) {
+        // @ts-ignore EdgeRuntime
+        EdgeRuntime.waitUntil(notifyAdminsPending(supabase, {
+          pendingFrom, pendingTo,
+          senderName, senderEmail,
+          toName: toSlackName, toEmail: toSlackEmail,
+          origin: "pulse de kudos",
+        }));
+      }
+
+      // Card
+      const toLabel = (toPersonNome || toSlackName || "Colega") + (pendingTo ? " _(cadastro pendente)_" : "");
+      const fromLabel = senderDisplay + (pendingFrom ? " _(cadastro pendente)_" : "");
+      const cardText = `${CATEGORY_LABEL[category] || "🎉"} *${fromLabel}* deu kudos para *${toLabel}*\n> ${message}`;
+
+      const postToChannel = async (channel: string, label: string) => {
+        const r = await fetch("https://slack.com/api/chat.postMessage", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ channel, text: cardText }),
+        });
+        const j = await r.json();
+        if (!j.ok) console.log(`[kudos_submit] ${label} post skipped: ${j.error || "unknown"} (channel=${channel})`);
+      };
+
+      const origin = meta.origin_channel_id;
+      if (origin && !origin.startsWith("D")) await postToChannel(origin, "origin");
+      if (channelToPost) await postToChannel(channelToPost, "share");
+
+      // DM destinatário
+      if (toPersonId) {
+        await notifyRecipientDM(supabase, toPersonId, senderDisplay, category, message, "kudos_submit");
+      } else if (toSlackUserId) {
+        try {
+          const openRes = await fetch("https://slack.com/api/conversations.open", {
+            method: "POST",
+            headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ users: toSlackUserId }),
+          });
+          const open = await openRes.json();
+          if (open.ok && open.channel?.id) {
+            const catLabel = CATEGORY_LABEL[category] || "🎉";
+            const txt =
+              `🎉 *Você ganhou um kudos!*\n${catLabel}\nDe: *${senderDisplay}*\n> ${message}\n\n` +
+              `_Seu cadastro no app ainda está pendente. Assim que for aprovado, os pontos entram no painel de Engajamento._`;
+            await fetch("https://slack.com/api/chat.postMessage", {
+              method: "POST",
+              headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}`, "Content-Type": "application/json" },
+              body: JSON.stringify({ channel: open.channel.id, text: txt }),
+            });
+          }
+        } catch (e: any) {
+          console.error("[kudos_submit] slack-only recipient DM error:", e?.message || e);
+        }
+      }
+
+      if (toPersonId) {
+        supabase.functions.invoke("kudos-notify-managers", { body: { kudo_id: kudo.id } })
+          .catch((e: any) => console.error("[kudos_submit] notify invoke failed", e?.message));
+      }
+
+      console.log(`[kudos_submit] inserted kudo ${kudo.id} from=${senderPersonId ?? `slack:${slackUserId}`} to=${toPersonId ?? `slack:${toSlackUserId}`}`);
       return new Response(JSON.stringify({ response_action: "clear" }), {
         headers: { "Content-Type": "application/json" },
       });
     }
+
 
     // view_submission for /biscoito slash command
     if (payload.type === "view_submission" && payload.view?.callback_id === "biscoito_submit") {
