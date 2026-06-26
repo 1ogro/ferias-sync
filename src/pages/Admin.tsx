@@ -1152,6 +1152,18 @@ const Admin = () => {
               </div>
 
               <div>
+                <Label htmlFor="email_pessoal">Email pessoal</Label>
+                <Input
+                  id="email_pessoal"
+                  type="email"
+                  value={formData.email_pessoal}
+                  onChange={(e) => setFormData({ ...formData, email_pessoal: e.target.value })}
+                  placeholder="login alternativo / fallback Slack"
+                />
+              </div>
+
+
+              <div>
                 <Label htmlFor="cargo">Cargo</Label>
                 <Input
                   id="cargo"
