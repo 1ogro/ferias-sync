@@ -46,18 +46,27 @@ export function PendingCollaboratorCard({ pending, onApprove, onReject, showActi
             <CardTitle className="text-lg">{pending.nome}</CardTitle>
             <p className="text-sm text-muted-foreground">{pending.cargo}</p>
           </div>
-          <Badge className={statusConfig.className}>
-            <StatusIcon className="mr-1 h-3 w-3" />
-            {statusConfig.label}
-          </Badge>
+          <div className="flex flex-col items-end gap-1">
+            <Badge className={statusConfig.className}>
+              <StatusIcon className="mr-1 h-3 w-3" />
+              {statusConfig.label}
+            </Badge>
+            {(pending as any).source === "slack_biscoito" && (
+              <Badge variant="outline" className="text-xs">
+                🍪 via /biscoito{(pending as any).slack_request_count > 1 ? ` · ${(pending as any).slack_request_count}` : ""}
+              </Badge>
+            )}
+          </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="space-y-2 text-sm">
-          <div className="flex items-center gap-2">
-            <Mail className="h-4 w-4 text-muted-foreground" />
-            <span>{pending.email}</span>
-          </div>
+          {pending.email && (
+            <div className="flex items-center gap-2">
+              <Mail className="h-4 w-4 text-muted-foreground" />
+              <span>{pending.email}</span>
+            </div>
+          )}
 
           {pending.sub_time && (
             <div className="flex items-center gap-2">
