@@ -1,32 +1,47 @@
-## Diagnóstico
+Atualizar o modal do comando `/biscoito` no Slack para remover a flag `[slack only]` dos nomes e ajustar o disclaimer, mantendo todo o funcionamento existente.
 
-Os emails em `people` são aliases corporativos no formato `<usuario>.<projeto>@rededor.com.br` (ex.: `rneto.rqon@rededor.com.br`, `amizarela.pj@rededor.com.br`). É praticamente certo que os emails das contas no Slack são diferentes (email pessoal ou outro formato corporativo), então o match por email falha para a maioria — por isso quase todo mundo aparece como `[slack only]`, mesmo já cadastrado.
+## O que mudar
 
-## Correção em `supabase/functions/slack-slash-biscoito/index.ts`
+Arquivo: `supabase/functions/slack-slash-biscoito/index.ts`
 
-Adicionar **fallback por nome normalizado** depois do match por email.
+### 1. Remover a flag `[slack only]` do texto das opções
 
-1. **Helper `normName`**: lowercase + trim + remover acentos (`normalize("NFD").replace(/\p{Diacritic}/gu, "")`) + colapsar espaços.
-2. **Indexar `people` por nome normalizado** (além do email):
-   - `nameToPerson: Map<string, Person>` usando `normName(p.nome)`.
-   - Em colisão de nomes idênticos, manter o primeiro e logar `console.warn` (workspace tem ~35 pessoas; baixa probabilidade).
-3. **Para cada Slack member**, depois de tentar email, tentar nome:
-   - Coletar candidatos: `profile.display_name`, `profile.real_name`, `real_name`, `name` — normalizar cada um.
-   - Para cada candidato não vazio, se `nameToPerson` tem match → usar como pessoa do app.
-   - Se nenhum bater → `[slack only]`.
-4. **Dedup** continua: `seenPersonIds` evita listar a mesma pessoa duas vezes quando email e nome batem em contas Slack diferentes.
-5. **Sender**: além de email, também remover Slack members cujo nome normalizado bata com o nome do sender (caso o sender também não tenha email casando).
-6. **Log de diagnóstico**: contar quantos casaram por email vs por nome vs ficaram slack-only, para validar.
+Na construção das opções do `static_select`, o código atual faz:
+
+```ts
+opts.push({ text: `${name} [slack only]`, value: `slack:${m.id}`, sortKey: name.toLowerCase() });
+```
+
+Alterar para:
+
+```ts
+opts.push({ text: name, value: `slack:${m.id}`, sortKey: name.toLowerCase() });
+```
+
+Os `value` continuam sendo `slack:${m.id}` para colegas não cadastrados, então a lógica de salvamento do biscoito (via `slack-interactions` ou `kudos-send`) não é afetada.
+
+### 2. Atualizar o disclaimer do modal
+
+Trocar o texto do bloco `context` de:
+
+> Colegas com [slack only] ainda não têm conta no app — o biscoito é registrado e os pontos entram no painel assim que o cadastro for aprovado.
+
+Para:
+
+> Alguns colegas podem ainda não ter conta no app. O biscoito será registrado e pontuado, assim que seu cadastro for aprovado.
+
+## O que não muda
+
+- A deduplicação por `seenPersonIds` e `seenSlackIds` permanece.
+- A lógica de match por email e nome contra a tabela `people` permanece.
+- A contagem de diagnóstico (`matchedByEmail`, `matchedByName`, `slackOnly`, `noEmailCount`) permanece, já que é apenas logging interno.
+- O valor `slack:${m.id}` continua sendo enviado para membros não cadastrados, preservando o funcionamento do fluxo de registro de biscoito.
 
 ## Validação
 
-- Abrir `/biscoito`: praticamente todos os 32 cadastrados aparecem **sem** `[slack only]`.
-- `[slack only]` só aparece para Slack members que não casam por email nem por nome com ninguém em `people`.
-- Sender não aparece na lista.
-- Logs da função mostram a distribuição (email/nome/slack-only).
+- Verificar via `supabase--test_edge_functions` ou `supabase--curl_edge_functions` que a função `slack-slash-biscoito` responde sem erros.
+- Confirmar no log que o modal continua sendo aberto (`views.open` ok) e que os contadores de diagnóstico ainda são impressos.
 
-## Fora de escopo
+## Resumo
 
-- Alterar `slack-interactions` (valores `app:<id>` / `slack:<id>` continuam iguais).
-- Schema, frontend, RPCs.
-- Fuzzy matching mais agressivo (sobrenome parcial, apelidos) — só adicionamos se os logs mostrarem que ainda sobra gente cadastrada como slack-only.
+Esconde a distinção visual entre usuários cadastrados e não cadastrados no modal, mantendo a mesma lógica de backend e pontuação.

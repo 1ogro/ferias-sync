@@ -217,7 +217,7 @@ async function openModal(opts: {
         seenSlackIds.add(m.id);
         slackOnly++;
         const name = pickDisplayName(m);
-        opts.push({ text: `${name} [slack only]`, value: `slack:${m.id}`, sortKey: name.toLowerCase() });
+        opts.push({ text: name, value: `slack:${m.id}`, sortKey: name.toLowerCase() });
       }
     }
     console.log(`[slash-biscoito] matches → email:${matchedByEmail} name:${matchedByName} slack_only:${slackOnly} (no_email:${noEmailCount})`);
@@ -312,7 +312,7 @@ async function openModal(opts: {
         {
           type: "context",
           elements: [
-            { type: "mrkdwn", text: "Colegas com [slack only] ainda não têm conta no app — o biscoito é registrado e os pontos entram no painel assim que o cadastro for aprovado." },
+            { type: "mrkdwn", text: "Alguns colegas podem ainda não ter conta no app. O biscoito será registrado e pontuado, assim que seu cadastro for aprovado." },
           ],
         },
       ],
