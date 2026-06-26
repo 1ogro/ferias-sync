@@ -94,6 +94,11 @@ const App = () => (
             } />
             <Route path="/setup-profile" element={<SetupProfile />} />
             <Route path="/setup-contract" element={<ContractDateSetup />} />
+            <Route path="/complete-profile" element={
+              <Suspense fallback={<PageLoader />}>
+                <CompleteProfile />
+              </Suspense>
+            } />
             <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
             <Route path="/new-request" element={
               <ProtectedRoute>
