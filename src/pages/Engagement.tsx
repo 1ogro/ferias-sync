@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from "@/components/ui/dialog";
@@ -113,7 +114,9 @@ function GiveKudosDialog({ personId, fromName }: { personId?: string; fromName?:
   const [to, setTo] = useState<string>("");
   const [category, setCategory] = useState<KudosCategory>("teamwork");
   const [message, setMessage] = useState("");
-  const [channel, setChannel] = useState("");
+  
+  const [share, setShare] = useState(false);
+  const SHARE_CHANNEL = "#time";
   const { data: people = [] } = useActivePeople();
   const { mutateAsync, isPending } = useSendKudo();
   const { toast } = useToast();
@@ -130,11 +133,11 @@ function GiveKudosDialog({ personId, fromName }: { personId?: string; fromName?:
         to_person_id: to,
         message: message.trim(),
         category,
-        post_to_channel: channel.trim() || null,
+        post_to_channel: share ? SHARE_CHANNEL : null,
       });
       toast({ title: "Kudos enviado! 🎉", description: fromName ? `De ${fromName}` : undefined });
       setOpen(false);
-      setTo(""); setMessage(""); setChannel(""); setCategory("teamwork");
+      setTo(""); setMessage(""); setShare(false); setCategory("teamwork");
     } catch (e: any) {
       toast({ title: "Falha ao enviar kudos", description: e.message, variant: "destructive" });
     }
@@ -178,10 +181,12 @@ function GiveKudosDialog({ personId, fromName }: { personId?: string; fromName?:
             <Textarea value={message} onChange={(e) => setMessage(e.target.value)} maxLength={500} placeholder="Conta o que rolou de bom..." rows={4} />
             <p className="text-xs text-muted-foreground mt-1">{message.length}/500</p>
           </div>
-          <div>
-            <Label>Postar também em um canal do Slack? (opcional)</Label>
-            <Input value={channel} onChange={(e) => setChannel(e.target.value)} placeholder="#geral ou ID do canal (ex: C0123…)" />
-            <p className="text-xs text-muted-foreground mt-1">O bot precisa ter acesso ao canal.</p>
+          <div className="flex items-start gap-2">
+            <Checkbox id="kudo-share" checked={share} onCheckedChange={(v) => setShare(v === true)} />
+            <div className="grid gap-1 leading-none">
+              <Label htmlFor="kudo-share" className="cursor-pointer">Postar em {SHARE_CHANNEL}</Label>
+              <p className="text-xs text-muted-foreground">Compartilha o kudos no canal do Slack. Se desmarcado, fica só no app.</p>
+            </div>
           </div>
         </div>
         <DialogFooter>

@@ -193,13 +193,9 @@ export function useActivePeople() {
   return useQuery({
     queryKey: ["active_people_simple"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("people")
-        .select("id, nome, sub_time")
-        .eq("ativo", true)
-        .order("nome");
+      const { data, error } = await (supabase as any).rpc("get_active_people_for_kudos");
       if (error) throw error;
-      return data as { id: string; nome: string; sub_time: string | null }[];
+      return (data || []) as { id: string; nome: string; sub_time: string | null }[];
     },
   });
 }
