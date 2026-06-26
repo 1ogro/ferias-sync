@@ -183,15 +183,21 @@ export function ApprovePendingCollaboratorDialog({
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="email">Email corporativo (@rededor.com.br)</Label>
                 <Input
                   id="email"
                   type="email"
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   disabled={loading}
+                  placeholder="nome.sobrenome@rededor.com.br"
                 />
+                <p className="text-xs text-muted-foreground">
+                  Obrigatório terminar em <strong>@rededor.com.br</strong>.
+                </p>
               </div>
+
+
 
               <div className="space-y-2">
                 <Label htmlFor="cargo">Cargo</Label>
