@@ -366,12 +366,25 @@ Deno.serve(async (req) => {
             },
           ];
 
+          // Also try the user's auth (login) email — may be a personal email registered in Slack
+          let loginEmail: string | null = null;
+          try {
+            const { data: profRow } = await adminClient
+              .from("profiles").select("user_id").eq("person_id", person_id).maybeSingle();
+            if (profRow?.user_id) {
+              const { data: authUserRes } = await adminClient.auth.admin.getUserById(profRow.user_id);
+              loginEmail = authUserRes?.user?.email ?? null;
+            }
+          } catch (_) { /* ignore */ }
+
           const dmResult = await sendSlackDM(
             slackToken,
             targetPerson.email,
             blocks,
             `Olá ${targetPerson.nome}! Foi solicitada a recuperação da sua senha. ${recoveryLink || "Verifique seu email."}`,
-            targetPerson.nome
+            targetPerson.nome,
+            (targetPerson as any).slack_user_id ?? null,
+            [loginEmail]
           );
           dmResultOuter = dmResult;
 
