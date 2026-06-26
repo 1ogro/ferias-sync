@@ -57,6 +57,13 @@ export default function CompleteProfile() {
       toast({ title: "Dia de pagamento", description: "Selecione o dia de pagamento para contrato PJ.", variant: "destructive" });
       return;
     }
+    const normalizedCorpEmail = corporateEmail.trim().toLowerCase();
+    if (needsCorporateEmail) {
+      if (!normalizedCorpEmail || !/@rededor\.com\.br$/i.test(normalizedCorpEmail)) {
+        toast({ title: "Email corporativo", description: "Informe um email @rededor.com.br para concluir o cadastro.", variant: "destructive" });
+        return;
+      }
+    }
 
     setSaving(true);
     try {
@@ -68,6 +75,7 @@ export default function CompleteProfile() {
         p_data_contrato: dataContrato,
         p_modelo_contrato: modeloContrato,
         p_dia_pagamento: modeloContrato === ModeloContrato.PJ ? diaPagamento : null,
+        p_corporate_email: needsCorporateEmail ? normalizedCorpEmail : null,
       });
       if (error) throw error;
       const result = data as { success: boolean; message?: string } | null;
