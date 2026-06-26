@@ -40,6 +40,30 @@ async function postEphemeral(responseUrl: string, text: string) {
   }
 }
 
+async function sendAppDM(slackUserId: string, text: string) {
+  try {
+    const openRes = await fetch("https://slack.com/api/conversations.open", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ users: slackUserId }),
+    });
+    const open = await openRes.json();
+    if (!open.ok || !open.channel?.id) {
+      console.log(`[slash-biscoito] app dm open failed: ${open.error || "unknown"}`);
+      return;
+    }
+    const postRes = await fetch("https://slack.com/api/chat.postMessage", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ channel: open.channel.id, text }),
+    });
+    const post = await postRes.json();
+    if (!post.ok) console.log(`[slash-biscoito] app dm post failed: ${post.error || "unknown"}`);
+  } catch (e: any) {
+    console.error("[slash-biscoito] app dm error:", e?.message || e);
+  }
+}
+
 async function openModal(opts: {
   slackUserId: string;
   triggerId: string;
@@ -48,6 +72,7 @@ async function openModal(opts: {
   responseUrl: string;
 }) {
   const { slackUserId, triggerId, channelId, channelName, responseUrl } = opts;
+
   try {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
@@ -86,7 +111,8 @@ async function openModal(opts: {
     ];
 
     const SHARE_CHANNEL = "#time";
-    const privateMetadata = JSON.stringify({ channel_id: SHARE_CHANNEL });
+    const privateMetadata = JSON.stringify({ channel_id: SHARE_CHANNEL, origin_channel_id: channelId || null });
+
 
 
     const view = {
@@ -188,20 +214,18 @@ serve(async (req) => {
     const channelName = params.get("channel_name") || "";
     const responseUrl = params.get("response_url") || "";
 
-    // Dispara abertura do modal em background — o trigger_id expira em 3s,
-    // então precisamos responder o Slack agora.
+    // Dispara abertura do modal e DM do app em background — o trigger_id expira em 3s.
     // @ts-ignore EdgeRuntime é disponibilizado pelo runtime do Supabase.
     EdgeRuntime.waitUntil(openModal({ slackUserId, triggerId, channelId, channelName, responseUrl }));
+    // @ts-ignore
+    EdgeRuntime.waitUntil(sendAppDM(slackUserId, "🍪 Abrindo o formulário do biscoito…"));
 
-    return new Response(
-      JSON.stringify({ response_type: "ephemeral", text: "🍪 Abrindo o formulário…" }),
-      { headers: { "Content-Type": "application/json" }, status: 200 },
-    );
+    // Resposta vazia: nada aparece no canal de origem.
+    return new Response("", { status: 200 });
+
   } catch (err: any) {
     console.error("slack-slash-biscoito error:", err);
-    return new Response(
-      JSON.stringify({ response_type: "ephemeral", text: "⚠️ Erro inesperado ao processar o comando." }),
-      { headers: { "Content-Type": "application/json" }, status: 200 },
-    );
+    return new Response("", { status: 200 });
   }
+
 });
