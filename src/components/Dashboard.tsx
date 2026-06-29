@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import React from "react";
 import { useBirthdayNotifications } from "@/hooks/useBirthdayNotifications";
+import { EngagementSummaryCard } from "./EngagementSummaryCard";
 
 export const Dashboard = () => {
   const navigate = useNavigate();
@@ -538,6 +539,9 @@ export const Dashboard = () => {
       {/* Content */}
       {selectedTab === "overview" && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {(person?.papel === 'GESTOR' || person?.papel === 'DIRETOR' || person?.is_admin) && (
+            <EngagementSummaryCard />
+          )}
           {/* Recent Activity */}
           <Card>
             <CardHeader>

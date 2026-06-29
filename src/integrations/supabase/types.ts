@@ -1340,6 +1340,15 @@ export type Database = {
         Args: { p_person_id: string }
         Returns: Json
       }
+      get_pulse_checkin_averages: {
+        Args: never
+        Returns: {
+          checkin_avg: number
+          checkin_count: number
+          checkout_avg: number
+          checkout_count: number
+        }[]
+      }
       get_pulse_responses_safe: {
         Args: { p_survey_id: string }
         Returns: {
