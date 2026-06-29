@@ -1,57 +1,35 @@
-## Resumo
+## Card "Engajamento" na Visão Geral
 
-Adicionar `email_pessoal` em `people` e `pending_people` para servir como alias de login/contato quando o email corporativo do colaborador não bate com o cadastro no Slack. Sem mudar `email` (que continua sendo o canônico/corporativo).
+Adicionar um novo card na aba **Visão Geral** do Dashboard (`src/components/Dashboard.tsx`), visível apenas para **gestores/diretores** (mesmo critério já usado para `pendingApprovals`).
 
-## 1. Migração
+### Conteúdo do card
+1. **Nota média Check-in / Check-out** — duas métricas lado a lado (escala 1-5, 1 casa decimal)
+   - Identifica surveys via `pulse_surveys` cujo `title ILIKE '%check-in%'` ou `'%check-out%'` (e `active = true`)
+   - Faz join com `pulse_questions` (filtra `question_type = 'scale_1_5'`) e `pulse_responses` (`answer_scale not null`), agregando a média por bucket
+   - Janela: últimos 30 dias (para refletir o pulso recente)
+2. **Líder do mês** — primeiro item de `useLeaderboard("team", "month")` (nome + pontos)
+3. **Último kudos** — primeiro item de `useKudosFeed(1)` (de → para, mensagem truncada, tempo relativo)
+4. **CTA "Ver Pulses"** — `Button` que navega para `/engagement` (página existente que contém a aba Pulses)
 
-Adicionar coluna em ambas as tabelas:
+### Implementação técnica
 
-```sql
-ALTER TABLE public.people ADD COLUMN email_pessoal text;
-ALTER TABLE public.pending_people ADD COLUMN email_pessoal text;
+**Novo hook** `src/hooks/usePulseCheckinAverages.ts`:
+- `useQuery` chamando um novo RPC `get_pulse_checkin_averages()` que retorna `{ checkin_avg: number|null, checkin_count: int, checkout_avg: number|null, checkout_count: int }` filtrando por janela de 30d
+- Migration cria a função SQL `SECURITY DEFINER` com `search_path = public`, restrita a usuários autenticados que sejam admin/gestor/diretor (via `has_role` ou checagem em `people.papel`) — retorna NULL para os demais
 
--- Índice único parcial (permite NULL repetido, bloqueia duplicatas)
-CREATE UNIQUE INDEX people_email_pessoal_unique_idx
-  ON public.people (lower(email_pessoal))
-  WHERE email_pessoal IS NOT NULL;
-```
+**Novo componente** `src/components/EngagementSummaryCard.tsx`:
+- Usa os três hooks (`usePulseCheckinAverages`, `useLeaderboard`, `useKudosFeed(1)`)
+- Layout: header com ícone (`Sparkles` ou `TrendingUp`) + título "Engajamento"
+- Grid interno com as quatro seções; estados de loading com `Skeleton`
+- Footer: `Button` "Ver Pulses" → `navigate('/engagement')`
 
-Atualizar RPCs:
+**Dashboard.tsx**:
+- Importa e renderiza `<EngagementSummaryCard />` dentro do bloco `selectedTab === "overview"` (grid existente `lg:grid-cols-2`), condicionado a `person.papel === 'GESTOR' | 'DIRETOR' || person.is_admin`
 
-- **`approve_pending_person`**: aceitar `p_email_pessoal text DEFAULT NULL`, copiar do pendente se não vier, gravar em `people.email_pessoal`. Bloquear se duplicado (case-insensitive).
-- **`complete_own_profile`**: aceitar `p_email_pessoal text DEFAULT NULL`. Validar regex de email, lowercase/trim, unicidade. Loga `PERSONAL_EMAIL_SET` quando muda.
-- **`update_profile_for_current_user`**: estender com `p_email_pessoal` opcional (mesma validação).
-- **`link_profile_personal_email`**: além do match por `slack_user_id`, aceitar também quando `auth.users.email` bate com `people.email_pessoal` (caso o diretor já tenha cadastrado o email pessoal).
-- Nova RPC **`admin_update_person_emails(p_person_id text, p_email text, p_email_pessoal text)`** — usada pelo Admin para editar ambos os campos com checagem de permissão (admin/diretor) e unicidade. Loga `UPDATE_EMAILS`.
+### Arquivos
+- ✏️ `src/components/Dashboard.tsx` — insere card no grid
+- ➕ `src/components/EngagementSummaryCard.tsx` — novo componente
+- ➕ `src/hooks/usePulseCheckinAverages.ts` — novo hook
+- 🗄️ Migration — função `get_pulse_checkin_averages()` + grant execute para `authenticated`
 
-## 2. Frontend
-
-- **`NewCollaboratorForm`** — novo campo opcional "Email pessoal (opcional)" abaixo do email corporativo, com placeholder explicando o uso (login alternativo / contato Slack). Insert em `pending_people.email_pessoal`.
-- **`ApprovePendingCollaboratorDialog`** — exibir e permitir editar `email_pessoal` antes de aprovar; passar como `p_email_pessoal` em `approve_pending_person`.
-- **`ProfileModal`** — adicionar campo "Email pessoal" na seção de dados pessoais; usa `update_profile_for_current_user` estendido.
-- **`CompleteProfile`** — campo opcional "Email pessoal" (mostrado sempre; obrigatório nunca). Passa em `complete_own_profile`.
-- **Admin (pessoas)** — em `src/pages/Admin.tsx` (edição direta de people), incluir o campo e chamar `admin_update_person_emails`.
-
-## 3. Edge functions
-
-- **`admin-auth-management`** — incluir `targetPerson.email_pessoal` em `extraEmails` passados a `sendSlackDM` (hoje só passa o login email do auth). Para o envio de convite por email, quando o lookup Slack falhar por todos os emails, **enviar o convite/recovery para `email_pessoal`** se o corporativo não estiver cadastrado no Slack (fallback explícito antes de tentar lookup por nome).
-- **`slack-interactions` / fluxos de aprovação Slack** — sem mudança imediata (continuam capturando email do Slack como `email` ou via `slack_user_id`); o diretor preenche `email_pessoal` na aprovação se quiser.
-
-## 4. Tipagem e auditoria
-
-- `src/integrations/supabase/types.ts` regenera automático após migração.
-- `src/lib/types.ts` — adicionar `emailPessoal?: string` em `Person` e mapear no `useAuth.fetchPersonData` (snake → camel).
-- Logs em `audit_logs`: `PERSONAL_EMAIL_SET`, `UPDATE_EMAILS`.
-
-## Fora de escopo
-
-- Não tornar `email_pessoal` obrigatório em nenhum fluxo.
-- Não permitir múltiplos emails pessoais por colaborador (1:1).
-- Não alterar `auto_link_figma_user` (continua só pelo `email` canônico).
-
-## Validação
-
-- Criar pendente com email pessoal → aprovar → conferir `people.email_pessoal` salvo e log `APPROVE_PERSON` referenciando.
-- Tentar salvar dois colaboradores com mesmo `email_pessoal` → erro de unicidade amigável.
-- Login com email pessoal previamente cadastrado → `SetupProfile` encontra match e `link_profile_personal_email` aceita sem exigir `slack_user_id`.
-- `admin-auth-management` invite: colaborador só tem corporativo fora do Slack mas tem `email_pessoal` cadastrado no Slack → DM entregue por esse fallback.
+Nenhuma alteração em pulses, kudos, leaderboard ou rotas existentes.
