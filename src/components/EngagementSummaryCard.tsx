@@ -143,7 +143,7 @@ export function EngagementSummaryCard() {
         <Button
           variant="outline"
           className="w-full"
-          onClick={() => navigate("/engagement")}
+          onClick={() => navigate("/vacation-management?tab=pulses")}
         >
           Ver Pulses
           <ArrowRight className="w-4 h-4 ml-1" />
