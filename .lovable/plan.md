@@ -1,34 +1,50 @@
-## Diagnóstico
+## Objetivo
 
-No app web (`GiveKudosDialog` em `src/pages/Engagement.tsx`), o envio para vários colegas está sendo feito num **loop `Promise.allSettled` que chama `kudos-send` N vezes**, cada chamada com 1 destinatário. Isso causa exatamente os dois sintomas relatados:
+Permitir escolher a estratégia de pareamento ao criar/editar um pulse do tipo "Avaliação entre pares":
 
-1. **Canal #time recebe N mensagens** (uma por destinatário) em vez de uma consolidada — porque a lógica de consolidação do `kudos-send` só é acionada quando `validRecipients.length > 1` **dentro da mesma chamada**.
-2. **Pontos "não aparecem" no leaderboard** — cada chamada individual dispara sua própria invalidação do React Query e a UI acaba mostrando estado inconsistente/stale entre as N chamadas paralelas; além disso, se qualquer chamada falha silenciosamente (por ex. rate limit ou 500 pontual), aquele destinatário e o `+2` correspondente do remetente somem, dando a impressão de "não computou".
+- **Round-robin** (atual): cada pessoa avalia a próxima da lista embaralhada, dentro do mesmo `sub_time`.
+- **Aleatório**: cada pessoa recebe um avaliado sorteado aleatoriamente (sem auto-pareamento, sem repetir avaliado na mesma rodada quando possível), dentro do mesmo `sub_time`.
+- **Pareamento fixo**: o criador define manualmente pares `avaliador → avaliado` que serão reutilizados em todas as rodadas.
 
-O backend (`kudos-send`) já aceita `to_person_ids: string[]`, valida `GESTOR`/`DIRETOR` + categoria `delivery`, insere N kudos, chama `award_points` para cada destinatário (+10) e para o remetente (+2 × N), e posta **uma única mensagem consolidada** no canal. Ou seja, o fix é apenas no frontend.
+## Mudanças
 
-O caminho do Slack (`slack-interactions` → `biscoito_submit`) já está correto: uma inserção por destinatário, `awardPoints` por destinatário, e um único card consolidado no canal — não requer mudança.
+### 1. Banco de dados (migration)
 
-## Mudança (apenas frontend)
+Adicionar em `pulse_surveys`:
 
-`src/pages/Engagement.tsx` — função `submit` do `GiveKudosDialog`:
+- `peer_pairing_strategy text not null default 'round_robin'` — valores permitidos: `round_robin`, `random`, `fixed` (via CHECK).
+- `peer_fixed_pairs jsonb` — array `[{ reviewer_id, subject_id }]`, usado apenas quando `strategy = 'fixed'`.
 
-- Remover o loop `Promise.allSettled(toIds.map(...))`.
-- Fazer **uma única** chamada `mutateAsync({ to_person_ids: toIds, message, category, post_to_channel })` quando `toIds.length > 1`, e manter `to_person_id: toIds[0]` quando `= 1` (para preservar compatibilidade e o caminho single já testado).
-- Ler `count` da resposta para o toast: `"Kudos enviado para N colegas 🎉"` (fallback para `toIds.length` se `count` não vier).
-- Manter validação client-side de limite (`MAX_MULTI_RECIPIENTS = 10`) e desabilitar botão se exceder.
+Sem alteração em RLS, grants ou `peer_review_pairs`.
 
-`src/hooks/useEngagement.ts` — `useSendKudo`:
+### 2. Frontend — `src/components/pulses/PulseFormDialog.tsx`
 
-- Ampliar o tipo do `input` para aceitar `to_person_id?: string` **ou** `to_person_ids?: string[]` (ambos opcionais no tipo, com pelo menos um exigido em runtime). Nenhuma outra mudança — o body já é repassado direto ao `functions.invoke("kudos-send", { body: input })`.
+No bloco `kind === "peer"` (após o switch "Revisor anônimo"):
+
+- Novo `Select` "Estratégia de pareamento" com as 3 opções.
+- Quando `fixed`: UI para adicionar/remover pares (`avaliador` + `avaliado`) usando dois `Select` com a lista de `people` já carregada, respeitando o escopo (all/teams/custom). Validação: sem auto-pareamento, sem duplicar avaliador.
+- Persistir `peer_pairing_strategy` e `peer_fixed_pairs` em criar/editar/duplicar.
+
+Atualizar `src/hooks/usePulses.ts` (`PulseSurvey`, `CreateSurveyInput`, `UpdateSurveyInput`, `useCreatePulseSurvey`, `useUpdatePulseSurvey`, `useDuplicatePulseSurvey`) para incluir os novos campos.
+
+### 3. Edge Function — `supabase/functions/pulse-dispatch/index.ts`
+
+Substituir a chamada única a `generatePeerPairs` por um dispatcher:
+
+```text
+switch (survey.peer_pairing_strategy)
+  case 'random'      -> generateRandomPairs(group)   // reviewer ≠ subject, embaralha até obter derangement
+  case 'fixed'       -> filtra survey.peer_fixed_pairs mantendo apenas pares onde ambos estão em `recipients` ativos
+  default            -> generatePeerPairs(group)     // round-robin atual
+```
+
+Para `fixed`, ignorar agrupamento por `sub_time` (o criador definiu explicitamente).
+
+### 4. Verificação
+
+- Criar peer pulse `round_robin`, `random` e `fixed`, disparar manualmente e conferir `peer_review_pairs` inseridos e mensagens enviadas.
 
 ## Fora de escopo
 
-- `kudos-send` (já suporta batch corretamente).
-- `slack-interactions` / `slack-slash-biscoito` (fluxo Slack já consolida e pontua corretamente).
-- Schema, RLS, `award_points`, `kudos-notify-managers`, leaderboard.
-
-## Verificação após implementação
-
-1. Como GESTOR/DIRETOR no app: selecionar categoria "Entrega", escolher 3 colegas, marcar "Postar em #time" e enviar.
-2. Esperado: **1 única** mensagem no canal `#time` listando os 3 nomes, e o leaderboard do mês mostrando `+10` para cada destinatário e `+6` (2×3) para o remetente após refresh.
+- Balanceamento avançado (evitar repetir mesmo par entre rodadas históricas).
+- Mudanças em kudos/self, notificações, exportação, resultados.
