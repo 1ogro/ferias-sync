@@ -322,15 +322,19 @@ async function dispatchSurvey(supabase: any, survey: any): Promise<{ sent: numbe
     return { sent: 0, total: recipients.length, deferred: 0, diagnostics: [{ status: "run_create_failed", error: runErr?.message }] };
   }
 
-  // Peer pairing
-  const subjectByReviewer = new Map<string, { id: string; nome: string }>();
+  // Peer pairing (Map<reviewerId, {pairId, subject}[]>)
+  const pairsByReviewer = new Map<string, { pairId: string; subject: { id: string; nome: string } }[]>();
+  const peopleById = new Map(recipients.map((p) => [p.id, p]));
+  let pairsCreated = 0;
+
   if (survey.kind === "peer") {
     const strategy: string = survey.peer_pairing_strategy || "round_robin";
-    const peopleById = new Map(recipients.map((p) => [p.id, p]));
+    const K = Math.min(5, Math.max(1, Number(survey.peer_reviews_per_reviewer) || 1));
     let pairs: { reviewer: string; subject: string }[] = [];
 
     if (strategy === "fixed") {
       const fixed = Array.isArray(survey.peer_fixed_pairs) ? survey.peer_fixed_pairs : [];
+      const seen = new Set<string>();
       pairs = fixed
         .filter((fp: any) =>
           fp?.reviewer_id &&
@@ -339,9 +343,14 @@ async function dispatchSurvey(supabase: any, survey: any): Promise<{ sent: numbe
           peopleById.has(fp.reviewer_id) &&
           peopleById.has(fp.subject_id)
         )
+        .filter((fp: any) => {
+          const k = `${fp.reviewer_id}:${fp.subject_id}`;
+          if (seen.has(k)) return false;
+          seen.add(k);
+          return true;
+        })
         .map((fp: any) => ({ reviewer: fp.reviewer_id, subject: fp.subject_id }));
     } else {
-      // round_robin or random: agrupar por sub_time
       const groups = new Map<string, typeof recipients>();
       for (const p of recipients) {
         const key = p.sub_time ?? "__no_team__";
@@ -349,14 +358,32 @@ async function dispatchSurvey(supabase: any, survey: any): Promise<{ sent: numbe
         groups.get(key)!.push(p);
       }
       const gen = strategy === "random" ? generateRandomPairs : generateRoundRobinPairs;
-      pairs = [...groups.values()].flatMap((g) => gen(g));
+      pairs = [...groups.values()].flatMap((g) => gen(g, K));
     }
 
     if (pairs.length) {
-      await supabase.from("peer_review_pairs").insert(
-        pairs.map((p) => ({ survey_id: survey.id, run_id: run.id, reviewer_id: p.reviewer, subject_id: p.subject }))
-      );
-      for (const p of pairs) subjectByReviewer.set(p.reviewer, peopleById.get(p.subject)!);
+      const { data: inserted, error: pairErr } = await supabase
+        .from("peer_review_pairs")
+        .insert(
+          pairs.map((p) => ({
+            survey_id: survey.id,
+            run_id: run.id,
+            reviewer_id: p.reviewer,
+            subject_id: p.subject,
+          }))
+        )
+        .select("id, reviewer_id, subject_id");
+      if (pairErr) {
+        console.error("[peer pairs insert] error:", pairErr);
+      }
+      for (const row of inserted || []) {
+        const subj = peopleById.get(row.subject_id);
+        if (!subj) continue;
+        const list = pairsByReviewer.get(row.reviewer_id) || [];
+        list.push({ pairId: row.id, subject: subj });
+        pairsByReviewer.set(row.reviewer_id, list);
+      }
+      pairsCreated = (inserted || []).length;
     }
   }
 
@@ -395,28 +422,63 @@ async function dispatchSurvey(supabase: any, survey: any): Promise<{ sent: numbe
     const im = await openIm(lookup.id);
     if (!im.channel) { diag.status = "im_failed"; diag.reason = im.error; diag.needed = im.needed; diagnostics.push(diag); continue; }
 
-    const subject = subjectByReviewer.get(p.id);
-    if (survey.kind === "peer" && !subject) {
+    // For peer: send one DM per pair. For self/others: single DM.
+    const reviewerPairs = pairsByReviewer.get(p.id) || [];
+    if (survey.kind === "peer" && reviewerPairs.length === 0) {
       diag.status = "no_subject_assigned"; diagnostics.push(diag); continue;
     }
 
-    const blocks = isKudos
-      ? buildKudosBlocks(survey)
-      : buildBlocks(survey, questions, run.id, { subjectName: subject?.nome });
-    const res = await fetch("https://slack.com/api/chat.postMessage", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        channel: im.channel,
-        text: isKudos ? `Kudos: ${survey.title}` : `Nova enquete: ${survey.title}`,
-        blocks,
-        metadata: subject ? { event_type: "pulse_peer", event_payload: { subject_id: subject.id } } : undefined,
-      }),
-    });
-    const data = await res.json();
-    if (data.ok) {
+    const deliveries: { pairId?: string; subject?: { id: string; nome: string } }[] =
+      isKudos
+        ? [{}]
+        : survey.kind === "peer"
+          ? reviewerPairs.map((rp) => ({ pairId: rp.pairId, subject: rp.subject }))
+          : [{}];
+
+    let anyOk = false;
+    const perPairDiag: any[] = [];
+    for (const d of deliveries) {
+      const blocks = isKudos
+        ? buildKudosBlocks(survey)
+        : buildBlocks(survey, questions, run.id, { subjectName: d.subject?.nome, pairId: d.pairId });
+      const res = await fetch("https://slack.com/api/chat.postMessage", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          channel: im.channel,
+          text: isKudos
+            ? `Kudos: ${survey.title}`
+            : (d.subject ? `Nova avaliação: ${survey.title} (avaliando ${d.subject.nome})` : `Nova enquete: ${survey.title}`),
+          blocks,
+          metadata: d.subject
+            ? { event_type: "pulse_peer", event_payload: { subject_id: d.subject.id, pair_id: d.pairId } }
+            : undefined,
+        }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        anyOk = true;
+        // Track per-pair message on peer_review_pairs
+        if (d.pairId) {
+          await supabase
+            .from("peer_review_pairs")
+            .update({
+              slack_channel: im.channel,
+              slack_message_ts: data.ts,
+              sent_at: new Date().toISOString(),
+            })
+            .eq("id", d.pairId);
+        }
+        perPairDiag.push({ pair_id: d.pairId ?? null, subject_id: d.subject?.id ?? null, status: "sent" });
+      } else {
+        perPairDiag.push({ pair_id: d.pairId ?? null, subject_id: d.subject?.id ?? null, status: "post_failed", reason: data.error, needed: data.needed });
+      }
+    }
+
+    if (anyOk) {
       sent++;
       diag.status = "sent";
+      diag.deliveries = perPairDiag;
       if (!isKudos) {
         await supabase.from("pulse_run_recipients").upsert(
           {
@@ -425,12 +487,15 @@ async function dispatchSurvey(supabase: any, survey: any): Promise<{ sent: numbe
             slack_user_id: lookup.id,
             slack_channel: im.channel,
             sent_at: new Date().toISOString(),
+            pairs_total: survey.kind === "peer" ? reviewerPairs.length : 0,
+            pairs_completed: 0,
           },
           { onConflict: "run_id,person_id" }
         );
       }
+    } else {
+      diag.status = "post_failed"; diag.deliveries = perPairDiag;
     }
-    else { diag.status = "post_failed"; diag.reason = data.error; diag.needed = data.needed; }
     diagnostics.push(diag);
   }
 
