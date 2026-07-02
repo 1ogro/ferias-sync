@@ -131,6 +131,7 @@ export function PulseResultsPanel({ survey }: Props) {
             </Table>
           </div>
         </div>
+        {survey.kind === "peer" && <PeerReviewPairsSection survey={survey} />}
       </CardContent>
     </Card>
   );
