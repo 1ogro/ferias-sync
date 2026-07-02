@@ -60,10 +60,19 @@ serve(async (req) => {
     const fromPersonId = prof.person_id as string;
 
     const body = await req.json().catch(() => ({}));
-    const { to_person_id, message, category = "teamwork", post_to_channel } = body || {};
+    const { to_person_id, to_person_ids, message, category = "teamwork", post_to_channel } = body || {};
 
-    if (!to_person_id || typeof to_person_id !== "string") {
-      return new Response(JSON.stringify({ error: "to_person_id required" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    // Normaliza destinatários (aceita string única ou array)
+    let recipients: string[] = [];
+    if (Array.isArray(to_person_ids)) recipients = to_person_ids.filter((x: any) => typeof x === "string");
+    else if (typeof to_person_id === "string") recipients = [to_person_id];
+    recipients = Array.from(new Set(recipients.filter((id) => id && id !== fromPersonId)));
+
+    if (recipients.length === 0) {
+      return new Response(JSON.stringify({ error: "to_person_id(s) required" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+    if (recipients.length > 10) {
+      return new Response(JSON.stringify({ error: "max 10 recipients" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
     if (!message || typeof message !== "string" || message.length < 1 || message.length > 500) {
       return new Response(JSON.stringify({ error: "message must be 1-500 chars" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
@@ -71,39 +80,78 @@ serve(async (req) => {
     if (!VALID_CATEGORIES.includes(category)) {
       return new Response(JSON.stringify({ error: "invalid category" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
-    if (to_person_id === fromPersonId) {
-      return new Response(JSON.stringify({ error: "Cannot give kudos to yourself" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+
+    const { data: from } = await admin.from("people").select("nome, papel").eq("id", fromPersonId).maybeSingle();
+
+    // Múltiplos destinatários: só GESTOR/DIRETOR e apenas categoria delivery
+    if (recipients.length > 1) {
+      if (category !== "delivery") {
+        return new Response(JSON.stringify({ error: "multi-recipient allowed only for category 'delivery'" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+      if (!from || (from.papel !== "GESTOR" && from.papel !== "DIRETOR")) {
+        return new Response(JSON.stringify({ error: "multi-recipient allowed only for GESTOR/DIRETOR" }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
     }
 
-    const { data: from } = await admin.from("people").select("nome").eq("id", fromPersonId).maybeSingle();
-    const { data: to } = await admin.from("people").select("nome, ativo").eq("id", to_person_id).maybeSingle();
-    if (!to || !to.ativo) {
-      return new Response(JSON.stringify({ error: "Recipient not found or inactive" }), { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    // Valida destinatários ativos
+    const { data: activeRows } = await admin.from("people").select("id, nome, ativo").in("id", recipients);
+    const activeMap = new Map<string, { id: string; nome: string }>();
+    for (const r of (activeRows || []) as Array<{ id: string; nome: string; ativo: boolean }>) {
+      if (r.ativo) activeMap.set(r.id, { id: r.id, nome: r.nome });
+    }
+    const validRecipients = recipients.filter((id) => activeMap.has(id));
+    if (validRecipients.length === 0) {
+      return new Response(JSON.stringify({ error: "Recipients not found or inactive" }), { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     const channelToPost = (typeof post_to_channel === "string" && post_to_channel.trim()) ? post_to_channel.trim() : null;
+    const trimmedMessage = message.trim();
 
-    const { data: kudo, error: insErr } = await admin.from("kudos").insert({
-      from_person_id: fromPersonId,
-      to_person_id,
-      message: message.trim(),
-      category,
-      slack_channel_posted: channelToPost,
-    }).select().single();
-    if (insErr || !kudo) throw new Error(insErr?.message || "insert failed");
-
-    await admin.rpc("award_points", { p_person_id: to_person_id, p_points: 10, p_reason: "kudo_received", p_source_id: kudo.id });
-    await admin.rpc("award_points", { p_person_id: fromPersonId, p_points: 2, p_reason: "kudo_given", p_source_id: kudo.id });
-
-    if (channelToPost) {
-      await postToChannel(channelToPost, from?.nome || "Alguém", to.nome, category, message.trim());
+    const insertedKudos: any[] = [];
+    for (const to_person_id of validRecipients) {
+      const { data: kudo, error: insErr } = await admin.from("kudos").insert({
+        from_person_id: fromPersonId,
+        to_person_id,
+        message: trimmedMessage,
+        category,
+        slack_channel_posted: channelToPost,
+      }).select().single();
+      if (insErr || !kudo) {
+        console.error("[kudos-send] insert failed for", to_person_id, insErr);
+        continue;
+      }
+      insertedKudos.push(kudo);
+      await admin.rpc("award_points", { p_person_id: to_person_id, p_points: 10, p_reason: "kudo_received", p_source_id: kudo.id });
+      await admin.rpc("award_points", { p_person_id: fromPersonId, p_points: 2, p_reason: "kudo_given", p_source_id: kudo.id });
     }
 
-    // Fire-and-forget notification to direct manager + all directors
-    admin.functions.invoke("kudos-notify-managers", { body: { kudo_id: kudo.id } })
-      .catch((e: any) => console.error("[kudos-send] notify invoke failed", e?.message));
+    if (insertedKudos.length === 0) {
+      return new Response(JSON.stringify({ error: "insert failed" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
 
-    return new Response(JSON.stringify({ ok: true, kudo }), {
+    if (channelToPost) {
+      const names = validRecipients.map((id) => activeMap.get(id)?.nome).filter(Boolean) as string[];
+      if (names.length === 1) {
+        await postToChannel(channelToPost, from?.nome || "Alguém", names[0], category, trimmedMessage);
+      } else {
+        const label = CATEGORY_LABEL[category] || "🎉";
+        const listed = names.map((n) => `*${n}*`).join(", ");
+        const text = `${label} *${from?.nome || "Alguém"}* deu kudos para ${listed}\n> ${trimmedMessage}`;
+        await fetch("https://slack.com/api/chat.postMessage", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ channel: channelToPost, text }),
+        }).catch((e) => console.warn("[kudos batch post]", e));
+      }
+    }
+
+    // Fire-and-forget notification para cada kudo
+    for (const k of insertedKudos) {
+      admin.functions.invoke("kudos-notify-managers", { body: { kudo_id: k.id } })
+        .catch((e: any) => console.error("[kudos-send] notify invoke failed", e?.message));
+    }
+
+    return new Response(JSON.stringify({ ok: true, kudos: insertedKudos, count: insertedKudos.length }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err: any) {

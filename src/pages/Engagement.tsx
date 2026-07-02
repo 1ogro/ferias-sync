@@ -10,11 +10,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Sparkles, Trophy, Heart, Send, Settings as SettingsIcon } from "lucide-react";
+import { Sparkles, Trophy, Heart, Send, Settings as SettingsIcon, Check, ChevronsUpDown, X } from "lucide-react";
 import { useKudosFeed, useLeaderboard, useMyPoints, useSendKudo, useActivePeople, useEngagementPrefs, useSaveEngagementPrefs, KudosCategory } from "@/hooks/useEngagement";
 import { useToast } from "@/hooks/use-toast";
+import { Papel } from "@/lib/types";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -117,12 +120,15 @@ function LeaderboardCard({
   );
 }
 
-function GiveKudosDialog({ personId, fromName }: { personId?: string; fromName?: string }) {
+const MAX_MULTI_RECIPIENTS = 10;
+
+function GiveKudosDialog({ personId, fromName, papel }: { personId?: string; fromName?: string; papel?: Papel }) {
   const [open, setOpen] = useState(false);
-  const [to, setTo] = useState<string>("");
+  const [toIds, setToIds] = useState<string[]>([]);
   const [category, setCategory] = useState<KudosCategory>("teamwork");
   const [message, setMessage] = useState("");
-  
+  const [pickerOpen, setPickerOpen] = useState(false);
+
   const [share, setShare] = useState(false);
   const SHARE_CHANNEL = "#time";
   const { data: people = [] } = useActivePeople();
@@ -130,26 +136,71 @@ function GiveKudosDialog({ personId, fromName }: { personId?: string; fromName?:
   const { toast } = useToast();
 
   const peopleOptions = useMemo(() => people.filter((p) => p.id !== personId), [people, personId]);
+  const canMulti = (papel === Papel.GESTOR || papel === Papel.DIRETOR) && category === "delivery";
+
+  // Ao trocar categoria/permissão, mantém apenas o 1º destinatário
+  const handleCategoryChange = (v: KudosCategory) => {
+    setCategory(v);
+    const newCanMulti = (papel === Papel.GESTOR || papel === Papel.DIRETOR) && v === "delivery";
+    if (!newCanMulti && toIds.length > 1) setToIds(toIds.slice(0, 1));
+  };
+
+  const toggleId = (id: string) => {
+    setToIds((prev) => {
+      if (prev.includes(id)) return prev.filter((x) => x !== id);
+      if (!canMulti) return [id];
+      if (prev.length >= MAX_MULTI_RECIPIENTS) {
+        toast({ title: `Máximo de ${MAX_MULTI_RECIPIENTS} colegas por envio`, variant: "destructive" });
+        return prev;
+      }
+      return [...prev, id];
+    });
+  };
 
   const submit = async () => {
-    if (!to || !message.trim()) {
-      toast({ title: "Preencha destinatário e mensagem", variant: "destructive" });
+    if (toIds.length === 0 || !message.trim()) {
+      toast({ title: "Preencha destinatário(s) e mensagem", variant: "destructive" });
+      return;
+    }
+    if (toIds.length > MAX_MULTI_RECIPIENTS) {
+      toast({ title: `Máximo de ${MAX_MULTI_RECIPIENTS} colegas por envio`, variant: "destructive" });
       return;
     }
     try {
-      await mutateAsync({
-        to_person_id: to,
-        message: message.trim(),
-        category,
-        post_to_channel: share ? SHARE_CHANNEL : null,
-      });
-      toast({ title: "Kudos enviado! 🎉", description: fromName ? `De ${fromName}` : undefined });
-      setOpen(false);
-      setTo(""); setMessage(""); setShare(false); setCategory("teamwork");
+      const results = await Promise.allSettled(
+        toIds.map((to_person_id) =>
+          mutateAsync({
+            to_person_id,
+            message: message.trim(),
+            category,
+            post_to_channel: share ? SHARE_CHANNEL : null,
+          })
+        )
+      );
+      const ok = results.filter((r) => r.status === "fulfilled").length;
+      const fail = results.length - ok;
+      if (ok > 0) {
+        toast({
+          title: ok === 1 ? "Kudos enviado! 🎉" : `Kudos enviados para ${ok} colegas 🎉`,
+          description: fail > 0 ? `${fail} não puderam ser enviados.` : (fromName ? `De ${fromName}` : undefined),
+        });
+      }
+      if (ok === results.length) {
+        setOpen(false);
+        setToIds([]); setMessage(""); setShare(false); setCategory("teamwork");
+      } else if (ok === 0) {
+        const first = results.find((r) => r.status === "rejected") as PromiseRejectedResult | undefined;
+        throw new Error(first?.reason?.message || "Falha ao enviar");
+      }
     } catch (e: any) {
       toast({ title: "Falha ao enviar kudos", description: e.message, variant: "destructive" });
     }
   };
+
+  const selectedNames = useMemo(
+    () => peopleOptions.filter((p) => toIds.includes(p.id)),
+    [peopleOptions, toIds]
+  );
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -163,19 +214,8 @@ function GiveKudosDialog({ personId, fromName }: { personId?: string; fromName?:
         </DialogHeader>
         <div className="space-y-3">
           <div>
-            <Label>Para quem</Label>
-            <Select value={to} onValueChange={setTo}>
-              <SelectTrigger><SelectValue placeholder="Escolha um colega" /></SelectTrigger>
-              <SelectContent>
-                {peopleOptions.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>{p.nome}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
             <Label>Categoria</Label>
-            <Select value={category} onValueChange={(v) => setCategory(v as KudosCategory)}>
+            <Select value={category} onValueChange={(v) => handleCategoryChange(v as KudosCategory)}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 {Object.entries(CATEGORY_META).map(([k, m]) => (
@@ -183,7 +223,71 @@ function GiveKudosDialog({ personId, fromName }: { personId?: string; fromName?:
                 ))}
               </SelectContent>
             </Select>
+            {(papel === Papel.GESTOR || papel === Papel.DIRETOR) && (
+              <p className="text-xs text-muted-foreground mt-1">
+                Na categoria <span className="font-medium">Entrega</span> você pode reconhecer até {MAX_MULTI_RECIPIENTS} colegas de uma vez.
+              </p>
+            )}
           </div>
+
+          <div>
+            <Label>{canMulti ? `Para quem (${toIds.length}/${MAX_MULTI_RECIPIENTS})` : "Para quem"}</Label>
+            {canMulti ? (
+              <>
+                <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" role="combobox" className="w-full justify-between font-normal">
+                      <span className="truncate text-left">
+                        {toIds.length === 0 ? "Escolha os colegas" : `${toIds.length} selecionado(s)`}
+                      </span>
+                      <ChevronsUpDown className="h-4 w-4 opacity-50 shrink-0" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                    <Command>
+                      <CommandInput placeholder="Buscar colega..." />
+                      <CommandList>
+                        <CommandEmpty>Ninguém encontrado.</CommandEmpty>
+                        <CommandGroup>
+                          {peopleOptions.map((p) => {
+                            const checked = toIds.includes(p.id);
+                            return (
+                              <CommandItem key={p.id} value={p.nome} onSelect={() => toggleId(p.id)}>
+                                <Check className={`mr-2 h-4 w-4 ${checked ? "opacity-100" : "opacity-0"}`} />
+                                {p.nome}
+                              </CommandItem>
+                            );
+                          })}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+                {selectedNames.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-2">
+                    {selectedNames.map((p) => (
+                      <Badge key={p.id} variant="secondary" className="gap-1">
+                        {p.nome}
+                        <button type="button" onClick={() => toggleId(p.id)} className="hover:text-destructive">
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+              </>
+            ) : (
+              <Select value={toIds[0] || ""} onValueChange={(v) => setToIds(v ? [v] : [])}>
+                <SelectTrigger><SelectValue placeholder="Escolha um colega" /></SelectTrigger>
+                <SelectContent>
+                  {peopleOptions.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>{p.nome}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
+
           <div>
             <Label>Mensagem</Label>
             <Textarea value={message} onChange={(e) => setMessage(e.target.value)} maxLength={500} placeholder="Conta o que rolou de bom..." rows={4} />
@@ -199,7 +303,9 @@ function GiveKudosDialog({ personId, fromName }: { personId?: string; fromName?:
         </div>
         <DialogFooter>
           <Button variant="ghost" onClick={() => setOpen(false)}>Cancelar</Button>
-          <Button onClick={submit} disabled={isPending} className="gap-2"><Send className="h-4 w-4" /> Enviar</Button>
+          <Button onClick={submit} disabled={isPending || toIds.length === 0} className="gap-2">
+            <Send className="h-4 w-4" /> Enviar{toIds.length > 1 ? ` (${toIds.length})` : ""}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -323,7 +429,7 @@ export default function Engagement() {
             <h1 className="text-2xl font-bold flex items-center gap-2"><Sparkles className="h-6 w-6 text-primary" /> Engajamento do Time</h1>
             <p className="text-muted-foreground">Reconheça colegas, ganhe pontos e acompanhe a vibe do time.</p>
           </div>
-          <GiveKudosDialog personId={person?.id} fromName={person?.nome} />
+          <GiveKudosDialog personId={person?.id} fromName={person?.nome} papel={person?.papel} />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
