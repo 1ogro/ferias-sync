@@ -69,6 +69,9 @@ export function PulseFormDialog({ open, onOpenChange, survey, initialValues }: P
   const [negThreshold, setNegThreshold] = useState(2);
   const [posThreshold, setPosThreshold] = useState(4);
   const [notifyIncludeText, setNotifyIncludeText] = useState(false);
+  const [responseDeadlineHours, setResponseDeadlineHours] = useState<number>(0);
+  const [reminderEnabled, setReminderEnabled] = useState<boolean>(true);
+  const [reminderOffsetsText, setReminderOffsetsText] = useState<string>("24, 2");
   const [questions, setQuestions] = useState<PulseQuestion[]>([
     { position: 0, question_text: "", question_type: "scale_1_5", required: true },
   ]);
