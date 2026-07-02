@@ -39,12 +39,56 @@ async function sendDM(channel: string, blocks: any[], text: string) {
   });
 }
 
-function monthRange(): { start: Date; end: Date; label: string } {
+type PeriodKind = "month" | "quarter" | "year";
+
+function resolvePeriod(forced?: string | null): { start: Date; end: Date; label: string; kind: PeriodKind; auditId: string; titleSuffix: string } {
   const now = new Date();
-  const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const end = new Date(now.getFullYear(), now.getMonth(), 1);
-  const label = start.toLocaleString("pt-BR", { month: "long", year: "numeric" });
-  return { start, end, label };
+  // O mês recém-encerrado é o anterior ao mês corrente (a função roda no dia 1).
+  const prevMonth = now.getMonth() - 1; // pode ser -1 em janeiro
+  const prevMonthDate = new Date(now.getFullYear(), prevMonth, 1);
+  const prevMonthIdx = prevMonthDate.getMonth(); // 0..11
+  const prevMonthYear = prevMonthDate.getFullYear();
+
+  let kind: PeriodKind;
+  if (forced === "month" || forced === "quarter" || forced === "year") {
+    kind = forced;
+  } else if (prevMonthIdx === 11) {
+    kind = "year";
+  } else if (prevMonthIdx === 2 || prevMonthIdx === 5 || prevMonthIdx === 8) {
+    kind = "quarter";
+  } else {
+    kind = "month";
+  }
+
+  if (kind === "year") {
+    const start = new Date(prevMonthYear, 0, 1);
+    const end = new Date(prevMonthYear + 1, 0, 1);
+    return {
+      start, end, kind,
+      label: `${prevMonthYear}`,
+      auditId: `${prevMonthYear}`,
+      titleSuffix: "anual",
+    };
+  }
+  if (kind === "quarter") {
+    const q = Math.floor(prevMonthIdx / 3); // 0..3
+    const start = new Date(prevMonthYear, q * 3, 1);
+    const end = new Date(prevMonthYear, q * 3 + 3, 1);
+    return {
+      start, end, kind,
+      label: `Q${q + 1}/${prevMonthYear}`,
+      auditId: `${prevMonthYear}-Q${q + 1}`,
+      titleSuffix: "trimestral",
+    };
+  }
+  const start = new Date(prevMonthYear, prevMonthIdx, 1);
+  const end = new Date(prevMonthYear, prevMonthIdx + 1, 1);
+  return {
+    start, end, kind,
+    label: start.toLocaleString("pt-BR", { month: "long", year: "numeric" }),
+    auditId: start.toISOString().slice(0, 7),
+    titleSuffix: "mensal",
+  };
 }
 
 function buildReportBlocks(title: string, period: string, stats: any): any[] {
