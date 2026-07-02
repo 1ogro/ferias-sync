@@ -195,6 +195,16 @@ export function PulseFormDialog({ open, onOpenChange, survey, initialValues }: P
     if (targetScope === "custom" && targetPersonIds.length === 0) {
       toast({ title: "Selecione ao menos uma pessoa", variant: "destructive" }); return;
     }
+    if (kind === "peer" && peerPairingStrategy === "fixed") {
+      const validPairs = peerFixedPairs.filter((p) => p.reviewer_id && p.subject_id && p.reviewer_id !== p.subject_id);
+      if (validPairs.length === 0) {
+        toast({ title: "Defina ao menos um par (avaliador → avaliado)", variant: "destructive" }); return;
+      }
+      const reviewers = validPairs.map((p) => p.reviewer_id);
+      if (new Set(reviewers).size !== reviewers.length) {
+        toast({ title: "Cada avaliador só pode aparecer uma vez", variant: "destructive" }); return;
+      }
+    }
     try {
       const commonKudos = {
         kudos_categories: kind === "kudos" ? kudosCategories : null,
