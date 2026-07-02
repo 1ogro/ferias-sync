@@ -470,8 +470,44 @@ async function dispatchSurvey(supabase: any, survey: any): Promise<{ sent: numbe
             .eq("id", d.pairId);
         }
         perPairDiag.push({ pair_id: d.pairId ?? null, subject_id: d.subject?.id ?? null, status: "sent" });
+        // Per-pair audit log for peer review dispatch
+        if (survey.kind === "peer" && d.pairId) {
+          await supabase.from("audit_logs").insert({
+            entidade: "peer_review_pairs",
+            entidade_id: d.pairId,
+            acao: "PEER_PAIR_SENT",
+            actor_id: survey.created_by,
+            payload: {
+              survey_id: survey.id,
+              run_id: run.id,
+              reviewer_id: p.id,
+              subject_id: d.subject?.id ?? null,
+              slack_channel: im.channel,
+              slack_message_ts: data.ts,
+              k: Math.min(5, Math.max(1, Number(survey.peer_reviews_per_reviewer) || 1)),
+            },
+          });
+        }
       } else {
         perPairDiag.push({ pair_id: d.pairId ?? null, subject_id: d.subject?.id ?? null, status: "post_failed", reason: data.error, needed: data.needed });
+        if (survey.kind === "peer") {
+          await supabase.from("audit_logs").insert({
+            entidade: "peer_review_pairs",
+            entidade_id: d.pairId ?? run.id,
+            acao: "PEER_PAIR_SEND_FAILED",
+            actor_id: survey.created_by,
+            payload: {
+              survey_id: survey.id,
+              run_id: run.id,
+              reviewer_id: p.id,
+              subject_id: d.subject?.id ?? null,
+              pair_id: d.pairId ?? null,
+              reason: data.error,
+              needed: data.needed,
+              k: Math.min(5, Math.max(1, Number(survey.peer_reviews_per_reviewer) || 1)),
+            },
+          });
+        }
       }
     }
 
