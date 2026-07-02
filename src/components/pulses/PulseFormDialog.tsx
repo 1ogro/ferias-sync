@@ -511,6 +511,54 @@ export function PulseFormDialog({ open, onOpenChange, survey, initialValues }: P
           {kind !== "kudos" && (
             <div className="space-y-3 rounded border p-3">
               <div>
+                <Label className="text-sm font-semibold">Prazo e lembretes</Label>
+                <p className="text-xs text-muted-foreground">
+                  Defina o prazo (em horas) e receba lembretes automáticos no Slack para quem ainda não respondeu.
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs">Prazo para resposta (horas)</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    value={responseDeadlineHours}
+                    onChange={(e) => setResponseDeadlineHours(parseInt(e.target.value || "0", 10))}
+                    placeholder="0 = sem prazo"
+                  />
+                  <p className="text-[11px] text-muted-foreground">0 desativa os lembretes.</p>
+                </div>
+                <div className="flex items-center justify-between rounded border p-2">
+                  <div>
+                    <Label className="text-xs">Lembretes automáticos</Label>
+                    <p className="text-[11px] text-muted-foreground">Enviar via Slack</p>
+                  </div>
+                  <Switch
+                    checked={reminderEnabled}
+                    disabled={responseDeadlineHours <= 0}
+                    onCheckedChange={setReminderEnabled}
+                  />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Horas antes do prazo (separadas por vírgula)</Label>
+                <Input
+                  value={reminderOffsetsText}
+                  onChange={(e) => setReminderOffsetsText(e.target.value)}
+                  disabled={responseDeadlineHours <= 0 || !reminderEnabled}
+                  placeholder="24, 2"
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  Use 0 para lembrete no vencimento. Até 5 offsets.
+                </p>
+              </div>
+            </div>
+          )}
+
+
+          {kind !== "kudos" && (
+            <div className="space-y-3 rounded border p-3">
+              <div>
                 <Label className="text-sm font-semibold">Notificações ao gestor</Label>
                 <p className="text-xs text-muted-foreground">
                   Avisa o gestor direto do respondente quando uma resposta cai na faixa configurada.
