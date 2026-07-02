@@ -373,6 +373,7 @@ export type Database = {
           preferred_window_start: string
           quiet_hours_end: string
           quiet_hours_start: string
+          registration_reminders_slack: boolean
           request_updates_email: boolean
           request_updates_slack: boolean
           system_alerts_email: boolean
@@ -392,6 +393,7 @@ export type Database = {
           preferred_window_start?: string
           quiet_hours_end?: string
           quiet_hours_start?: string
+          registration_reminders_slack?: boolean
           request_updates_email?: boolean
           request_updates_slack?: boolean
           system_alerts_email?: boolean
@@ -411,6 +413,7 @@ export type Database = {
           preferred_window_start?: string
           quiet_hours_end?: string
           quiet_hours_start?: string
+          registration_reminders_slack?: boolean
           request_updates_email?: boolean
           request_updates_slack?: boolean
           system_alerts_email?: boolean
