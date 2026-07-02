@@ -209,9 +209,9 @@ export function PulseFormDialog({ open, onOpenChange, survey, initialValues }: P
       if (validPairs.length === 0) {
         toast({ title: "Defina ao menos um par (avaliador → avaliado)", variant: "destructive" }); return;
       }
-      const reviewers = validPairs.map((p) => p.reviewer_id);
-      if (new Set(reviewers).size !== reviewers.length) {
-        toast({ title: "Cada avaliador só pode aparecer uma vez", variant: "destructive" }); return;
+      const dupKey = new Set(validPairs.map((p) => `${p.reviewer_id}:${p.subject_id}`));
+      if (dupKey.size !== validPairs.length) {
+        toast({ title: "Você tem pares duplicados (mesmo avaliador → mesmo avaliado)", variant: "destructive" }); return;
       }
     }
     try {
