@@ -107,6 +107,8 @@ export function PulseFormDialog({ open, onOpenChange, survey, initialValues }: P
       setTone(((survey as any).tone || "neutral") as any);
       setKind(((survey as any).kind || "self") as any);
       setPeerAnonymous((survey as any).peer_anonymous ?? true);
+      setPeerPairingStrategy(((survey as any).peer_pairing_strategy as any) ?? "round_robin");
+      setPeerFixedPairs(((survey as any).peer_fixed_pairs as any) ?? []);
       setKudosCategories(((survey as any).kudos_categories as string[] | null) ?? [
         "teamwork", "innovation", "delivery", "leadership", "customer",
       ]);
