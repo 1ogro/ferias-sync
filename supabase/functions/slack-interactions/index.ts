@@ -79,8 +79,21 @@ async function completePeerPair(
     pair = data ?? null;
   }
   if (!pair) return null;
-  if (!pair.completed_at) {
+  const wasAlreadyCompleted = !!pair.completed_at;
+  if (!wasAlreadyCompleted) {
     await supabase.from("peer_review_pairs").update({ completed_at: new Date().toISOString() }).eq("id", pair.id);
+    await supabase.from("audit_logs").insert({
+      entidade: "peer_review_pairs",
+      entidade_id: pair.id,
+      acao: "PEER_PAIR_COMPLETED",
+      actor_id: reviewerId,
+      payload: {
+        run_id: runId,
+        pair_id: pair.id,
+        reviewer_id: reviewerId,
+        subject_id: pair.subject_id,
+      },
+    });
   }
   await awardPoints(supabase, reviewerId, 8, "peer_review", pair.id);
   return { pair_id: pair.id, subject_id: pair.subject_id };
