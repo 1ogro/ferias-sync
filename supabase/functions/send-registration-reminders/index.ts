@@ -16,7 +16,6 @@ import {
   isNearMonthEnd,
   Mode,
   peopleIncompleteReasons,
-  pendingMissingFields,
   selectPendings,
 } from "./lib.ts";
 
