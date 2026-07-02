@@ -225,6 +225,7 @@ export function PulseFormDialog({ open, onOpenChange, survey, initialValues }: P
         peer_fixed_pairs: kind === "peer" && peerPairingStrategy === "fixed"
           ? peerFixedPairs.filter((p) => p.reviewer_id && p.subject_id && p.reviewer_id !== p.subject_id)
           : null,
+        peer_reviews_per_reviewer: kind === "peer" ? Math.min(5, Math.max(1, peerReviewsPerReviewer || 1)) : 1,
       };
       const notifyFields = {
         notify_manager_on_negative: kind === "kudos" ? false : notifyNegative,
