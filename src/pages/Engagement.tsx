@@ -429,7 +429,7 @@ export default function Engagement() {
             <h1 className="text-2xl font-bold flex items-center gap-2"><Sparkles className="h-6 w-6 text-primary" /> Engajamento do Time</h1>
             <p className="text-muted-foreground">Reconheça colegas, ganhe pontos e acompanhe a vibe do time.</p>
           </div>
-          <GiveKudosDialog personId={person?.id} fromName={person?.nome} />
+          <GiveKudosDialog personId={person?.id} fromName={person?.nome} papel={person?.papel} />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
