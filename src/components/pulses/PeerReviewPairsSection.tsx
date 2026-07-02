@@ -17,21 +17,38 @@ function Stat({ label, value }: { label: string; value: any }) {
   );
 }
 
+function uniqueSortedOptions(pairs: any[], key: "reviewer" | "subject") {
+  const map = new Map<string, string>();
+  pairs.forEach((p) => {
+    const id = key === "reviewer" ? p.reviewer_id : p.subject_id;
+    const nome = key === "reviewer" ? (p.reviewer_nome || p.reviewer_id) : (p.subject_nome || p.subject_id);
+    map.set(id, nome);
+  });
+  return Array.from(map.entries()).sort((a, b) => a[1].localeCompare(b[1], "pt-BR"));
+}
+
 export function PeerReviewPairsSection({ survey }: Props) {
   const { data: pairs = [], isLoading } = usePeerReviewPairs(survey.id);
   const { data: runs = [] } = usePulseRuns(survey.id);
   const [runFilter, setRunFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<"all" | "done" | "pending">("all");
+  const [reviewerFilter, setReviewerFilter] = useState<string>("all");
+  const [subjectFilter, setSubjectFilter] = useState<string>("all");
+
+  const reviewers = useMemo(() => uniqueSortedOptions(pairs, "reviewer"), [pairs]);
+  const subjects = useMemo(() => uniqueSortedOptions(pairs, "subject"), [pairs]);
 
   const filtered = useMemo(() => {
     return pairs.filter((p) => {
       if (runFilter !== "all" && p.run_id !== runFilter) return false;
+      if (reviewerFilter !== "all" && p.reviewer_id !== reviewerFilter) return false;
+      if (subjectFilter !== "all" && p.subject_id !== subjectFilter) return false;
       const done = !!p.completed_at;
       if (statusFilter === "done" && !done) return false;
       if (statusFilter === "pending" && done) return false;
       return true;
     });
-  }, [pairs, runFilter, statusFilter]);
+  }, [pairs, runFilter, reviewerFilter, subjectFilter, statusFilter]);
 
   const stats = useMemo(() => {
     const total = filtered.length;
@@ -48,7 +65,7 @@ export function PeerReviewPairsSection({ survey }: Props) {
     <div className="space-y-3">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <h4 className="font-medium">Pares de peer review</h4>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap justify-end">
           <Select value={runFilter} onValueChange={setRunFilter}>
             <SelectTrigger className="h-8 w-[180px]"><SelectValue placeholder="Execução" /></SelectTrigger>
             <SelectContent>
@@ -57,6 +74,24 @@ export function PeerReviewPairsSection({ survey }: Props) {
                 <SelectItem key={r.id} value={r.id}>
                   {new Date(r.dispatched_at || r.created_at).toLocaleDateString("pt-BR")}
                 </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={reviewerFilter} onValueChange={setReviewerFilter}>
+            <SelectTrigger className="h-8 w-[180px]"><SelectValue placeholder="Revisor" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos os revisores</SelectItem>
+              {reviewers.map(([id, nome]) => (
+                <SelectItem key={id} value={id}>{survey.peer_anonymous ? "Anônimo" : nome}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={subjectFilter} onValueChange={setSubjectFilter}>
+            <SelectTrigger className="h-8 w-[180px]"><SelectValue placeholder="Avaliado" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos os avaliados</SelectItem>
+              {subjects.map(([id, nome]) => (
+                <SelectItem key={id} value={id}>{nome}</SelectItem>
               ))}
             </SelectContent>
           </Select>
