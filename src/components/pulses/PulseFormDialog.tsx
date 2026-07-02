@@ -113,6 +113,7 @@ export function PulseFormDialog({ open, onOpenChange, survey, initialValues }: P
       setPeerAnonymous((survey as any).peer_anonymous ?? true);
       setPeerPairingStrategy(((survey as any).peer_pairing_strategy as any) ?? "round_robin");
       setPeerFixedPairs(((survey as any).peer_fixed_pairs as any) ?? []);
+      setPeerReviewsPerReviewer((survey as any).peer_reviews_per_reviewer ?? 1);
       setKudosCategories(((survey as any).kudos_categories as string[] | null) ?? [
         "teamwork", "innovation", "delivery", "leadership", "customer",
       ]);
