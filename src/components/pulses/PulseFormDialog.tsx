@@ -211,6 +211,12 @@ export function PulseFormDialog({ open, onOpenChange, survey, initialValues }: P
         kudos_channel: kind === "kudos" ? (kudosChannel.trim() || null) : null,
         prompt_text: kind === "kudos" ? (promptText.trim() || null) : null,
       };
+      const peerFields = {
+        peer_pairing_strategy: kind === "peer" ? peerPairingStrategy : "round_robin",
+        peer_fixed_pairs: kind === "peer" && peerPairingStrategy === "fixed"
+          ? peerFixedPairs.filter((p) => p.reviewer_id && p.subject_id && p.reviewer_id !== p.subject_id)
+          : null,
+      };
       const notifyFields = {
         notify_manager_on_negative: kind === "kudos" ? false : notifyNegative,
         notify_manager_on_positive: kind === "kudos" ? false : notifyPositive,
