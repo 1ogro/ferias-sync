@@ -158,14 +158,8 @@ Deno.serve(async (req) => {
     const recipients: PersonMini[] =
       key === "__admins__" ? admins : mgrs.filter((m) => m.id === key);
 
-    const missingFields = (row: any) => {
-      const miss: string[] = [];
-      if (!row.email) miss.push("🔴 email corporativo (bloqueia login)");
-      if (!row.data_contrato) miss.push("🟠 data de contrato");
-      if (!row.modelo_contrato) miss.push("🟠 modelo de contrato");
-      if (row.modelo_contrato === "PJ" && !row.dia_pagamento) miss.push("🟡 dia de pagamento (PJ)");
-      return miss;
-    };
+    const missingFields = pendingMissingFields;
+
 
     const lines = (items as any[]).slice(0, 20).map((p) => {
       const days = Math.floor((Date.now() - new Date(p.created_at).getTime()) / 86400_000);
