@@ -7,12 +7,20 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
+import {
+  dedupWindowHours,
+  groupPendingByManager,
+  isNearMonthEnd,
+  Mode,
+  peopleIncompleteReasons,
+  pendingMissingFields,
+  selectPendings,
+} from "./lib.ts";
 
 const SLACK_BOT_TOKEN = Deno.env.get("SLACK_BOT_TOKEN") || "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-type Mode = "weekly" | "month_end";
 
 interface PersonMini {
   id: string;
