@@ -5,6 +5,9 @@ import {
 } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import {
   applyDedup,
+  buildIncompleteProfileManagerMessage,
+  buildIncompleteProfileSelfMessage,
+  buildPendingApprovalMessage,
   dedupWindowHours,
   groupPendingByManager,
   isNearMonthEnd,
@@ -13,6 +16,7 @@ import {
   pendingMissingFields,
   PersonRow,
   selectPendings,
+  SlackBlock,
 } from "./lib.ts";
 
 // ─────────────────────────────────────────────────────────────
