@@ -297,9 +297,18 @@ async function dispatchSurvey(supabase: any, survey: any): Promise<{ sent: numbe
 
   console.log(`[survey ${survey.id}] kind=${survey.kind} tone=${survey.tone} recipients=${recipients.length}`);
 
+  const deadlineAt = survey.response_deadline_hours && survey.response_deadline_hours > 0
+    ? new Date(Date.now() + survey.response_deadline_hours * 3600_000).toISOString()
+    : null;
+
   const { data: run, error: runErr } = await supabase
     .from("pulse_runs")
-    .insert({ survey_id: survey.id, status: "pending", recipients_count: recipients.length })
+    .insert({
+      survey_id: survey.id,
+      status: "pending",
+      recipients_count: recipients.length,
+      deadline_at: deadlineAt,
+    })
     .select()
     .single();
 
@@ -399,7 +408,22 @@ async function dispatchSurvey(supabase: any, survey: any): Promise<{ sent: numbe
       }),
     });
     const data = await res.json();
-    if (data.ok) { sent++; diag.status = "sent"; }
+    if (data.ok) {
+      sent++;
+      diag.status = "sent";
+      if (!isKudos) {
+        await supabase.from("pulse_run_recipients").upsert(
+          {
+            run_id: run.id,
+            person_id: p.id,
+            slack_user_id: lookup.id,
+            slack_channel: im.channel,
+            sent_at: new Date().toISOString(),
+          },
+          { onConflict: "run_id,person_id" }
+        );
+      }
+    }
     else { diag.status = "post_failed"; diag.reason = data.error; diag.needed = data.needed; }
     diagnostics.push(diag);
   }

@@ -45,6 +45,9 @@ verify_jwt = false
 [functions.pulse-dispatch]
 verify_jwt = false
 
+[functions.pulse-reminders]
+verify_jwt = false
+
 [functions.pulse-export]
 verify_jwt = true
 

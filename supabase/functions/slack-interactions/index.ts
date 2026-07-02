@@ -74,6 +74,19 @@ async function bumpResponseCount(runId: string, supabase: any) {
   await supabase.from("pulse_runs").update({ responses_count: count || 0 }).eq("id", runId);
 }
 
+async function markRecipientResponded(supabase: any, runId: string, personId: string) {
+  try {
+    await supabase
+      .from("pulse_run_recipients")
+      .update({ responded_at: new Date().toISOString() })
+      .eq("run_id", runId)
+      .eq("person_id", personId)
+      .is("responded_at", null);
+  } catch (e) {
+    console.error("[markRecipientResponded] error:", e);
+  }
+}
+
 async function postEphemeralAck(payload: any, text: string) {
   if (!payload.channel?.id || !payload.user?.id) return;
   await fetch("https://slack.com/api/chat.postEphemeral", {
@@ -850,6 +863,7 @@ serve(async (req) => {
           await bumpResponseCount(runId, supabase);
           await awardPoints(supabase, respondent.id, 5, "pulse_response", runId);
           await completePeerPair(supabase, runId, respondent.id);
+          await markRecipientResponded(supabase, runId, respondent.id);
           if (upRow?.id) {
             supabase.functions.invoke("pulse-response-notify", { body: { response_id: upRow.id } })
               .catch((e: any) => console.error("[pulse_text] notify invoke failed", e?.message));
@@ -883,6 +897,7 @@ serve(async (req) => {
             await bumpResponseCount(runId, supabase);
             await awardPoints(supabase, respondent.id, 5, "pulse_response", runId);
             await completePeerPair(supabase, runId, respondent.id);
+            await markRecipientResponded(supabase, runId, respondent.id);
             await postEphemeralAck(payload, `✅ Resposta registrada: *${value}/5*`);
             if (upRow?.id) {
               supabase.functions.invoke("pulse-response-notify", { body: { response_id: upRow.id } })

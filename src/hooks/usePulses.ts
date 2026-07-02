@@ -40,6 +40,9 @@ export interface PulseSurvey {
   notify_negative_threshold?: number;
   notify_positive_threshold?: number;
   notify_include_text_responses?: boolean;
+  response_deadline_hours?: number | null;
+  reminder_enabled?: boolean;
+  reminder_offsets_hours?: number[];
   created_at: string;
   updated_at: string;
 }
@@ -69,6 +72,9 @@ export interface CreateSurveyInput {
   notify_negative_threshold?: number;
   notify_positive_threshold?: number;
   notify_include_text_responses?: boolean;
+  response_deadline_hours?: number | null;
+  reminder_enabled?: boolean;
+  reminder_offsets_hours?: number[];
   questions: PulseQuestion[];
 }
 
@@ -82,7 +88,7 @@ export function usePulseSurveys() {
         .select("*")
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return data as PulseSurvey[];
+      return (data as unknown) as PulseSurvey[];
     },
   });
 }
@@ -165,6 +171,9 @@ export function useCreatePulseSurvey() {
           notify_negative_threshold: survey.notify_negative_threshold ?? 2,
           notify_positive_threshold: survey.notify_positive_threshold ?? 4,
           notify_include_text_responses: survey.notify_include_text_responses ?? false,
+          response_deadline_hours: survey.response_deadline_hours ?? null,
+          reminder_enabled: survey.reminder_enabled ?? true,
+          reminder_offsets_hours: survey.reminder_offsets_hours ?? [24, 2],
           active: true,
         } as any)
         .select()
@@ -224,6 +233,9 @@ export interface UpdateSurveyInput {
   notify_negative_threshold?: number;
   notify_positive_threshold?: number;
   notify_include_text_responses?: boolean;
+  response_deadline_hours?: number | null;
+  reminder_enabled?: boolean;
+  reminder_offsets_hours?: number[];
   questions?: PulseQuestion[]; // if provided, replaces all questions (ignored for kudos)
 }
 
@@ -258,6 +270,9 @@ export function useUpdatePulseSurvey() {
           notify_negative_threshold: fields.notify_negative_threshold ?? 2,
           notify_positive_threshold: fields.notify_positive_threshold ?? 4,
           notify_include_text_responses: fields.notify_include_text_responses ?? false,
+          response_deadline_hours: fields.response_deadline_hours ?? null,
+          reminder_enabled: fields.reminder_enabled ?? true,
+          reminder_offsets_hours: fields.reminder_offsets_hours ?? [24, 2],
         } as any)
         .eq("id", id);
       if (error) throw error;
@@ -339,6 +354,9 @@ export function useDuplicatePulseSurvey() {
           target_team_id: orig.target_team_id,
           target_team_ids: (orig as any).target_team_ids ?? null,
           target_person_ids: orig.target_person_ids,
+          response_deadline_hours: (orig as any).response_deadline_hours ?? null,
+          reminder_enabled: (orig as any).reminder_enabled ?? true,
+          reminder_offsets_hours: (orig as any).reminder_offsets_hours ?? [24, 2],
           active: false,
         } as any)
         .select()
