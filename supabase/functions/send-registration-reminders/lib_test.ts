@@ -192,6 +192,7 @@ Deno.test("peopleIncompleteReasons — perfil não finalizado é apontado", () =
     person({ profile_completed_at: null }),
   );
   assert(incompleto.some((r) => r.includes("completar perfil")));
+});
 
 // ─────────────────────────────────────────────────────────────
 // Slack payload — integração unitária dos builders de mensagem
