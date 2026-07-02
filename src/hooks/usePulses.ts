@@ -354,6 +354,9 @@ export function useDuplicatePulseSurvey() {
           target_team_id: orig.target_team_id,
           target_team_ids: (orig as any).target_team_ids ?? null,
           target_person_ids: orig.target_person_ids,
+          response_deadline_hours: (orig as any).response_deadline_hours ?? null,
+          reminder_enabled: (orig as any).reminder_enabled ?? true,
+          reminder_offsets_hours: (orig as any).reminder_offsets_hours ?? [24, 2],
           active: false,
         } as any)
         .select()
