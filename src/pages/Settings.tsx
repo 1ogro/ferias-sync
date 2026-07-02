@@ -275,8 +275,24 @@ const Settings = () => {
                             onCheckedChange={(v) => updatePreference('admin_actions_slack', v)}
                             disabled={notifSaving}
                           />
+                      </div>
+
+                      {/* Registration reminders (Slack only) */}
+                      <div className="grid grid-cols-[1fr_80px_80px] gap-4 items-center py-3 border-t">
+                        <div>
+                          <Label>Lembretes de cadastro pendente</Label>
+                          <p className="text-sm text-muted-foreground">DMs no Slack sobre aprovações pendentes e cadastros incompletos (semanal + fim de mês)</p>
+                        </div>
+                        <div className="flex justify-center text-xs text-muted-foreground">—</div>
+                        <div className="flex justify-center">
+                          <Switch
+                            checked={notifPrefs.registration_reminders_slack}
+                            onCheckedChange={(v) => updatePreference('registration_reminders_slack', v)}
+                            disabled={notifSaving}
+                          />
                         </div>
                       </div>
+
 
                       {notifSaving && (
                         <p className="text-xs text-muted-foreground pt-2">Salvando...</p>
