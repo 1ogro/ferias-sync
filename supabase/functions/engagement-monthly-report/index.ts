@@ -39,12 +39,56 @@ async function sendDM(channel: string, blocks: any[], text: string) {
   });
 }
 
-function monthRange(): { start: Date; end: Date; label: string } {
+type PeriodKind = "month" | "quarter" | "year";
+
+function resolvePeriod(forced?: string | null): { start: Date; end: Date; label: string; kind: PeriodKind; auditId: string; titleSuffix: string } {
   const now = new Date();
-  const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const end = new Date(now.getFullYear(), now.getMonth(), 1);
-  const label = start.toLocaleString("pt-BR", { month: "long", year: "numeric" });
-  return { start, end, label };
+  // O mês recém-encerrado é o anterior ao mês corrente (a função roda no dia 1).
+  const prevMonth = now.getMonth() - 1; // pode ser -1 em janeiro
+  const prevMonthDate = new Date(now.getFullYear(), prevMonth, 1);
+  const prevMonthIdx = prevMonthDate.getMonth(); // 0..11
+  const prevMonthYear = prevMonthDate.getFullYear();
+
+  let kind: PeriodKind;
+  if (forced === "month" || forced === "quarter" || forced === "year") {
+    kind = forced;
+  } else if (prevMonthIdx === 11) {
+    kind = "year";
+  } else if (prevMonthIdx === 2 || prevMonthIdx === 5 || prevMonthIdx === 8) {
+    kind = "quarter";
+  } else {
+    kind = "month";
+  }
+
+  if (kind === "year") {
+    const start = new Date(prevMonthYear, 0, 1);
+    const end = new Date(prevMonthYear + 1, 0, 1);
+    return {
+      start, end, kind,
+      label: `${prevMonthYear}`,
+      auditId: `${prevMonthYear}`,
+      titleSuffix: "anual",
+    };
+  }
+  if (kind === "quarter") {
+    const q = Math.floor(prevMonthIdx / 3); // 0..3
+    const start = new Date(prevMonthYear, q * 3, 1);
+    const end = new Date(prevMonthYear, q * 3 + 3, 1);
+    return {
+      start, end, kind,
+      label: `Q${q + 1}/${prevMonthYear}`,
+      auditId: `${prevMonthYear}-Q${q + 1}`,
+      titleSuffix: "trimestral",
+    };
+  }
+  const start = new Date(prevMonthYear, prevMonthIdx, 1);
+  const end = new Date(prevMonthYear, prevMonthIdx + 1, 1);
+  return {
+    start, end, kind,
+    label: start.toLocaleString("pt-BR", { month: "long", year: "numeric" }),
+    auditId: start.toISOString().slice(0, 7),
+    titleSuffix: "mensal",
+  };
 }
 
 function buildReportBlocks(title: string, period: string, stats: any): any[] {
@@ -125,8 +169,9 @@ serve(async (req) => {
   try {
     const url = new URL(req.url);
     const dryRun = url.searchParams.get("dry_run") === "true";
+    const forced = url.searchParams.get("period");
     const admin = createClient(supabaseUrl, supabaseServiceKey);
-    const { start, end, label } = monthRange();
+    const { start, end, label, kind, auditId, titleSuffix } = resolvePeriod(forced);
 
     // Managers: anyone who has at least one direct report active
     const { data: people } = await admin.from("people")
@@ -149,13 +194,13 @@ serve(async (req) => {
       const manager = all.find((p) => p.id === managerId);
       if (!manager?.email) continue;
       const stats = await computeStats(admin, reportIds, start, end);
-      const blocks = buildReportBlocks(`Resumo mensal do seu time`, label, stats);
+      const blocks = buildReportBlocks(`Resumo ${titleSuffix} do seu time`, label, stats);
       results.push({ to: manager.email, scope: "manager", stats });
       if (!dryRun) {
         const uid = await lookupSlack(manager.email);
         if (uid) {
           const ch = await openIm(uid);
-          if (ch) await sendDM(ch, blocks, `Resumo mensal do seu time (${label})`);
+          if (ch) await sendDM(ch, blocks, `Resumo ${titleSuffix} do seu time (${label})`);
         }
       }
     }
@@ -164,7 +209,7 @@ serve(async (req) => {
     const directors = all.filter((p) => p.papel === "DIRETOR" || p.is_admin);
     const allActiveIds = all.map((p) => p.id);
     const globalStats = await computeStats(admin, allActiveIds, start, end);
-    const globalBlocks = buildReportBlocks(`Resumo mensal — visão global`, label, globalStats);
+    const globalBlocks = buildReportBlocks(`Resumo ${titleSuffix} — visão global`, label, globalStats);
     for (const d of directors) {
       if (!d.email) continue;
       results.push({ to: d.email, scope: "director", stats: globalStats });
@@ -172,17 +217,23 @@ serve(async (req) => {
         const uid = await lookupSlack(d.email);
         if (uid) {
           const ch = await openIm(uid);
-          if (ch) await sendDM(ch, globalBlocks, `Resumo mensal global (${label})`);
+          if (ch) await sendDM(ch, globalBlocks, `Resumo ${titleSuffix} global (${label})`);
         }
       }
     }
 
+    const acao = kind === "year"
+      ? "ANNUAL_ENGAGEMENT"
+      : kind === "quarter"
+        ? "QUARTERLY_ENGAGEMENT"
+        : "MONTHLY_ENGAGEMENT";
+
     await admin.from("audit_logs").insert({
       entidade: "engagement",
-      entidade_id: `${start.toISOString().slice(0, 7)}`,
-      acao: "MONTHLY_ENGAGEMENT",
+      entidade_id: auditId,
+      acao,
       actor_id: null,
-      payload: { period: label, dry_run: dryRun, sent: results.length, results },
+      payload: { period: label, kind, dry_run: dryRun, sent: results.length, results },
     });
 
     return new Response(JSON.stringify({ ok: true, dry_run: dryRun, count: results.length, results }), {

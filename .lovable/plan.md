@@ -1,28 +1,23 @@
 ## Objetivo
-Adicionar dois novos cards de ranking no painel de Engajamento (`/engagement`): **Ranking do trimestre** e **Ranking do ano**, visíveis somente para usuários com papel `DIRETOR`.
+No dia 1 do mês, a função `engagement-monthly-report` envia sempre um resumo mensal do mês anterior. Vamos ajustar para que, quando esse dia 1 marcar o fim de um trimestre ou de um ano, a notificação seja consolidada nesse período (trimestre ou ano) e o resumo mensal seja **suprimido**.
+
+Regra final (executada dia 1 às 9h, como hoje):
+- Se o mês recém-encerrado foi **dezembro** → enviar **Resumo anual** do ano encerrado. Suprimir mensal e trimestral.
+- Senão, se foi **março, junho ou setembro** → enviar **Resumo trimestral** do trimestre encerrado. Suprimir mensal.
+- Caso contrário → enviar **Resumo mensal** (comportamento atual).
 
 ## Mudanças
 
-### 1. Banco (migration)
-Atualizar `public.get_engagement_leaderboard(p_scope, p_period)` para aceitar novos valores em `p_period`:
-- `month` (mês corrente — já existe)
-- `quarter` (trimestre corrente — novo, via `date_trunc('quarter', now())`)
-- `year` (ano corrente — novo, via `date_trunc('year', now())`)
-- `all` (mantido)
-
-O restante da função (escopo `team`/`global`, filtros de visibilidade, limite 50) permanece igual.
-
-### 2. Hook `src/hooks/useEngagement.ts`
-- Ampliar o tipo do parâmetro `period` do `useLeaderboard` para `"month" | "quarter" | "year" | "all"`.
-
-### 3. Página `src/pages/Engagement.tsx`
-- Detectar se o usuário é Diretor via `useAuth()` (`person?.papel === 'DIRETOR'`).
-- Renderizar, apenas para Diretores, dois novos cards logo abaixo do ranking mensal existente:
-  - **Ranking do trimestre** — reutiliza o mesmo componente visual do `LeaderboardCard`, com toggle Meu time / Global, mas fixando `period="quarter"` e título/descrição adequados.
-  - **Ranking do ano** — idem, com `period="year"`.
-- Refatorar `LeaderboardCard` para receber `period` e textos (título/descrição) como props, evitando duplicação.
-- Layout: em telas grandes, empilhar os três rankings (mês, trimestre, ano) na coluna central do grid atual, mantendo o card de Feed de kudos na terceira coluna.
+### `supabase/functions/engagement-monthly-report/index.ts`
+- Substituir `monthRange()` por `resolvePeriod()` que retorna `{ start, end, label, kind: 'month' | 'quarter' | 'year', auditId }` com base no mês corrente (ou parâmetro `?period=month|quarter|year` para forçar em testes/dry-run).
+  - `month`: mês anterior (comportamento atual).
+  - `quarter`: início e fim do trimestre recém-encerrado (ex.: rodando em 1º/abril → 1º/jan a 1º/abril).
+  - `year`: início e fim do ano recém-encerrado.
+- Ajustar `buildReportBlocks` para usar título dinâmico: "Resumo mensal", "Resumo trimestral" ou "Resumo anual" (para time e visão global), com o `label` do período correspondente.
+- Ajustar mensagem fallback (`text`) do Slack e o registro em `audit_logs` (`acao`: `MONTHLY_ENGAGEMENT` | `QUARTERLY_ENGAGEMENT` | `ANNUAL_ENGAGEMENT`; `entidade_id` com o período apropriado — `YYYY-MM`, `YYYY-Qn`, `YYYY`).
+- Query param opcional `?period=` para forçar tipo em execuções manuais/dry-run; sem parâmetro, aplica a regra automática acima.
 
 ## Fora de escopo
-- Nenhuma mudança no card de resumo da Home nem em outros papéis (gestor continua vendo apenas o ranking mensal).
-- Nenhum recorte por período customizado (datas arbitrárias).
+- Nenhuma mudança no agendamento do pg_cron: continua rodando todo dia 1 às 9h; a própria função decide o tipo de resumo.
+- Layout dos blocos Slack permanece igual (mesmos campos e tops), só muda título e período.
+- Nenhuma alteração no app web.
