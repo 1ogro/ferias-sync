@@ -63,7 +63,7 @@ export function useKudosFeed(limit = 50) {
   });
 }
 
-export function useLeaderboard(scope: "team" | "global" = "team", period: "month" | "all" = "month") {
+export function useLeaderboard(scope: "team" | "global" = "team", period: "month" | "quarter" | "year" | "all" = "month") {
   return useQuery({
     queryKey: ["leaderboard", scope, period],
     queryFn: async () => {

@@ -68,14 +68,22 @@ function MyPointsCard({ personId }: { personId?: string }) {
   );
 }
 
-function LeaderboardCard() {
+function LeaderboardCard({
+  period = "month",
+  title = "Ranking do mês",
+  description = "Quem mais engajou neste período",
+}: {
+  period?: "month" | "quarter" | "year" | "all";
+  title?: string;
+  description?: string;
+}) {
   const [scope, setScope] = useState<"team" | "global">("team");
-  const { data: rows = [] } = useLeaderboard(scope, "month");
+  const { data: rows = [] } = useLeaderboard(scope, period);
   return (
     <Card>
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-base flex items-center gap-2"><Trophy className="h-4 w-4 text-amber-500" /> Ranking do mês</CardTitle>
+          <CardTitle className="text-base flex items-center gap-2"><Trophy className="h-4 w-4 text-amber-500" /> {title}</CardTitle>
           <Tabs value={scope} onValueChange={(v) => setScope(v as any)}>
             <TabsList>
               <TabsTrigger value="team">Meu time</TabsTrigger>
@@ -83,7 +91,7 @@ function LeaderboardCard() {
             </TabsList>
           </Tabs>
         </div>
-        <CardDescription>Quem mais engajou neste período</CardDescription>
+        <CardDescription>{description}</CardDescription>
       </CardHeader>
       <CardContent>
         <ScrollArea className="h-64 pr-3">
@@ -325,6 +333,20 @@ export default function Engagement() {
           </div>
           <div className="space-y-6 lg:col-span-1">
             <LeaderboardCard />
+            {person?.papel === "DIRETOR" && (
+              <>
+                <LeaderboardCard
+                  period="quarter"
+                  title="Ranking do trimestre"
+                  description="Acumulado no trimestre corrente"
+                />
+                <LeaderboardCard
+                  period="year"
+                  title="Ranking do ano"
+                  description="Acumulado no ano corrente"
+                />
+              </>
+            )}
           </div>
           <div className="space-y-6 lg:col-span-1">
             <KudosFeed />
