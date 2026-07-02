@@ -102,3 +102,146 @@ export function groupPendingByManager(rows: PendingRow[]): Map<string, PendingRo
   }
   return m;
 }
+
+// ─────────────────────────────────────────────────────────────
+// Slack message payload builders (pure)
+// ─────────────────────────────────────────────────────────────
+
+export interface SlackBlock {
+  type: string;
+  // deno-lint-ignore no-explicit-any
+  [k: string]: any;
+}
+
+export interface SlackMessagePayload {
+  text: string; // fallback / notification text
+  blocks: SlackBlock[];
+}
+
+const trimSlash = (u: string) => u.replace(/\/+$/, "");
+
+function urgencyPrefix(mode: Mode): string {
+  return mode === "month_end" ? "🗓️ *Fim de mês* — " : "";
+}
+
+/**
+ * DM to a manager/admin listing pending_people awaiting approval.
+ * Always includes a CTA button linking to /admin (pending approvals list).
+ */
+export function buildPendingApprovalMessage(
+  items: PendingRow[],
+  opts: { mode: Mode; appBaseUrl: string; now?: Date; maxItems?: number },
+): SlackMessagePayload {
+  const now = opts.now ?? new Date();
+  const base = trimSlash(opts.appBaseUrl);
+  const url = `${base}/admin`;
+  const max = opts.maxItems ?? 20;
+  const shown = items.slice(0, max);
+
+  const lines = shown.map((p) => {
+    const days = Math.floor((now.getTime() - new Date(p.created_at).getTime()) / 86400_000);
+    const miss = pendingMissingFields(p);
+    return `• *${p.nome}* — pendente há *${days}d* (${p.source ?? "—"})${
+      miss.length ? `\n   Faltando: ${miss.join(", ")}` : ""
+    }`;
+  }).join("\n");
+
+  const header = `${urgencyPrefix(opts.mode)}Você tem *${items.length}* cadastro(s) pendente(s) de aprovação:`;
+  const text = `${header}\n${lines}\n\nRevise em: ${url}`;
+
+  const blocks: SlackBlock[] = [
+    { type: "section", text: { type: "mrkdwn", text: header } },
+    { type: "section", text: { type: "mrkdwn", text: lines || "_sem itens_" } },
+    {
+      type: "actions",
+      block_id: "pending_approval_actions",
+      elements: [
+        {
+          type: "button",
+          action_id: "open_pending_approvals",
+          style: "primary",
+          text: { type: "plain_text", text: "Abrir aprovações" },
+          url,
+        },
+      ],
+    },
+  ];
+
+  if (items.length > shown.length) {
+    blocks.splice(2, 0, {
+      type: "context",
+      elements: [{ type: "mrkdwn", text: `_+${items.length - shown.length} outros omitidos_` }],
+    });
+  }
+
+  return { text, blocks };
+}
+
+/**
+ * DM to the person themselves listing their incomplete profile items.
+ * Includes a CTA to Settings → Profile.
+ */
+export function buildIncompleteProfileSelfMessage(
+  person: Pick<PersonRow, "nome">,
+  reasons: string[],
+  opts: { mode: Mode; appBaseUrl: string },
+): SlackMessagePayload {
+  const url = `${trimSlash(opts.appBaseUrl)}/settings?tab=profile`;
+  const header = `${urgencyPrefix(opts.mode)}Olá *${person.nome}*, seu cadastro ainda está incompleto.`;
+  const body = reasons.map((r) => `• ${r}`).join("\n");
+  const text = `${header}\nItens pendentes:\n${body}\n\nComplete em: ${url}`;
+
+  const blocks: SlackBlock[] = [
+    { type: "section", text: { type: "mrkdwn", text: header } },
+    { type: "section", text: { type: "mrkdwn", text: `*Itens pendentes:*\n${body}` } },
+    {
+      type: "actions",
+      block_id: "incomplete_profile_self_actions",
+      elements: [
+        {
+          type: "button",
+          action_id: "open_profile_settings",
+          style: "primary",
+          text: { type: "plain_text", text: "Completar perfil" },
+          url,
+        },
+      ],
+    },
+  ];
+
+  return { text, blocks };
+}
+
+/**
+ * DM to a manager about a direct report with an incomplete profile.
+ * Includes a CTA to the person's page in the team view.
+ */
+export function buildIncompleteProfileManagerMessage(
+  person: Pick<PersonRow, "id" | "nome">,
+  reasons: string[],
+  opts: { mode: Mode; appBaseUrl: string },
+): SlackMessagePayload {
+  const url = `${trimSlash(opts.appBaseUrl)}/team/${person.id}`;
+  const header = `${urgencyPrefix(opts.mode)}Seu liderado *${person.nome}* está com cadastro incompleto.`;
+  const body = reasons.map((r) => `• ${r}`).join("\n");
+  const text = `${header}\n${body}\n\nAcompanhe em: ${url}`;
+
+  const blocks: SlackBlock[] = [
+    { type: "section", text: { type: "mrkdwn", text: header } },
+    { type: "section", text: { type: "mrkdwn", text: body || "_sem itens_" } },
+    {
+      type: "actions",
+      block_id: "incomplete_profile_manager_actions",
+      elements: [
+        {
+          type: "button",
+          action_id: "open_team_member",
+          text: { type: "plain_text", text: "Ver liderado" },
+          url,
+        },
+      ],
+    },
+  ];
+
+  return { text, blocks };
+}
