@@ -85,7 +85,7 @@ Deno.serve(async (req) => {
     );
   }
 
-  const DEDUP_WINDOW_HOURS = mode === "weekly" ? 6 * 24 : 0; // month_end always sends
+  const DEDUP_WINDOW_HOURS = dedupWindowHours(mode);
   const sinceIso = new Date(Date.now() - DEDUP_WINDOW_HOURS * 3600_000).toISOString();
 
   // Load recent audit log to dedupe
