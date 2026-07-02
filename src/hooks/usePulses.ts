@@ -82,7 +82,7 @@ export function usePulseSurveys() {
         .select("*")
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return data as PulseSurvey[];
+      return (data as unknown) as PulseSurvey[];
     },
   });
 }
