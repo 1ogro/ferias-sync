@@ -211,19 +211,9 @@ Deno.serve(async (req) => {
     .eq("ativo", true);
   if (eerr) results.errors.push(`people: ${eerr.message}`);
 
-  const incompleteReasons = (p: any): string[] => {
-    const miss: string[] = [];
-    if (!p.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(p.email)) miss.push("🔴 email corporativo válido (necessário para login)");
-    if (!p.slack_user_id) miss.push("🔴 vincular usuário do Slack (necessário para notificações)");
-    if (!p.data_contrato) miss.push("🟠 data de contrato");
-    if (!p.modelo_contrato) miss.push("🟠 modelo de contrato");
-    if (p.modelo_contrato === "PJ" && !p.dia_pagamento) miss.push("🟠 dia de pagamento (PJ)");
-    if (!p.data_nascimento) miss.push("🟡 data de nascimento");
-    if (!p.profile_completed_at) miss.push("🟠 completar perfil no sistema");
-    return miss;
-  };
+  const incompleteReasons = peopleIncompleteReasons;
+  const incomplete = ((peopleAll || []) as any[]).filter((p) => incompleteReasons(p as any).length > 0);
 
-  const incomplete = (peopleAll || []).filter((p) => incompleteReasons(p).length > 0);
 
   for (const p of incomplete) {
     if (recentTargets.has(p.id)) { results.skipped_dedup++; continue; }
