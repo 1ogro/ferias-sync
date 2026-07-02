@@ -388,11 +388,27 @@ export function PulseFormDialog({ open, onOpenChange, survey, initialValues }: P
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">
-                  {peerPairingStrategy === "round_robin" && "Cada pessoa avalia a próxima da lista embaralhada, dentro do mesmo time."}
-                  {peerPairingStrategy === "random" && "Cada pessoa recebe um avaliado sorteado aleatoriamente dentro do mesmo time."}
-                  {peerPairingStrategy === "fixed" && "Você define manualmente quem avalia quem. Os pares se repetem em cada rodada."}
+                  {peerPairingStrategy === "round_robin" && "Cada pessoa avalia os próximos da lista embaralhada, dentro do mesmo time."}
+                  {peerPairingStrategy === "random" && "Cada pessoa recebe avaliados sorteados aleatoriamente dentro do mesmo time."}
+                  {peerPairingStrategy === "fixed" && "Você define manualmente quem avalia quem. Um avaliador pode aparecer em múltiplos pares."}
                 </p>
               </div>
+
+              {peerPairingStrategy !== "fixed" && (
+                <div className="space-y-2">
+                  <Label>Quantidade de avaliados por pessoa</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={5}
+                    value={peerReviewsPerReviewer}
+                    onChange={(e) => setPeerReviewsPerReviewer(Math.min(5, Math.max(1, parseInt(e.target.value || "1", 10))))}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Cada pessoa avaliará esse número de colegas e também será avaliada por esse número de colegas (limitado pelo tamanho do time).
+                  </p>
+                </div>
+              )}
 
               {peerPairingStrategy === "fixed" && (
                 <div className="space-y-2">
