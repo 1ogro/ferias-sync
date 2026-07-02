@@ -131,6 +131,9 @@ export function PulseFormDialog({ open, onOpenChange, survey, initialValues }: P
       setNegThreshold((survey as any).notify_negative_threshold ?? 2);
       setPosThreshold((survey as any).notify_positive_threshold ?? 4);
       setNotifyIncludeText(!!(survey as any).notify_include_text_responses);
+      setResponseDeadlineHours((survey as any).response_deadline_hours ?? 0);
+      setReminderEnabled((survey as any).reminder_enabled ?? true);
+      setReminderOffsetsText((((survey as any).reminder_offsets_hours as number[]) ?? [24, 2]).join(", "));
     } else if (!isEdit) {
       reset();
       if (initialValues) {
