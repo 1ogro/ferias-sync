@@ -11,6 +11,7 @@ export interface NotificationPreferences {
   system_alerts_slack: boolean;
   admin_actions_email: boolean;
   admin_actions_slack: boolean;
+  registration_reminders_slack: boolean;
 }
 
 const defaultPreferences: NotificationPreferences = {
@@ -22,6 +23,7 @@ const defaultPreferences: NotificationPreferences = {
   system_alerts_slack: false,
   admin_actions_email: true,
   admin_actions_slack: true,
+  registration_reminders_slack: true,
 };
 
 export function useNotificationPreferences() {
