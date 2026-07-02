@@ -897,6 +897,7 @@ serve(async (req) => {
             await bumpResponseCount(runId, supabase);
             await awardPoints(supabase, respondent.id, 5, "pulse_response", runId);
             await completePeerPair(supabase, runId, respondent.id);
+            await markRecipientResponded(supabase, runId, respondent.id);
             await postEphemeralAck(payload, `✅ Resposta registrada: *${value}/5*`);
             if (upRow?.id) {
               supabase.functions.invoke("pulse-response-notify", { body: { response_id: upRow.id } })
