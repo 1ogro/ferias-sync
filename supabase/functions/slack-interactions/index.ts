@@ -511,7 +511,9 @@ serve(async (req) => {
     // view_submission for /biscoito slash command
     if (payload.type === "view_submission" && payload.view?.callback_id === "biscoito_submit") {
       const v = payload.view.state.values || {};
-      const toRaw = v.kudo_to_block?.kudo_to_select?.selected_option?.value || "";
+      const toRawSingle: string = v.kudo_to_block?.kudo_to_select?.selected_option?.value || "";
+      const toRawMulti: string[] = (v.kudo_to_multi_block?.kudo_to_multi_select?.selected_options || [])
+        .map((o: any) => o?.value).filter((x: any) => typeof x === "string" && x.length > 0);
       const category = v.kudo_cat_block?.kudo_cat_select?.selected_option?.value || "teamwork";
       const message = (v.kudo_msg_block?.kudo_msg_input?.value || "").trim();
       const shareSelected = (v.kudo_share_block?.kudo_share_check?.selected_options || []).length > 0;
@@ -519,6 +521,12 @@ serve(async (req) => {
       try { meta = JSON.parse(payload.view.private_metadata || "{}"); } catch (_) { /* noop */ }
 
       const slackUserId = payload.user.id;
+
+      // Junta destinatários (dedup)
+      const toRawAll = Array.from(new Set([
+        ...(toRawSingle ? [toRawSingle] : []),
+        ...toRawMulti,
+      ]));
 
       // ---- Resolve sender (app user OR slack-only) ----
       const senderInfoRes = await fetch(`https://slack.com/api/users.info?user=${slackUserId}`, {
@@ -535,59 +543,31 @@ serve(async (req) => {
 
       let senderPersonId: string | null = null;
       let senderPersonNome: string | null = null;
+      let senderPapel: string | null = null;
       if (senderEmail) {
         const { data: sp } = await supabase
-          .from("people").select("id, nome").eq("email", senderEmail).eq("ativo", true).maybeSingle();
-        if (sp) { senderPersonId = sp.id; senderPersonNome = sp.nome; }
+          .from("people").select("id, nome, papel").eq("email", senderEmail).eq("ativo", true).maybeSingle();
+        if (sp) { senderPersonId = sp.id; senderPersonNome = sp.nome; senderPapel = sp.papel; }
       }
       const senderDisplay = senderPersonNome || senderName;
 
-      // ---- Resolve recipient ----
+      // ---- Validações básicas ----
       const errors: Record<string, string> = {};
-      if (!toRaw) errors["kudo_to_block"] = "Selecione um colega.";
+      if (toRawAll.length === 0) errors["kudo_to_block"] = "Selecione ao menos um colega.";
       if (!message || message.length < 3) errors["kudo_msg_block"] = "Mensagem muito curta.";
       if (message.length > 500) errors["kudo_msg_block"] = "Máximo 500 caracteres.";
 
-      let toPersonId: string | null = null;
-      let toPersonNome: string | null = null;
-      let toSlackUserId: string | null = null;
-      let toSlackEmail: string | null = null;
-      let toSlackName: string | null = null;
-
-      if (toRaw.startsWith("app:")) {
-        const pid = toRaw.slice(4);
-        const { data: tp } = await supabase.from("people").select("id, nome, ativo").eq("id", pid).maybeSingle();
-        if (!tp || !tp.ativo) errors["kudo_to_block"] = "Destinatário inativo.";
-        else { toPersonId = tp.id; toPersonNome = tp.nome; }
-      } else if (toRaw.startsWith("slack:")) {
-        toSlackUserId = toRaw.slice(6);
-        const r = await fetch(`https://slack.com/api/users.info?user=${toSlackUserId}`, {
-          headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}` },
-        });
-        const d = await r.json();
-        toSlackEmail = d?.user?.profile?.email ?? null;
-        toSlackName =
-          d?.user?.profile?.display_name?.trim() ||
-          d?.user?.profile?.real_name?.trim() ||
-          d?.user?.real_name?.trim() ||
-          d?.user?.name ||
-          "Colega";
-        // Caso o usuário tenha sido cadastrado depois do modal abrir
-        if (toSlackEmail) {
-          const { data: tp } = await supabase
-            .from("people").select("id, nome").eq("email", toSlackEmail).eq("ativo", true).maybeSingle();
-          if (tp) { toPersonId = tp.id; toPersonNome = tp.nome; }
+      // Regras de multi-destinatário
+      if (toRawAll.length > 1) {
+        if (category !== "delivery") {
+          errors["kudo_cat_block"] = "Enviar para vários colegas só é permitido na categoria Entrega 🚀.";
         }
-      } else {
-        errors["kudo_to_block"] = "Seleção inválida.";
-      }
-
-      // Mesmo usuário (app ou slack)
-      if (senderPersonId && toPersonId && senderPersonId === toPersonId) {
-        errors["kudo_to_block"] = "Não dá para mandar biscoito pra si mesmo 😉";
-      }
-      if (toSlackUserId && toSlackUserId === slackUserId) {
-        errors["kudo_to_block"] = "Não dá para mandar biscoito pra si mesmo 😉";
+        if (senderPapel !== "GESTOR" && senderPapel !== "DIRETOR") {
+          errors["kudo_to_multi_block"] = "Apenas gestores e diretores podem enviar para vários colegas.";
+        }
+        if (toRawAll.length > 10) {
+          errors["kudo_to_multi_block"] = "Máximo de 10 colegas por envio.";
+        }
       }
 
       if (Object.keys(errors).length) {
@@ -596,45 +576,68 @@ serve(async (req) => {
         });
       }
 
-      const channelToPost = shareSelected && meta.channel_id ? meta.channel_id : null;
-      const pendingFrom = !senderPersonId;
-      const pendingTo = !toPersonId;
+      // ---- Resolve cada destinatário ----
+      type Recipient = {
+        toRaw: string;
+        personId: string | null;
+        personNome: string | null;
+        slackUserId: string | null;
+        slackEmail: string | null;
+        slackName: string | null;
+      };
+      const recipients: Recipient[] = [];
+      for (const toRaw of toRawAll) {
+        let personId: string | null = null;
+        let personNome: string | null = null;
+        let sUid: string | null = null;
+        let sEmail: string | null = null;
+        let sName: string | null = null;
 
-      const { data: kudo, error: insErr } = await supabase.from("kudos").insert({
-        from_person_id: senderPersonId,
-        to_person_id: toPersonId,
-        from_slack_user_id: pendingFrom ? slackUserId : null,
-        from_slack_email: pendingFrom ? senderEmail : null,
-        from_slack_name: pendingFrom ? senderName : null,
-        to_slack_user_id: pendingTo ? toSlackUserId : null,
-        to_slack_email: pendingTo ? toSlackEmail : null,
-        to_slack_name: pendingTo ? toSlackName : null,
-        pending_from: pendingFrom,
-        pending_to: pendingTo,
-        message,
-        category,
-        slack_channel_posted: channelToPost,
-      }).select().single();
+        if (toRaw.startsWith("app:")) {
+          const pid = toRaw.slice(4);
+          const { data: tp } = await supabase.from("people").select("id, nome, ativo").eq("id", pid).maybeSingle();
+          if (tp && tp.ativo) { personId = tp.id; personNome = tp.nome; }
+        } else if (toRaw.startsWith("slack:")) {
+          sUid = toRaw.slice(6);
+          const r = await fetch(`https://slack.com/api/users.info?user=${sUid}`, {
+            headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}` },
+          });
+          const d = await r.json();
+          sEmail = d?.user?.profile?.email ?? null;
+          sName =
+            d?.user?.profile?.display_name?.trim() ||
+            d?.user?.profile?.real_name?.trim() ||
+            d?.user?.real_name?.trim() ||
+            d?.user?.name ||
+            "Colega";
+          if (sEmail) {
+            const { data: tp } = await supabase
+              .from("people").select("id, nome").eq("email", sEmail).eq("ativo", true).maybeSingle();
+            if (tp) { personId = tp.id; personNome = tp.nome; }
+          }
+        }
 
-      if (insErr || !kudo) {
-        console.error("[biscoito_submit] insert error:", insErr);
-        return new Response(
-          JSON.stringify({ response_action: "errors", errors: { kudo_msg_block: "Não consegui registrar seu biscoito. Tente novamente." } }),
-          { headers: { "Content-Type": "application/json" } }
-        );
+        // Filtra: não pode mandar pra si mesmo
+        if (senderPersonId && personId && senderPersonId === personId) continue;
+        if (sUid && sUid === slackUserId) continue;
+        if (!personId && !sUid) continue;
+        recipients.push({ toRaw, personId, personNome, slackUserId: sUid, slackEmail: sEmail, slackName: sName });
       }
 
-      // Pontos apenas para lados cadastrados
-      if (toPersonId) await awardPoints(supabase, toPersonId, 10, "kudo_received", kudo.id);
-      if (senderPersonId) await awardPoints(supabase, senderPersonId, 2, "kudo_given", kudo.id);
+      if (recipients.length === 0) {
+        return new Response(JSON.stringify({
+          response_action: "errors",
+          errors: { kudo_to_block: "Nenhum destinatário válido." }
+        }), { headers: { "Content-Type": "application/json" } });
+      }
 
-      // Garante pending_people para os lados pendentes
+      const channelToPost = shareSelected && meta.channel_id ? meta.channel_id : null;
+
+      // Ensure pending_people helper (mantém logic existente inline)
       const ensurePending = async (slackId: string | null, email: string | null, nome: string | null) => {
         if (!slackId && !email) return;
         try {
-          // procura por slack_user_id OR email em PENDENTE
-          let q = supabase.from("pending_people").select("id, slack_request_count").eq("status", "PENDENTE");
-          const { data: rows } = await q;
+          const { data: rows } = await supabase.from("pending_people").select("id, slack_request_count").eq("status", "PENDENTE");
           const match = (rows || []).find((r: any) =>
             (slackId && r.slack_user_id === slackId) ||
             (email && r.email && r.email.toLowerCase() === email.toLowerCase())
@@ -663,11 +666,53 @@ serve(async (req) => {
         }
       };
 
-      if (pendingFrom) await ensurePending(slackUserId, senderEmail, senderName);
-      if (pendingTo) await ensurePending(toSlackUserId, toSlackEmail, toSlackName);
+      // ---- Loop de inserção por destinatário ----
+      const inserted: Array<{ kudo: any; recipient: Recipient; pendingTo: boolean }> = [];
+      const pendingFrom = !senderPersonId;
 
-      // Notifica admins quando há lado pendente (best-effort)
-      if (pendingFrom || pendingTo) {
+      for (const rec of recipients) {
+        const pendingTo = !rec.personId;
+
+        const { data: kudo, error: insErr } = await supabase.from("kudos").insert({
+          from_person_id: senderPersonId,
+          to_person_id: rec.personId,
+          from_slack_user_id: pendingFrom ? slackUserId : null,
+          from_slack_email: pendingFrom ? senderEmail : null,
+          from_slack_name: pendingFrom ? senderName : null,
+          to_slack_user_id: pendingTo ? rec.slackUserId : null,
+          to_slack_email: pendingTo ? rec.slackEmail : null,
+          to_slack_name: pendingTo ? rec.slackName : null,
+          pending_from: pendingFrom,
+          pending_to: pendingTo,
+          message,
+          category,
+          slack_channel_posted: channelToPost,
+        }).select().single();
+
+        if (insErr || !kudo) {
+          console.error("[biscoito_submit] insert error:", insErr);
+          continue;
+        }
+        inserted.push({ kudo, recipient: rec, pendingTo });
+
+        if (rec.personId) await awardPoints(supabase, rec.personId, 10, "kudo_received", kudo.id);
+        if (senderPersonId) await awardPoints(supabase, senderPersonId, 2, "kudo_given", kudo.id);
+
+        if (pendingTo) await ensurePending(rec.slackUserId, rec.slackEmail, rec.slackName);
+      }
+
+      if (inserted.length === 0) {
+        return new Response(
+          JSON.stringify({ response_action: "errors", errors: { kudo_msg_block: "Não consegui registrar seu biscoito. Tente novamente." } }),
+          { headers: { "Content-Type": "application/json" } }
+        );
+      }
+
+      if (pendingFrom) await ensurePending(slackUserId, senderEmail, senderName);
+
+      // Notifica admins quando há lado pendente (best-effort, uma vez só)
+      const hasPending = pendingFrom || inserted.some((x) => x.pendingTo);
+      if (hasPending) {
         const notifyAdmins = async () => {
           try {
             const { data: adminsRaw } = await supabase
@@ -682,16 +727,12 @@ serve(async (req) => {
               seen.add(key);
               return true;
             });
-            const targets: Array<{ email: string; slackName: string }> = [];
-            for (const lado of [
-              pendingFrom ? { who: senderName, email: senderEmail, role: "enviou" } : null,
-              pendingTo ? { who: toSlackName, email: toSlackEmail, role: "recebeu" } : null,
-            ]) {
-              if (!lado) continue;
-              targets.push({ email: lado.email || "(sem email)", slackName: `${lado.who} ${lado.role}` });
+            const parts: string[] = [];
+            if (pendingFrom) parts.push(`• *${senderName} enviou* biscoitos (${senderEmail || "(sem email)"})`);
+            for (const it of inserted) {
+              if (it.pendingTo) parts.push(`• *${(it.recipient.slackName || "Colega")} recebeu* um biscoito (${it.recipient.slackEmail || "(sem email)"})`);
             }
-            const summary = targets.map(t => `• *${t.slackName}* um biscoito (${t.email})`).join("\n");
-            const text = `🔔 *Novo cadastro pendente via /biscoito*\n${summary}\n\nAprove em Administração → Cadastros Pendentes para creditar os pontos retroativamente.`;
+            const text = `🔔 *Novo cadastro pendente via /biscoito*\n${parts.join("\n")}\n\nAprove em Administração → Cadastros Pendentes para creditar os pontos retroativamente.`;
             for (const a of (admins || []) as Array<{ email: string | null }>) {
               if (!a.email) continue;
               const lookupRes = await fetch(
@@ -721,10 +762,15 @@ serve(async (req) => {
         EdgeRuntime.waitUntil(notifyAdmins());
       }
 
-      // Card do biscoito
-      const toLabel = (toPersonNome || toSlackName || "Colega") + (pendingTo ? " _(cadastro pendente)_" : "");
+      // ---- Card no canal (uma mensagem consolidada se >1) ----
       const fromLabel = senderDisplay + (pendingFrom ? " _(cadastro pendente)_" : "");
-      const cardText = `${CATEGORY_LABEL[category] || "🍪"} *${fromLabel}* deu um biscoito para *${toLabel}*\n> ${message}`;
+      const catLabel = CATEGORY_LABEL[category] || "🍪";
+      const toLabels = inserted.map((it) =>
+        (it.recipient.personNome || it.recipient.slackName || "Colega") + (it.pendingTo ? " _(cadastro pendente)_" : "")
+      );
+      const cardText = inserted.length === 1
+        ? `${catLabel} *${fromLabel}* deu um biscoito para *${toLabels[0]}*\n> ${message}`
+        : `${catLabel} *${fromLabel}* deu biscoitos para ${toLabels.map((n) => `*${n}*`).join(", ")}\n> ${message}`;
 
       const postToChannel = async (channel: string, label: string) => {
         const r = await fetch("https://slack.com/api/chat.postMessage", {
@@ -740,43 +786,42 @@ serve(async (req) => {
       if (origin && !origin.startsWith("D")) await postToChannel(origin, "origin");
       if (channelToPost) await postToChannel(channelToPost, "share");
 
-      // DM ao destinatário
-      if (toPersonId) {
-        await notifyRecipientDM(supabase, toPersonId, senderDisplay, category, message, "biscoito_submit");
-      } else if (toSlackUserId) {
-        try {
-          const openRes = await fetch("https://slack.com/api/conversations.open", {
-            method: "POST",
-            headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ users: toSlackUserId }),
-          });
-          const open = await openRes.json();
-          if (open.ok && open.channel?.id) {
-            const catLabel = CATEGORY_LABEL[category] || "🍪";
-            const txt =
-              `🍪 *Você ganhou um biscoito!*\n${catLabel}\nDe: *${senderDisplay}*\n> ${message}\n\n` +
-              `_Seu cadastro no app ainda está pendente. Assim que for aprovado, os pontos entram no painel de Engajamento._`;
-            await fetch("https://slack.com/api/chat.postMessage", {
+      // ---- DM individual a cada destinatário + notify managers ----
+      for (const it of inserted) {
+        if (it.recipient.personId) {
+          await notifyRecipientDM(supabase, it.recipient.personId, senderDisplay, category, message, "biscoito_submit");
+          supabase.functions.invoke("kudos-notify-managers", { body: { kudo_id: it.kudo.id } })
+            .catch((e: any) => console.error("[biscoito_submit] notify invoke failed", e?.message));
+        } else if (it.recipient.slackUserId) {
+          try {
+            const openRes = await fetch("https://slack.com/api/conversations.open", {
               method: "POST",
               headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}`, "Content-Type": "application/json" },
-              body: JSON.stringify({ channel: open.channel.id, text: txt }),
+              body: JSON.stringify({ users: it.recipient.slackUserId }),
             });
+            const open = await openRes.json();
+            if (open.ok && open.channel?.id) {
+              const txt =
+                `🍪 *Você ganhou um biscoito!*\n${catLabel}\nDe: *${senderDisplay}*\n> ${message}\n\n` +
+                `_Seu cadastro no app ainda está pendente. Assim que for aprovado, os pontos entram no painel de Engajamento._`;
+              await fetch("https://slack.com/api/chat.postMessage", {
+                method: "POST",
+                headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}`, "Content-Type": "application/json" },
+                body: JSON.stringify({ channel: open.channel.id, text: txt }),
+              });
+            }
+          } catch (e: any) {
+            console.error("[biscoito_submit] slack-only recipient DM error:", e?.message || e);
           }
-        } catch (e: any) {
-          console.error("[biscoito_submit] slack-only recipient DM error:", e?.message || e);
         }
       }
 
-      if (toPersonId) {
-        supabase.functions.invoke("kudos-notify-managers", { body: { kudo_id: kudo.id } })
-          .catch((e: any) => console.error("[biscoito_submit] notify invoke failed", e?.message));
-      }
-
-      console.log(`[biscoito_submit] inserted kudo ${kudo.id} from=${senderPersonId ?? `slack:${slackUserId}`} to=${toPersonId ?? `slack:${toSlackUserId}`}`);
+      console.log(`[biscoito_submit] inserted ${inserted.length} kudo(s) from=${senderPersonId ?? `slack:${slackUserId}`}`);
       return new Response(JSON.stringify({ response_action: "clear" }), {
         headers: { "Content-Type": "application/json" },
       });
     }
+
 
 
     // (awardPoints / completePeerPair are defined at module scope above)
