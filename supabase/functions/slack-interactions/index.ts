@@ -52,19 +52,38 @@ async function awardPoints(supabase: any, personId: string, points: number, reas
   if (error) console.error("[award_points] error:", error);
 }
 
-async function completePeerPair(supabase: any, runId: string, reviewerId: string) {
-  // Marks pair as completed and awards reviewer points (deduped via source_id).
-  const { data: pair } = await supabase
-    .from("peer_review_pairs")
-    .select("id, completed_at")
-    .eq("run_id", runId)
-    .eq("reviewer_id", reviewerId)
-    .maybeSingle();
-  if (!pair) return;
+async function completePeerPair(
+  supabase: any,
+  runId: string,
+  reviewerId: string,
+  pairId?: string,
+): Promise<{ pair_id: string; subject_id: string } | null> {
+  // Marks a specific pair as completed (or falls back to the reviewer's single pair for legacy runs)
+  // and awards reviewer points (deduped via source_id = pair_id).
+  let pair: { id: string; subject_id: string; completed_at: string | null } | null = null;
+  if (pairId) {
+    const { data } = await supabase
+      .from("peer_review_pairs")
+      .select("id, subject_id, completed_at")
+      .eq("id", pairId)
+      .maybeSingle();
+    pair = data ?? null;
+  } else {
+    // Legacy fallback (single pair per reviewer)
+    const { data } = await supabase
+      .from("peer_review_pairs")
+      .select("id, subject_id, completed_at")
+      .eq("run_id", runId)
+      .eq("reviewer_id", reviewerId)
+      .maybeSingle();
+    pair = data ?? null;
+  }
+  if (!pair) return null;
   if (!pair.completed_at) {
     await supabase.from("peer_review_pairs").update({ completed_at: new Date().toISOString() }).eq("id", pair.id);
   }
   await awardPoints(supabase, reviewerId, 8, "peer_review", pair.id);
+  return { pair_id: pair.id, subject_id: pair.subject_id };
 }
 
 
@@ -76,12 +95,34 @@ async function bumpResponseCount(runId: string, supabase: any) {
 
 async function markRecipientResponded(supabase: any, runId: string, personId: string) {
   try {
-    await supabase
+    // Recount completed pairs and only mark responded when all pairs are done (peer surveys)
+    const { data: rec } = await supabase
       .from("pulse_run_recipients")
-      .update({ responded_at: new Date().toISOString() })
+      .select("id, pairs_total")
       .eq("run_id", runId)
       .eq("person_id", personId)
-      .is("responded_at", null);
+      .maybeSingle();
+    if (!rec) return;
+
+    let pairsCompleted = 0;
+    if ((rec.pairs_total || 0) > 0) {
+      const { count } = await supabase
+        .from("peer_review_pairs")
+        .select("*", { count: "exact", head: true })
+        .eq("run_id", runId)
+        .eq("reviewer_id", personId)
+        .not("completed_at", "is", null);
+      pairsCompleted = count || 0;
+    }
+
+    const allDone = (rec.pairs_total || 0) === 0 || pairsCompleted >= (rec.pairs_total || 0);
+    await supabase
+      .from("pulse_run_recipients")
+      .update({
+        pairs_completed: pairsCompleted,
+        ...(allDone ? { responded_at: new Date().toISOString() } : {}),
+      })
+      .eq("id", rec.id);
   } catch (e) {
     console.error("[markRecipientResponded] error:", e);
   }
