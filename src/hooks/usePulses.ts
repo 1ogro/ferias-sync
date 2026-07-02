@@ -171,6 +171,9 @@ export function useCreatePulseSurvey() {
           notify_negative_threshold: survey.notify_negative_threshold ?? 2,
           notify_positive_threshold: survey.notify_positive_threshold ?? 4,
           notify_include_text_responses: survey.notify_include_text_responses ?? false,
+          response_deadline_hours: survey.response_deadline_hours ?? null,
+          reminder_enabled: survey.reminder_enabled ?? true,
+          reminder_offsets_hours: survey.reminder_offsets_hours ?? [24, 2],
           active: true,
         } as any)
         .select()
