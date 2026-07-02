@@ -328,6 +328,8 @@ export function useDuplicatePulseSurvey() {
           tone: (orig as any).tone ?? "neutral",
           kind: (orig as any).kind ?? "self",
           peer_anonymous: (orig as any).peer_anonymous ?? true,
+          peer_pairing_strategy: (orig as any).peer_pairing_strategy ?? "round_robin",
+          peer_fixed_pairs: (orig as any).peer_fixed_pairs ?? null,
           kudos_categories: (orig as any).kudos_categories ?? null,
           kudos_channel: (orig as any).kudos_channel ?? null,
           prompt_text: (orig as any).prompt_text ?? null,
