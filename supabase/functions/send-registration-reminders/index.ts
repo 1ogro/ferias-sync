@@ -159,19 +159,10 @@ Deno.serve(async (req) => {
     const recipients: PersonMini[] =
       key === "__admins__" ? admins : mgrs.filter((m) => m.id === key);
 
-    const missingFields = pendingMissingFields;
-
-
-    const lines = (items as any[]).slice(0, 20).map((p) => {
-      const days = Math.floor((Date.now() - new Date(p.created_at).getTime()) / 86400_000);
-      const miss = missingFields(p);
-      return `• *${p.nome}* — pendente há *${days}d* (${p.source})${
-        miss.length ? `\n   Faltando: ${miss.join(", ")}` : ""
-      }`;
-    }).join("\n");
-
-    const urgencyPrefix = mode === "month_end" ? "🗓️ *Fim de mês* — " : "";
-    const text = `${urgencyPrefix}Você tem *${items.length}* cadastro(s) pendente(s) de aprovação:\n${lines}\n\nRevise em: ${SUPABASE_URL.replace(".supabase.co", "").replace("https://", "https://")} • /admin`;
+    const { text, blocks } = buildPendingApprovalMessage(items, {
+      mode,
+      appBaseUrl: APP_BASE_URL,
+    });
 
     for (const r of recipients) {
       if (recentTargets.has(r.id)) { results.skipped_dedup++; continue; }
@@ -187,7 +178,7 @@ Deno.serve(async (req) => {
       if (!slackId) { results.slack_missing++; continue; }
 
       if (!dryRun) {
-        const sent = await sendSlackDM(slackId, text);
+        const sent = await sendSlackDM(slackId, text, blocks);
         if (sent) {
           results.pending_reminded++;
           await admin.from("audit_logs").insert({
