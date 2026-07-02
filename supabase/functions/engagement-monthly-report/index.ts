@@ -169,8 +169,9 @@ serve(async (req) => {
   try {
     const url = new URL(req.url);
     const dryRun = url.searchParams.get("dry_run") === "true";
+    const forced = url.searchParams.get("period");
     const admin = createClient(supabaseUrl, supabaseServiceKey);
-    const { start, end, label } = monthRange();
+    const { start, end, label, kind, auditId, titleSuffix } = resolvePeriod(forced);
 
     // Managers: anyone who has at least one direct report active
     const { data: people } = await admin.from("people")
@@ -193,13 +194,13 @@ serve(async (req) => {
       const manager = all.find((p) => p.id === managerId);
       if (!manager?.email) continue;
       const stats = await computeStats(admin, reportIds, start, end);
-      const blocks = buildReportBlocks(`Resumo mensal do seu time`, label, stats);
+      const blocks = buildReportBlocks(`Resumo ${titleSuffix} do seu time`, label, stats);
       results.push({ to: manager.email, scope: "manager", stats });
       if (!dryRun) {
         const uid = await lookupSlack(manager.email);
         if (uid) {
           const ch = await openIm(uid);
-          if (ch) await sendDM(ch, blocks, `Resumo mensal do seu time (${label})`);
+          if (ch) await sendDM(ch, blocks, `Resumo ${titleSuffix} do seu time (${label})`);
         }
       }
     }
@@ -208,7 +209,7 @@ serve(async (req) => {
     const directors = all.filter((p) => p.papel === "DIRETOR" || p.is_admin);
     const allActiveIds = all.map((p) => p.id);
     const globalStats = await computeStats(admin, allActiveIds, start, end);
-    const globalBlocks = buildReportBlocks(`Resumo mensal — visão global`, label, globalStats);
+    const globalBlocks = buildReportBlocks(`Resumo ${titleSuffix} — visão global`, label, globalStats);
     for (const d of directors) {
       if (!d.email) continue;
       results.push({ to: d.email, scope: "director", stats: globalStats });
@@ -216,17 +217,23 @@ serve(async (req) => {
         const uid = await lookupSlack(d.email);
         if (uid) {
           const ch = await openIm(uid);
-          if (ch) await sendDM(ch, globalBlocks, `Resumo mensal global (${label})`);
+          if (ch) await sendDM(ch, globalBlocks, `Resumo ${titleSuffix} global (${label})`);
         }
       }
     }
 
+    const acao = kind === "year"
+      ? "ANNUAL_ENGAGEMENT"
+      : kind === "quarter"
+        ? "QUARTERLY_ENGAGEMENT"
+        : "MONTHLY_ENGAGEMENT";
+
     await admin.from("audit_logs").insert({
       entidade: "engagement",
-      entidade_id: `${start.toISOString().slice(0, 7)}`,
-      acao: "MONTHLY_ENGAGEMENT",
+      entidade_id: auditId,
+      acao,
       actor_id: null,
-      payload: { period: label, dry_run: dryRun, sent: results.length, results },
+      payload: { period: label, kind, dry_run: dryRun, sent: results.length, results },
     });
 
     return new Response(JSON.stringify({ ok: true, dry_run: dryRun, count: results.length, results }), {
