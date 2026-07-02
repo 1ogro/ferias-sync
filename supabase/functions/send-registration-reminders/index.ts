@@ -8,14 +8,18 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import {
+  buildIncompleteProfileManagerMessage,
+  buildIncompleteProfileSelfMessage,
+  buildPendingApprovalMessage,
   dedupWindowHours,
   groupPendingByManager,
   isNearMonthEnd,
   Mode,
   peopleIncompleteReasons,
-  pendingMissingFields,
   selectPendings,
 } from "./lib.ts";
+
+const APP_BASE_URL = Deno.env.get("APP_BASE_URL") || "https://ferias-sync.lovable.app";
 
 const SLACK_BOT_TOKEN = Deno.env.get("SLACK_BOT_TOKEN") || "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -154,19 +158,10 @@ Deno.serve(async (req) => {
     const recipients: PersonMini[] =
       key === "__admins__" ? admins : mgrs.filter((m) => m.id === key);
 
-    const missingFields = pendingMissingFields;
-
-
-    const lines = (items as any[]).slice(0, 20).map((p) => {
-      const days = Math.floor((Date.now() - new Date(p.created_at).getTime()) / 86400_000);
-      const miss = missingFields(p);
-      return `• *${p.nome}* — pendente há *${days}d* (${p.source})${
-        miss.length ? `\n   Faltando: ${miss.join(", ")}` : ""
-      }`;
-    }).join("\n");
-
-    const urgencyPrefix = mode === "month_end" ? "🗓️ *Fim de mês* — " : "";
-    const text = `${urgencyPrefix}Você tem *${items.length}* cadastro(s) pendente(s) de aprovação:\n${lines}\n\nRevise em: ${SUPABASE_URL.replace(".supabase.co", "").replace("https://", "https://")} • /admin`;
+    const { text, blocks } = buildPendingApprovalMessage(items, {
+      mode,
+      appBaseUrl: APP_BASE_URL,
+    });
 
     for (const r of recipients) {
       if (recentTargets.has(r.id)) { results.skipped_dedup++; continue; }
@@ -182,7 +177,7 @@ Deno.serve(async (req) => {
       if (!slackId) { results.slack_missing++; continue; }
 
       if (!dryRun) {
-        const sent = await sendSlackDM(slackId, text);
+        const sent = await sendSlackDM(slackId, text, blocks);
         if (sent) {
           results.pending_reminded++;
           await admin.from("audit_logs").insert({
@@ -227,14 +222,17 @@ Deno.serve(async (req) => {
       .maybeSingle();
     const wantsSlack = !pref || pref.registration_reminders_slack !== false;
 
-    const urgencyPrefix = mode === "month_end" ? "🗓️ *Fim de mês* — " : "";
-    const selfText = `${urgencyPrefix}Olá *${p.nome}*, seu cadastro ainda está incompleto. Itens pendentes:\n${reasons.map((r) => `• ${r}`).join("\n")}\n\nComplete em: Configurações → Perfil.`;
+    const selfPayload = buildIncompleteProfileSelfMessage(
+      { nome: p.nome },
+      reasons,
+      { mode, appBaseUrl: APP_BASE_URL },
+    );
 
     // to person themself
     let slackId = wantsSlack ? (p.slack_user_id || (p.email ? await slackLookupByEmail(p.email) : null)) : null;
     if (slackId) {
       if (!dryRun) {
-        const sent = await sendSlackDM(slackId, selfText);
+        const sent = await sendSlackDM(slackId, selfPayload.text, selfPayload.blocks);
         if (sent) {
           results.people_reminded++;
           await admin.from("audit_logs").insert({
@@ -270,8 +268,12 @@ Deno.serve(async (req) => {
         if (!mpref || mpref.registration_reminders_slack !== false) {
           const mid = mgr.slack_user_id || (mgr.email ? await slackLookupByEmail(mgr.email) : null);
           if (mid && !dryRun) {
-            const mgrText = `${urgencyPrefix}Seu liderado *${p.nome}* está com cadastro incompleto:\n${reasons.map((r) => `• ${r}`).join("\n")}`;
-            await sendSlackDM(mid, mgrText);
+            const mgrPayload = buildIncompleteProfileManagerMessage(
+              { id: p.id, nome: p.nome },
+              reasons,
+              { mode, appBaseUrl: APP_BASE_URL },
+            );
+            await sendSlackDM(mid, mgrPayload.text, mgrPayload.blocks);
           }
         }
       }
