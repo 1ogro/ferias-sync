@@ -275,7 +275,10 @@ const Settings = () => {
                             onCheckedChange={(v) => updatePreference('admin_actions_slack', v)}
                             disabled={notifSaving}
                           />
+                        </div>
                       </div>
+
+
 
                       {/* Registration reminders (Slack only) */}
                       <div className="grid grid-cols-[1fr_80px_80px] gap-4 items-center py-3 border-t">
