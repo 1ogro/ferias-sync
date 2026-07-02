@@ -58,6 +58,7 @@ export function useNotificationPreferences() {
           system_alerts_slack: data.system_alerts_slack,
           admin_actions_email: data.admin_actions_email,
           admin_actions_slack: data.admin_actions_slack,
+          registration_reminders_slack: (data as any).registration_reminders_slack ?? true,
         });
       }
     } finally {
