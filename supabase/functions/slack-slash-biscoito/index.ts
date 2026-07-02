@@ -266,6 +266,7 @@ async function openModal(opts: {
         {
           type: "input",
           block_id: "kudo_to_block",
+          optional: canMulti, // quando multi está disponível, o campo único vira opcional
           label: { type: "plain_text", text: "Para quem?" },
           element: {
             type: "static_select",
@@ -274,6 +275,19 @@ async function openModal(opts: {
             options: peopleOptions,
           },
         },
+        ...(canMulti ? [{
+          type: "input",
+          block_id: "kudo_to_multi_block",
+          optional: true,
+          label: { type: "plain_text", text: "Ou vários colegas (só na categoria Entrega, até 10)" },
+          element: {
+            type: "multi_static_select",
+            action_id: "kudo_to_multi_select",
+            placeholder: { type: "plain_text", text: "Selecione vários colegas" },
+            max_selected_items: 10,
+            options: peopleOptions,
+          },
+        }] : []),
         {
           type: "input",
           block_id: "kudo_cat_block",
