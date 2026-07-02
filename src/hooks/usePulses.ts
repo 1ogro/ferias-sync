@@ -270,6 +270,9 @@ export function useUpdatePulseSurvey() {
           notify_negative_threshold: fields.notify_negative_threshold ?? 2,
           notify_positive_threshold: fields.notify_positive_threshold ?? 4,
           notify_include_text_responses: fields.notify_include_text_responses ?? false,
+          response_deadline_hours: fields.response_deadline_hours ?? null,
+          reminder_enabled: fields.reminder_enabled ?? true,
+          reminder_offsets_hours: fields.reminder_offsets_hours ?? [24, 2],
         } as any)
         .eq("id", id);
       if (error) throw error;
