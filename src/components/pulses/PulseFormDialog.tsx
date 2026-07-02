@@ -231,6 +231,16 @@ export function PulseFormDialog({ open, onOpenChange, survey, initialValues }: P
         notify_positive_threshold: Math.min(5, Math.max(1, posThreshold || 4)),
         notify_include_text_responses: kind === "kudos" ? false : notifyIncludeText,
       };
+      const parsedOffsets = reminderOffsetsText
+        .split(",")
+        .map((s) => parseInt(s.trim(), 10))
+        .filter((n) => Number.isFinite(n) && n >= 0)
+        .slice(0, 5);
+      const reminderFields = {
+        response_deadline_hours: kind === "kudos" ? null : (responseDeadlineHours > 0 ? responseDeadlineHours : null),
+        reminder_enabled: kind === "kudos" ? false : (responseDeadlineHours > 0 && reminderEnabled),
+        reminder_offsets_hours: parsedOffsets.length ? parsedOffsets : [24, 2],
+      };
       if (isEdit && survey) {
         await updateMut.mutateAsync({
           id: survey.id,
