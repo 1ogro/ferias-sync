@@ -82,6 +82,13 @@ async function completePeerPair(
   const wasAlreadyCompleted = !!pair.completed_at;
   if (!wasAlreadyCompleted) {
     await supabase.from("peer_review_pairs").update({ completed_at: new Date().toISOString() }).eq("id", pair.id);
+    // Reuse the K frozen on the run so audit entries always reflect the same value
+    // that was used when pairs were generated for this execution.
+    const { data: runRow } = await supabase
+      .from("pulse_runs")
+      .select("peer_reviews_per_reviewer, peer_pairing_strategy")
+      .eq("id", runId)
+      .maybeSingle();
     await supabase.from("audit_logs").insert({
       entidade: "peer_review_pairs",
       entidade_id: pair.id,
@@ -92,6 +99,8 @@ async function completePeerPair(
         pair_id: pair.id,
         reviewer_id: reviewerId,
         subject_id: pair.subject_id,
+        k: runRow?.peer_reviews_per_reviewer ?? null,
+        peer_pairing_strategy: runRow?.peer_pairing_strategy ?? null,
       },
     });
   }
