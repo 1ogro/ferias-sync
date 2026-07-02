@@ -191,7 +191,7 @@ function buildBlocks(survey: any, questions: any[], runId: string, opts: { subje
 }
 
 // Round-robin pair generator for peer review (no self-pair).
-function generatePeerPairs(people: { id: string }[]): { reviewer: string; subject: string }[] {
+function generateRoundRobinPairs(people: { id: string }[]): { reviewer: string; subject: string }[] {
   if (people.length < 2) return [];
   const shuffled = [...people].sort(() => Math.random() - 0.5);
   const n = shuffled.length;
@@ -200,6 +200,20 @@ function generatePeerPairs(people: { id: string }[]): { reviewer: string; subjec
     pairs.push({ reviewer: shuffled[i].id, subject: shuffled[(i + 1) % n].id });
   }
   return pairs;
+}
+
+// Random pair generator: each reviewer gets a random subject (no self-pair, derangement when possible).
+function generateRandomPairs(people: { id: string }[]): { reviewer: string; subject: string }[] {
+  if (people.length < 2) return [];
+  const ids = people.map((p) => p.id);
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const shuffled = [...ids].sort(() => Math.random() - 0.5);
+    if (ids.every((id, i) => id !== shuffled[i])) {
+      return ids.map((id, i) => ({ reviewer: id, subject: shuffled[i] }));
+    }
+  }
+  // Fallback: shift by 1 to guarantee no self-pair.
+  return ids.map((id, i) => ({ reviewer: id, subject: ids[(i + 1) % ids.length] }));
 }
 
 function buildKudosBlocks(survey: any) {
