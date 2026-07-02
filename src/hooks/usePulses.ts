@@ -208,6 +208,8 @@ export interface UpdateSurveyInput {
   tone?: "formal" | "neutral" | "casual";
   kind?: "self" | "peer" | "kudos";
   peer_anonymous?: boolean;
+  peer_pairing_strategy?: "round_robin" | "random" | "fixed";
+  peer_fixed_pairs?: { reviewer_id: string; subject_id: string }[] | null;
   kudos_categories?: string[] | null;
   kudos_channel?: string | null;
   prompt_text?: string | null;
