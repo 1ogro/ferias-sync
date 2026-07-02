@@ -158,6 +158,8 @@ function buildBlocks(survey: any, questions: any[], runId: string, opts: { subje
       type: "section",
       text: { type: "mrkdwn", text: `*${q.position + 1}. ${q.question_text}*${q.required ? " *_(obrigatória)_*" : ""}` },
     });
+    // Action IDs for peer: append pairId as 5th/4th segment so respondents can be linked to the subject.
+    const suffix = opts.pairId ? `:${opts.pairId}` : "";
     if (q.question_type === "scale_1_5") {
       blocks.push({
         type: "actions",
@@ -165,7 +167,7 @@ function buildBlocks(survey: any, questions: any[], runId: string, opts: { subje
         elements: [1, 2, 3, 4, 5].map((n) => ({
           type: "button",
           text: { type: "plain_text", text: String(n) },
-          action_id: `pulse_answer:${runId}:${q.id}:${n}`,
+          action_id: `pulse_answer:${runId}:${q.id}:${n}${suffix}`,
           value: String(n),
           style: n >= 4 ? "primary" : undefined,
         })),
@@ -178,7 +180,7 @@ function buildBlocks(survey: any, questions: any[], runId: string, opts: { subje
           {
             type: "button",
             text: { type: "plain_text", text: "✍️ Responder" },
-            action_id: `pulse_text_open:${runId}:${q.id}`,
+            action_id: `pulse_text_open:${runId}:${q.id}${suffix}`,
             value: "open",
           },
         ],
@@ -191,29 +193,33 @@ function buildBlocks(survey: any, questions: any[], runId: string, opts: { subje
 }
 
 // Round-robin pair generator for peer review (no self-pair).
-function generateRoundRobinPairs(people: { id: string }[]): { reviewer: string; subject: string }[] {
+// Returns K pairs per reviewer by shifting the shuffled ring by offsets 1..K.
+function generateRoundRobinPairs(people: { id: string }[], k: number = 1): { reviewer: string; subject: string }[] {
   if (people.length < 2) return [];
   const shuffled = [...people].sort(() => Math.random() - 0.5);
   const n = shuffled.length;
+  const K = Math.min(Math.max(1, k), n - 1);
   const pairs: { reviewer: string; subject: string }[] = [];
-  for (let i = 0; i < n; i++) {
-    pairs.push({ reviewer: shuffled[i].id, subject: shuffled[(i + 1) % n].id });
+  for (let offset = 1; offset <= K; offset++) {
+    for (let i = 0; i < n; i++) {
+      pairs.push({ reviewer: shuffled[i].id, subject: shuffled[(i + offset) % n].id });
+    }
   }
   return pairs;
 }
 
-// Random pair generator: each reviewer gets a random subject (no self-pair, derangement when possible).
-function generateRandomPairs(people: { id: string }[]): { reviewer: string; subject: string }[] {
+// Random pair generator: each reviewer gets K distinct random subjects (no self-pair).
+function generateRandomPairs(people: { id: string }[], k: number = 1): { reviewer: string; subject: string }[] {
   if (people.length < 2) return [];
   const ids = people.map((p) => p.id);
-  for (let attempt = 0; attempt < 20; attempt++) {
-    const shuffled = [...ids].sort(() => Math.random() - 0.5);
-    if (ids.every((id, i) => id !== shuffled[i])) {
-      return ids.map((id, i) => ({ reviewer: id, subject: shuffled[i] }));
-    }
+  const n = ids.length;
+  const K = Math.min(Math.max(1, k), n - 1);
+  const pairs: { reviewer: string; subject: string }[] = [];
+  for (const rid of ids) {
+    const candidates = ids.filter((x) => x !== rid).sort(() => Math.random() - 0.5).slice(0, K);
+    for (const sid of candidates) pairs.push({ reviewer: rid, subject: sid });
   }
-  // Fallback: shift by 1 to guarantee no self-pair.
-  return ids.map((id, i) => ({ reviewer: id, subject: ids[(i + 1) % ids.length] }));
+  return pairs;
 }
 
 function buildKudosBlocks(survey: any) {
