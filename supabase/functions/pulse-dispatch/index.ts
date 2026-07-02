@@ -307,6 +307,15 @@ async function dispatchSurvey(supabase: any, survey: any): Promise<{ sent: numbe
     ? new Date(Date.now() + survey.response_deadline_hours * 3600_000).toISOString()
     : null;
 
+  // Freeze peer-review parameters at run-creation time so audits, reminders and
+  // pair generation always reference the same value even if the survey is edited later.
+  const runPeerK = survey.kind === "peer"
+    ? Math.min(5, Math.max(1, Number(survey.peer_reviews_per_reviewer) || 1))
+    : null;
+  const runPeerStrategy = survey.kind === "peer"
+    ? (survey.peer_pairing_strategy || "round_robin")
+    : null;
+
   const { data: run, error: runErr } = await supabase
     .from("pulse_runs")
     .insert({
@@ -314,6 +323,8 @@ async function dispatchSurvey(supabase: any, survey: any): Promise<{ sent: numbe
       status: "pending",
       recipients_count: recipients.length,
       deadline_at: deadlineAt,
+      peer_reviews_per_reviewer: runPeerK,
+      peer_pairing_strategy: runPeerStrategy,
     })
     .select()
     .single();
@@ -328,8 +339,8 @@ async function dispatchSurvey(supabase: any, survey: any): Promise<{ sent: numbe
   let pairsCreated = 0;
 
   if (survey.kind === "peer") {
-    const strategy: string = survey.peer_pairing_strategy || "round_robin";
-    const K = Math.min(5, Math.max(1, Number(survey.peer_reviews_per_reviewer) || 1));
+    const strategy: string = runPeerStrategy!;
+    const K = runPeerK!;
     let pairs: { reviewer: string; subject: string }[] = [];
 
     if (strategy === "fixed") {
