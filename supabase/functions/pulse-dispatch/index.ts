@@ -529,10 +529,10 @@ async function dispatchSurvey(supabase: any, survey: any): Promise<{ sent: numbe
     entidade_id: run.id,
     acao: "DISPATCH",
     actor_id: survey.created_by,
-    payload: { survey_id: survey.id, recipients: recipients.length, sent, deferred, diagnostics },
+    payload: { survey_id: survey.id, recipients: recipients.length, sent, deferred, pairs_created: pairsCreated, diagnostics },
   });
 
-  return { sent, total: recipients.length, deferred, diagnostics };
+  return { sent, total: recipients.length, deferred, pairs_created: pairsCreated, diagnostics };
 }
 
 serve(async (req) => {
