@@ -7,12 +7,20 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
+import {
+  dedupWindowHours,
+  groupPendingByManager,
+  isNearMonthEnd,
+  Mode,
+  peopleIncompleteReasons,
+  pendingMissingFields,
+  selectPendings,
+} from "./lib.ts";
 
 const SLACK_BOT_TOKEN = Deno.env.get("SLACK_BOT_TOKEN") || "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-type Mode = "weekly" | "month_end";
 
 interface PersonMini {
   id: string;
@@ -54,11 +62,6 @@ async function sendSlackDM(channel: string, text: string, blocks?: unknown[]) {
   }
 }
 
-function isNearMonthEnd(today = new Date()) {
-  const next = new Date(today.getFullYear(), today.getMonth() + 1, 1);
-  const diff = Math.round((next.getTime() - today.getTime()) / 86400000);
-  return diff <= 3;
-}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -82,7 +85,7 @@ Deno.serve(async (req) => {
     );
   }
 
-  const DEDUP_WINDOW_HOURS = mode === "weekly" ? 6 * 24 : 0; // month_end always sends
+  const DEDUP_WINDOW_HOURS = dedupWindowHours(mode);
   const sinceIso = new Date(Date.now() - DEDUP_WINDOW_HOURS * 3600_000).toISOString();
 
   // Load recent audit log to dedupe
@@ -120,13 +123,9 @@ Deno.serve(async (req) => {
   const { data: pendings, error: perr } = await pendingQuery;
   if (perr) results.errors.push(`pending_people: ${perr.message}`);
 
-  // group by manager (fallback to admins)
-  const byManager = new Map<string | "__admins__", any[]>();
-  for (const p of pendings || []) {
-    const key = p.gestor_id || "__admins__";
-    if (!byManager.has(key)) byManager.set(key, []);
-    byManager.get(key)!.push(p);
-  }
+  // group by manager (fallback to admins), reusing pure helper
+  const byManager = groupPendingByManager(selectPendings((pendings || []) as any, mode));
+
 
   // load admins for __admins__ bucket
   let admins: PersonMini[] = [];
@@ -155,14 +154,8 @@ Deno.serve(async (req) => {
     const recipients: PersonMini[] =
       key === "__admins__" ? admins : mgrs.filter((m) => m.id === key);
 
-    const missingFields = (row: any) => {
-      const miss: string[] = [];
-      if (!row.email) miss.push("🔴 email corporativo (bloqueia login)");
-      if (!row.data_contrato) miss.push("🟠 data de contrato");
-      if (!row.modelo_contrato) miss.push("🟠 modelo de contrato");
-      if (row.modelo_contrato === "PJ" && !row.dia_pagamento) miss.push("🟡 dia de pagamento (PJ)");
-      return miss;
-    };
+    const missingFields = pendingMissingFields;
+
 
     const lines = (items as any[]).slice(0, 20).map((p) => {
       const days = Math.floor((Date.now() - new Date(p.created_at).getTime()) / 86400_000);
@@ -218,19 +211,9 @@ Deno.serve(async (req) => {
     .eq("ativo", true);
   if (eerr) results.errors.push(`people: ${eerr.message}`);
 
-  const incompleteReasons = (p: any): string[] => {
-    const miss: string[] = [];
-    if (!p.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(p.email)) miss.push("🔴 email corporativo válido (necessário para login)");
-    if (!p.slack_user_id) miss.push("🔴 vincular usuário do Slack (necessário para notificações)");
-    if (!p.data_contrato) miss.push("🟠 data de contrato");
-    if (!p.modelo_contrato) miss.push("🟠 modelo de contrato");
-    if (p.modelo_contrato === "PJ" && !p.dia_pagamento) miss.push("🟠 dia de pagamento (PJ)");
-    if (!p.data_nascimento) miss.push("🟡 data de nascimento");
-    if (!p.profile_completed_at) miss.push("🟠 completar perfil no sistema");
-    return miss;
-  };
+  const incompleteReasons = peopleIncompleteReasons;
+  const incomplete = ((peopleAll || []) as any[]).filter((p) => incompleteReasons(p as any).length > 0);
 
-  const incomplete = (peopleAll || []).filter((p) => incompleteReasons(p).length > 0);
 
   for (const p of incomplete) {
     if (recentTargets.has(p.id)) { results.skipped_dedup++; continue; }
