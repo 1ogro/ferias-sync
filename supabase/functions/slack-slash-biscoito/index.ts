@@ -166,6 +166,15 @@ async function openModal(opts: {
       console.warn("[slash-biscoito] users.info sender failed:", e);
     }
 
+    // Papel do remetente no app (para liberar multi-seleção)
+    let senderPapel: string | null = null;
+    if (senderEmail) {
+      const { data: senderPerson } = await supabase
+        .from("people").select("papel").eq("email", senderEmail).eq("ativo", true).maybeSingle();
+      senderPapel = senderPerson?.papel ?? null;
+    }
+    const canMulti = senderPapel === "GESTOR" || senderPapel === "DIRETOR";
+
     const memberNameCandidates = (m: SlackMember): string[] => {
       const list = [
         m.profile?.display_name,
