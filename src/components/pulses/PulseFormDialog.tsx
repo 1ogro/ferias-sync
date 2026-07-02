@@ -52,6 +52,8 @@ export function PulseFormDialog({ open, onOpenChange, survey, initialValues }: P
   const [tone, setTone] = useState<"formal" | "neutral" | "casual">("neutral");
   const [kind, setKind] = useState<"self" | "peer" | "kudos">("self");
   const [peerAnonymous, setPeerAnonymous] = useState(true);
+  const [peerPairingStrategy, setPeerPairingStrategy] = useState<"round_robin" | "random" | "fixed">("round_robin");
+  const [peerFixedPairs, setPeerFixedPairs] = useState<{ reviewer_id: string; subject_id: string }[]>([]);
   const [kudosCategories, setKudosCategories] = useState<string[]>([
     "teamwork", "innovation", "delivery", "leadership", "customer",
   ]);
@@ -105,6 +107,8 @@ export function PulseFormDialog({ open, onOpenChange, survey, initialValues }: P
       setTone(((survey as any).tone || "neutral") as any);
       setKind(((survey as any).kind || "self") as any);
       setPeerAnonymous((survey as any).peer_anonymous ?? true);
+      setPeerPairingStrategy(((survey as any).peer_pairing_strategy as any) ?? "round_robin");
+      setPeerFixedPairs(((survey as any).peer_fixed_pairs as any) ?? []);
       setKudosCategories(((survey as any).kudos_categories as string[] | null) ?? [
         "teamwork", "innovation", "delivery", "leadership", "customer",
       ]);
@@ -162,6 +166,7 @@ export function PulseFormDialog({ open, onOpenChange, survey, initialValues }: P
   const reset = () => {
     setTitle(""); setDescription(""); setAnonymous(true);
     setTone("neutral"); setKind("self"); setPeerAnonymous(true);
+    setPeerPairingStrategy("round_robin"); setPeerFixedPairs([]);
     setKudosCategories(["teamwork", "innovation", "delivery", "leadership", "customer"]);
     setKudosChannel(""); setPromptText("");
     setFrequency("once");
@@ -190,11 +195,27 @@ export function PulseFormDialog({ open, onOpenChange, survey, initialValues }: P
     if (targetScope === "custom" && targetPersonIds.length === 0) {
       toast({ title: "Selecione ao menos uma pessoa", variant: "destructive" }); return;
     }
+    if (kind === "peer" && peerPairingStrategy === "fixed") {
+      const validPairs = peerFixedPairs.filter((p) => p.reviewer_id && p.subject_id && p.reviewer_id !== p.subject_id);
+      if (validPairs.length === 0) {
+        toast({ title: "Defina ao menos um par (avaliador → avaliado)", variant: "destructive" }); return;
+      }
+      const reviewers = validPairs.map((p) => p.reviewer_id);
+      if (new Set(reviewers).size !== reviewers.length) {
+        toast({ title: "Cada avaliador só pode aparecer uma vez", variant: "destructive" }); return;
+      }
+    }
     try {
       const commonKudos = {
         kudos_categories: kind === "kudos" ? kudosCategories : null,
         kudos_channel: kind === "kudos" ? (kudosChannel.trim() || null) : null,
         prompt_text: kind === "kudos" ? (promptText.trim() || null) : null,
+      };
+      const peerFields = {
+        peer_pairing_strategy: kind === "peer" ? peerPairingStrategy : "round_robin",
+        peer_fixed_pairs: kind === "peer" && peerPairingStrategy === "fixed"
+          ? peerFixedPairs.filter((p) => p.reviewer_id && p.subject_id && p.reviewer_id !== p.subject_id)
+          : null,
       };
       const notifyFields = {
         notify_manager_on_negative: kind === "kudos" ? false : notifyNegative,
@@ -213,6 +234,7 @@ export function PulseFormDialog({ open, onOpenChange, survey, initialValues }: P
           kind,
           peer_anonymous: peerAnonymous,
           ...commonKudos,
+          ...peerFields,
           ...notifyFields,
           frequency,
           next_run_at: new Date(nextRunAt).toISOString(),
@@ -233,6 +255,7 @@ export function PulseFormDialog({ open, onOpenChange, survey, initialValues }: P
           kind,
           peer_anonymous: peerAnonymous,
           ...commonKudos,
+          ...peerFields,
           ...notifyFields,
           frequency,
           next_run_at: new Date(nextRunAt).toISOString(),
@@ -323,12 +346,89 @@ export function PulseFormDialog({ open, onOpenChange, survey, initialValues }: P
           </div>
 
           {kind === "peer" && (
-            <div className="flex items-center justify-between rounded border p-3 bg-muted/30">
-              <div>
-                <Label>Revisor anônimo</Label>
-                <p className="text-xs text-muted-foreground">Se ativado, o avaliado não sabe quem o avaliou.</p>
+            <div className="space-y-3 rounded border p-3 bg-muted/30">
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label>Revisor anônimo</Label>
+                  <p className="text-xs text-muted-foreground">Se ativado, o avaliado não sabe quem o avaliou.</p>
+                </div>
+                <Switch checked={peerAnonymous} onCheckedChange={setPeerAnonymous} />
               </div>
-              <Switch checked={peerAnonymous} onCheckedChange={setPeerAnonymous} />
+
+              <div className="space-y-2">
+                <Label>Estratégia de pareamento</Label>
+                <Select value={peerPairingStrategy} onValueChange={(v) => setPeerPairingStrategy(v as any)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="round_robin">Round-robin (por time)</SelectItem>
+                    <SelectItem value="random">Aleatório (por time)</SelectItem>
+                    <SelectItem value="fixed">Pareamento fixo (manual)</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  {peerPairingStrategy === "round_robin" && "Cada pessoa avalia a próxima da lista embaralhada, dentro do mesmo time."}
+                  {peerPairingStrategy === "random" && "Cada pessoa recebe um avaliado sorteado aleatoriamente dentro do mesmo time."}
+                  {peerPairingStrategy === "fixed" && "Você define manualmente quem avalia quem. Os pares se repetem em cada rodada."}
+                </p>
+              </div>
+
+              {peerPairingStrategy === "fixed" && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm">Pares fixos</Label>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setPeerFixedPairs((cur) => [...cur, { reviewer_id: "", subject_id: "" }])}
+                    >
+                      <Plus className="w-3 h-3 mr-1" /> Adicionar par
+                    </Button>
+                  </div>
+                  {peerFixedPairs.length === 0 && (
+                    <p className="text-xs text-muted-foreground">Nenhum par definido ainda.</p>
+                  )}
+                  {peerFixedPairs.map((pair, idx) => (
+                    <div key={idx} className="flex items-center gap-2">
+                      <Select
+                        value={pair.reviewer_id}
+                        onValueChange={(v) =>
+                          setPeerFixedPairs((cur) => cur.map((p, i) => (i === idx ? { ...p, reviewer_id: v } : p)))
+                        }
+                      >
+                        <SelectTrigger className="flex-1"><SelectValue placeholder="Avaliador" /></SelectTrigger>
+                        <SelectContent>
+                          {people.map((p) => (
+                            <SelectItem key={p.id} value={p.id}>{p.nome}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <span className="text-xs text-muted-foreground">→</span>
+                      <Select
+                        value={pair.subject_id}
+                        onValueChange={(v) =>
+                          setPeerFixedPairs((cur) => cur.map((p, i) => (i === idx ? { ...p, subject_id: v } : p)))
+                        }
+                      >
+                        <SelectTrigger className="flex-1"><SelectValue placeholder="Avaliado" /></SelectTrigger>
+                        <SelectContent>
+                          {people.filter((p) => p.id !== pair.reviewer_id).map((p) => (
+                            <SelectItem key={p.id} value={p.id}>{p.nome}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setPeerFixedPairs((cur) => cur.filter((_, i) => i !== idx))}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 

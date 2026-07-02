@@ -30,6 +30,8 @@ export interface PulseSurvey {
   tone?: "formal" | "neutral" | "casual";
   kind?: "self" | "peer" | "kudos";
   peer_anonymous?: boolean;
+  peer_pairing_strategy?: "round_robin" | "random" | "fixed";
+  peer_fixed_pairs?: { reviewer_id: string; subject_id: string }[] | null;
   kudos_categories?: string[] | null;
   kudos_channel?: string | null;
   prompt_text?: string | null;
@@ -51,6 +53,8 @@ export interface CreateSurveyInput {
   tone?: "formal" | "neutral" | "casual";
   kind?: "self" | "peer" | "kudos";
   peer_anonymous?: boolean;
+  peer_pairing_strategy?: "round_robin" | "random" | "fixed";
+  peer_fixed_pairs?: { reviewer_id: string; subject_id: string }[] | null;
   kudos_categories?: string[] | null;
   kudos_channel?: string | null;
   prompt_text?: string | null;
@@ -145,6 +149,8 @@ export function useCreatePulseSurvey() {
           tone: survey.tone ?? "neutral",
           kind,
           peer_anonymous: survey.peer_anonymous ?? true,
+          peer_pairing_strategy: kind === "peer" ? (survey.peer_pairing_strategy ?? "round_robin") : "round_robin",
+          peer_fixed_pairs: kind === "peer" ? (survey.peer_fixed_pairs ?? null) : null,
           kudos_categories: kind === "kudos" ? (survey.kudos_categories ?? null) : null,
           kudos_channel: kind === "kudos" ? (survey.kudos_channel ?? null) : null,
           prompt_text: kind === "kudos" ? (survey.prompt_text ?? null) : null,
@@ -202,6 +208,8 @@ export interface UpdateSurveyInput {
   tone?: "formal" | "neutral" | "casual";
   kind?: "self" | "peer" | "kudos";
   peer_anonymous?: boolean;
+  peer_pairing_strategy?: "round_robin" | "random" | "fixed";
+  peer_fixed_pairs?: { reviewer_id: string; subject_id: string }[] | null;
   kudos_categories?: string[] | null;
   kudos_channel?: string | null;
   prompt_text?: string | null;
@@ -234,6 +242,8 @@ export function useUpdatePulseSurvey() {
           tone: fields.tone ?? "neutral",
           kind,
           peer_anonymous: fields.peer_anonymous ?? true,
+          peer_pairing_strategy: kind === "peer" ? (fields.peer_pairing_strategy ?? "round_robin") : "round_robin",
+          peer_fixed_pairs: kind === "peer" ? (fields.peer_fixed_pairs ?? null) : null,
           kudos_categories: kind === "kudos" ? (fields.kudos_categories ?? null) : null,
           kudos_channel: kind === "kudos" ? (fields.kudos_channel ?? null) : null,
           prompt_text: kind === "kudos" ? (fields.prompt_text ?? null) : null,
@@ -318,6 +328,8 @@ export function useDuplicatePulseSurvey() {
           tone: (orig as any).tone ?? "neutral",
           kind: (orig as any).kind ?? "self",
           peer_anonymous: (orig as any).peer_anonymous ?? true,
+          peer_pairing_strategy: (orig as any).peer_pairing_strategy ?? "round_robin",
+          peer_fixed_pairs: (orig as any).peer_fixed_pairs ?? null,
           kudos_categories: (orig as any).kudos_categories ?? null,
           kudos_channel: (orig as any).kudos_channel ?? null,
           prompt_text: (orig as any).prompt_text ?? null,
