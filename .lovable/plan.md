@@ -1,71 +1,34 @@
+## Diagnóstico
 
-## Objetivo
+No app web (`GiveKudosDialog` em `src/pages/Engagement.tsx`), o envio para vários colegas está sendo feito num **loop `Promise.allSettled` que chama `kudos-send` N vezes**, cada chamada com 1 destinatário. Isso causa exatamente os dois sintomas relatados:
 
-Permitir que usuários com papel `GESTOR` ou `DIRETOR` enviem um kudos ("biscoito") para **vários colegas de uma vez**, exclusivamente quando a categoria selecionada for **Entrega**. Nas demais categorias e para os demais papéis (`COLABORADOR`), o comportamento continua sendo 1-para-1.
+1. **Canal #time recebe N mensagens** (uma por destinatário) em vez de uma consolidada — porque a lógica de consolidação do `kudos-send` só é acionada quando `validRecipients.length > 1` **dentro da mesma chamada**.
+2. **Pontos "não aparecem" no leaderboard** — cada chamada individual dispara sua própria invalidação do React Query e a UI acaba mostrando estado inconsistente/stale entre as N chamadas paralelas; além disso, se qualquer chamada falha silenciosamente (por ex. rate limit ou 500 pontual), aquele destinatário e o `+2` correspondente do remetente somem, dando a impressão de "não computou".
 
-Aplica-se a dois pontos de entrada:
-1. App web — dialog em `src/pages/Engagement.tsx` (`GiveKudosDialog`).
-2. Slack — comando `/biscoito` (`supabase/functions/slack-slash-biscoito` + submit em `supabase/functions/slack-interactions`).
+O backend (`kudos-send`) já aceita `to_person_ids: string[]`, valida `GESTOR`/`DIRETOR` + categoria `delivery`, insere N kudos, chama `award_points` para cada destinatário (+10) e para o remetente (+2 × N), e posta **uma única mensagem consolidada** no canal. Ou seja, o fix é apenas no frontend.
 
-## Regras
+O caminho do Slack (`slack-interactions` → `biscoito_submit`) já está correto: uma inserção por destinatário, `awardPoints` por destinatário, e um único card consolidado no canal — não requer mudança.
 
-- Multi-destinatários habilitado somente quando `category === "delivery"` **e** o remetente é `GESTOR` ou `DIRETOR`.
-- Mudar a categoria para outra que não seja Entrega volta o seletor a single-select e mantém apenas o 1º destinatário selecionado.
-- A mesma mensagem é enviada para todos os destinatários (um kudos por destinatário registrado em `kudos`).
-- Pontos: cada destinatário recebe **+10** (`kudo_received`); o remetente recebe **+2** por destinatário (`kudo_given`), mantendo a lógica atual, agora somada N vezes.
-- Limite de segurança: até **10 destinatários** por envio, para evitar abuso e excesso de mensagens no Slack.
-- Se "Postar em #time" estiver marcado, uma **única** mensagem consolidada é postada no canal listando todos os destinatários (evita spam).
-- DM individual para cada destinatário via Slack continua (o mesmo helper `notifyRecipientDM`), disparado uma vez por destinatário.
-- Notificação para gestores/diretores (`kudos-notify-managers`) é invocada uma vez por kudo criado (mantém idempotência atual).
+## Mudança (apenas frontend)
 
-## Mudanças por arquivo
+`src/pages/Engagement.tsx` — função `submit` do `GiveKudosDialog`:
 
-### Frontend
-- `src/pages/Engagement.tsx` (`GiveKudosDialog`)
-  - Novo estado `toIds: string[]`.
-  - Se `person.papel` ∈ {`GESTOR`,`DIRETOR`} e `category === "delivery"`: renderiza um seletor multi (checkbox list com busca dentro de um popover — reaproveitando `Command` + `Popover` já usados no projeto). Caso contrário, mantém o `Select` atual.
-  - Ao alternar categoria para não-Entrega ou quando o papel não permite, reduz `toIds` a no máximo 1 item.
-  - `submit` chama a mutação em loop `Promise.all` limitado, exibindo um toast único com contagem (`"Kudos enviado para N colegas 🎉"`).
-  - Contagem visível `{toIds.length}/10` e botão desabilitado se `> 10`.
+- Remover o loop `Promise.allSettled(toIds.map(...))`.
+- Fazer **uma única** chamada `mutateAsync({ to_person_ids: toIds, message, category, post_to_channel })` quando `toIds.length > 1`, e manter `to_person_id: toIds[0]` quando `= 1` (para preservar compatibilidade e o caminho single já testado).
+- Ler `count` da resposta para o toast: `"Kudos enviado para N colegas 🎉"` (fallback para `toIds.length` se `count` não vier).
+- Manter validação client-side de limite (`MAX_MULTI_RECIPIENTS = 10`) e desabilitar botão se exceder.
 
-- `src/hooks/useEngagement.ts` — sem mudança no hook `useSendKudo`; adicionar util opcional `useSendKudosBatch` que reaproveita `useSendKudo` internamente (ou apenas iterar no componente). Manter simples: iterar no componente.
+`src/hooks/useEngagement.ts` — `useSendKudo`:
 
-### Edge Functions
-
-- `supabase/functions/kudos-send/index.ts`
-  - Aceitar tanto `to_person_id: string` (compat) quanto `to_person_ids: string[]` (novo).
-  - Validar: apenas se `category === "delivery"` **e** remetente é `GESTOR`/`DIRETOR` pode-se passar array > 1; caso contrário, retorna 403.
-  - Limite server-side de 10 destinatários.
-  - Deduplica IDs, remove o próprio remetente.
-  - Insere N linhas em `kudos`, roda `award_points` para cada; `kudo_given` somado por destinatário.
-  - Se `post_to_channel`: monta uma **única** mensagem listando todos os nomes.
-  - Retorna `{ ok, kudos: Kudo[] }`.
-
-- `supabase/functions/slack-slash-biscoito/index.ts`
-  - Detectar se o usuário Slack (via email → `people`) é `GESTOR`/`DIRETOR`. Se sim, adicionar um bloco `checkboxes` opcional "Enviar para vários colegas" que troca o seletor.
-  - Como Slack não permite trocar blocos dinamicamente sem `block_actions`, a estratégia mais simples: para gestores/diretores, o modal já inclui **ambos** os campos:
-    - `kudo_to_block` (static_select single — sempre presente).
-    - `kudo_to_multi_block` (multi_static_select, opcional, "Destinatários adicionais (só p/ Entrega)").
-  - A validação de "só vale se category=delivery" é feita no submit em `slack-interactions`.
-
-- `supabase/functions/slack-interactions/index.ts` (branch `kudos_submit`)
-  - Coletar destinatários do `kudo_to_block` e (se existir) `kudo_to_multi_block`.
-  - Consolidar em uma lista única `recipients: Array<{personId?, slackUserId?, ...}>` (mantendo a lógica atual de resolver `app:`/`slack:` para cada).
-  - Se `recipients.length > 1`: exigir `category === "delivery"` e remetente `GESTOR`/`DIRETOR` (checar `people.papel`); se falhar → retornar `response_action: errors` no bloco de categoria.
-  - Aplicar limite de 10.
-  - Loop na lógica existente de insert + `award_points` + `notifyRecipientDM` + `ensurePendingPerson`.
-  - Post no canal (quando marcado): **uma** mensagem consolidada.
+- Ampliar o tipo do `input` para aceitar `to_person_id?: string` **ou** `to_person_ids?: string[]` (ambos opcionais no tipo, com pelo menos um exigido em runtime). Nenhuma outra mudança — o body já é repassado direto ao `functions.invoke("kudos-send", { body: input })`.
 
 ## Fora de escopo
 
-- Não altera fluxo de notificação a gestores (`kudos-notify-managers`), leaderboard, ou schema do DB.
-- Não altera categorias existentes nem regras de pontuação por kudos individual.
+- `kudos-send` (já suporta batch corretamente).
+- `slack-interactions` / `slack-slash-biscoito` (fluxo Slack já consolida e pontua corretamente).
+- Schema, RLS, `award_points`, `kudos-notify-managers`, leaderboard.
 
-## Diagrama do fluxo (app)
+## Verificação após implementação
 
-```text
-[Dialog] --papel∈{GESTOR,DIRETOR} && category=delivery? --> multi-select (até 10)
-                     |                                           |
-                     v                                           v
-              single-select (padrão)                    N × kudos-send (mesmo body)
-```
+1. Como GESTOR/DIRETOR no app: selecionar categoria "Entrega", escolher 3 colegas, marcar "Postar em #time" e enviar.
+2. Esperado: **1 única** mensagem no canal `#time` listando os 3 nomes, e o leaderboard do mês mostrando `+10` para cada destinatário e `+6` (2×3) para o remetente após refresh.

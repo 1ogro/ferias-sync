@@ -122,7 +122,7 @@ export function useMyPoints(personId?: string) {
 export function useSendKudo() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { to_person_id: string; message: string; category: KudosCategory; post_to_channel?: string | null }) => {
+    mutationFn: async (input: { to_person_id?: string; to_person_ids?: string[]; message: string; category: KudosCategory; post_to_channel?: string | null }) => {
       const { data, error } = await supabase.functions.invoke("kudos-send", { body: input });
       if (error) throw error;
       if ((data as any)?.error) throw new Error((data as any).error);

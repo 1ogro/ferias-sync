@@ -167,35 +167,27 @@ function GiveKudosDialog({ personId, fromName, papel }: { personId?: string; fro
       return;
     }
     try {
-      const results = await Promise.allSettled(
-        toIds.map((to_person_id) =>
-          mutateAsync({
-            to_person_id,
-            message: message.trim(),
-            category,
-            post_to_channel: share ? SHARE_CHANNEL : null,
-          })
-        )
-      );
-      const ok = results.filter((r) => r.status === "fulfilled").length;
-      const fail = results.length - ok;
-      if (ok > 0) {
-        toast({
-          title: ok === 1 ? "Kudos enviado! 🎉" : `Kudos enviados para ${ok} colegas 🎉`,
-          description: fail > 0 ? `${fail} não puderam ser enviados.` : (fromName ? `De ${fromName}` : undefined),
-        });
-      }
-      if (ok === results.length) {
-        setOpen(false);
-        setToIds([]); setMessage(""); setShare(false); setCategory("teamwork");
-      } else if (ok === 0) {
-        const first = results.find((r) => r.status === "rejected") as PromiseRejectedResult | undefined;
-        throw new Error(first?.reason?.message || "Falha ao enviar");
-      }
+      const payload: any = {
+        message: message.trim(),
+        category,
+        post_to_channel: share ? SHARE_CHANNEL : null,
+      };
+      if (toIds.length === 1) payload.to_person_id = toIds[0];
+      else payload.to_person_ids = toIds;
+
+      const res: any = await mutateAsync(payload);
+      const count = typeof res?.count === "number" ? res.count : toIds.length;
+      toast({
+        title: count === 1 ? "Kudos enviado! 🎉" : `Kudos enviados para ${count} colegas 🎉`,
+        description: fromName ? `De ${fromName}` : undefined,
+      });
+      setOpen(false);
+      setToIds([]); setMessage(""); setShare(false); setCategory("teamwork");
     } catch (e: any) {
       toast({ title: "Falha ao enviar kudos", description: e.message, variant: "destructive" });
     }
   };
+
 
   const selectedNames = useMemo(
     () => peopleOptions.filter((p) => toIds.includes(p.id)),
