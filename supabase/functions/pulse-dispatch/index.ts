@@ -310,15 +310,33 @@ async function dispatchSurvey(supabase: any, survey: any): Promise<{ sent: numbe
   // Peer pairing
   const subjectByReviewer = new Map<string, { id: string; nome: string }>();
   if (survey.kind === "peer") {
-    // Sortear pares apenas dentro do mesmo time (sub_time).
-    const groups = new Map<string, typeof recipients>();
-    for (const p of recipients) {
-      const key = p.sub_time ?? "__no_team__";
-      if (!groups.has(key)) groups.set(key, []);
-      groups.get(key)!.push(p);
-    }
-    const pairs = [...groups.values()].flatMap((g) => generatePeerPairs(g));
+    const strategy: string = survey.peer_pairing_strategy || "round_robin";
     const peopleById = new Map(recipients.map((p) => [p.id, p]));
+    let pairs: { reviewer: string; subject: string }[] = [];
+
+    if (strategy === "fixed") {
+      const fixed = Array.isArray(survey.peer_fixed_pairs) ? survey.peer_fixed_pairs : [];
+      pairs = fixed
+        .filter((fp: any) =>
+          fp?.reviewer_id &&
+          fp?.subject_id &&
+          fp.reviewer_id !== fp.subject_id &&
+          peopleById.has(fp.reviewer_id) &&
+          peopleById.has(fp.subject_id)
+        )
+        .map((fp: any) => ({ reviewer: fp.reviewer_id, subject: fp.subject_id }));
+    } else {
+      // round_robin or random: agrupar por sub_time
+      const groups = new Map<string, typeof recipients>();
+      for (const p of recipients) {
+        const key = p.sub_time ?? "__no_team__";
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key)!.push(p);
+      }
+      const gen = strategy === "random" ? generateRandomPairs : generateRoundRobinPairs;
+      pairs = [...groups.values()].flatMap((g) => gen(g));
+    }
+
     if (pairs.length) {
       await supabase.from("peer_review_pairs").insert(
         pairs.map((p) => ({ survey_id: survey.id, run_id: run.id, reviewer_id: p.reviewer, subject_id: p.subject }))
