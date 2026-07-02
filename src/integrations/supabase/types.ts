@@ -847,6 +847,8 @@ export type Database = {
           notify_negative_threshold: number
           notify_positive_threshold: number
           peer_anonymous: boolean
+          peer_fixed_pairs: Json | null
+          peer_pairing_strategy: string
           prompt_text: string | null
           target_person_ids: string[] | null
           target_scope: string
@@ -877,6 +879,8 @@ export type Database = {
           notify_negative_threshold?: number
           notify_positive_threshold?: number
           peer_anonymous?: boolean
+          peer_fixed_pairs?: Json | null
+          peer_pairing_strategy?: string
           prompt_text?: string | null
           target_person_ids?: string[] | null
           target_scope?: string
@@ -907,6 +911,8 @@ export type Database = {
           notify_negative_threshold?: number
           notify_positive_threshold?: number
           peer_anonymous?: boolean
+          peer_fixed_pairs?: Json | null
+          peer_pairing_strategy?: string
           prompt_text?: string | null
           target_person_ids?: string[] | null
           target_scope?: string
