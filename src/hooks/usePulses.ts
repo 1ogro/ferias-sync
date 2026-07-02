@@ -350,6 +350,7 @@ export function useDuplicatePulseSurvey() {
           peer_anonymous: (orig as any).peer_anonymous ?? true,
           peer_pairing_strategy: (orig as any).peer_pairing_strategy ?? "round_robin",
           peer_fixed_pairs: (orig as any).peer_fixed_pairs ?? null,
+          peer_reviews_per_reviewer: (orig as any).peer_reviews_per_reviewer ?? 1,
           kudos_categories: (orig as any).kudos_categories ?? null,
           kudos_channel: (orig as any).kudos_channel ?? null,
           prompt_text: (orig as any).prompt_text ?? null,
