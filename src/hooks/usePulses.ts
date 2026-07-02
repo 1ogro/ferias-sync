@@ -233,6 +233,9 @@ export interface UpdateSurveyInput {
   notify_negative_threshold?: number;
   notify_positive_threshold?: number;
   notify_include_text_responses?: boolean;
+  response_deadline_hours?: number | null;
+  reminder_enabled?: boolean;
+  reminder_offsets_hours?: number[];
   questions?: PulseQuestion[]; // if provided, replaces all questions (ignored for kudos)
 }
 
