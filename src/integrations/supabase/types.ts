@@ -433,8 +433,12 @@ export type Database = {
           completed_at: string | null
           created_at: string
           id: string
+          reminders_sent_count: number
           reviewer_id: string
           run_id: string
+          sent_at: string | null
+          slack_channel: string | null
+          slack_message_ts: string | null
           subject_id: string
           survey_id: string
         }
@@ -442,8 +446,12 @@ export type Database = {
           completed_at?: string | null
           created_at?: string
           id?: string
+          reminders_sent_count?: number
           reviewer_id: string
           run_id: string
+          sent_at?: string | null
+          slack_channel?: string | null
+          slack_message_ts?: string | null
           subject_id: string
           survey_id: string
         }
@@ -451,8 +459,12 @@ export type Database = {
           completed_at?: string | null
           created_at?: string
           id?: string
+          reminders_sent_count?: number
           reviewer_id?: string
           run_id?: string
+          sent_at?: string | null
+          slack_channel?: string | null
+          slack_message_ts?: string | null
           subject_id?: string
           survey_id?: string
         }
@@ -740,6 +752,7 @@ export type Database = {
           run_id: string
           scale_value: number | null
           slack_message_ts: string | null
+          subject_id: string | null
           submitted_at: string
           text_value: string | null
         }
@@ -750,6 +763,7 @@ export type Database = {
           run_id: string
           scale_value?: number | null
           slack_message_ts?: string | null
+          subject_id?: string | null
           submitted_at?: string
           text_value?: string | null
         }
@@ -760,6 +774,7 @@ export type Database = {
           run_id?: string
           scale_value?: number | null
           slack_message_ts?: string | null
+          subject_id?: string | null
           submitted_at?: string
           text_value?: string | null
         }
@@ -785,11 +800,20 @@ export type Database = {
             referencedRelation: "pulse_runs"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "pulse_responses_subject_id_fkey"
+            columns: ["subject_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
         ]
       }
       pulse_run_recipients: {
         Row: {
           id: string
+          pairs_completed: number
+          pairs_total: number
           person_id: string
           reminders_sent_count: number
           responded_at: string | null
@@ -800,6 +824,8 @@ export type Database = {
         }
         Insert: {
           id?: string
+          pairs_completed?: number
+          pairs_total?: number
           person_id: string
           reminders_sent_count?: number
           responded_at?: string | null
@@ -810,6 +836,8 @@ export type Database = {
         }
         Update: {
           id?: string
+          pairs_completed?: number
+          pairs_total?: number
           person_id?: string
           reminders_sent_count?: number
           responded_at?: string | null
@@ -903,6 +931,7 @@ export type Database = {
           peer_anonymous: boolean
           peer_fixed_pairs: Json | null
           peer_pairing_strategy: string
+          peer_reviews_per_reviewer: number
           prompt_text: string | null
           reminder_enabled: boolean
           reminder_offsets_hours: number[]
@@ -938,6 +967,7 @@ export type Database = {
           peer_anonymous?: boolean
           peer_fixed_pairs?: Json | null
           peer_pairing_strategy?: string
+          peer_reviews_per_reviewer?: number
           prompt_text?: string | null
           reminder_enabled?: boolean
           reminder_offsets_hours?: number[]
@@ -973,6 +1003,7 @@ export type Database = {
           peer_anonymous?: boolean
           peer_fixed_pairs?: Json | null
           peer_pairing_strategy?: string
+          peer_reviews_per_reviewer?: number
           prompt_text?: string | null
           reminder_enabled?: boolean
           reminder_offsets_hours?: number[]

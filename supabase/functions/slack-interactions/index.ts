@@ -52,19 +52,38 @@ async function awardPoints(supabase: any, personId: string, points: number, reas
   if (error) console.error("[award_points] error:", error);
 }
 
-async function completePeerPair(supabase: any, runId: string, reviewerId: string) {
-  // Marks pair as completed and awards reviewer points (deduped via source_id).
-  const { data: pair } = await supabase
-    .from("peer_review_pairs")
-    .select("id, completed_at")
-    .eq("run_id", runId)
-    .eq("reviewer_id", reviewerId)
-    .maybeSingle();
-  if (!pair) return;
+async function completePeerPair(
+  supabase: any,
+  runId: string,
+  reviewerId: string,
+  pairId?: string,
+): Promise<{ pair_id: string; subject_id: string } | null> {
+  // Marks a specific pair as completed (or falls back to the reviewer's single pair for legacy runs)
+  // and awards reviewer points (deduped via source_id = pair_id).
+  let pair: { id: string; subject_id: string; completed_at: string | null } | null = null;
+  if (pairId) {
+    const { data } = await supabase
+      .from("peer_review_pairs")
+      .select("id, subject_id, completed_at")
+      .eq("id", pairId)
+      .maybeSingle();
+    pair = data ?? null;
+  } else {
+    // Legacy fallback (single pair per reviewer)
+    const { data } = await supabase
+      .from("peer_review_pairs")
+      .select("id, subject_id, completed_at")
+      .eq("run_id", runId)
+      .eq("reviewer_id", reviewerId)
+      .maybeSingle();
+    pair = data ?? null;
+  }
+  if (!pair) return null;
   if (!pair.completed_at) {
     await supabase.from("peer_review_pairs").update({ completed_at: new Date().toISOString() }).eq("id", pair.id);
   }
   await awardPoints(supabase, reviewerId, 8, "peer_review", pair.id);
+  return { pair_id: pair.id, subject_id: pair.subject_id };
 }
 
 
@@ -76,12 +95,34 @@ async function bumpResponseCount(runId: string, supabase: any) {
 
 async function markRecipientResponded(supabase: any, runId: string, personId: string) {
   try {
-    await supabase
+    // Recount completed pairs and only mark responded when all pairs are done (peer surveys)
+    const { data: rec } = await supabase
       .from("pulse_run_recipients")
-      .update({ responded_at: new Date().toISOString() })
+      .select("id, pairs_total")
       .eq("run_id", runId)
       .eq("person_id", personId)
-      .is("responded_at", null);
+      .maybeSingle();
+    if (!rec) return;
+
+    let pairsCompleted = 0;
+    if ((rec.pairs_total || 0) > 0) {
+      const { count } = await supabase
+        .from("peer_review_pairs")
+        .select("*", { count: "exact", head: true })
+        .eq("run_id", runId)
+        .eq("reviewer_id", personId)
+        .not("completed_at", "is", null);
+      pairsCompleted = count || 0;
+    }
+
+    const allDone = (rec.pairs_total || 0) === 0 || pairsCompleted >= (rec.pairs_total || 0);
+    await supabase
+      .from("pulse_run_recipients")
+      .update({
+        pairs_completed: pairsCompleted,
+        ...(allDone ? { responded_at: new Date().toISOString() } : {}),
+      })
+      .eq("id", rec.id);
   } catch (e) {
     console.error("[markRecipientResponded] error:", e);
   }
@@ -847,22 +888,35 @@ serve(async (req) => {
 
     // view_submission for open-text pulse question
     if (payload.type === "view_submission" && payload.view?.callback_id?.startsWith("pulse_text:")) {
-      const [, runId, questionId] = payload.view.callback_id.split(":");
+      const parts = payload.view.callback_id.split(":");
+      const [, runId, questionId] = parts;
+      const pairId = parts[3] || undefined;
       const text = payload.view.state.values?.pulse_text_block?.pulse_text_input?.value || "";
       const slackUserId = payload.user.id;
-      console.log(`[pulse view_submission] run=${runId} q=${questionId} slack_user=${slackUserId}`);
+      console.log(`[pulse view_submission] run=${runId} q=${questionId} pair=${pairId ?? "-"} slack_user=${slackUserId}`);
       const respondent = await resolveRespondent(slackUserId, supabase);
       console.log(`[pulse view_submission] respondent=${respondent?.id ?? "NOT_FOUND"}`);
       if (respondent) {
+        // Resolve subject_id if we have a pair, so we can persist a per-pair response
+        let subjectId: string | null = null;
+        if (pairId) {
+          const { data: pair } = await supabase
+            .from("peer_review_pairs")
+            .select("subject_id")
+            .eq("id", pairId)
+            .maybeSingle();
+          subjectId = pair?.subject_id ?? null;
+        }
+
         const { data: upRow, error: upErr } = await supabase.from("pulse_responses").upsert(
-          { run_id: runId, question_id: questionId, respondent_id: respondent.id, text_value: text },
-          { onConflict: "run_id,question_id,respondent_id" }
+          { run_id: runId, question_id: questionId, respondent_id: respondent.id, text_value: text, subject_id: subjectId },
+          { onConflict: "run_id,question_id,respondent_id,subject_id" }
         ).select("id").single();
         if (upErr) console.error("[pulse view_submission] upsert error:", upErr);
         else {
           await bumpResponseCount(runId, supabase);
           await awardPoints(supabase, respondent.id, 5, "pulse_response", runId);
-          await completePeerPair(supabase, runId, respondent.id);
+          await completePeerPair(supabase, runId, respondent.id, pairId);
           await markRecipientResponded(supabase, runId, respondent.id);
           if (upRow?.id) {
             supabase.functions.invoke("pulse-response-notify", { body: { response_id: upRow.id } })
@@ -881,22 +935,34 @@ serve(async (req) => {
       const act = payload.actions[0];
       console.log(`[block_actions] action_id=${act.action_id}`);
       if (act.action_id?.startsWith("pulse_answer:")) {
-        const [, runId, questionId, value] = act.action_id.split(":");
+        const parts = act.action_id.split(":");
+        const [, runId, questionId, value] = parts;
+        const pairId = parts[4] || undefined;
         const slackUserId = payload.user.id;
-        console.log(`[pulse_answer] run=${runId} q=${questionId} value=${value} slack_user=${slackUserId}`);
+        console.log(`[pulse_answer] run=${runId} q=${questionId} value=${value} pair=${pairId ?? "-"} slack_user=${slackUserId}`);
         const respondent = await resolveRespondent(slackUserId, supabase);
         console.log(`[pulse_answer] respondent=${respondent?.id ?? "NOT_FOUND"}`);
         if (respondent) {
+          let subjectId: string | null = null;
+          if (pairId) {
+            const { data: pair } = await supabase
+              .from("peer_review_pairs")
+              .select("subject_id")
+              .eq("id", pairId)
+              .maybeSingle();
+            subjectId = pair?.subject_id ?? null;
+          }
+
           const { data: upRow, error: upErr } = await supabase.from("pulse_responses").upsert(
-            { run_id: runId, question_id: questionId, respondent_id: respondent.id, scale_value: parseInt(value, 10), slack_message_ts: payload.message?.ts },
-            { onConflict: "run_id,question_id,respondent_id" }
+            { run_id: runId, question_id: questionId, respondent_id: respondent.id, scale_value: parseInt(value, 10), slack_message_ts: payload.message?.ts, subject_id: subjectId },
+            { onConflict: "run_id,question_id,respondent_id,subject_id" }
           ).select("id").single();
           if (upErr) {
             console.error("[pulse_answer] upsert error:", upErr);
           } else {
             await bumpResponseCount(runId, supabase);
             await awardPoints(supabase, respondent.id, 5, "pulse_response", runId);
-            await completePeerPair(supabase, runId, respondent.id);
+            await completePeerPair(supabase, runId, respondent.id, pairId);
             await markRecipientResponded(supabase, runId, respondent.id);
             await postEphemeralAck(payload, `✅ Resposta registrada: *${value}/5*`);
             if (upRow?.id) {
@@ -911,7 +977,10 @@ serve(async (req) => {
         return new Response(JSON.stringify({ ok: true }), { headers: { "Content-Type": "application/json" } });
       }
       if (act.action_id?.startsWith("pulse_text_open:")) {
-        const [, runId, questionId] = act.action_id.split(":");
+        const parts = act.action_id.split(":");
+        const [, runId, questionId] = parts;
+        const pairId = parts[3] || "";
+        const callbackId = pairId ? `pulse_text:${runId}:${questionId}:${pairId}` : `pulse_text:${runId}:${questionId}`;
         const r = await fetch("https://slack.com/api/views.open", {
           method: "POST",
           headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}`, "Content-Type": "application/json" },
@@ -919,7 +988,7 @@ serve(async (req) => {
             trigger_id: payload.trigger_id,
             view: {
               type: "modal",
-              callback_id: `pulse_text:${runId}:${questionId}`,
+              callback_id: callbackId,
               title: { type: "plain_text", text: "Responder" },
               submit: { type: "plain_text", text: "Enviar" },
               close: { type: "plain_text", text: "Cancelar" },

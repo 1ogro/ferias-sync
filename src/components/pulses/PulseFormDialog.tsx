@@ -54,6 +54,7 @@ export function PulseFormDialog({ open, onOpenChange, survey, initialValues }: P
   const [peerAnonymous, setPeerAnonymous] = useState(true);
   const [peerPairingStrategy, setPeerPairingStrategy] = useState<"round_robin" | "random" | "fixed">("round_robin");
   const [peerFixedPairs, setPeerFixedPairs] = useState<{ reviewer_id: string; subject_id: string }[]>([]);
+  const [peerReviewsPerReviewer, setPeerReviewsPerReviewer] = useState<number>(1);
   const [kudosCategories, setKudosCategories] = useState<string[]>([
     "teamwork", "innovation", "delivery", "leadership", "customer",
   ]);
@@ -112,6 +113,7 @@ export function PulseFormDialog({ open, onOpenChange, survey, initialValues }: P
       setPeerAnonymous((survey as any).peer_anonymous ?? true);
       setPeerPairingStrategy(((survey as any).peer_pairing_strategy as any) ?? "round_robin");
       setPeerFixedPairs(((survey as any).peer_fixed_pairs as any) ?? []);
+      setPeerReviewsPerReviewer((survey as any).peer_reviews_per_reviewer ?? 1);
       setKudosCategories(((survey as any).kudos_categories as string[] | null) ?? [
         "teamwork", "innovation", "delivery", "leadership", "customer",
       ]);
@@ -172,7 +174,7 @@ export function PulseFormDialog({ open, onOpenChange, survey, initialValues }: P
   const reset = () => {
     setTitle(""); setDescription(""); setAnonymous(true);
     setTone("neutral"); setKind("self"); setPeerAnonymous(true);
-    setPeerPairingStrategy("round_robin"); setPeerFixedPairs([]);
+    setPeerPairingStrategy("round_robin"); setPeerFixedPairs([]); setPeerReviewsPerReviewer(1);
     setKudosCategories(["teamwork", "innovation", "delivery", "leadership", "customer"]);
     setKudosChannel(""); setPromptText("");
     setFrequency("once");
@@ -207,9 +209,9 @@ export function PulseFormDialog({ open, onOpenChange, survey, initialValues }: P
       if (validPairs.length === 0) {
         toast({ title: "Defina ao menos um par (avaliador → avaliado)", variant: "destructive" }); return;
       }
-      const reviewers = validPairs.map((p) => p.reviewer_id);
-      if (new Set(reviewers).size !== reviewers.length) {
-        toast({ title: "Cada avaliador só pode aparecer uma vez", variant: "destructive" }); return;
+      const dupKey = new Set(validPairs.map((p) => `${p.reviewer_id}:${p.subject_id}`));
+      if (dupKey.size !== validPairs.length) {
+        toast({ title: "Você tem pares duplicados (mesmo avaliador → mesmo avaliado)", variant: "destructive" }); return;
       }
     }
     try {
@@ -223,6 +225,7 @@ export function PulseFormDialog({ open, onOpenChange, survey, initialValues }: P
         peer_fixed_pairs: kind === "peer" && peerPairingStrategy === "fixed"
           ? peerFixedPairs.filter((p) => p.reviewer_id && p.subject_id && p.reviewer_id !== p.subject_id)
           : null,
+        peer_reviews_per_reviewer: kind === "peer" ? Math.min(5, Math.max(1, peerReviewsPerReviewer || 1)) : 1,
       };
       const notifyFields = {
         notify_manager_on_negative: kind === "kudos" ? false : notifyNegative,
@@ -385,11 +388,27 @@ export function PulseFormDialog({ open, onOpenChange, survey, initialValues }: P
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">
-                  {peerPairingStrategy === "round_robin" && "Cada pessoa avalia a próxima da lista embaralhada, dentro do mesmo time."}
-                  {peerPairingStrategy === "random" && "Cada pessoa recebe um avaliado sorteado aleatoriamente dentro do mesmo time."}
-                  {peerPairingStrategy === "fixed" && "Você define manualmente quem avalia quem. Os pares se repetem em cada rodada."}
+                  {peerPairingStrategy === "round_robin" && "Cada pessoa avalia os próximos da lista embaralhada, dentro do mesmo time."}
+                  {peerPairingStrategy === "random" && "Cada pessoa recebe avaliados sorteados aleatoriamente dentro do mesmo time."}
+                  {peerPairingStrategy === "fixed" && "Você define manualmente quem avalia quem. Um avaliador pode aparecer em múltiplos pares."}
                 </p>
               </div>
+
+              {peerPairingStrategy !== "fixed" && (
+                <div className="space-y-2">
+                  <Label>Quantidade de avaliados por pessoa</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={5}
+                    value={peerReviewsPerReviewer}
+                    onChange={(e) => setPeerReviewsPerReviewer(Math.min(5, Math.max(1, parseInt(e.target.value || "1", 10))))}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Cada pessoa avaliará esse número de colegas e também será avaliada por esse número de colegas (limitado pelo tamanho do time).
+                  </p>
+                </div>
+              )}
 
               {peerPairingStrategy === "fixed" && (
                 <div className="space-y-2">

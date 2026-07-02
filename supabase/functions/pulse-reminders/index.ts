@@ -93,7 +93,86 @@ async function processRun(supabase: any, run: any): Promise<{ processed: number;
   }
   if (!dueOffsets.length) return { processed: 0, sent: 0 };
 
-  // Fetch pending recipients (not yet responded)
+  const hoursLeft = Math.max(0, (deadlineMs - now) / 3600_000);
+  let sent = 0;
+  const diagnostics: any[] = [];
+
+  // -------- PEER surveys: send one reminder per pending pair --------
+  if (survey.kind === "peer") {
+    const { data: pendingPairs } = await supabase
+      .from("peer_review_pairs")
+      .select("id, reviewer_id, subject_id, slack_channel, reminders_sent_count")
+      .eq("run_id", run.id)
+      .is("completed_at", null)
+      .not("slack_channel", "is", null);
+
+    if (!pendingPairs || pendingPairs.length === 0) {
+      await supabase
+        .from("pulse_runs")
+        .update({ reminders_sent_at: [...(run.reminders_sent_at || []), new Date().toISOString()] })
+        .eq("id", run.id);
+      return { processed: dueOffsets.length, sent: 0 };
+    }
+
+    // subject names
+    const subjectIds = [...new Set(pendingPairs.map((p: any) => p.subject_id))];
+    const { data: subjects } = await supabase
+      .from("people").select("id, nome").in("id", subjectIds);
+    const nameById = new Map((subjects || []).map((s: any) => [s.id, s.nome]));
+
+    // Preload preferences per reviewer
+    const reviewerIds = [...new Set(pendingPairs.map((p: any) => p.reviewer_id))];
+    const prefsByReviewer = new Map<string, any>();
+    if (reviewerIds.length) {
+      const { data: prefs } = await supabase
+        .from("notification_preferences")
+        .select("person_id, request_updates_slack, quiet_hours_start, quiet_hours_end, timezone")
+        .in("person_id", reviewerIds);
+      for (const pr of prefs || []) prefsByReviewer.set(pr.person_id, pr);
+    }
+
+    for (const pair of pendingPairs) {
+      const pref = prefsByReviewer.get(pair.reviewer_id);
+      if (pref?.request_updates_slack === false) {
+        diagnostics.push({ pair_id: pair.id, reviewer_id: pair.reviewer_id, status: "opted_out" });
+        continue;
+      }
+      if (inQuietHours(pref)) {
+        diagnostics.push({ pair_id: pair.id, reviewer_id: pair.reviewer_id, status: "quiet_hours" });
+        continue;
+      }
+      const text = reminderText(survey, hoursLeft, nameById.get(pair.subject_id));
+      const res = await sendReminderDM(pair.slack_channel, text);
+      if (res.ok) {
+        sent++;
+        await supabase
+          .from("peer_review_pairs")
+          .update({ reminders_sent_count: (pair.reminders_sent_count || 0) + 1 })
+          .eq("id", pair.id);
+        diagnostics.push({ pair_id: pair.id, reviewer_id: pair.reviewer_id, status: "sent" });
+      } else {
+        diagnostics.push({ pair_id: pair.id, reviewer_id: pair.reviewer_id, status: "failed", error: res.error });
+      }
+    }
+
+    const marks = dueOffsets.map((oh) => new Date(deadlineMs - oh * 3600_000).toISOString());
+    await supabase
+      .from("pulse_runs")
+      .update({ reminders_sent_at: [...(run.reminders_sent_at || []), ...marks] })
+      .eq("id", run.id);
+
+    await supabase.from("audit_logs").insert({
+      entidade: "pulse_runs",
+      entidade_id: run.id,
+      acao: "REMINDER",
+      actor_id: survey.created_by,
+      payload: { survey_id: survey.id, kind: "peer", offsets: dueOffsets, sent, pending_pairs: pendingPairs.length, diagnostics },
+    });
+
+    return { processed: dueOffsets.length, sent };
+  }
+
+  // -------- Non-peer surveys: one reminder per recipient --------
   const { data: recipients } = await supabase
     .from("pulse_run_recipients")
     .select("id, person_id, slack_channel, reminders_sent_count")
@@ -101,7 +180,6 @@ async function processRun(supabase: any, run: any): Promise<{ processed: number;
     .is("responded_at", null);
 
   if (!recipients || recipients.length === 0) {
-    // mark offsets as processed so we don't loop
     await supabase
       .from("pulse_runs")
       .update({ reminders_sent_at: [...(run.reminders_sent_at || []), new Date().toISOString()] })
@@ -109,30 +187,7 @@ async function processRun(supabase: any, run: any): Promise<{ processed: number;
     return { processed: dueOffsets.length, sent: 0 };
   }
 
-  // Peer pair subject names (for context in reminder)
-  const subjectByReviewer = new Map<string, string>();
-  if (survey.kind === "peer") {
-    const { data: pairs } = await supabase
-      .from("peer_review_pairs")
-      .select("reviewer_id, subject_id")
-      .eq("run_id", run.id);
-    const subjectIds = [...new Set((pairs || []).map((p: any) => p.subject_id))];
-    if (subjectIds.length) {
-      const { data: subjects } = await supabase
-        .from("people")
-        .select("id, nome")
-        .in("id", subjectIds);
-      const byId = new Map((subjects || []).map((s: any) => [s.id, s.nome]));
-      for (const p of pairs || []) subjectByReviewer.set(p.reviewer_id, byId.get(p.subject_id) || "");
-    }
-  }
-
-  const hoursLeft = Math.max(0, (deadlineMs - now) / 3600_000);
-  let sent = 0;
-  const diagnostics: any[] = [];
-
   for (const r of recipients) {
-    // opt-out or quiet hours
     const { data: pref } = await supabase
       .from("notification_preferences")
       .select("request_updates_slack, quiet_hours_start, quiet_hours_end, timezone")
@@ -150,7 +205,7 @@ async function processRun(supabase: any, run: any): Promise<{ processed: number;
       diagnostics.push({ person_id: r.person_id, status: "no_channel" });
       continue;
     }
-    const text = reminderText(survey, hoursLeft, subjectByReviewer.get(r.person_id));
+    const text = reminderText(survey, hoursLeft);
     const res = await sendReminderDM(r.slack_channel, text);
     if (res.ok) {
       sent++;
@@ -164,7 +219,6 @@ async function processRun(supabase: any, run: any): Promise<{ processed: number;
     }
   }
 
-  // Mark each due offset as processed by appending its fire time
   const marks = dueOffsets.map((oh) => new Date(deadlineMs - oh * 3600_000).toISOString());
   await supabase
     .from("pulse_runs")

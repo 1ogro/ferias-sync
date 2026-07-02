@@ -32,6 +32,7 @@ export interface PulseSurvey {
   peer_anonymous?: boolean;
   peer_pairing_strategy?: "round_robin" | "random" | "fixed";
   peer_fixed_pairs?: { reviewer_id: string; subject_id: string }[] | null;
+  peer_reviews_per_reviewer?: number;
   kudos_categories?: string[] | null;
   kudos_channel?: string | null;
   prompt_text?: string | null;
@@ -58,6 +59,7 @@ export interface CreateSurveyInput {
   peer_anonymous?: boolean;
   peer_pairing_strategy?: "round_robin" | "random" | "fixed";
   peer_fixed_pairs?: { reviewer_id: string; subject_id: string }[] | null;
+  peer_reviews_per_reviewer?: number;
   kudos_categories?: string[] | null;
   kudos_channel?: string | null;
   prompt_text?: string | null;
@@ -157,6 +159,7 @@ export function useCreatePulseSurvey() {
           peer_anonymous: survey.peer_anonymous ?? true,
           peer_pairing_strategy: kind === "peer" ? (survey.peer_pairing_strategy ?? "round_robin") : "round_robin",
           peer_fixed_pairs: kind === "peer" ? (survey.peer_fixed_pairs ?? null) : null,
+          peer_reviews_per_reviewer: kind === "peer" ? Math.min(5, Math.max(1, survey.peer_reviews_per_reviewer ?? 1)) : 1,
           kudos_categories: kind === "kudos" ? (survey.kudos_categories ?? null) : null,
           kudos_channel: kind === "kudos" ? (survey.kudos_channel ?? null) : null,
           prompt_text: kind === "kudos" ? (survey.prompt_text ?? null) : null,
@@ -219,6 +222,7 @@ export interface UpdateSurveyInput {
   peer_anonymous?: boolean;
   peer_pairing_strategy?: "round_robin" | "random" | "fixed";
   peer_fixed_pairs?: { reviewer_id: string; subject_id: string }[] | null;
+  peer_reviews_per_reviewer?: number;
   kudos_categories?: string[] | null;
   kudos_channel?: string | null;
   prompt_text?: string | null;
@@ -256,6 +260,7 @@ export function useUpdatePulseSurvey() {
           peer_anonymous: fields.peer_anonymous ?? true,
           peer_pairing_strategy: kind === "peer" ? (fields.peer_pairing_strategy ?? "round_robin") : "round_robin",
           peer_fixed_pairs: kind === "peer" ? (fields.peer_fixed_pairs ?? null) : null,
+          peer_reviews_per_reviewer: kind === "peer" ? Math.min(5, Math.max(1, fields.peer_reviews_per_reviewer ?? 1)) : 1,
           kudos_categories: kind === "kudos" ? (fields.kudos_categories ?? null) : null,
           kudos_channel: kind === "kudos" ? (fields.kudos_channel ?? null) : null,
           prompt_text: kind === "kudos" ? (fields.prompt_text ?? null) : null,
@@ -345,6 +350,7 @@ export function useDuplicatePulseSurvey() {
           peer_anonymous: (orig as any).peer_anonymous ?? true,
           peer_pairing_strategy: (orig as any).peer_pairing_strategy ?? "round_robin",
           peer_fixed_pairs: (orig as any).peer_fixed_pairs ?? null,
+          peer_reviews_per_reviewer: (orig as any).peer_reviews_per_reviewer ?? 1,
           kudos_categories: (orig as any).kudos_categories ?? null,
           kudos_channel: (orig as any).kudos_channel ?? null,
           prompt_text: (orig as any).prompt_text ?? null,
