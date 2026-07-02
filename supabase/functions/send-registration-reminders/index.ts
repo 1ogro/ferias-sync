@@ -223,14 +223,17 @@ Deno.serve(async (req) => {
       .maybeSingle();
     const wantsSlack = !pref || pref.registration_reminders_slack !== false;
 
-    const urgencyPrefix = mode === "month_end" ? "🗓️ *Fim de mês* — " : "";
-    const selfText = `${urgencyPrefix}Olá *${p.nome}*, seu cadastro ainda está incompleto. Itens pendentes:\n${reasons.map((r) => `• ${r}`).join("\n")}\n\nComplete em: Configurações → Perfil.`;
+    const selfPayload = buildIncompleteProfileSelfMessage(
+      { nome: p.nome },
+      reasons,
+      { mode, appBaseUrl: APP_BASE_URL },
+    );
 
     // to person themself
     let slackId = wantsSlack ? (p.slack_user_id || (p.email ? await slackLookupByEmail(p.email) : null)) : null;
     if (slackId) {
       if (!dryRun) {
-        const sent = await sendSlackDM(slackId, selfText);
+        const sent = await sendSlackDM(slackId, selfPayload.text, selfPayload.blocks);
         if (sent) {
           results.people_reminded++;
           await admin.from("audit_logs").insert({
@@ -266,8 +269,12 @@ Deno.serve(async (req) => {
         if (!mpref || mpref.registration_reminders_slack !== false) {
           const mid = mgr.slack_user_id || (mgr.email ? await slackLookupByEmail(mgr.email) : null);
           if (mid && !dryRun) {
-            const mgrText = `${urgencyPrefix}Seu liderado *${p.nome}* está com cadastro incompleto:\n${reasons.map((r) => `• ${r}`).join("\n")}`;
-            await sendSlackDM(mid, mgrText);
+            const mgrPayload = buildIncompleteProfileManagerMessage(
+              { id: p.id, nome: p.nome },
+              reasons,
+              { mode, appBaseUrl: APP_BASE_URL },
+            );
+            await sendSlackDM(mid, mgrPayload.text, mgrPayload.blocks);
           }
         }
       }
