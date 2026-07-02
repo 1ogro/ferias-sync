@@ -495,7 +495,7 @@ async function dispatchSurvey(supabase: any, survey: any): Promise<{ sent: numbe
               subject_id: d.subject?.id ?? null,
               slack_channel: im.channel,
               slack_message_ts: data.ts,
-              k: Math.min(5, Math.max(1, Number(survey.peer_reviews_per_reviewer) || 1)),
+              k: runPeerK,
             },
           });
         }
@@ -515,7 +515,7 @@ async function dispatchSurvey(supabase: any, survey: any): Promise<{ sent: numbe
               pair_id: d.pairId ?? null,
               reason: data.error,
               needed: data.needed,
-              k: Math.min(5, Math.max(1, Number(survey.peer_reviews_per_reviewer) || 1)),
+              k: runPeerK,
             },
           });
         }
@@ -582,8 +582,8 @@ async function dispatchSurvey(supabase: any, survey: any): Promise<{ sent: numbe
       sent,
       deferred,
       pairs_created: pairsCreated,
-      k: survey.kind === "peer" ? Math.min(5, Math.max(1, Number(survey.peer_reviews_per_reviewer) || 1)) : null,
-      peer_pairing_strategy: survey.kind === "peer" ? (survey.peer_pairing_strategy || "round_robin") : null,
+      k: runPeerK,
+      peer_pairing_strategy: runPeerStrategy,
       diagnostics,
     },
   });
