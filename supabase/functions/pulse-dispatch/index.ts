@@ -297,9 +297,18 @@ async function dispatchSurvey(supabase: any, survey: any): Promise<{ sent: numbe
 
   console.log(`[survey ${survey.id}] kind=${survey.kind} tone=${survey.tone} recipients=${recipients.length}`);
 
+  const deadlineAt = survey.response_deadline_hours && survey.response_deadline_hours > 0
+    ? new Date(Date.now() + survey.response_deadline_hours * 3600_000).toISOString()
+    : null;
+
   const { data: run, error: runErr } = await supabase
     .from("pulse_runs")
-    .insert({ survey_id: survey.id, status: "pending", recipients_count: recipients.length })
+    .insert({
+      survey_id: survey.id,
+      status: "pending",
+      recipients_count: recipients.length,
+      deadline_at: deadlineAt,
+    })
     .select()
     .single();
 

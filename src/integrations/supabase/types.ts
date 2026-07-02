@@ -787,30 +787,84 @@ export type Database = {
           },
         ]
       }
+      pulse_run_recipients: {
+        Row: {
+          id: string
+          person_id: string
+          reminders_sent_count: number
+          responded_at: string | null
+          run_id: string
+          sent_at: string
+          slack_channel: string | null
+          slack_user_id: string | null
+        }
+        Insert: {
+          id?: string
+          person_id: string
+          reminders_sent_count?: number
+          responded_at?: string | null
+          run_id: string
+          sent_at?: string
+          slack_channel?: string | null
+          slack_user_id?: string | null
+        }
+        Update: {
+          id?: string
+          person_id?: string
+          reminders_sent_count?: number
+          responded_at?: string | null
+          run_id?: string
+          sent_at?: string
+          slack_channel?: string | null
+          slack_user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pulse_run_recipients_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pulse_run_recipients_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "pulse_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pulse_runs: {
         Row: {
+          deadline_at: string | null
           dispatched_at: string
           error_message: string | null
           id: string
           recipients_count: number
+          reminders_sent_at: string[]
           responses_count: number
           status: string
           survey_id: string
         }
         Insert: {
+          deadline_at?: string | null
           dispatched_at?: string
           error_message?: string | null
           id?: string
           recipients_count?: number
+          reminders_sent_at?: string[]
           responses_count?: number
           status?: string
           survey_id: string
         }
         Update: {
+          deadline_at?: string | null
           dispatched_at?: string
           error_message?: string | null
           id?: string
           recipients_count?: number
+          reminders_sent_at?: string[]
           responses_count?: number
           status?: string
           survey_id?: string
@@ -850,6 +904,9 @@ export type Database = {
           peer_fixed_pairs: Json | null
           peer_pairing_strategy: string
           prompt_text: string | null
+          reminder_enabled: boolean
+          reminder_offsets_hours: number[]
+          response_deadline_hours: number | null
           target_person_ids: string[] | null
           target_scope: string
           target_team_id: string | null
@@ -882,6 +939,9 @@ export type Database = {
           peer_fixed_pairs?: Json | null
           peer_pairing_strategy?: string
           prompt_text?: string | null
+          reminder_enabled?: boolean
+          reminder_offsets_hours?: number[]
+          response_deadline_hours?: number | null
           target_person_ids?: string[] | null
           target_scope?: string
           target_team_id?: string | null
@@ -914,6 +974,9 @@ export type Database = {
           peer_fixed_pairs?: Json | null
           peer_pairing_strategy?: string
           prompt_text?: string | null
+          reminder_enabled?: boolean
+          reminder_offsets_hours?: number[]
+          response_deadline_hours?: number | null
           target_person_ids?: string[] | null
           target_scope?: string
           target_team_id?: string | null
