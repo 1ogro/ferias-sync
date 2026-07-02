@@ -8,6 +8,9 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import {
+  buildIncompleteProfileManagerMessage,
+  buildIncompleteProfileSelfMessage,
+  buildPendingApprovalMessage,
   dedupWindowHours,
   groupPendingByManager,
   isNearMonthEnd,
@@ -16,6 +19,8 @@ import {
   pendingMissingFields,
   selectPendings,
 } from "./lib.ts";
+
+const APP_BASE_URL = Deno.env.get("APP_BASE_URL") || "https://ferias-sync.lovable.app";
 
 const SLACK_BOT_TOKEN = Deno.env.get("SLACK_BOT_TOKEN") || "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
