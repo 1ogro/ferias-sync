@@ -133,7 +133,7 @@ function shouldDeferUntil(prefs: {
   return next.toISOString();
 }
 
-function buildBlocks(survey: any, questions: any[], runId: string, opts: { subjectName?: string } = {}) {
+function buildBlocks(survey: any, questions: any[], runId: string, opts: { subjectName?: string; pairId?: string } = {}) {
   const tone = (survey.tone || "neutral") as Tone;
   const tpl = TONE[tone] || TONE.neutral;
   const blocks: any[] = [
