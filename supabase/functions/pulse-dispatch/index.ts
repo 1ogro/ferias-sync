@@ -565,7 +565,16 @@ async function dispatchSurvey(supabase: any, survey: any): Promise<{ sent: numbe
     entidade_id: run.id,
     acao: "DISPATCH",
     actor_id: survey.created_by,
-    payload: { survey_id: survey.id, recipients: recipients.length, sent, deferred, pairs_created: pairsCreated, diagnostics },
+    payload: {
+      survey_id: survey.id,
+      recipients: recipients.length,
+      sent,
+      deferred,
+      pairs_created: pairsCreated,
+      k: survey.kind === "peer" ? Math.min(5, Math.max(1, Number(survey.peer_reviews_per_reviewer) || 1)) : null,
+      peer_pairing_strategy: survey.kind === "peer" ? (survey.peer_pairing_strategy || "round_robin") : null,
+      diagnostics,
+    },
   });
 
   return { sent, total: recipients.length, deferred, pairs_created: pairsCreated, diagnostics };
