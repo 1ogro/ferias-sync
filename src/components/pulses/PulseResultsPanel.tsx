@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Download, FileSpreadsheet } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { PeerReviewPairsSection } from "./PeerReviewPairsSection";
 
 interface Props {
   survey: PulseSurvey;
