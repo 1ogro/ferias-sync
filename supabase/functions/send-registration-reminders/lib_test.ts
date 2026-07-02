@@ -22,30 +22,33 @@ import {
 const daysAgoISO = (days: number, from = new Date()) =>
   new Date(from.getTime() - days * 86400_000).toISOString();
 
+const pick = <T, K extends keyof T>(over: Partial<T>, key: K, fallback: T[K]): T[K] =>
+  key in over ? (over[key] as T[K]) : fallback;
+
 const pending = (over: Partial<PendingRow> = {}): PendingRow => ({
-  id: over.id ?? crypto.randomUUID(),
-  nome: over.nome ?? "Fulano",
-  email: over.email ?? "fulano@empresa.com",
-  data_contrato: over.data_contrato ?? "2024-01-01",
-  modelo_contrato: over.modelo_contrato ?? "CLT",
-  dia_pagamento: over.dia_pagamento ?? null,
-  gestor_id: over.gestor_id ?? "mgr_1",
-  created_at: over.created_at ?? daysAgoISO(5),
-  source: over.source ?? "manual",
+  id: pick(over, "id", crypto.randomUUID()),
+  nome: pick(over, "nome", "Fulano"),
+  email: pick(over, "email", "fulano@empresa.com"),
+  data_contrato: pick(over, "data_contrato", "2024-01-01"),
+  modelo_contrato: pick(over, "modelo_contrato", "CLT"),
+  dia_pagamento: pick(over, "dia_pagamento", null),
+  gestor_id: pick(over, "gestor_id", "mgr_1"),
+  created_at: pick(over, "created_at", daysAgoISO(5)),
+  source: pick(over, "source", "manual"),
 });
 
 const person = (over: Partial<PersonRow> = {}): PersonRow => ({
-  id: over.id ?? crypto.randomUUID(),
-  nome: over.nome ?? "Pessoa",
-  email: over.email ?? "pessoa@empresa.com",
-  slack_user_id: over.slack_user_id ?? "U123",
-  data_contrato: over.data_contrato ?? "2024-01-01",
-  modelo_contrato: over.modelo_contrato ?? "CLT",
-  dia_pagamento: over.dia_pagamento ?? null,
-  data_nascimento: over.data_nascimento ?? "1990-01-01",
-  profile_completed_at: over.profile_completed_at ?? "2024-02-01T00:00:00Z",
-  gestor_id: over.gestor_id ?? "mgr_1",
-  ativo: over.ativo ?? true,
+  id: pick(over, "id", crypto.randomUUID()),
+  nome: pick(over, "nome", "Pessoa"),
+  email: pick(over, "email", "pessoa@empresa.com"),
+  slack_user_id: pick(over, "slack_user_id", "U123"),
+  data_contrato: pick(over, "data_contrato", "2024-01-01"),
+  modelo_contrato: pick(over, "modelo_contrato", "CLT"),
+  dia_pagamento: pick(over, "dia_pagamento", null),
+  data_nascimento: pick(over, "data_nascimento", "1990-01-01"),
+  profile_completed_at: pick(over, "profile_completed_at", "2024-02-01T00:00:00Z"),
+  gestor_id: pick(over, "gestor_id", "mgr_1"),
+  ativo: pick(over, "ativo", true),
 });
 
 // ─────────────────────────────────────────────────────────────
