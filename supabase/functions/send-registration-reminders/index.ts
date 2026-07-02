@@ -62,11 +62,6 @@ async function sendSlackDM(channel: string, text: string, blocks?: unknown[]) {
   }
 }
 
-function isNearMonthEnd(today = new Date()) {
-  const next = new Date(today.getFullYear(), today.getMonth() + 1, 1);
-  const diff = Math.round((next.getTime() - today.getTime()) / 86400000);
-  return diff <= 3;
-}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
