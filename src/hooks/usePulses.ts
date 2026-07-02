@@ -159,6 +159,7 @@ export function useCreatePulseSurvey() {
           peer_anonymous: survey.peer_anonymous ?? true,
           peer_pairing_strategy: kind === "peer" ? (survey.peer_pairing_strategy ?? "round_robin") : "round_robin",
           peer_fixed_pairs: kind === "peer" ? (survey.peer_fixed_pairs ?? null) : null,
+          peer_reviews_per_reviewer: kind === "peer" ? Math.min(5, Math.max(1, survey.peer_reviews_per_reviewer ?? 1)) : 1,
           kudos_categories: kind === "kudos" ? (survey.kudos_categories ?? null) : null,
           kudos_channel: kind === "kudos" ? (survey.kudos_channel ?? null) : null,
           prompt_text: kind === "kudos" ? (survey.prompt_text ?? null) : null,
