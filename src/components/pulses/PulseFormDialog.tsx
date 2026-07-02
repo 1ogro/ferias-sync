@@ -346,12 +346,89 @@ export function PulseFormDialog({ open, onOpenChange, survey, initialValues }: P
           </div>
 
           {kind === "peer" && (
-            <div className="flex items-center justify-between rounded border p-3 bg-muted/30">
-              <div>
-                <Label>Revisor anônimo</Label>
-                <p className="text-xs text-muted-foreground">Se ativado, o avaliado não sabe quem o avaliou.</p>
+            <div className="space-y-3 rounded border p-3 bg-muted/30">
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label>Revisor anônimo</Label>
+                  <p className="text-xs text-muted-foreground">Se ativado, o avaliado não sabe quem o avaliou.</p>
+                </div>
+                <Switch checked={peerAnonymous} onCheckedChange={setPeerAnonymous} />
               </div>
-              <Switch checked={peerAnonymous} onCheckedChange={setPeerAnonymous} />
+
+              <div className="space-y-2">
+                <Label>Estratégia de pareamento</Label>
+                <Select value={peerPairingStrategy} onValueChange={(v) => setPeerPairingStrategy(v as any)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="round_robin">Round-robin (por time)</SelectItem>
+                    <SelectItem value="random">Aleatório (por time)</SelectItem>
+                    <SelectItem value="fixed">Pareamento fixo (manual)</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  {peerPairingStrategy === "round_robin" && "Cada pessoa avalia a próxima da lista embaralhada, dentro do mesmo time."}
+                  {peerPairingStrategy === "random" && "Cada pessoa recebe um avaliado sorteado aleatoriamente dentro do mesmo time."}
+                  {peerPairingStrategy === "fixed" && "Você define manualmente quem avalia quem. Os pares se repetem em cada rodada."}
+                </p>
+              </div>
+
+              {peerPairingStrategy === "fixed" && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm">Pares fixos</Label>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setPeerFixedPairs((cur) => [...cur, { reviewer_id: "", subject_id: "" }])}
+                    >
+                      <Plus className="w-3 h-3 mr-1" /> Adicionar par
+                    </Button>
+                  </div>
+                  {peerFixedPairs.length === 0 && (
+                    <p className="text-xs text-muted-foreground">Nenhum par definido ainda.</p>
+                  )}
+                  {peerFixedPairs.map((pair, idx) => (
+                    <div key={idx} className="flex items-center gap-2">
+                      <Select
+                        value={pair.reviewer_id}
+                        onValueChange={(v) =>
+                          setPeerFixedPairs((cur) => cur.map((p, i) => (i === idx ? { ...p, reviewer_id: v } : p)))
+                        }
+                      >
+                        <SelectTrigger className="flex-1"><SelectValue placeholder="Avaliador" /></SelectTrigger>
+                        <SelectContent>
+                          {people.map((p) => (
+                            <SelectItem key={p.id} value={p.id}>{p.nome}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <span className="text-xs text-muted-foreground">→</span>
+                      <Select
+                        value={pair.subject_id}
+                        onValueChange={(v) =>
+                          setPeerFixedPairs((cur) => cur.map((p, i) => (i === idx ? { ...p, subject_id: v } : p)))
+                        }
+                      >
+                        <SelectTrigger className="flex-1"><SelectValue placeholder="Avaliado" /></SelectTrigger>
+                        <SelectContent>
+                          {people.filter((p) => p.id !== pair.reviewer_id).map((p) => (
+                            <SelectItem key={p.id} value={p.id}>{p.nome}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setPeerFixedPairs((cur) => cur.filter((_, i) => i !== idx))}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
