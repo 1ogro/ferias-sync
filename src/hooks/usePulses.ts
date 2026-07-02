@@ -242,6 +242,8 @@ export function useUpdatePulseSurvey() {
           tone: fields.tone ?? "neutral",
           kind,
           peer_anonymous: fields.peer_anonymous ?? true,
+          peer_pairing_strategy: kind === "peer" ? (fields.peer_pairing_strategy ?? "round_robin") : "round_robin",
+          peer_fixed_pairs: kind === "peer" ? (fields.peer_fixed_pairs ?? null) : null,
           kudos_categories: kind === "kudos" ? (fields.kudos_categories ?? null) : null,
           kudos_channel: kind === "kudos" ? (fields.kudos_channel ?? null) : null,
           prompt_text: kind === "kudos" ? (fields.prompt_text ?? null) : null,
