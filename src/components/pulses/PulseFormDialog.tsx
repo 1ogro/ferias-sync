@@ -166,6 +166,7 @@ export function PulseFormDialog({ open, onOpenChange, survey, initialValues }: P
   const reset = () => {
     setTitle(""); setDescription(""); setAnonymous(true);
     setTone("neutral"); setKind("self"); setPeerAnonymous(true);
+    setPeerPairingStrategy("round_robin"); setPeerFixedPairs([]);
     setKudosCategories(["teamwork", "innovation", "delivery", "leadership", "customer"]);
     setKudosChannel(""); setPromptText("");
     setFrequency("once");
