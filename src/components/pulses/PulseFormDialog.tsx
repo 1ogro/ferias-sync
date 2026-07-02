@@ -180,6 +180,7 @@ export function PulseFormDialog({ open, onOpenChange, survey, initialValues }: P
     setTargetScope("all"); setTargetTeamIds([]); setTargetPersonIds([]);
     setNotifyNegative(false); setNotifyPositive(false);
     setNegThreshold(2); setPosThreshold(4); setNotifyIncludeText(false);
+    setResponseDeadlineHours(0); setReminderEnabled(true); setReminderOffsetsText("24, 2");
     setQuestions([{ position: 0, question_text: "", question_type: "scale_1_5", required: true }]);
   };
 
