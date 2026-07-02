@@ -1,60 +1,34 @@
-## Objetivo
+# Seção de Peer Review no Painel de Resultados
 
-Hoje o peer review pareia 1:1 — cada pessoa avalia **um** colega e é avaliada por **um**. Vamos permitir configurar quantas avaliações cada pessoa faz (K), gerando K pares por avaliador. Como a rotação/random é circular, cada pessoa também será avaliada por K colegas diferentes.
+Adicionar uma nova seção ao `PulseResultsPanel` visível apenas quando a pesquisa é do tipo `peer`, mostrando o status de cada par revisor → avaliado.
 
-## Mudanças no banco (migration)
+## O que aparece na tela
 
-**`pulse_surveys`**
-- `peer_reviews_per_reviewer int NOT NULL DEFAULT 1` (1–5, valida via CHECK).
+Quando a pesquisa for de peer review, uma nova seção "Pares de peer review" será renderizada com:
 
-**`peer_review_pairs`** (hoje só guarda o par + `completed_at`)
-- `slack_channel text`, `slack_message_ts text`, `sent_at timestamptz`, `reminders_sent_count int DEFAULT 0`.
-- Índice em `(run_id, reviewer_id, subject_id)` único para evitar par duplicado.
+- **Cartões-resumo** ao topo: total de pares, respondidos, pendentes e taxa de conclusão (%).
+- **Filtro por execução (run)**: seletor para escolher um disparo específico ou "todos".
+- **Filtro por status**: "Todos", "Respondidos", "Pendentes".
+- **Tabela de pares** com colunas:
+  - Revisor (nome do respondente)
+  - Avaliado (nome de quem está sendo avaliado)
+  - Enviado em (data de envio ao Slack)
+  - Lembretes (quantidade já enviada)
+  - Status (badge verde "Respondido" com data, ou badge âmbar "Pendente")
+- Quando a pesquisa é anônima, o nome do revisor é ocultado (mostra "Anônimo"), mantendo apenas o nome do avaliado e o status — preservando o anonimato das respostas mas ainda permitindo ao gestor identificar quem ainda falta avaliar.
 
-**`pulse_responses`**
-- `subject_id uuid NULL` referenciando `people`.
-- Substituir o `UNIQUE(run_id, question_id, respondent_id)` por `UNIQUE(run_id, question_id, respondent_id, subject_id)` (com `NULLS NOT DISTINCT`) para permitir o mesmo avaliador responder a mesma pergunta sobre múltiplos colegas.
+## Arquivos afetados
 
-## Geração de pares (`pulse-dispatch`)
-
-- `generateRoundRobinPairs(people, k)`: shuffle inicial e, para cada `offset` em `1..k`, empareia `people[i] → people[(i+offset)%n]`. Garante K subjects distintos por avaliador (com `k ≤ n-1`).
-- `generateRandomPairs(people, k)`: repete a derangement K vezes, checando que cada avaliador não recebe o mesmo subject duas vezes.
-- `fixed`: já aceita múltiplos pares; passa a agrupar `subject_ids` por reviewer sem sobrescrever.
-
-Trocar `subjectByReviewer: Map<string, Person>` por `Map<string, Person[]>` e, no laço de envio, disparar **uma DM por par** (não uma por pessoa). Cada DM guarda `pair_id` (e `subject_id`) na `metadata` do bloco e nos `action_id` (`pulse_answer:<runId>:<pairId>:<questionId>:<value>`), para que a resposta saiba a qual avaliado se refere.
-
-Atualizar `peer_review_pairs` com `sent_at`, `slack_channel`, `slack_message_ts`. `pulse_run_recipients` continua com 1 linha por avaliador (para reminders/opt-out); adicionamos `pairs_total` e `pairs_completed` para acompanhar progresso.
-
-## Respostas (`slack-interactions`)
-
-- Parser dos `action_id` e `callback_id` passa a extrair `pairId` além de `runId/questionId`.
-- `upsert` em `pulse_responses` inclui `subject_id` (buscado do par).
-- `completePeerPair` agora recebe `pairId` e marca só aquele par; ao completar todas as perguntas obrigatórias daquele par, dá `award_points` uma vez por par (dedup por `source_id = pair_id`).
-- `markRecipientResponded` só marca o recipient como respondido quando **todos** os pares dele estiverem completos (`pairs_completed = pairs_total`).
-
-## Reminders (`pulse-reminders`)
-
-- Filtro passa a considerar pares pendentes (`completed_at IS NULL`) e envia lembrete por par pendente, respeitando `reminder_offsets_hours` e `reminders_sent_count` no próprio par. Preferências de canal/quiet hours continuam vindo do avaliador.
-
-## UI (`PulseFormDialog.tsx` + `usePulses.ts`)
-
-- Quando `kind === "peer"` e estratégia ≠ `fixed`, novo campo numérico "Quantidade de avaliados por pessoa" (1–5), com dica: "Cada pessoa também será avaliada por esse número de colegas".
-- Estratégia `fixed`: sem campo de K; a UI já permite múltiplos pares por reviewer (nada a mudar além de deixar de bloquear reviewer repetido).
-- Persistir `peer_reviews_per_reviewer` em create/update/duplicate.
-
-## Compatibilidade
-
-- Default `peer_reviews_per_reviewer = 1` preserva o comportamento atual.
-- Enquetes já disparadas (runs antigas) continuam funcionando: `pair_id` fica opcional nos handlers; se ausente, cai no fluxo antigo (par único por reviewer).
+- `src/hooks/usePulses.ts` — novo hook `usePeerReviewPairs(surveyId)` que faz `select` em `peer_review_pairs` com join nos nomes das pessoas (`people`) via duas consultas ou embed do PostgREST.
+- `src/components/pulses/PulseResultsPanel.tsx` — nova subseção condicional `{survey.kind === "peer" && <PeerReviewPairsSection />}` renderizada abaixo das "Respostas recentes".
+- Novo componente `src/components/pulses/PeerReviewPairsSection.tsx` contendo a UI descrita acima.
 
 ## Detalhes técnicos
 
-- Limitar K a `min(K_configurado, n-1)` por grupo (`sub_time`) em runtime, com log de diagnóstico quando ajustado.
-- `subject_id` em `pulse_responses` fica `NULL` para self-surveys; usar `NULLS NOT DISTINCT` no índice único (Postgres 15+, disponível no Supabase).
-- Índice adicional `peer_review_pairs(reviewer_id, completed_at)` já existe — adicionar `(run_id, completed_at)` para o job de lembretes.
-- Auditoria: `audit_logs` do dispatch passa a registrar `pairs_created` além de `sent`.
+- A tabela `peer_review_pairs` já tem RLS permitindo leitura ao revisor, ao avaliado e a admins/diretores; os cartões de resumo do painel são vistos por criadores/admins, então nenhuma mudança de RLS é necessária.
+- Índices já existentes (`idx_peer_pairs_run`, `idx_peer_pairs_subject`, `idx_peer_pairs_reviewer`) cobrem as consultas.
+- Nomes de pessoas serão buscados em um único `select id, nome from people where id in (...)` e cruzados no cliente, evitando joins caros.
+- Filtro por run reutiliza a lista já carregada por `usePulseRuns`.
+- Estado "Respondido" é derivado de `completed_at IS NOT NULL`.
 
-## O que fica fora deste passo
-
-- Auto-atribuição pelo próprio avaliador (escolher quem avaliar via modal). Fica para uma iteração futura.
-- Ponderação de pontos por número de pares (mantém 8 pts por par concluído).
+Sem alterações de schema ou de edge functions.

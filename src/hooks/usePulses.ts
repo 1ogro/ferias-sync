@@ -141,6 +141,46 @@ export function usePulseResponses(surveyId?: string) {
   });
 }
 
+export interface PeerReviewPairRow {
+  id: string;
+  run_id: string;
+  reviewer_id: string;
+  subject_id: string;
+  reviewer_nome?: string | null;
+  subject_nome?: string | null;
+  sent_at: string | null;
+  completed_at: string | null;
+  reminders_sent_count: number | null;
+  created_at: string;
+}
+
+export function usePeerReviewPairs(surveyId?: string) {
+  return useQuery({
+    queryKey: ["peer_review_pairs", surveyId],
+    enabled: !!surveyId,
+    queryFn: async (): Promise<PeerReviewPairRow[]> => {
+      const { data: pairs, error } = await supabase
+        .from("peer_review_pairs")
+        .select("id, run_id, reviewer_id, subject_id, sent_at, completed_at, reminders_sent_count, created_at")
+        .eq("survey_id", surveyId!)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      const rows = (pairs || []) as any[];
+      const ids = Array.from(new Set(rows.flatMap((r) => [r.reviewer_id, r.subject_id]).filter(Boolean)));
+      let nameById = new Map<string, string>();
+      if (ids.length > 0) {
+        const { data: people } = await supabase.from("people").select("id, nome").in("id", ids);
+        (people || []).forEach((p: any) => nameById.set(p.id, p.nome));
+      }
+      return rows.map((r) => ({
+        ...r,
+        reviewer_nome: nameById.get(r.reviewer_id) ?? null,
+        subject_nome: nameById.get(r.subject_id) ?? null,
+      }));
+    },
+  });
+}
+
 export function useCreatePulseSurvey() {
   const qc = useQueryClient();
   return useMutation({
