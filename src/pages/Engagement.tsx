@@ -333,6 +333,20 @@ export default function Engagement() {
           </div>
           <div className="space-y-6 lg:col-span-1">
             <LeaderboardCard />
+            {person?.papel === "DIRETOR" && (
+              <>
+                <LeaderboardCard
+                  period="quarter"
+                  title="Ranking do trimestre"
+                  description="Acumulado no trimestre corrente"
+                />
+                <LeaderboardCard
+                  period="year"
+                  title="Ranking do ano"
+                  description="Acumulado no ano corrente"
+                />
+              </>
+            )}
           </div>
           <div className="space-y-6 lg:col-span-1">
             <KudosFeed />
