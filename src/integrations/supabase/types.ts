@@ -869,6 +869,8 @@ export type Database = {
           dispatched_at: string
           error_message: string | null
           id: string
+          peer_pairing_strategy: string | null
+          peer_reviews_per_reviewer: number | null
           recipients_count: number
           reminders_sent_at: string[]
           responses_count: number
@@ -880,6 +882,8 @@ export type Database = {
           dispatched_at?: string
           error_message?: string | null
           id?: string
+          peer_pairing_strategy?: string | null
+          peer_reviews_per_reviewer?: number | null
           recipients_count?: number
           reminders_sent_at?: string[]
           responses_count?: number
@@ -891,6 +895,8 @@ export type Database = {
           dispatched_at?: string
           error_message?: string | null
           id?: string
+          peer_pairing_strategy?: string | null
+          peer_reviews_per_reviewer?: number | null
           recipients_count?: number
           reminders_sent_at?: string[]
           responses_count?: number

@@ -166,7 +166,16 @@ async function processRun(supabase: any, run: any): Promise<{ processed: number;
       entidade_id: run.id,
       acao: "REMINDER",
       actor_id: survey.created_by,
-      payload: { survey_id: survey.id, kind: "peer", offsets: dueOffsets, sent, pending_pairs: pendingPairs.length, diagnostics },
+      payload: {
+        survey_id: survey.id,
+        kind: "peer",
+        offsets: dueOffsets,
+        sent,
+        pending_pairs: pendingPairs.length,
+        k: run.peer_reviews_per_reviewer ?? null,
+        peer_pairing_strategy: run.peer_pairing_strategy ?? null,
+        diagnostics,
+      },
     });
 
     return { processed: dueOffsets.length, sent };
