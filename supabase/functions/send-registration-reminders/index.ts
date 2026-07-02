@@ -123,13 +123,9 @@ Deno.serve(async (req) => {
   const { data: pendings, error: perr } = await pendingQuery;
   if (perr) results.errors.push(`pending_people: ${perr.message}`);
 
-  // group by manager (fallback to admins)
-  const byManager = new Map<string | "__admins__", any[]>();
-  for (const p of pendings || []) {
-    const key = p.gestor_id || "__admins__";
-    if (!byManager.has(key)) byManager.set(key, []);
-    byManager.get(key)!.push(p);
-  }
+  // group by manager (fallback to admins), reusing pure helper
+  const byManager = groupPendingByManager(selectPendings((pendings || []) as any, mode));
+
 
   // load admins for __admins__ bucket
   let admins: PersonMini[] = [];
