@@ -192,4 +192,153 @@ Deno.test("peopleIncompleteReasons — perfil não finalizado é apontado", () =
     person({ profile_completed_at: null }),
   );
   assert(incompleto.some((r) => r.includes("completar perfil")));
+
+// ─────────────────────────────────────────────────────────────
+// Slack payload — integração unitária dos builders de mensagem
+// ─────────────────────────────────────────────────────────────
+
+const APP = "https://ferias.exemplo.app";
+
+/** Encontra o primeiro botão (element type=button) dentro dos blocks. */
+const findButton = (blocks: SlackBlock[], actionId: string) => {
+  for (const b of blocks) {
+    if (b.type !== "actions") continue;
+    for (const el of (b.elements ?? []) as SlackBlock[]) {
+      if (el.type === "button" && el.action_id === actionId) return el;
+    }
+  }
+  return null;
+};
+
+const mrkdwnText = (blocks: SlackBlock[]) =>
+  blocks
+    .filter((b) => b.type === "section" && b.text?.type === "mrkdwn")
+    .map((b) => b.text.text as string)
+    .join("\n");
+
+Deno.test("payload pendentes — inclui contagem, itens e botão para /admin", () => {
+  const now = new Date("2026-07-15T12:00:00Z");
+  const items = [
+    pending({ id: "a", nome: "Ana", created_at: daysAgoISO(4, now), source: "manual" }),
+    pending({
+      id: "b",
+      nome: "Bruno",
+      email: null,
+      modelo_contrato: "PJ",
+      dia_pagamento: null,
+      created_at: daysAgoISO(7, now),
+      source: "slack",
+    }),
+  ];
+  const { text, blocks } = buildPendingApprovalMessage(items, {
+    mode: "weekly",
+    appBaseUrl: APP + "/",
+    now,
+  });
+
+  // Texto de fallback contém contagem, nomes e link absoluto
+  assert(text.includes("*2* cadastro(s) pendente(s)"));
+  assert(text.includes("Ana"));
+  assert(text.includes("Bruno"));
+  assert(text.includes(`${APP}/admin`));
+
+  // Bruno deve ter as pendências críticas listadas (email + dia de pagamento PJ)
+  const md = mrkdwnText(blocks);
+  assert(md.includes("email corporativo"));
+  assert(md.includes("dia de pagamento"));
+  assert(md.includes("pendente há *7d*"));
+  assert(md.includes("(slack)"));
+
+  // Botão CTA correto
+  const btn = findButton(blocks, "open_pending_approvals");
+  assert(btn, "botão open_pending_approvals ausente");
+  assertStrictEquals(btn!.url, `${APP}/admin`);
+  assertStrictEquals(btn!.style, "primary");
+  assertStrictEquals(btn!.text.text, "Abrir aprovações");
 });
+
+Deno.test("payload pendentes — prefixo de urgência em month_end e truncamento com contexto", () => {
+  const now = new Date("2026-07-30T12:00:00Z");
+  const items = Array.from({ length: 25 }, (_, i) =>
+    pending({ id: `p${i}`, nome: `Pessoa ${i}`, created_at: daysAgoISO(3, now) })
+  );
+  const { text, blocks } = buildPendingApprovalMessage(items, {
+    mode: "month_end",
+    appBaseUrl: APP,
+    now,
+    maxItems: 20,
+  });
+
+  assert(text.startsWith("🗓️ *Fim de mês* — "));
+  const ctx = blocks.find((b) => b.type === "context");
+  assert(ctx, "contexto de truncamento ausente");
+  assert(
+    (ctx!.elements as SlackBlock[]).some((e) =>
+      typeof e.text === "string" && e.text.includes("+5 outros omitidos")
+    ),
+  );
+});
+
+Deno.test("payload perfil incompleto (auto) — CTA leva para configurações do perfil", () => {
+  const reasons = peopleIncompleteReasons(
+    person({ slack_user_id: null, email: "invalido" }),
+  );
+  const { text, blocks } = buildIncompleteProfileSelfMessage(
+    { nome: "Carla" },
+    reasons,
+    { mode: "weekly", appBaseUrl: APP },
+  );
+
+  assert(text.includes("Carla"));
+  assert(text.includes("cadastro ainda está incompleto"));
+  for (const r of reasons) assert(text.includes(r));
+
+  const btn = findButton(blocks, "open_profile_settings");
+  assert(btn, "botão open_profile_settings ausente");
+  assertStrictEquals(btn!.url, `${APP}/settings?tab=profile`);
+  assertStrictEquals(btn!.style, "primary");
+  assertStrictEquals(btn!.text.text, "Completar perfil");
+});
+
+Deno.test("payload perfil incompleto (gestor) — CTA leva para /team/:id do liderado, sem estilo primário", () => {
+  const p = person({ id: "liderado-1", nome: "Diego", data_contrato: null });
+  const reasons = peopleIncompleteReasons(p);
+  const { text, blocks } = buildIncompleteProfileManagerMessage(
+    { id: p.id, nome: p.nome },
+    reasons,
+    { mode: "month_end", appBaseUrl: APP },
+  );
+
+  assert(text.startsWith("🗓️ *Fim de mês* — "));
+  assert(text.includes("Diego"));
+  assert(text.includes("data de contrato"));
+  assert(text.includes(`${APP}/team/liderado-1`));
+
+  const btn = findButton(blocks, "open_team_member");
+  assert(btn, "botão open_team_member ausente");
+  assertStrictEquals(btn!.url, `${APP}/team/liderado-1`);
+  assertEquals(btn!.style, undefined); // secundário
+  assertStrictEquals(btn!.text.text, "Ver liderado");
+});
+
+Deno.test("payload — base URL com barra final é normalizada nos três tipos", () => {
+  const a = buildPendingApprovalMessage([], {
+    mode: "weekly",
+    appBaseUrl: `${APP}///`,
+    now: new Date(),
+  });
+  const b = buildIncompleteProfileSelfMessage(
+    { nome: "X" },
+    ["🔴 x"],
+    { mode: "weekly", appBaseUrl: `${APP}/` },
+  );
+  const c = buildIncompleteProfileManagerMessage(
+    { id: "id-1", nome: "Y" },
+    ["🔴 y"],
+    { mode: "month_end", appBaseUrl: `${APP}/` },
+  );
+  assertStrictEquals(findButton(a.blocks, "open_pending_approvals")!.url, `${APP}/admin`);
+  assertStrictEquals(findButton(b.blocks, "open_profile_settings")!.url, `${APP}/settings?tab=profile`);
+  assertStrictEquals(findButton(c.blocks, "open_team_member")!.url, `${APP}/team/id-1`);
+});
+
