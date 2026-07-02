@@ -52,6 +52,8 @@ export function PulseFormDialog({ open, onOpenChange, survey, initialValues }: P
   const [tone, setTone] = useState<"formal" | "neutral" | "casual">("neutral");
   const [kind, setKind] = useState<"self" | "peer" | "kudos">("self");
   const [peerAnonymous, setPeerAnonymous] = useState(true);
+  const [peerPairingStrategy, setPeerPairingStrategy] = useState<"round_robin" | "random" | "fixed">("round_robin");
+  const [peerFixedPairs, setPeerFixedPairs] = useState<{ reviewer_id: string; subject_id: string }[]>([]);
   const [kudosCategories, setKudosCategories] = useState<string[]>([
     "teamwork", "innovation", "delivery", "leadership", "customer",
   ]);
