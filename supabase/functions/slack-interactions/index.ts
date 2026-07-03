@@ -161,6 +161,66 @@ async function postEphemeralAck(payload: any, text: string) {
   });
 }
 
+async function findRecentKudoDuplicate(
+  supabase: any,
+  args: {
+    senderPersonId: string | null;
+    senderSlackUserId: string | null;
+    recipientPersonId: string | null;
+    recipientSlackUserId: string | null;
+    category: string;
+    message: string;
+  },
+) {
+  const senderFilters = [
+    args.senderPersonId ? `from_person_id.eq.${args.senderPersonId}` : null,
+    args.senderSlackUserId ? `from_slack_user_id.eq.${args.senderSlackUserId}` : null,
+  ].filter(Boolean);
+  const recipientFilters = [
+    args.recipientPersonId ? `to_person_id.eq.${args.recipientPersonId}` : null,
+    args.recipientSlackUserId ? `to_slack_user_id.eq.${args.recipientSlackUserId}` : null,
+  ].filter(Boolean);
+  if (senderFilters.length === 0 || recipientFilters.length === 0) return null;
+
+  const nowMs = Date.now();
+  const cutoffMs = nowMs - DEDUP_WINDOW_SECONDS * 1000;
+  const normalizedMessage = normalizeMessage(args.message);
+  const sinceIso = new Date(cutoffMs).toISOString();
+
+  let query = supabase
+    .from("kudos")
+    .select("id, message, category, from_person_id, from_slack_user_id, to_person_id, to_slack_user_id, created_at")
+    .eq("category", args.category)
+    .gte("created_at", sinceIso)
+    .order("created_at", { ascending: false })
+    .limit(50);
+
+  query = query.or(senderFilters.join(","));
+  query = query.or(recipientFilters.join(","));
+
+  const { data: recentRows, error } = await query;
+  if (error) {
+    console.error("[kudos dedup] lookup error:", error);
+    return null;
+  }
+
+  return (recentRows || []).find((k: any) => {
+    const senderMatches =
+      (!!args.senderPersonId && k.from_person_id === args.senderPersonId) ||
+      (!!args.senderSlackUserId && k.from_slack_user_id === args.senderSlackUserId);
+    const recipientMatches =
+      (!!args.recipientPersonId && k.to_person_id === args.recipientPersonId) ||
+      (!!args.recipientSlackUserId && k.to_slack_user_id === args.recipientSlackUserId);
+    const createdAt = Date.parse(k.created_at);
+    return senderMatches &&
+      recipientMatches &&
+      k.category === args.category &&
+      normalizeMessage(k.message) === normalizedMessage &&
+      !Number.isNaN(createdAt) &&
+      createdAt >= cutoffMs;
+  }) || null;
+}
+
 async function notifyRecipientDM(
   supabase: any,
   toPersonId: string,
