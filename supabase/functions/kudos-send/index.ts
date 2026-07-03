@@ -1,6 +1,7 @@
 // kudos-send — registra um shout-out entre colegas, soma pontos e opcionalmente posta no canal Slack.
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { findRecentDuplicate, DEDUP_WINDOW_SECONDS, type KudoLike } from "./lib.ts";
 
 const SLACK_BOT_TOKEN = Deno.env.get("SLACK_BOT_TOKEN")!;
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
