@@ -1,5 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { normalizeMessage, DEDUP_WINDOW_SECONDS } from "../kudos-send/lib.ts";
+
 
 const SLACK_SIGNING_SECRET = Deno.env.get("SLACK_SIGNING_SECRET")!;
 const SLACK_BOT_TOKEN = Deno.env.get("SLACK_BOT_TOKEN")!;
