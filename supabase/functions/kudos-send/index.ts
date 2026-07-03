@@ -165,10 +165,13 @@ serve(async (req) => {
 
 
     if (channelToPost) {
-      const names = validRecipients.map((id) => activeMap.get(id)?.nome).filter(Boolean) as string[];
+      const postedRecipients = insertedKudos
+        .map((k) => k.to_person_id as string)
+        .filter((id) => id);
+      const names = postedRecipients.map((id) => activeMap.get(id)?.nome).filter(Boolean) as string[];
       if (names.length === 1) {
         await postToChannel(channelToPost, from?.nome || "Alguém", names[0], category, trimmedMessage);
-      } else {
+      } else if (names.length > 1) {
         const label = CATEGORY_LABEL[category] || "🎉";
         const listed = names.map((n) => `*${n}*`).join(", ");
         const text = `${label} *${from?.nome || "Alguém"}* deu kudos para ${listed}\n> ${trimmedMessage}`;
@@ -186,7 +189,13 @@ serve(async (req) => {
         .catch((e: any) => console.error("[kudos-send] notify invoke failed", e?.message));
     }
 
-    return new Response(JSON.stringify({ ok: true, kudos: insertedKudos, count: insertedKudos.length }), {
+    return new Response(JSON.stringify({
+      ok: true,
+      kudos: insertedKudos,
+      count: insertedKudos.length,
+      deduped_count: dedupedKudos.length,
+      deduped: dedupedKudos.length > 0 && insertedKudos.length === 0,
+    }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err: any) {
