@@ -161,6 +161,66 @@ async function postEphemeralAck(payload: any, text: string) {
   });
 }
 
+async function findRecentKudoDuplicate(
+  supabase: any,
+  args: {
+    senderPersonId: string | null;
+    senderSlackUserId: string | null;
+    recipientPersonId: string | null;
+    recipientSlackUserId: string | null;
+    category: string;
+    message: string;
+  },
+) {
+  const senderFilters = [
+    args.senderPersonId ? `from_person_id.eq.${args.senderPersonId}` : null,
+    args.senderSlackUserId ? `from_slack_user_id.eq.${args.senderSlackUserId}` : null,
+  ].filter(Boolean);
+  const recipientFilters = [
+    args.recipientPersonId ? `to_person_id.eq.${args.recipientPersonId}` : null,
+    args.recipientSlackUserId ? `to_slack_user_id.eq.${args.recipientSlackUserId}` : null,
+  ].filter(Boolean);
+  if (senderFilters.length === 0 || recipientFilters.length === 0) return null;
+
+  const nowMs = Date.now();
+  const cutoffMs = nowMs - DEDUP_WINDOW_SECONDS * 1000;
+  const normalizedMessage = normalizeMessage(args.message);
+  const sinceIso = new Date(cutoffMs).toISOString();
+
+  let query = supabase
+    .from("kudos")
+    .select("id, message, category, from_person_id, from_slack_user_id, to_person_id, to_slack_user_id, created_at")
+    .eq("category", args.category)
+    .gte("created_at", sinceIso)
+    .order("created_at", { ascending: false })
+    .limit(50);
+
+  query = query.or(senderFilters.join(","));
+  query = query.or(recipientFilters.join(","));
+
+  const { data: recentRows, error } = await query;
+  if (error) {
+    console.error("[kudos dedup] lookup error:", error);
+    return null;
+  }
+
+  return (recentRows || []).find((k: any) => {
+    const senderMatches =
+      (!!args.senderPersonId && k.from_person_id === args.senderPersonId) ||
+      (!!args.senderSlackUserId && k.from_slack_user_id === args.senderSlackUserId);
+    const recipientMatches =
+      (!!args.recipientPersonId && k.to_person_id === args.recipientPersonId) ||
+      (!!args.recipientSlackUserId && k.to_slack_user_id === args.recipientSlackUserId);
+    const createdAt = Date.parse(k.created_at);
+    return senderMatches &&
+      recipientMatches &&
+      k.category === args.category &&
+      normalizeMessage(k.message) === normalizedMessage &&
+      !Number.isNaN(createdAt) &&
+      createdAt >= cutoffMs;
+  }) || null;
+}
+
 async function notifyRecipientDM(
   supabase: any,
   toPersonId: string,
@@ -488,28 +548,19 @@ serve(async (req) => {
       const pendingFrom = !senderPersonId;
       const pendingTo = !toPersonId;
 
-      // Dedup: same sender→recipient with same category + normalized message within DEDUP_WINDOW_SECONDS
-      const normalizedMessage = normalizeMessage(message);
-      const sinceIso = new Date(Date.now() - DEDUP_WINDOW_SECONDS * 1000).toISOString();
-      {
-        let dq = supabase
-          .from("kudos")
-          .select("id, message, category, from_person_id, from_slack_user_id, to_person_id, to_slack_user_id, created_at")
-          .eq("category", category)
-          .gte("created_at", sinceIso)
-          .limit(20);
-        if (senderPersonId) dq = dq.eq("from_person_id", senderPersonId);
-        else dq = dq.eq("from_slack_user_id", slackUserId);
-        if (toPersonId) dq = dq.eq("to_person_id", toPersonId);
-        else if (toSlackUserId) dq = dq.eq("to_slack_user_id", toSlackUserId);
-        const { data: recentRows } = await dq;
-        const dup = (recentRows || []).find((k: any) => normalizeMessage(k.message) === normalizedMessage);
-        if (dup) {
-          console.log(`[kudos_submit] deduped duplicate of ${dup.id} from=${senderPersonId ?? `slack:${slackUserId}`} to=${toPersonId ?? `slack:${toSlackUserId}`}`);
-          return new Response(JSON.stringify({ response_action: "clear" }), {
-            headers: { "Content-Type": "application/json" },
-          });
-        }
+      const dup = await findRecentKudoDuplicate(supabase, {
+        senderPersonId,
+        senderSlackUserId: slackUserId,
+        recipientPersonId: toPersonId,
+        recipientSlackUserId: toSlackUserId,
+        category,
+        message,
+      });
+      if (dup) {
+        console.log(`[kudos_submit] deduped duplicate of ${dup.id} from=${senderPersonId ?? `slack:${slackUserId}`} to=${toPersonId ?? `slack:${toSlackUserId}`}`);
+        return new Response(JSON.stringify({ response_action: "clear" }), {
+          headers: { "Content-Type": "application/json" },
+        });
       }
 
       const { data: kudo, error: insErr } = await supabase.from("kudos").insert({
@@ -772,9 +823,24 @@ serve(async (req) => {
       // ---- Loop de inserção por destinatário ----
       const inserted: Array<{ kudo: any; recipient: Recipient; pendingTo: boolean }> = [];
       const pendingFrom = !senderPersonId;
+      const deduped: Recipient[] = [];
 
       for (const rec of recipients) {
         const pendingTo = !rec.personId;
+
+        const dup = await findRecentKudoDuplicate(supabase, {
+          senderPersonId,
+          senderSlackUserId: slackUserId,
+          recipientPersonId: rec.personId,
+          recipientSlackUserId: rec.slackUserId,
+          category,
+          message,
+        });
+        if (dup) {
+          console.log(`[biscoito_submit] deduped duplicate of ${dup.id} from=${senderPersonId ?? `slack:${slackUserId}`} to=${rec.personId ?? `slack:${rec.slackUserId}`}`);
+          deduped.push(rec);
+          continue;
+        }
 
         const { data: kudo, error: insErr } = await supabase.from("kudos").insert({
           from_person_id: senderPersonId,
@@ -802,6 +868,12 @@ serve(async (req) => {
         if (senderPersonId) await awardPoints(supabase, senderPersonId, 2, "kudo_given", kudo.id);
 
         if (pendingTo) await ensurePending(rec.slackUserId, rec.slackEmail, rec.slackName);
+      }
+
+      if (inserted.length === 0 && deduped.length > 0) {
+        return new Response(JSON.stringify({ response_action: "clear" }), {
+          headers: { "Content-Type": "application/json" },
+        });
       }
 
       if (inserted.length === 0) {
