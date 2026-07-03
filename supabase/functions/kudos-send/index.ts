@@ -1,6 +1,7 @@
 // kudos-send — registra um shout-out entre colegas, soma pontos e opcionalmente posta no canal Slack.
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { findRecentDuplicate, DEDUP_WINDOW_SECONDS, type KudoLike } from "./lib.ts";
 
 const SLACK_BOT_TOKEN = Deno.env.get("SLACK_BOT_TOKEN")!;
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -107,8 +108,30 @@ serve(async (req) => {
     const channelToPost = (typeof post_to_channel === "string" && post_to_channel.trim()) ? post_to_channel.trim() : null;
     const trimmedMessage = message.trim();
 
+    // Fetch recent kudos from this sender within the dedup window (one query for all recipients)
+    const sinceIso = new Date(Date.now() - DEDUP_WINDOW_SECONDS * 1000).toISOString();
+    const { data: recentRows } = await admin
+      .from("kudos")
+      .select("id, from_person_id, to_person_id, message, category, created_at")
+      .eq("from_person_id", fromPersonId)
+      .in("to_person_id", validRecipients)
+      .gte("created_at", sinceIso);
+    const recent: KudoLike[] = (recentRows || []) as any;
+
     const insertedKudos: any[] = [];
+    const dedupedKudos: any[] = [];
+    const dedupedRecipients: string[] = [];
     for (const to_person_id of validRecipients) {
+      const dup = findRecentDuplicate(
+        { from_person_id: fromPersonId, to_person_id, message: trimmedMessage, category },
+        recent,
+      );
+      if (dup) {
+        console.log("[kudos-send] deduped", { from: fromPersonId, to: to_person_id, existing: dup.id });
+        dedupedKudos.push(dup);
+        dedupedRecipients.push(to_person_id);
+        continue;
+      }
       const { data: kudo, error: insErr } = await admin.from("kudos").insert({
         from_person_id: fromPersonId,
         to_person_id,
@@ -125,15 +148,30 @@ serve(async (req) => {
       await admin.rpc("award_points", { p_person_id: fromPersonId, p_points: 2, p_reason: "kudo_given", p_source_id: kudo.id });
     }
 
-    if (insertedKudos.length === 0) {
+    if (insertedKudos.length === 0 && dedupedKudos.length === 0) {
       return new Response(JSON.stringify({ error: "insert failed" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
+    // If everything was deduped, short-circuit — no channel post, no notifications.
+    if (insertedKudos.length === 0) {
+      return new Response(JSON.stringify({
+        ok: true,
+        deduped: true,
+        kudos: dedupedKudos,
+        count: 0,
+        deduped_count: dedupedKudos.length,
+      }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+
     if (channelToPost) {
-      const names = validRecipients.map((id) => activeMap.get(id)?.nome).filter(Boolean) as string[];
+      const postedRecipients = insertedKudos
+        .map((k) => k.to_person_id as string)
+        .filter((id) => id);
+      const names = postedRecipients.map((id) => activeMap.get(id)?.nome).filter(Boolean) as string[];
       if (names.length === 1) {
         await postToChannel(channelToPost, from?.nome || "Alguém", names[0], category, trimmedMessage);
-      } else {
+      } else if (names.length > 1) {
         const label = CATEGORY_LABEL[category] || "🎉";
         const listed = names.map((n) => `*${n}*`).join(", ");
         const text = `${label} *${from?.nome || "Alguém"}* deu kudos para ${listed}\n> ${trimmedMessage}`;
@@ -151,7 +189,13 @@ serve(async (req) => {
         .catch((e: any) => console.error("[kudos-send] notify invoke failed", e?.message));
     }
 
-    return new Response(JSON.stringify({ ok: true, kudos: insertedKudos, count: insertedKudos.length }), {
+    return new Response(JSON.stringify({
+      ok: true,
+      kudos: insertedKudos,
+      count: insertedKudos.length,
+      deduped_count: dedupedKudos.length,
+      deduped: dedupedKudos.length > 0 && insertedKudos.length === 0,
+    }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err: any) {

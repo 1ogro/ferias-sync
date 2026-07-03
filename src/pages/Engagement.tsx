@@ -177,10 +177,18 @@ function GiveKudosDialog({ personId, fromName, papel }: { personId?: string; fro
 
       const res: any = await mutateAsync(payload);
       const count = typeof res?.count === "number" ? res.count : toIds.length;
-      toast({
-        title: count === 1 ? "Kudos enviado! 🎉" : `Kudos enviados para ${count} colegas 🎉`,
-        description: fromName ? `De ${fromName}` : undefined,
-      });
+      const dedupedCount = typeof res?.deduped_count === "number" ? res.deduped_count : 0;
+      if (count === 0 && dedupedCount > 0) {
+        toast({
+          title: "Este kudos já foi enviado há instantes 👍",
+          description: "Evitamos duplicar o reconhecimento — o anterior já foi registrado.",
+        });
+      } else {
+        toast({
+          title: count === 1 ? "Kudos enviado! 🎉" : `Kudos enviados para ${count} colegas 🎉`,
+          description: fromName ? `De ${fromName}` : undefined,
+        });
+      }
       setOpen(false);
       setToIds([]); setMessage(""); setShare(false); setCategory("teamwork");
     } catch (e: any) {

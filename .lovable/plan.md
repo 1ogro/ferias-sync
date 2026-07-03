@@ -1,80 +1,46 @@
-# Lembretes automáticos no Slack para cadastros incompletos
+## Diagnóstico
 
-## Objetivo
+O kudos "triplicado" da Isabela → Denilda são de fato **3 registros distintos** no banco (`fa5b65ad…` 00:05:51, `116839a4…` 00:05:59, `f7ae3dc5…` 00:06:12), todos vindos do modal web (`slack_channel_posted = null`). O padrão se repete com o par de 02/07 15:52 (Isabela → Denilda, categoria `delivery`).
 
-Enviar lembretes automáticos via Slack para:
+Não é bug de loop: cada mutação completou e o diálogo fechou. O que aconteceu foi reabertura manual do modal — mas o backend `kudos-send` **não valida duplicatas**, então aceita qualquer reenvio, inclusive contabiliza pontos várias vezes (`award_points` com `source_id` diferente por kudo).
 
-1. Usuários com cadastro incompleto — priorizando campos críticos para autenticação e continuidade contratual (email, telefone, datas de contrato).
-2. Todos os cadastros incompletos ainda pendentes antes do fim de cada mês (varredura final).
+## Plano
 
-## O que classifica como "cadastro incompleto"
+### 1. Limpar duplicatas existentes (migration)
+- Manter o kudos mais antigo por grupo `(from_person_id, to_person_id, message, category)` quando criados dentro de uma janela curta (≤ 5 min).
+- Antes de deletar, remover as linhas de `engagement_points` associadas via `source_id` dos kudos duplicados, para não deixar pontos órfãos e ajustar o leaderboard.
+- Registrar em `audit_logs` (`entidade='kudos'`, `acao='DEDUP_CLEANUP'`) os IDs removidos e beneficiários afetados.
 
-**A. `pending_people` com `status = 'PENDENTE'**`
+Casos específicos a remover:
+- `116839a4-9a34-4439-826c-717cbb14661b` e `f7ae3dc5-9dda-48ea-8ab8-0acafddbf38e` (mantém `fa5b65ad…`)
+- `285da4ab-dd01-4eff-8330-23f7db539f74` (mantém `c5780d0c…`)
 
-- Cadastro submetido mas ainda não aprovado. Lembrete vai para o gestor (`gestor_id`) e/ou o admin, cobrando a aprovação.
-- Campos críticos ausentes (email, telefone, data de admissão, tipo de contrato) são destacados na mensagem.
+### 2. Prevenir novas duplicatas no `kudos-send`
+No edge function, antes do `insert`:
+- Buscar kudos do mesmo `from_person_id` para o mesmo `to_person_id`, com mesma `category` e mesma `message` (após `trim`), criados nos últimos **60 segundos**.
+- Se existir, retornar `200` com `{ ok: true, deduped: true, kudo: <existente>, count: 0 }` e **não** inserir nem chamar `award_points` nem repostar no Slack.
+- Para envios multi-destinatário, aplicar a verificação por destinatário individualmente (alguns podem passar, outros serem deduplicados).
 
-**B. `people` ativos com campos essenciais em branco**
+Janela de 60s é curta o suficiente para não bloquear reconhecimentos legítimos repetidos ao longo do dia, e suficiente para conter re-cliques/reaberturas do modal.
 
-- Sem `email` corporativo → bloqueia login/auth.
-- Sem `slack_user_id` (nem resolvível por email) → bloqueia notificações.
-- Sem `data_admissao` ou (para PJ/CLT temporário) sem `data_fim_contrato` → impacta férias, aniversário de contrato e renovações.
-- Sem `telefone` (opcional, apenas cita, não bloqueia).
+### 3. Feedback melhor no frontend (`src/pages/Engagement.tsx`)
+- Quando a resposta vier com `deduped: true`, mostrar toast `"Este kudos já foi enviado há instantes 👍"` em vez do toast de sucesso normal, para o remetente entender que a ação anterior já tinha funcionado.
+- Manter o fechamento do diálogo e limpeza do formulário.
 
-Lembrete vai por DM ao próprio colaborador (quando o Slack ID é conhecido) **e** ao gestor.
+### 4. Testes
+Adicionar testes em `supabase/functions/send-registration-reminders/lib_test.ts`… não — os testes de kudos ficam em novo arquivo `supabase/functions/kudos-send/dedup_test.ts` cobrindo a função pura de dedup (extraída para `lib.ts` do módulo `kudos-send`):
+- Mesma mensagem/categoria/destinatário dentro da janela → deduplicado.
+- Mesma mensagem mas categoria diferente → passa.
+- Mensagem com trim diferente (espaços) → deduplicado.
+- Janela expirada (>60s) → passa.
 
-## Nova Edge Function: `send-registration-reminders`
+## Detalhes técnicos
 
-Arquivo: `supabase/functions/send-registration-reminders/index.ts`
+Arquivos afetados:
+- `supabase/migrations/<timestamp>_dedup_kudos_cleanup.sql` — limpeza + audit log.
+- `supabase/functions/kudos-send/index.ts` — chamada de verificação antes do insert.
+- `supabase/functions/kudos-send/lib.ts` (novo) — helper `findRecentDuplicate` e função pura de comparação.
+- `supabase/functions/kudos-send/dedup_test.ts` (novo) — testes unitários.
+- `src/pages/Engagement.tsx` — tratamento do `deduped: true`.
 
-Parâmetros de invocação (body JSON):
-
-- `mode`: `"weekly"` (padrão, roda semanalmente) ou `"month_end"` (roda no penúltimo dia útil do mês, mensagem mais enfática).
-- `dry_run`: booleano opcional para preview sem enviar.
-
-Fluxo:
-
-1. Consulta `pending_people` PENDENTE há > 2 dias (weekly) ou qualquer PENDENTE (month_end). Agrupa por `gestor_id`.
-2. Consulta `people` ativos com campos críticos ausentes.
-3. Para cada destinatário resolve Slack ID via `slack_user_id` ou `resolveSlackUserId` (email/nome) usando helper existente em `_shared/notify-helpers.ts`.
-4. Monta blocos Slack: título por perfil (auto vs gestor), lista os itens faltantes com ícones (🔴 crítico auth, 🟠 contrato, 🟡 opcional), botão/link para o cadastro no app.
-5. Envia via `slack-notification` (fire-and-forget) e grava linha em `audit_logs` (`action = 'REGISTRATION_REMINDER_SENT'`, com `mode`, contagem, destinatários) — padrão async assíncrono já usado no projeto.
-6. Respeita `notification_preferences` do usuário (canal `slack` habilitado para categoria de cadastro).
-
-## Preferências de notificação
-
-Reaproveita `notification_preferences`. Se ainda não existir chave, adiciona:
-
-- `slack_registration_reminders` (default `true`) — campo booleano em `notification_preferences`.
-
-Migração adiciona a coluna com default `true` e faz backfill.
-
-## Agendamento (pg_cron + pg_net)
-
-Duas cron jobs (usar `supabase--insert` para SQL com URL/anon key do projeto):
-
-- `registration-reminders-weekly` — toda segunda 09:00 BRT (`0 12 * * 1`), body `{"mode":"weekly"}`.
-- `registration-reminders-month-end` — dia 28 de cada mês 10:00 BRT (`0 13 28 * *`), body `{"mode":"month_end"}`. A function verifica internamente se está a ≤ 3 dias do fim do mês para efetivamente enviar (cobre fevereiro).
-
-## Auditoria e integridade
-
-- Toda execução grava `audit_logs` com resumo (`{mode, pending_reminded, people_reminded, dry_run}`).
-- Falhas por destinatário logadas mas não interrompem o batch.
-- Deduplicação: não reenviar ao mesmo destinatário se já houve `REGISTRATION_REMINDER_SENT` para ele nos últimos 6 dias (weekly) — month_end sempre envia.
-
-## Arquivos
-
-Novos:
-
-- `supabase/functions/send-registration-reminders/index.ts`
-- `supabase/migrations/<timestamp>_registration_reminders.sql` — coluna `slack_registration_reminders` em `notification_preferences` + índice auxiliar em `audit_logs (action, created_at)` se ainda não existir.
-
-Edições:
-
-- `src/components/settings/NotificationPreferencesSection.tsx` (ou equivalente) — novo toggle.
-- Cron jobs via `supabase--insert` (não migration, contém URL/anon key).
-
-## Fora de escopo
-
-- Redesenho do fluxo de aprovação de `pending_people`.
-- Envio por email (apenas Slack, conforme solicitado).
+Não vou adicionar índice único no banco: a categoria e o texto podem se repetir legitimamente semanas depois; a proteção por janela temporal no edge function é mais adequada e reversível.
