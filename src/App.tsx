@@ -35,6 +35,7 @@ const FigmaDiagnostic = lazy(() => import("./pages/FigmaDiagnostic"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const Onboarding = lazy(() => import("./pages/Onboarding"));
+const OAuthConsent = lazy(() => import("./pages/OAuthConsent"));
 
 const queryClient = new QueryClient();
 
@@ -78,6 +79,11 @@ const App = () => (
             <BrowserRouter>
           <Routes>
             <Route path="/auth" element={<Auth />} />
+            <Route path="/.lovable/oauth/consent" element={
+              <Suspense fallback={<PageLoader />}>
+                <OAuthConsent />
+              </Suspense>
+            } />
             <Route path="/auth/callback/figma" element={
               <Suspense fallback={<PageLoader />}>
                 <FigmaCallback />
