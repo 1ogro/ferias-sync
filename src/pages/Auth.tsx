@@ -65,6 +65,14 @@ export default function Auth() {
 
   useEffect(() => {
     if (user) {
+      // Honor OAuth consent redirect if present (set by /oauth/consent)
+      let next: string | null = null;
+      try { next = sessionStorage.getItem('oauth_consent_next'); } catch { /* noop */ }
+      if (next && next.startsWith('/')) {
+        try { sessionStorage.removeItem('oauth_consent_next'); } catch { /* noop */ }
+        window.location.href = next;
+        return;
+      }
       navigate('/');
     }
   }, [user, navigate]);
