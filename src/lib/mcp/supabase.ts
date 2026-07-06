@@ -3,6 +3,9 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { ToolContext } from "@lovable.dev/mcp-js";
 
+// `process` only exists at runtime inside the emitted Deno function.
+declare const process: { env: Record<string, string | undefined> };
+
 export function supabaseForCaller(ctx: ToolContext): SupabaseClient {
   const url = process.env.SUPABASE_URL!;
   const anon = process.env.SUPABASE_PUBLISHABLE_KEY!;
