@@ -78,6 +78,7 @@ import {
   KeyRound,
   ShieldOff,
   Mail,
+  Bell,
   Loader2
 } from "lucide-react";
 
@@ -730,6 +731,17 @@ const Admin = () => {
             <History className="h-4 w-4 mr-2" />
             Cadastro Histórico
           </Button>
+          {isDirector && (
+            <Button
+              onClick={() => window.location.href = '/admin/notificacoes'}
+              variant="outline"
+              size="sm"
+            >
+              <Bell className="h-4 w-4 mr-2" />
+              Notificações do sistema
+            </Button>
+          )}
+
         </div>
       </div>
 
