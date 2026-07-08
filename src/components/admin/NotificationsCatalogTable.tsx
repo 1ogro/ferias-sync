@@ -140,7 +140,7 @@ export default function NotificationsCatalogTable() {
                   const isOpen = !!expanded[n.id];
                   const TriggerIcon = TRIGGER_ICON[n.gatilho.tipo];
                   return (
-                    <FragmentWithKey key={n.id}>
+                    <Fragment key={n.id}>
                       <TableRow className="cursor-pointer hover:bg-muted/40" onClick={() => setExpanded((s) => ({ ...s, [n.id]: !s[n.id] }))}>
                         <TableCell className="pr-0">
                           <ChevronDown
@@ -189,7 +189,7 @@ export default function NotificationsCatalogTable() {
                           </TableCell>
                         </TableRow>
                       )}
-                    </FragmentWithKey>
+                    </Fragment>
                   );
 
                 })}
