@@ -385,6 +385,11 @@ async function ensurePendingPerson(
   const source = args.source || "slack_biscoito";
   if (!slackId && !email) return;
   try {
+    // Skip when the Slack identity already maps to an existing person — avoids
+    // duplicate pending rows for collaborators who use a personal email in Slack.
+    const existing = await findPersonBySlackIdentity(supabase, { slackUserId: slackId, email });
+    if (existing) return;
+
     const { data: rows } = await supabase.from("pending_people").select("id, slack_request_count").eq("status", "PENDENTE");
     const match = (rows || []).find((r: any) =>
       (slackId && r.slack_user_id === slackId) ||
