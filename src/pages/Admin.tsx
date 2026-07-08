@@ -78,6 +78,7 @@ import {
   KeyRound,
   ShieldOff,
   Mail,
+  Bell,
   Loader2
 } from "lucide-react";
 
