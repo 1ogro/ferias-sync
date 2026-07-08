@@ -140,8 +140,8 @@ export default function NotificationsCatalogTable() {
                   const isOpen = !!expanded[n.id];
                   const TriggerIcon = TRIGGER_ICON[n.gatilho.tipo];
                   return (
-                    <>
-                      <TableRow key={n.id} className="cursor-pointer hover:bg-muted/40" onClick={() => setExpanded((s) => ({ ...s, [n.id]: !s[n.id] }))}>
+                    <FragmentWithKey key={n.id}>
+                      <TableRow className="cursor-pointer hover:bg-muted/40" onClick={() => setExpanded((s) => ({ ...s, [n.id]: !s[n.id] }))}>
                         <TableCell className="pr-0">
                           <ChevronDown
                             className={`h-4 w-4 text-muted-foreground transition-transform ${isOpen ? "rotate-180" : ""}`}
@@ -182,15 +182,16 @@ export default function NotificationsCatalogTable() {
                         </TableCell>
                       </TableRow>
                       {isOpen && (
-                        <TableRow key={`${n.id}-details`} className="bg-muted/20">
+                        <TableRow className="bg-muted/20">
                           <TableCell></TableCell>
                           <TableCell colSpan={6}>
                             <ExpandedDetails entry={n} />
                           </TableCell>
                         </TableRow>
                       )}
-                    </>
+                    </FragmentWithKey>
                   );
+
                 })}
                 {filtered.length === 0 && (
                   <TableRow>
