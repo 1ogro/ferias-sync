@@ -428,6 +428,19 @@ async function notifyAdminsPending(
 
 serve(async (req) => {
   try {
+    // Slack retries view_submissions after 3s if it doesn't get an ack. When
+    // the handler is slow (Slack API calls, DB writes, notifications), the
+    // original request may still be running when the retry arrives, so the
+    // dedup lookup on the retry sees an empty table and inserts a second
+    // kudo. Short-circuit retries with a 200 so Slack stops resending and no
+    // duplicate processing happens.
+    const retryNum = req.headers.get("X-Slack-Retry-Num");
+    const retryReason = req.headers.get("X-Slack-Retry-Reason");
+    if (retryNum) {
+      console.log(`[slack-interactions] ignoring retry num=${retryNum} reason=${retryReason ?? "?"}`);
+      return new Response("", { status: 200 });
+    }
+
     const body = await req.text();
     const timestamp = req.headers.get("X-Slack-Request-Timestamp") || "";
     const signature = req.headers.get("X-Slack-Signature") || "";
