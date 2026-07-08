@@ -749,11 +749,11 @@ serve(async (req) => {
       let senderPersonId: string | null = null;
       let senderPersonNome: string | null = null;
       let senderPapel: string | null = null;
-      if (senderEmail) {
-        const { data: sp } = await supabase
-          .from("people").select("id, nome, papel").eq("email", senderEmail).eq("ativo", true).maybeSingle();
+      {
+        const sp = await findPersonBySlackIdentity(supabase, { slackUserId, email: senderEmail });
         if (sp) { senderPersonId = sp.id; senderPersonNome = sp.nome; senderPapel = sp.papel; }
       }
+
       const senderDisplay = senderPersonNome || senderName;
 
       // ---- Validações básicas ----
