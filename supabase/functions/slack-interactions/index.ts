@@ -551,11 +551,11 @@ serve(async (req) => {
 
       let senderPersonId: string | null = null;
       let senderPersonNome: string | null = null;
-      if (senderEmail) {
-        const { data: sp } = await supabase
-          .from("people").select("id, nome").eq("email", senderEmail).eq("ativo", true).maybeSingle();
+      {
+        const sp = await findPersonBySlackIdentity(supabase, { slackUserId, email: senderEmail });
         if (sp) { senderPersonId = sp.id; senderPersonNome = sp.nome; }
       }
+
       const senderDisplay = senderPersonNome || senderName;
 
       // Resolve recipient (app: or slack:)
