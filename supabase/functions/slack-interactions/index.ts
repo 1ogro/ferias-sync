@@ -588,11 +588,11 @@ serve(async (req) => {
           d?.user?.real_name?.trim() ||
           d?.user?.name ||
           "Colega";
-        if (toSlackEmail) {
-          const { data: tp } = await supabase
-            .from("people").select("id, nome").eq("email", toSlackEmail).eq("ativo", true).maybeSingle();
+        {
+          const tp = await findPersonBySlackIdentity(supabase, { slackUserId: toSlackUserId, email: toSlackEmail });
           if (tp) { toPersonId = tp.id; toPersonNome = tp.nome; }
         }
+
       } else if (toRaw) {
         errors["kudo_to_block"] = "Seleção inválida.";
       }
