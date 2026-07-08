@@ -815,11 +815,11 @@ serve(async (req) => {
             d?.user?.real_name?.trim() ||
             d?.user?.name ||
             "Colega";
-          if (sEmail) {
-            const { data: tp } = await supabase
-              .from("people").select("id, nome").eq("email", sEmail).eq("ativo", true).maybeSingle();
+          {
+            const tp = await findPersonBySlackIdentity(supabase, { slackUserId: sUid, email: sEmail });
             if (tp) { personId = tp.id; personNome = tp.nome; }
           }
+
         }
 
         // Filtra: não pode mandar pra si mesmo
