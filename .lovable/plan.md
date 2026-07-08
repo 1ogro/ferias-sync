@@ -1,72 +1,95 @@
 
-## Diagnóstico
+## Objetivo
 
-O kudos de Isabela → Antenor Jr foi salvo como `pending_to` porque o lookup de destinatário faz apenas `people.email = <email do Slack>`. Antenor tem o Slack cadastrado com o email pessoal (`jr.antenor@gmail.com`), enquanto o `people.email` é o corporativo (`ajunior.instaflip@rededor.com.br`). Resultado: o kudo não atribuiu 10 pts ao Antenor e criou 2 entradas `pending_people` duplicadas com o mesmo `slack_user_id`.
+Painel administrativo para visualizar todas as notificações do sistema (Slack, Email, DMs internos, Kudos, Pulses, lembretes) com:
+- **Gatilho / dependência** (evento no app, cron schedule, ação de usuário).
+- **Público-alvo** (quem recebe: colaborador, gestor, diretor, admin, canal público).
+- **Canal** (Slack DM, Slack canal, Email, ou combinação).
+- Status (ativo / inativo) e link para o log da edge function correspondente.
 
-O campo `email_pessoal` já existe nas tabelas `people` e `pending_people`, mas nenhum lookup do fluxo Slack o considera.
+## Escopo
+
+Não é feed de notificações por usuário — é um **catálogo estático** do que o sistema envia, para consulta por admins/diretores (útil pra auditoria, treinamento, debugging).
 
 ## Plano
 
-### 1. Resolver Slack → pessoa também por `email_pessoal`
+### 1. Catálogo curado em código
 
-Alterar todos os pontos em `supabase/functions/slack-interactions/index.ts` que hoje fazem `people.email = <slack_email>` para casar por qualquer um dos dois campos (case-insensitive), sempre com `ativo = true`:
+Criar `src/lib/notificationsCatalog.ts` com a lista completa de todas as notificações do sistema, cada uma com:
 
-- `resolveRespondent` (pulses).
-- Resolução do remetente no `kudos_submit` e no `biscoito_submit`.
-- Resolução do destinatário quando `toRaw` começa com `slack:` (ambos handlers).
+```ts
+{
+  id: string;                   // "vacation-approved-collaborator"
+  nome: string;                 // "Solicitação de férias aprovada"
+  descricao: string;            // frase curta
+  categoria: "Férias" | "Engajamento" | "Cadastro" | "Aniversários" | "Pulses" | "Autenticação" | "Admin";
+  gatilho: {
+    tipo: "evento" | "cron" | "manual";
+    detalhe: string;            // "Diretor aprova pedido" | "Diariamente 09:00 seg-sex"
+    cronExpr?: string;          // se cron
+  };
+  publico: string[];            // ["Colaborador"], ["Gestor", "Diretor"], ...
+  canais: ("slack_dm" | "slack_canal" | "email")[];
+  edgeFunction: string;         // "send-scheduled-reminders"
+  ativo: boolean;
+}
+```
 
-Ordem de prioridade: match em `email` corporativo primeiro; se não achar, tenta `email_pessoal`. Se achar por `email_pessoal` e o `people.slack_user_id` ainda estiver vazio, gravar o `slack_user_id` na pessoa (auto-vínculo).
+Cobre os fluxos identificados na exploração:
 
-### 2. `ensurePendingPerson`: não criar pendente quando já existe pessoa
+- **Férias / Solicitações:**
+  - Pedido criado → gestor (Slack + Email) — `slack-notification`, `send-notification-email`
+  - Aprovação intermediária/final → colaborador (Slack DM + Email) — `notify-approved-collaborator`
+  - Lembrete diário de pedidos pendentes >3 dias → gestor (Slack) — `send-scheduled-reminders` (cron seg-sex 09:00)
+  - Alertas mensais de férias → colaborador (Slack + Email) — `send-scheduled-reminders MONTHLY_VACATION_ALERTS` (dia 1 08:00)
+  - Lembrete semanal do diretor → diretor (Slack) — `send-scheduled-reminders WEEKLY_DIRECTOR` (seg 10:00)
+  - Digest semanal de pedidos abertos → gestores (Email) — `send-weekly-open-requests-digest` (seg 09:00)
+- **Cadastro:**
+  - Colaborador pendente aprovado → colaborador (Email/Slack) — `notify-approved-collaborator`
+  - Lembretes semanal/fim-de-mês para completar cadastro — `send-registration-reminders` (seg 12:00 / dias 28-31 13:00)
+  - Admin invite / recuperação de senha — `send-password-reset-slack`, `admin-auth-management`
+- **Aniversários / Contrato:**
+  - Aniversários do mês → canal (Slack) — `send-birthday-digest` (dias 1,10,20,30 12:00)
+  - Aniversário de contrato diário → canal + colaborador — `send-daily-anniversaries` (diário 12:00)
+  - Checkpoints de anuênio (accrual) → colaborador + gestor — `send-contract-anniversary-notifications` (dias 1,10,20,30 12:00)
+  - Accrual de férias por aniversário → sistema (job silencioso) — `apply-contract-anniversary-accrual` (diário 06:00)
+- **Engajamento:**
+  - Kudos enviado → destinatário (Slack DM) e opcionalmente canal — `kudos-send`, `slack-interactions kudos_submit`
+  - Kudos para gestores do destinatário → gestores/diretores (Slack DM) — `kudos-notify-managers`
+  - Relatório mensal de engajamento → diretores/canal (Slack) — `engagement-monthly-report` (dia 1 09:00)
+  - `/biscoito` slash command → Slack modal — `slack-slash-biscoito`
+- **Pulses:**
+  - Envio de pulse → destinatários (Slack DM) — `pulse-dispatch` (cada 15min)
+  - Lembretes de pulse não respondido → destinatários (Slack DM) — `pulse-reminders` (cada 15min)
+  - Resposta de pulse recebida → PO / diretor (Slack) — `pulse-response-notify`
 
-Antes de criar/atualizar `pending_people`, verificar em `people` (ativo) se há match por:
-- `slack_user_id`
-- `email` corporativo
-- `email_pessoal`
+### 2. Página `/admin/notificacoes`
 
-Se houver, apenas preencher o `slack_user_id` na pessoa (quando faltando) e **não** criar/atualizar `pending_people`. Isso evita gerar novos pendentes para colaboradores já cadastrados que usam email pessoal no Slack.
+Nova rota, protegida por `ProtectedRoute` restrita a `is_admin` ou `papel = DIRETOR`. Layout:
 
-### 3. Migração retroativa dos kudos pendentes
+- Barra de filtros no topo: **Categoria**, **Canal**, **Público**, campo de busca.
+- Tabela responsiva (em mobile vira cards) com colunas: Nome, Categoria, Gatilho, Público, Canais (badges coloridos), Edge Function (link para logs).
+- Cada linha expansível mostra: descrição completa, cron expression legível (com `cronstrue-pt-br` ou tradução manual — sem dependência nova, faço um helper simples pros ~15 crons), link direto para o log da função no Supabase, e link para o código-fonte no repo (opcional).
+- Header do painel com contagem por canal (X notificações Slack, Y Email, Z ambos) e badge indicando quais estão inativas.
 
-Em uma migration única:
+### 3. Entrada no menu / navegação
 
-- Para cada `kudos` com `pending_to = true` e `to_slack_email` que casa com `people.email` ou `people.email_pessoal` (ativo): atualizar `to_person_id`, `pending_to = false`.
-- Mesma coisa para `pending_from` / `from_slack_email` / `from_person_id`.
-- Após o UPDATE, chamar `award_points` para cada kudo migrado (10 pts `kudo_received` para o destinatário, 2 pts `kudo_given` para o remetente, usando `source_id = kudo.id`). A constraint única `(person_id, reason, source_id)` já garante idempotência — não gera duplicidade se algum ponto já existia.
-- Registrar em `audit_logs` (`entidade='kudos'`, `acao='PENDING_MERGE'`) os IDs migrados, com quem virou quem.
+Adicionar item **"Notificações do sistema"** em Admin (`src/pages/Admin.tsx`) — apenas para admins/diretores, ao lado dos outros painéis administrativos existentes.
 
-### 4. Consolidar `pending_people` órfãos
+### 4. Sem alterações no backend
 
-Na mesma migration:
-
-- Selecionar `pending_people` cujo `email` OU `slack_user_id` casa com uma `people` ativa (via `email`, `email_pessoal` ou `slack_user_id`).
-- Para status `PENDENTE`: marcar `status = 'REJEITADO'`, `rejection_reason = 'merged_into_person:<pessoa_id>'`, `reviewed_at = now()`.
-- Se a pessoa correspondente ainda não tem `slack_user_id`, copiar do pendente.
-- Registrar em `audit_logs` (`acao='PENDING_MERGE_CLEANUP'`) os IDs consolidados.
-
-Casos concretos hoje:
-- Pendentes `20b9db61…` e `4393e7eb…` (Antenor Junior, `jr.antenor@gmail.com`, `U01FMMTA8V9`) → merge em `pessoa_003`, popular `slack_user_id` no `pessoa_003`.
-- Kudo `8033d87a-361b-45d8-a9e4-cf2bd217e563` (Isabela → Antenor) → vira `to_person_id = pessoa_003`, `pending_to = false`, e Antenor recebe os 10 pts que faltavam.
-
-### 5. Sem alterações no frontend
-
-O `useKudosFeed` já consome `to_person_nome`/`from_person_nome` do RPC — depois do merge, os kudos migrados passam a mostrar o nome da pessoa em vez do nome do Slack, sem mudança de código.
+O catálogo é código de frontend. Não muda o banco, edge functions ou permissões existentes. Nenhuma migration.
 
 ## Detalhes técnicos
 
-Arquivos afetados:
+Arquivos novos:
+- `src/lib/notificationsCatalog.ts` — catálogo tipado.
+- `src/pages/AdminNotifications.tsx` — página com filtros e tabela.
+- `src/components/admin/NotificationsCatalogTable.tsx` — tabela/cards + linhas expansíveis.
+- `src/lib/cronHumanize.ts` — pequeno helper para traduzir os cron expressions do catálogo em português (sem lib externa).
 
-- `supabase/functions/slack-interactions/index.ts`
-  - `resolveRespondent`: query com `.or("email.eq.<x>,email_pessoal.eq.<x>")`.
-  - Novo helper `findPersonBySlackIdentity({ slackUserId, email })` reutilizado em kudos e biscoito.
-  - `ensurePendingPerson` e o `ensurePending` inline: checar `people` antes de mexer em `pending_people`.
-- `supabase/migrations/<timestamp>_merge_slack_only_kudos.sql`
-  - `UPDATE public.kudos` para `pending_to`/`pending_from`.
-  - `SELECT award_points(...)` para cada linha migrada (via `DO $$ ... $$` ou `INSERT ... SELECT`).
-  - `UPDATE public.pending_people SET status='REJEITADO', rejection_reason='merged_into_person:...'`.
-  - `UPDATE public.people SET slack_user_id = <x> WHERE slack_user_id IS NULL AND email_pessoal = <slack_email>`.
-  - Inserts em `audit_logs`.
+Arquivos editados:
+- `src/App.tsx` — nova rota `/admin/notificacoes` protegida.
+- `src/pages/Admin.tsx` — link/card para o novo painel.
 
-Sem alteração em RLS, tipos ou tabelas — só código de edge function e uma migration de dados.
-
-Sem testes novos: os helpers de lookup são thin wrappers em torno da query Supabase; a dedup de kudos já é coberta em `dedup_test.ts` e não muda.
+Sem novas dependências, sem mudança de schema, sem mexer em fluxos existentes. Se no futuro alguma notificação for adicionada/removida, basta atualizar o catálogo.
