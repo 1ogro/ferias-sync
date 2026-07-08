@@ -33,16 +33,69 @@ async function verifySlackRequest(body: string, timestamp: string, signature: st
   return computedSignature === signature;
 }
 
+/**
+ * Look up an active `people` row by Slack identity — matches on
+ * `slack_user_id`, then corporate `email`, then `email_pessoal`. When a match
+ * is found via `email_pessoal` and the person has no `slack_user_id` yet,
+ * back-fills it so future lookups hit the cheaper `slack_user_id` path.
+ */
+async function findPersonBySlackIdentity(
+  supabase: any,
+  args: { slackUserId?: string | null; email?: string | null },
+): Promise<{ id: string; nome: string } | null> {
+  const slackUserId = args.slackUserId || null;
+  const email = args.email ? args.email.trim() : null;
+
+  if (slackUserId) {
+    const { data } = await supabase
+      .from("people")
+      .select("id, nome")
+      .eq("slack_user_id", slackUserId)
+      .eq("ativo", true)
+      .maybeSingle();
+    if (data) return data;
+  }
+
+  if (email) {
+    const { data: byCorp } = await supabase
+      .from("people")
+      .select("id, nome, slack_user_id")
+      .ilike("email", email)
+      .eq("ativo", true)
+      .maybeSingle();
+    if (byCorp) {
+      if (slackUserId && !byCorp.slack_user_id) {
+        await supabase.from("people").update({ slack_user_id: slackUserId }).eq("id", byCorp.id);
+      }
+      return { id: byCorp.id, nome: byCorp.nome };
+    }
+
+    const { data: byPersonal } = await supabase
+      .from("people")
+      .select("id, nome, slack_user_id")
+      .ilike("email_pessoal", email)
+      .eq("ativo", true)
+      .maybeSingle();
+    if (byPersonal) {
+      if (slackUserId && !byPersonal.slack_user_id) {
+        await supabase.from("people").update({ slack_user_id: slackUserId }).eq("id", byPersonal.id);
+      }
+      return { id: byPersonal.id, nome: byPersonal.nome };
+    }
+  }
+
+  return null;
+}
+
 async function resolveRespondent(slackUserId: string, supabase: any) {
   const r = await fetch(`https://slack.com/api/users.info?user=${slackUserId}`, {
     headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}` },
   });
   const d = await r.json();
-  const email = d?.user?.profile?.email;
-  if (!email) return null;
-  const { data } = await supabase.from("people").select("id, nome").eq("email", email).maybeSingle();
-  return data;
+  const email = d?.user?.profile?.email ?? null;
+  return await findPersonBySlackIdentity(supabase, { slackUserId, email });
 }
+
 
 async function awardPoints(supabase: any, personId: string, points: number, reason: string, sourceId: string) {
   const { error } = await supabase.rpc("award_points", {
