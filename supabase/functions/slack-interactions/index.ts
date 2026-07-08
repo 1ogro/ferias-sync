@@ -42,50 +42,35 @@ async function verifySlackRequest(body: string, timestamp: string, signature: st
 async function findPersonBySlackIdentity(
   supabase: any,
   args: { slackUserId?: string | null; email?: string | null },
-): Promise<{ id: string; nome: string } | null> {
+): Promise<{ id: string; nome: string; papel: string | null } | null> {
   const slackUserId = args.slackUserId || null;
   const email = args.email ? args.email.trim() : null;
+  const cols = "id, nome, papel, slack_user_id";
 
   if (slackUserId) {
     const { data } = await supabase
-      .from("people")
-      .select("id, nome")
-      .eq("slack_user_id", slackUserId)
-      .eq("ativo", true)
-      .maybeSingle();
-    if (data) return data;
+      .from("people").select(cols)
+      .eq("slack_user_id", slackUserId).eq("ativo", true).maybeSingle();
+    if (data) return { id: data.id, nome: data.nome, papel: data.papel ?? null };
   }
 
-  if (email) {
-    const { data: byCorp } = await supabase
-      .from("people")
-      .select("id, nome, slack_user_id")
-      .ilike("email", email)
-      .eq("ativo", true)
-      .maybeSingle();
-    if (byCorp) {
-      if (slackUserId && !byCorp.slack_user_id) {
-        await supabase.from("people").update({ slack_user_id: slackUserId }).eq("id", byCorp.id);
-      }
-      return { id: byCorp.id, nome: byCorp.nome };
-    }
+  if (!email) return null;
 
-    const { data: byPersonal } = await supabase
-      .from("people")
-      .select("id, nome, slack_user_id")
-      .ilike("email_pessoal", email)
-      .eq("ativo", true)
-      .maybeSingle();
-    if (byPersonal) {
-      if (slackUserId && !byPersonal.slack_user_id) {
-        await supabase.from("people").update({ slack_user_id: slackUserId }).eq("id", byPersonal.id);
+  for (const col of ["email", "email_pessoal"] as const) {
+    const { data } = await supabase
+      .from("people").select(cols)
+      .ilike(col, email).eq("ativo", true).maybeSingle();
+    if (data) {
+      if (slackUserId && !data.slack_user_id) {
+        await supabase.from("people").update({ slack_user_id: slackUserId }).eq("id", data.id);
       }
-      return { id: byPersonal.id, nome: byPersonal.nome };
+      return { id: data.id, nome: data.nome, papel: data.papel ?? null };
     }
   }
 
   return null;
 }
+
 
 async function resolveRespondent(slackUserId: string, supabase: any) {
   const r = await fetch(`https://slack.com/api/users.info?user=${slackUserId}`, {
