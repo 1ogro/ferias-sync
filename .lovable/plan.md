@@ -1,46 +1,72 @@
+
 ## Diagnóstico
 
-O kudos "triplicado" da Isabela → Denilda são de fato **3 registros distintos** no banco (`fa5b65ad…` 00:05:51, `116839a4…` 00:05:59, `f7ae3dc5…` 00:06:12), todos vindos do modal web (`slack_channel_posted = null`). O padrão se repete com o par de 02/07 15:52 (Isabela → Denilda, categoria `delivery`).
+O kudos de Isabela → Antenor Jr foi salvo como `pending_to` porque o lookup de destinatário faz apenas `people.email = <email do Slack>`. Antenor tem o Slack cadastrado com o email pessoal (`jr.antenor@gmail.com`), enquanto o `people.email` é o corporativo (`ajunior.instaflip@rededor.com.br`). Resultado: o kudo não atribuiu 10 pts ao Antenor e criou 2 entradas `pending_people` duplicadas com o mesmo `slack_user_id`.
 
-Não é bug de loop: cada mutação completou e o diálogo fechou. O que aconteceu foi reabertura manual do modal — mas o backend `kudos-send` **não valida duplicatas**, então aceita qualquer reenvio, inclusive contabiliza pontos várias vezes (`award_points` com `source_id` diferente por kudo).
+O campo `email_pessoal` já existe nas tabelas `people` e `pending_people`, mas nenhum lookup do fluxo Slack o considera.
 
 ## Plano
 
-### 1. Limpar duplicatas existentes (migration)
-- Manter o kudos mais antigo por grupo `(from_person_id, to_person_id, message, category)` quando criados dentro de uma janela curta (≤ 5 min).
-- Antes de deletar, remover as linhas de `engagement_points` associadas via `source_id` dos kudos duplicados, para não deixar pontos órfãos e ajustar o leaderboard.
-- Registrar em `audit_logs` (`entidade='kudos'`, `acao='DEDUP_CLEANUP'`) os IDs removidos e beneficiários afetados.
+### 1. Resolver Slack → pessoa também por `email_pessoal`
 
-Casos específicos a remover:
-- `116839a4-9a34-4439-826c-717cbb14661b` e `f7ae3dc5-9dda-48ea-8ab8-0acafddbf38e` (mantém `fa5b65ad…`)
-- `285da4ab-dd01-4eff-8330-23f7db539f74` (mantém `c5780d0c…`)
+Alterar todos os pontos em `supabase/functions/slack-interactions/index.ts` que hoje fazem `people.email = <slack_email>` para casar por qualquer um dos dois campos (case-insensitive), sempre com `ativo = true`:
 
-### 2. Prevenir novas duplicatas no `kudos-send`
-No edge function, antes do `insert`:
-- Buscar kudos do mesmo `from_person_id` para o mesmo `to_person_id`, com mesma `category` e mesma `message` (após `trim`), criados nos últimos **60 segundos**.
-- Se existir, retornar `200` com `{ ok: true, deduped: true, kudo: <existente>, count: 0 }` e **não** inserir nem chamar `award_points` nem repostar no Slack.
-- Para envios multi-destinatário, aplicar a verificação por destinatário individualmente (alguns podem passar, outros serem deduplicados).
+- `resolveRespondent` (pulses).
+- Resolução do remetente no `kudos_submit` e no `biscoito_submit`.
+- Resolução do destinatário quando `toRaw` começa com `slack:` (ambos handlers).
 
-Janela de 60s é curta o suficiente para não bloquear reconhecimentos legítimos repetidos ao longo do dia, e suficiente para conter re-cliques/reaberturas do modal.
+Ordem de prioridade: match em `email` corporativo primeiro; se não achar, tenta `email_pessoal`. Se achar por `email_pessoal` e o `people.slack_user_id` ainda estiver vazio, gravar o `slack_user_id` na pessoa (auto-vínculo).
 
-### 3. Feedback melhor no frontend (`src/pages/Engagement.tsx`)
-- Quando a resposta vier com `deduped: true`, mostrar toast `"Este kudos já foi enviado há instantes 👍"` em vez do toast de sucesso normal, para o remetente entender que a ação anterior já tinha funcionado.
-- Manter o fechamento do diálogo e limpeza do formulário.
+### 2. `ensurePendingPerson`: não criar pendente quando já existe pessoa
 
-### 4. Testes
-Adicionar testes em `supabase/functions/send-registration-reminders/lib_test.ts`… não — os testes de kudos ficam em novo arquivo `supabase/functions/kudos-send/dedup_test.ts` cobrindo a função pura de dedup (extraída para `lib.ts` do módulo `kudos-send`):
-- Mesma mensagem/categoria/destinatário dentro da janela → deduplicado.
-- Mesma mensagem mas categoria diferente → passa.
-- Mensagem com trim diferente (espaços) → deduplicado.
-- Janela expirada (>60s) → passa.
+Antes de criar/atualizar `pending_people`, verificar em `people` (ativo) se há match por:
+- `slack_user_id`
+- `email` corporativo
+- `email_pessoal`
+
+Se houver, apenas preencher o `slack_user_id` na pessoa (quando faltando) e **não** criar/atualizar `pending_people`. Isso evita gerar novos pendentes para colaboradores já cadastrados que usam email pessoal no Slack.
+
+### 3. Migração retroativa dos kudos pendentes
+
+Em uma migration única:
+
+- Para cada `kudos` com `pending_to = true` e `to_slack_email` que casa com `people.email` ou `people.email_pessoal` (ativo): atualizar `to_person_id`, `pending_to = false`.
+- Mesma coisa para `pending_from` / `from_slack_email` / `from_person_id`.
+- Após o UPDATE, chamar `award_points` para cada kudo migrado (10 pts `kudo_received` para o destinatário, 2 pts `kudo_given` para o remetente, usando `source_id = kudo.id`). A constraint única `(person_id, reason, source_id)` já garante idempotência — não gera duplicidade se algum ponto já existia.
+- Registrar em `audit_logs` (`entidade='kudos'`, `acao='PENDING_MERGE'`) os IDs migrados, com quem virou quem.
+
+### 4. Consolidar `pending_people` órfãos
+
+Na mesma migration:
+
+- Selecionar `pending_people` cujo `email` OU `slack_user_id` casa com uma `people` ativa (via `email`, `email_pessoal` ou `slack_user_id`).
+- Para status `PENDENTE`: marcar `status = 'REJEITADO'`, `rejection_reason = 'merged_into_person:<pessoa_id>'`, `reviewed_at = now()`.
+- Se a pessoa correspondente ainda não tem `slack_user_id`, copiar do pendente.
+- Registrar em `audit_logs` (`acao='PENDING_MERGE_CLEANUP'`) os IDs consolidados.
+
+Casos concretos hoje:
+- Pendentes `20b9db61…` e `4393e7eb…` (Antenor Junior, `jr.antenor@gmail.com`, `U01FMMTA8V9`) → merge em `pessoa_003`, popular `slack_user_id` no `pessoa_003`.
+- Kudo `8033d87a-361b-45d8-a9e4-cf2bd217e563` (Isabela → Antenor) → vira `to_person_id = pessoa_003`, `pending_to = false`, e Antenor recebe os 10 pts que faltavam.
+
+### 5. Sem alterações no frontend
+
+O `useKudosFeed` já consome `to_person_nome`/`from_person_nome` do RPC — depois do merge, os kudos migrados passam a mostrar o nome da pessoa em vez do nome do Slack, sem mudança de código.
 
 ## Detalhes técnicos
 
 Arquivos afetados:
-- `supabase/migrations/<timestamp>_dedup_kudos_cleanup.sql` — limpeza + audit log.
-- `supabase/functions/kudos-send/index.ts` — chamada de verificação antes do insert.
-- `supabase/functions/kudos-send/lib.ts` (novo) — helper `findRecentDuplicate` e função pura de comparação.
-- `supabase/functions/kudos-send/dedup_test.ts` (novo) — testes unitários.
-- `src/pages/Engagement.tsx` — tratamento do `deduped: true`.
 
-Não vou adicionar índice único no banco: a categoria e o texto podem se repetir legitimamente semanas depois; a proteção por janela temporal no edge function é mais adequada e reversível.
+- `supabase/functions/slack-interactions/index.ts`
+  - `resolveRespondent`: query com `.or("email.eq.<x>,email_pessoal.eq.<x>")`.
+  - Novo helper `findPersonBySlackIdentity({ slackUserId, email })` reutilizado em kudos e biscoito.
+  - `ensurePendingPerson` e o `ensurePending` inline: checar `people` antes de mexer em `pending_people`.
+- `supabase/migrations/<timestamp>_merge_slack_only_kudos.sql`
+  - `UPDATE public.kudos` para `pending_to`/`pending_from`.
+  - `SELECT award_points(...)` para cada linha migrada (via `DO $$ ... $$` ou `INSERT ... SELECT`).
+  - `UPDATE public.pending_people SET status='REJEITADO', rejection_reason='merged_into_person:...'`.
+  - `UPDATE public.people SET slack_user_id = <x> WHERE slack_user_id IS NULL AND email_pessoal = <slack_email>`.
+  - Inserts em `audit_logs`.
+
+Sem alteração em RLS, tipos ou tabelas — só código de edge function e uma migration de dados.
+
+Sem testes novos: os helpers de lookup são thin wrappers em torno da query Supabase; a dedup de kudos já é coberta em `dedup_test.ts` e não muda.
