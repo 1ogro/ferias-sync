@@ -847,6 +847,9 @@ serve(async (req) => {
       const ensurePending = async (slackId: string | null, email: string | null, nome: string | null) => {
         if (!slackId && !email) return;
         try {
+          const existingPerson = await findPersonBySlackIdentity(supabase, { slackUserId: slackId, email });
+          if (existingPerson) return;
+
           const { data: rows } = await supabase.from("pending_people").select("id, slack_request_count").eq("status", "PENDENTE");
           const match = (rows || []).find((r: any) =>
             (slackId && r.slack_user_id === slackId) ||
