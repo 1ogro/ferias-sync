@@ -157,6 +157,14 @@ const App = () => (
                 </Suspense>
               </ProtectedRoute>
             } />
+            <Route path="/admin/notificacoes" element={
+              <ProtectedRoute>
+                <Suspense fallback={<PageLoader />}>
+                  <AdminNotifications />
+                </Suspense>
+              </ProtectedRoute>
+            } />
+
             <Route path="/settings" element={
               <ProtectedRoute>
                 <Suspense fallback={<PageLoader />}>
