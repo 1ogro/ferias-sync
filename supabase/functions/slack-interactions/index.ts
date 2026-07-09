@@ -420,7 +420,25 @@ async function ensurePendingPerson(
     // Skip when the Slack identity already maps to an existing person — avoids
     // duplicate pending rows for collaborators who use a personal email in Slack.
     const existing = await findPersonBySlackIdentity(supabase, { slackUserId: slackId, email });
-    if (existing) return;
+    if (existing) {
+      // Consolida pendentes anteriores do mesmo Slack/email na pessoa cadastrada
+      try {
+        const or: string[] = [];
+        if (slackId) or.push(`slack_user_id.eq.${slackId}`);
+        if (email) or.push(`email.ilike.${email}`);
+        if (or.length) {
+          const { data: stale } = await supabase
+            .from("pending_people").select("id")
+            .neq("status", "MERGED").or(or.join(","));
+          for (const s of stale || []) {
+            await supabase.rpc("merge_pending_into_person", { _pending_id: s.id, _person_id: existing.id });
+          }
+        }
+      } catch (mergeErr: any) {
+        console.warn("[ensurePendingPerson] auto-merge failed:", mergeErr?.message || mergeErr);
+      }
+      return;
+    }
 
     const { data: rows } = await supabase.from("pending_people").select("id, slack_request_count").eq("status", "PENDENTE");
     const match = (rows || []).find((r: any) =>
