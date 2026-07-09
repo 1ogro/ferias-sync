@@ -821,22 +821,28 @@ serve(async (req) => {
           if (tp && tp.ativo) { personId = tp.id; personNome = tp.nome; }
         } else if (toRaw.startsWith("slack:")) {
           sUid = toRaw.slice(6);
-          const r = await fetch(`https://slack.com/api/users.info?user=${sUid}`, {
-            headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}` },
-          });
-          const d = await r.json();
-          sEmail = d?.user?.profile?.email ?? null;
-          sName =
-            d?.user?.profile?.display_name?.trim() ||
-            d?.user?.profile?.real_name?.trim() ||
-            d?.user?.real_name?.trim() ||
-            d?.user?.name ||
-            "Colega";
-          {
+          // Try to identify by slack_user_id first (no Slack roundtrip needed)
+          const tpFast = await findPersonBySlackIdentity(supabase, { slackUserId: sUid, email: null });
+          if (tpFast) {
+            personId = tpFast.id;
+            personNome = tpFast.nome;
+            sName = tpFast.nome;
+          } else {
+            // Fall back to users.info to fetch email/name for pending record
+            const r = await fetch(`https://slack.com/api/users.info?user=${sUid}`, {
+              headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}` },
+            });
+            const d = await r.json();
+            sEmail = d?.user?.profile?.email ?? null;
+            sName =
+              d?.user?.profile?.display_name?.trim() ||
+              d?.user?.profile?.real_name?.trim() ||
+              d?.user?.real_name?.trim() ||
+              d?.user?.name ||
+              "Colega";
             const tp = await findPersonBySlackIdentity(supabase, { slackUserId: sUid, email: sEmail });
             if (tp) { personId = tp.id; personNome = tp.nome; }
           }
-
         }
 
         // Filtra: não pode mandar pra si mesmo
