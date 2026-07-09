@@ -337,6 +337,7 @@ function KudosFeed() {
                         <span className="text-muted-foreground">→</span>
                         <span className="font-semibold">{k.to?.nome ?? k.to_slack_name ?? "?"}</span>
                         {k.pending_to && <Badge variant="outline" className="text-[10px]">slack only</Badge>}
+                        <RecipientDmBadge status={k.recipient_dm_status ?? null} error={k.recipient_dm_error ?? null} />
                       </div>
                       <Badge className={meta.className} variant="secondary">{meta.emoji} {meta.label}</Badge>
                     </div>
