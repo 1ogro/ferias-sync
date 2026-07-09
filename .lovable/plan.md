@@ -1,47 +1,68 @@
-## Problema
+## Objetivo
 
-Ao enviar o modal do `/biscoito`, o kudo é registrado no feed, mas o Slack mostra "Tivemos alguns problemas de conexão. Tentar novamente?". Os logs de `slack-interactions` confirmam que a inserção ocorre ~3s após o boot da função — bem no limite (ou além) dos **3 segundos** que o Slack aguarda pelo ack de um `view_submission`. Como o ack chega tarde, o Slack considera falha e mostra o banner de erro (mesmo com kudo já salvo).
+1. Garantir que a Melissa Cardoso receba a DM do kudo `ff5cea70…` no Slack.
+2. Vincular o `slack_user_id` dela em `people` para os próximos kudos funcionarem.
+3. Passar a registrar audit log da DM ao destinatário (sucesso/falha) e exibir esse status no card do feed de kudos.
 
-O handler `biscoito_submit` faz, de forma síncrona, tudo abaixo antes de responder `response_action: "clear"`:
+## Bloqueio de dados
 
-1. `users.info` do remetente
-2. `users.info` de cada destinatário `slack:*`
-3. Lookup em `people` (sender + cada destinatário)
-4. Dedup + insert em `kudos` + 2 chamadas `award_points` por destinatário
-5. Post em canal(is) de origem/share (`chat.postMessage`)
-6. `notifyRecipientDM` para cada destinatário (users.lookupByEmail + conversations.open + chat.postMessage)
-7. `supabase.functions.invoke("kudos-notify-managers", …)`
+Preciso do **Slack User ID** (formato `U…`) da Melissa Cardoso — no sandbox o `SLACK_BOT_TOKEN` está retornando `token_revoked`, então não consigo descobrir sozinho. Alternativa: o email real dela no Slack (se for diferente de `mmachado.melissacard@rededor.com.br`), que uso via `users.lookupByEmail`.
 
-Só o item 6 (o que gerou o log `dm skipped: users_not_found`) já custa 3 chamadas Slack; somando o resto, o ack estoura o SLA.
+Vou pedir isso no fim do plano. Assim que tiver, executo (1) e (2). O item (3) não depende disso e já pode ser implementado.
 
-## Fix
+## Passo 1 — Enviar a DM manualmente
 
-Manter o mínimo síncrono para ainda poder devolver erros de validação no modal (Slack só aceita `response_action: errors` na resposta imediata), e mover todo o trabalho pós-inserção para `EdgeRuntime.waitUntil`.
+Edge function pontual `send-kudo-dm-backfill` (temporária) OU execução direta do `chat.postMessage` via `standard_connectors--call_gateway_connection` do meu lado, usando a mesma mensagem que o `slack-interactions` monta:
 
-### Alterações em `supabase/functions/slack-interactions/index.ts` (bloco `biscoito_submit`, linhas ~722–1064)
+- Categoria + emoji (`CATEGORY_LABEL`)
+- `*Raul Queiroz* te deu um kudo`
+- `> Um grande biscoitola pra senhora pelo hotsite de infusões! Isabela e Priscila elogiaram bastante a sua apresentação. 🫶`
 
-1. **Adiar `users.info` do remetente**: chamar `findPersonBySlackIdentity` primeiro só com `slackUserId`. Só chamar `users.info` (para obter email/nome) se não achar pelo `slack_user_id` **ou** se `pendingFrom` for verdadeiro (precisamos do email/nome para gravar no kudo e em `pending_people`). Isso corta 1 request Slack no caso comum (remetente já cadastrado com `slack_user_id`).
+Após envio, grava `audit_logs` com `acao='KUDOS_RECIPIENT_DM'`, `entidade_id=<kudo_id>:<recipient_id>`, `payload={ channel, ts, backfill:true }`.
 
-2. **Adiar `users.info` de destinatários `slack:*`**: mesma lógica — tentar `findPersonBySlackIdentity({ slackUserId: sUid })` primeiro; só chamar `users.info` quando `pendingTo` (precisa de email/nome para persistir).
+## Passo 2 — Vincular `slack_user_id`
 
-3. **Manter síncrono**: validações + resolução mínima de destinatários + dedup + `insert` em `kudos` + `award_points`. Isso preserva o comportamento de mostrar `response_action: errors` quando algo é inválido, e garante que o kudo (e a resposta ao usuário) reflita erro real de gravação.
+`UPDATE public.people SET slack_user_id = '<U…>' WHERE id = 'pessoa_029';`
 
-4. **Mover para `EdgeRuntime.waitUntil`** (fire-and-forget, após decidir a resposta):
-   - `postToChannel(origin, …)` e `postToChannel(channelToPost, …)` (linhas 1019–1021)
-   - Loop de DMs para cada destinatário (`notifyRecipientDM` / DM slack-only, linhas 1023–1049)
-   - `supabase.functions.invoke("kudos-notify-managers", …)` (já é fire-and-forget mas o `await` implícito de `.invoke()` não bloqueia; garantir via `waitUntil` para consistência)
-   - O bloco `notifyAdmins` já usa `EdgeRuntime.waitUntil` — manter.
+Via ferramenta de insert (data change), com o ID fornecido.
 
-5. **Responder `response_action: "clear"` imediatamente** após decidir sucesso, deixando o background rodar.
+## Passo 3 — Audit log da DM ao destinatário + exibição no feed
 
-### Sem mudanças em
+### Backend — `supabase/functions/slack-interactions/index.ts`
 
-- `slack-slash-biscoito` (a abertura do modal já usa `EdgeRuntime.waitUntil`).
-- Lógica de dedup, pontuação, `pending_people`, admins.
-- Frontend / UI.
+No bloco `postBiscoitoSideEffects` (loop de DMs para destinatários), envolver cada `notifyRecipientDM` / DM slack-only com try/catch e gravar em `audit_logs`:
 
-## Resultado esperado
+- `entidade='kudos'`, `entidade_id='<kudo_id>:<recipient_id>'`, `acao='KUDOS_RECIPIENT_DM'`
+- `payload`: `{ kudo_id, recipient_id, status: 'sent' | 'failed' | 'no_slack_id', error?, channel?, ts? }`
 
-- Ack do `view_submission` volta em <1s no caso comum → banner de erro do Slack some.
-- Feed de kudos, DMs e posts em canal continuam funcionando (agora em background).
-- O log `dm skipped: users_not_found` que já aparecia continua sendo apenas informativo — não afeta mais o UX do modal.
+Fazer o mesmo em `supabase/functions/kudos-send/index.ts` (fluxo web equivalente) para paridade — se lá também existir DM ao destinatário.
+
+### Backend — RPC `get_kudos_feed`
+
+Adicionar campos derivados por linha:
+- `recipient_dm_status text` — `'sent' | 'failed' | 'no_slack_id' | 'pending' | null`
+- `recipient_dm_error text` — nulo quando `sent`
+
+Deriva via `LEFT JOIN LATERAL` no `audit_logs` mais recente onde `acao='KUDOS_RECIPIENT_DM'` e `entidade_id = kudo.id || ':' || kudo.to_person_id`.
+
+Para kudos multi-destinatário (múltiplas linhas), cada linha já tem seu próprio `to_person_id`, então o join casa naturalmente.
+
+### Frontend
+
+- `src/hooks/useEngagement.ts` — incluir os novos campos no tipo `Kudo`.
+- Componente que renderiza o card do feed de kudos (localizar em `src/pages/Engagement.tsx` ou subcomponente correspondente) — adicionar um pequeno indicador ao lado do nome do destinatário:
+  - ✅ badge sutil "DM enviada" quando `sent`
+  - ⚠️ badge "DM não enviada" com tooltip mostrando `recipient_dm_error` ou "Sem Slack vinculado" quando `no_slack_id` / `failed`
+  - Sem badge quando `null` (kudo antigo, sem registro).
+
+Usar tokens semânticos do design system (variantes `secondary` / `destructive` do `Badge` do shadcn).
+
+## Detalhes técnicos
+
+- Nenhuma migração de schema nova é necessária (uso `audit_logs` existente). Só altero a função SQL `get_kudos_feed` — isso vai via `supabase--migration`.
+- O tipo `audit_logs.entidade_id` já é texto e comporta o formato composto.
+- Backfill: como o kudo da Melissa é único, gravo o audit log manualmente no Passo 1; kudos históricos ficarão sem badge (esperado).
+
+## Pergunta antes de implementar
+
+Qual o **Slack User ID** (`U…`) da Melissa Cardoso, ou o email dela no Slack? Sem isso não consigo executar os Passos 1 e 2 — o Passo 3 (audit log + badge no feed) posso implementar em paralelo.
