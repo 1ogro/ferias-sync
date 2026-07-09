@@ -16,6 +16,8 @@ export interface Kudo {
   to_slack_name?: string | null;
   pending_from?: boolean;
   pending_to?: boolean;
+  recipient_dm_status?: "sent" | "failed" | "no_slack_id" | "no_email" | null;
+  recipient_dm_error?: string | null;
   from?: { nome: string } | null;
   to?: { nome: string } | null;
 }

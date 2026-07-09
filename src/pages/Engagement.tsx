@@ -15,7 +15,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Sparkles, Trophy, Heart, Send, Settings as SettingsIcon, Check, ChevronsUpDown, X } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Sparkles, Trophy, Heart, Send, Settings as SettingsIcon, Check, ChevronsUpDown, X, MessageSquareOff, CheckCircle2 } from "lucide-react";
 import { useKudosFeed, useLeaderboard, useMyPoints, useSendKudo, useActivePeople, useEngagementPrefs, useSaveEngagementPrefs, KudosCategory } from "@/hooks/useEngagement";
 import { useToast } from "@/hooks/use-toast";
 import { Papel } from "@/lib/types";
@@ -313,6 +314,42 @@ function GiveKudosDialog({ personId, fromName, papel }: { personId?: string; fro
   );
 }
 
+function RecipientDmBadge({ status, error }: { status: string | null; error: string | null }) {
+  if (!status) return null;
+  if (status === "sent") {
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Badge variant="secondary" className="gap-1 text-[10px]">
+              <CheckCircle2 className="h-3 w-3" /> DM enviada
+            </Badge>
+          </TooltipTrigger>
+          <TooltipContent>Notificação entregue no Slack do destinatário.</TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
+  }
+  const label =
+    status === "no_slack_id" ? "Sem Slack vinculado" :
+    status === "no_email"    ? "Sem email cadastrado" :
+    "DM não enviada";
+  const tooltip = error || (status === "no_slack_id" ? "Não encontrei o Slack do destinatário pelo email." : "Falha ao entregar a DM.");
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Badge variant="destructive" className="gap-1 text-[10px]">
+            <MessageSquareOff className="h-3 w-3" /> {label}
+          </Badge>
+        </TooltipTrigger>
+        <TooltipContent>{tooltip}</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
+
+
 function KudosFeed() {
   const { data: kudos = [] } = useKudosFeed(50);
   return (
@@ -336,6 +373,7 @@ function KudosFeed() {
                         <span className="text-muted-foreground">→</span>
                         <span className="font-semibold">{k.to?.nome ?? k.to_slack_name ?? "?"}</span>
                         {k.pending_to && <Badge variant="outline" className="text-[10px]">slack only</Badge>}
+                        <RecipientDmBadge status={k.recipient_dm_status ?? null} error={k.recipient_dm_error ?? null} />
                       </div>
                       <Badge className={meta.className} variant="secondary">{meta.emoji} {meta.label}</Badge>
                     </div>
