@@ -1,24 +1,47 @@
-## Verificação
+## Problema
 
-Validar via Playwright que `/vacation-management?tab=pulses` abre na aba Pulses após o auth carregar, sem redirect para `/` e sem cair na aba padrão.
+Ao enviar o modal do `/biscoito`, o kudo é registrado no feed, mas o Slack mostra "Tivemos alguns problemas de conexão. Tentar novamente?". Os logs de `slack-interactions` confirmam que a inserção ocorre ~3s após o boot da função — bem no limite (ou além) dos **3 segundos** que o Slack aguarda pelo ack de um `view_submission`. Como o ack chega tarde, o Slack considera falha e mostra o banner de erro (mesmo com kudo já salvo).
 
-### Passos
+O handler `biscoito_submit` faz, de forma síncrona, tudo abaixo antes de responder `response_action: "clear"`:
 
-1. **Restaurar sessão Supabase gerenciada** (`LOVABLE_BROWSER_AUTH_STATUS=injected`) — cookies + localStorage — e navegar direto para `http://localhost:8080/vacation-management?tab=pulses`.
-2. **Aguardar** `networkidle` + o header renderizar (`Gestão`) para garantir que o auth resolveu.
-3. **Verificar** que:
-   - URL final continua `?tab=pulses` (sem redirect para `/`).
-   - A trigger `TabsTrigger` com valor `pulses` está com `data-state="active"`.
-   - O conteúdo do `PulsesTab` está no DOM (título "Feed de kudos" ou "Pulses").
-4. **Screenshot** de evidência em `/tmp/browser/pulses-tab/screenshots/`.
-5. **Cenário negativo**: navegar para `/vacation-management` (sem query) e confirmar que a aba padrão (`vacation` p/ diretor, `active` p/ gestor) abre — para garantir que o `useEffect` de sincronização não força `pulses` indevidamente.
-6. **Console/network**: capturar erros; ausência de warnings de React sobre estado inconsistente.
+1. `users.info` do remetente
+2. `users.info` de cada destinatário `slack:*`
+3. Lookup em `people` (sender + cada destinatário)
+4. Dedup + insert em `kudos` + 2 chamadas `award_points` por destinatário
+5. Post em canal(is) de origem/share (`chat.postMessage`)
+6. `notifyRecipientDM` para cada destinatário (users.lookupByEmail + conversations.open + chat.postMessage)
+7. `supabase.functions.invoke("kudos-notify-managers", …)`
 
-### Observação sobre o título do issue
+Só o item 6 (o que gerou o log `dm skipped: users_not_found`) já custa 3 chamadas Slack; somando o resto, o ack estoura o SLA.
 
-O usuário escreveu `#tab=pulses` (hash), mas todos os CTAs internos (`Engagement.tsx`, `EngagementSummaryCard.tsx`) usam `?tab=pulses` (query string), que é o formato lido por `useSearchParams`. Se o teste com `?tab=pulses` passar, a rota está funcional para o fluxo real do produto. **Não vou adicionar suporte a `#tab=pulses`** — nenhum código gera esse formato e adicioná-lo aumentaria a superfície sem necessidade. Confirmar com o usuário só se ele indicar que digita a URL manualmente com `#`.
+## Fix
 
-### Escopo
+Manter o mínimo síncrono para ainda poder devolver erros de validação no modal (Slack só aceita `response_action: errors` na resposta imediata), e mover todo o trabalho pós-inserção para `EdgeRuntime.waitUntil`.
 
-- Somente verificação — nenhum arquivo alterado.
-- Se algum passo falhar, reporto o sintoma e proponho ajuste em plano separado.
+### Alterações em `supabase/functions/slack-interactions/index.ts` (bloco `biscoito_submit`, linhas ~722–1064)
+
+1. **Adiar `users.info` do remetente**: chamar `findPersonBySlackIdentity` primeiro só com `slackUserId`. Só chamar `users.info` (para obter email/nome) se não achar pelo `slack_user_id` **ou** se `pendingFrom` for verdadeiro (precisamos do email/nome para gravar no kudo e em `pending_people`). Isso corta 1 request Slack no caso comum (remetente já cadastrado com `slack_user_id`).
+
+2. **Adiar `users.info` de destinatários `slack:*`**: mesma lógica — tentar `findPersonBySlackIdentity({ slackUserId: sUid })` primeiro; só chamar `users.info` quando `pendingTo` (precisa de email/nome para persistir).
+
+3. **Manter síncrono**: validações + resolução mínima de destinatários + dedup + `insert` em `kudos` + `award_points`. Isso preserva o comportamento de mostrar `response_action: errors` quando algo é inválido, e garante que o kudo (e a resposta ao usuário) reflita erro real de gravação.
+
+4. **Mover para `EdgeRuntime.waitUntil`** (fire-and-forget, após decidir a resposta):
+   - `postToChannel(origin, …)` e `postToChannel(channelToPost, …)` (linhas 1019–1021)
+   - Loop de DMs para cada destinatário (`notifyRecipientDM` / DM slack-only, linhas 1023–1049)
+   - `supabase.functions.invoke("kudos-notify-managers", …)` (já é fire-and-forget mas o `await` implícito de `.invoke()` não bloqueia; garantir via `waitUntil` para consistência)
+   - O bloco `notifyAdmins` já usa `EdgeRuntime.waitUntil` — manter.
+
+5. **Responder `response_action: "clear"` imediatamente** após decidir sucesso, deixando o background rodar.
+
+### Sem mudanças em
+
+- `slack-slash-biscoito` (a abertura do modal já usa `EdgeRuntime.waitUntil`).
+- Lógica de dedup, pontuação, `pending_people`, admins.
+- Frontend / UI.
+
+## Resultado esperado
+
+- Ack do `view_submission` volta em <1s no caso comum → banner de erro do Slack some.
+- Feed de kudos, DMs e posts em canal continuam funcionando (agora em background).
+- O log `dm skipped: users_not_found` que já aparecia continua sendo apenas informativo — não afeta mais o UX do modal.
