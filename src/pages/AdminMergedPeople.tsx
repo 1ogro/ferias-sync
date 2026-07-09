@@ -178,7 +178,7 @@ export default function AdminMergedPeople() {
                         ) : "—"}
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
-                        {r.reviewed_at ? formatDateSafe(r.reviewed_at.slice(0, 10)) : "—"}
+                        {r.reviewed_at ? formatDateSafe(r.reviewed_at.slice(0, 10), "dd/MM/yyyy") : "—"}
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline" className="text-xs">{r.source || "—"}</Badge>
