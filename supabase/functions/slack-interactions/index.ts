@@ -708,7 +708,7 @@ serve(async (req) => {
 
       // DM destinatário
       if (toPersonId) {
-        await notifyRecipientDM(supabase, toPersonId, senderDisplay, category, message, "kudos_submit");
+        await notifyRecipientDM(supabase, toPersonId, senderDisplay, category, message, "kudos_submit", kudo.id);
       } else if (toSlackUserId) {
         try {
           const openRes = await fetch("https://slack.com/api/conversations.open", {
