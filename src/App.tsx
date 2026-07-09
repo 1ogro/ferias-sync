@@ -165,6 +165,13 @@ const App = () => (
                 </Suspense>
               </ProtectedRoute>
             } />
+            <Route path="/admin/mescladas" element={
+              <ProtectedRoute>
+                <Suspense fallback={<PageLoader />}>
+                  <AdminMergedPeople />
+                </Suspense>
+              </ProtectedRoute>
+            } />
 
             <Route path="/settings" element={
               <ProtectedRoute>
