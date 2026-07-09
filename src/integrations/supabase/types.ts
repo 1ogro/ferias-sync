@@ -1502,6 +1502,10 @@ export type Database = {
         Returns: Json
       }
       mark_profile_completed: { Args: never; Returns: Json }
+      merge_pending_into_person: {
+        Args: { _pending_id: string; _person_id: string }
+        Returns: undefined
+      }
       reassign_and_delete_person: {
         Args: {
           p_justification?: string

@@ -420,7 +420,25 @@ async function ensurePendingPerson(
     // Skip when the Slack identity already maps to an existing person — avoids
     // duplicate pending rows for collaborators who use a personal email in Slack.
     const existing = await findPersonBySlackIdentity(supabase, { slackUserId: slackId, email });
-    if (existing) return;
+    if (existing) {
+      // Consolida pendentes anteriores do mesmo Slack/email na pessoa cadastrada
+      try {
+        const or: string[] = [];
+        if (slackId) or.push(`slack_user_id.eq.${slackId}`);
+        if (email) or.push(`email.ilike.${email}`);
+        if (or.length) {
+          const { data: stale } = await supabase
+            .from("pending_people").select("id")
+            .neq("status", "MERGED").or(or.join(","));
+          for (const s of stale || []) {
+            await supabase.rpc("merge_pending_into_person", { _pending_id: s.id, _person_id: existing.id });
+          }
+        }
+      } catch (mergeErr: any) {
+        console.warn("[ensurePendingPerson] auto-merge failed:", mergeErr?.message || mergeErr);
+      }
+      return;
+    }
 
     const { data: rows } = await supabase.from("pending_people").select("id, slack_request_count").eq("status", "PENDENTE");
     const match = (rows || []).find((r: any) =>
@@ -853,28 +871,21 @@ serve(async (req) => {
           if (tp && tp.ativo) { personId = tp.id; personNome = tp.nome; }
         } else if (toRaw.startsWith("slack:")) {
           sUid = toRaw.slice(6);
-          // Try to identify by slack_user_id first (no Slack roundtrip needed)
-          const tpFast = await findPersonBySlackIdentity(supabase, { slackUserId: sUid, email: null });
-          if (tpFast) {
-            personId = tpFast.id;
-            personNome = tpFast.nome;
-            sName = tpFast.nome;
-          } else {
-            // Fall back to users.info to fetch email/name for pending record
-            const r = await fetch(`https://slack.com/api/users.info?user=${sUid}`, {
-              headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}` },
-            });
-            const d = await r.json();
-            sEmail = d?.user?.profile?.email ?? null;
-            sName =
-              d?.user?.profile?.display_name?.trim() ||
-              d?.user?.profile?.real_name?.trim() ||
-              d?.user?.real_name?.trim() ||
-              d?.user?.name ||
-              "Colega";
-            const tp = await findPersonBySlackIdentity(supabase, { slackUserId: sUid, email: sEmail });
-            if (tp) { personId = tp.id; personNome = tp.nome; }
-          }
+          // Sempre buscar users.info para ter email do Slack — habilita match por
+          // people.email_pessoal e evita criar pendente para quem já é cadastrado.
+          const r = await fetch(`https://slack.com/api/users.info?user=${sUid}`, {
+            headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}` },
+          });
+          const d = await r.json();
+          sEmail = d?.user?.profile?.email ?? null;
+          sName =
+            d?.user?.profile?.display_name?.trim() ||
+            d?.user?.profile?.real_name?.trim() ||
+            d?.user?.real_name?.trim() ||
+            d?.user?.name ||
+            "Colega";
+          const tp = await findPersonBySlackIdentity(supabase, { slackUserId: sUid, email: sEmail });
+          if (tp) { personId = tp.id; personNome = tp.nome; }
         }
 
         // Filtra: não pode mandar pra si mesmo
@@ -898,7 +909,24 @@ serve(async (req) => {
         if (!slackId && !email) return;
         try {
           const existingPerson = await findPersonBySlackIdentity(supabase, { slackUserId: slackId, email });
-          if (existingPerson) return;
+          if (existingPerson) {
+            try {
+              const or: string[] = [];
+              if (slackId) or.push(`slack_user_id.eq.${slackId}`);
+              if (email) or.push(`email.ilike.${email}`);
+              if (or.length) {
+                const { data: stale } = await supabase
+                  .from("pending_people").select("id")
+                  .neq("status", "MERGED").or(or.join(","));
+                for (const s of stale || []) {
+                  await supabase.rpc("merge_pending_into_person", { _pending_id: s.id, _person_id: existingPerson.id });
+                }
+              }
+            } catch (mErr: any) {
+              console.warn("[biscoito_submit] auto-merge failed:", mErr?.message || mErr);
+            }
+            return;
+          }
 
           const { data: rows } = await supabase.from("pending_people").select("id, slack_request_count").eq("status", "PENDENTE");
           const match = (rows || []).find((r: any) =>
