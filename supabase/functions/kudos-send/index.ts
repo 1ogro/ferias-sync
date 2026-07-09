@@ -183,9 +183,11 @@ serve(async (req) => {
       }
     }
 
-    // Fire-and-forget notification para cada kudo
-    for (const k of insertedKudos) {
-      admin.functions.invoke("kudos-notify-managers", { body: { kudo_id: k.id } })
+    // Fire-and-forget: uma única invocação agrupada evita DMs duplicadas
+    if (insertedKudos.length > 0) {
+      const ids = insertedKudos.map((k) => k.id);
+      const payload = ids.length === 1 ? { kudo_id: ids[0] } : { kudo_ids: ids };
+      admin.functions.invoke("kudos-notify-managers", { body: payload })
         .catch((e: any) => console.error("[kudos-send] notify invoke failed", e?.message));
     }
 

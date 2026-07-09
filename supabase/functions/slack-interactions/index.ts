@@ -1020,12 +1020,10 @@ serve(async (req) => {
       if (origin && !origin.startsWith("D")) await postToChannel(origin, "origin");
       if (channelToPost) await postToChannel(channelToPost, "share");
 
-      // ---- DM individual a cada destinatário + notify managers ----
+      // ---- DM individual a cada destinatário ----
       for (const it of inserted) {
         if (it.recipient.personId) {
           await notifyRecipientDM(supabase, it.recipient.personId, senderDisplay, category, message, "biscoito_submit");
-          supabase.functions.invoke("kudos-notify-managers", { body: { kudo_id: it.kudo.id } })
-            .catch((e: any) => console.error("[biscoito_submit] notify invoke failed", e?.message));
         } else if (it.recipient.slackUserId) {
           try {
             const openRes = await fetch("https://slack.com/api/conversations.open", {
@@ -1048,6 +1046,16 @@ serve(async (req) => {
             console.error("[biscoito_submit] slack-only recipient DM error:", e?.message || e);
           }
         }
+      }
+
+      // ---- Notificação agrupada para gestores/diretores (uma DM por notificado) ----
+      const notifyKudoIds = inserted.filter((it) => it.recipient.personId).map((it) => it.kudo.id);
+      if (notifyKudoIds.length > 0) {
+        const payload = notifyKudoIds.length === 1
+          ? { kudo_id: notifyKudoIds[0] }
+          : { kudo_ids: notifyKudoIds };
+        supabase.functions.invoke("kudos-notify-managers", { body: payload })
+          .catch((e: any) => console.error("[biscoito_submit] notify invoke failed", e?.message));
       }
 
       console.log(`[biscoito_submit] inserted ${inserted.length} kudo(s) from=${senderPersonId ?? `slack:${slackUserId}`}`);
