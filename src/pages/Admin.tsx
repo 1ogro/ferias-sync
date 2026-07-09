@@ -741,6 +741,16 @@ const Admin = () => {
               Notificações do sistema
             </Button>
           )}
+          {isDirector && (
+            <Button
+              onClick={() => window.location.href = '/admin/mescladas'}
+              variant="outline"
+              size="sm"
+            >
+              <Users className="h-4 w-4 mr-2" />
+              Cadastros consolidados
+            </Button>
+          )}
 
         </div>
       </div>
