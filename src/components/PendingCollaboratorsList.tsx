@@ -51,6 +51,7 @@ export function PendingCollaboratorsList({ onCountChange }: PendingCollaborators
           gestor:people!pending_people_gestor_id_fkey(id, nome, email),
           creator:people!pending_people_created_by_fkey(id, nome, email)
         `)
+        .neq("status", "MERGED")
         .order("created_at", { ascending: false });
 
       // Managers only see their own pending submissions

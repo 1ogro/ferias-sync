@@ -35,7 +35,7 @@ const STATUS_CONFIG = {
 };
 
 export function PendingCollaboratorCard({ pending, onApprove, onReject, showActions }: PendingCollaboratorCardProps) {
-  const statusConfig = STATUS_CONFIG[pending.status];
+  const statusConfig = STATUS_CONFIG[pending.status] ?? STATUS_CONFIG.PENDENTE;
   const StatusIcon = statusConfig.icon;
 
   return (
