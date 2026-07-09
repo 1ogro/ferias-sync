@@ -1438,6 +1438,8 @@ export type Database = {
           message: string
           pending_from: boolean
           pending_to: boolean
+          recipient_dm_error: string
+          recipient_dm_status: string
           slack_channel_posted: string
           to_person_id: string
           to_person_nome: string
