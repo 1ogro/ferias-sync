@@ -1,6 +1,11 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { normalizeMessage, DEDUP_WINDOW_SECONDS } from "../kudos-send/lib.ts";
+// Inlined from ../kudos-send/lib.ts to keep the function self-contained
+// (cross-function relative imports don't bundle on deploy).
+const DEDUP_WINDOW_SECONDS = 60;
+function normalizeMessage(msg: string): string {
+  return (msg ?? "").trim().replace(/\s+/g, " ");
+}
 
 
 const SLACK_SIGNING_SECRET = Deno.env.get("SLACK_SIGNING_SECRET")!;
