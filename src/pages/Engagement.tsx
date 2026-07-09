@@ -433,6 +433,25 @@ export default function Engagement() {
           <GiveKudosDialog personId={person?.id} fromName={person?.nome} papel={person?.papel} />
         </div>
 
+        {(person?.papel === 'GESTOR' || person?.papel === 'DIRETOR' || person?.is_admin) && (
+          <Card className="bg-muted/50 border-dashed">
+            <CardContent className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 py-5">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-md bg-primary/10">
+                  <SettingsIcon className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <h3 className="font-semibold">Pulses de Performance</h3>
+                  <p className="text-sm text-muted-foreground">Crie, edite e dispare enquetes de engajamento do time.</p>
+                </div>
+              </div>
+              <Button asChild variant="outline">
+                <Link to="/vacation-management?tab=pulses" aria-label="Ir para gerenciamento de pulses">Gerenciar pulses</Link>
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="space-y-6 lg:col-span-1">
             <MyPointsCard personId={person?.id} />
