@@ -314,6 +314,42 @@ function GiveKudosDialog({ personId, fromName, papel }: { personId?: string; fro
   );
 }
 
+function RecipientDmBadge({ status, error }: { status: string | null; error: string | null }) {
+  if (!status) return null;
+  if (status === "sent") {
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Badge variant="secondary" className="gap-1 text-[10px]">
+              <CheckCircle2 className="h-3 w-3" /> DM enviada
+            </Badge>
+          </TooltipTrigger>
+          <TooltipContent>Notificação entregue no Slack do destinatário.</TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
+  }
+  const label =
+    status === "no_slack_id" ? "Sem Slack vinculado" :
+    status === "no_email"    ? "Sem email cadastrado" :
+    "DM não enviada";
+  const tooltip = error || (status === "no_slack_id" ? "Não encontrei o Slack do destinatário pelo email." : "Falha ao entregar a DM.");
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Badge variant="destructive" className="gap-1 text-[10px]">
+            <MessageSquareOff className="h-3 w-3" /> {label}
+          </Badge>
+        </TooltipTrigger>
+        <TooltipContent>{tooltip}</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
+
+
 function KudosFeed() {
   const { data: kudos = [] } = useKudosFeed(50);
   return (
