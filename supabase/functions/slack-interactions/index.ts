@@ -739,24 +739,36 @@ serve(async (req) => {
       ]));
 
       // ---- Resolve sender (app user OR slack-only) ----
-      const senderInfoRes = await fetch(`https://slack.com/api/users.info?user=${slackUserId}`, {
-        headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}` },
-      });
-      const senderInfo = await senderInfoRes.json();
-      const senderEmail: string | null = senderInfo?.user?.profile?.email ?? null;
-      const senderName: string =
-        senderInfo?.user?.profile?.display_name?.trim() ||
-        senderInfo?.user?.profile?.real_name?.trim() ||
-        senderInfo?.user?.real_name?.trim() ||
-        senderInfo?.user?.name ||
-        "Alguém";
-
+      // Try slack_user_id first to avoid a users.info roundtrip in the common case.
       let senderPersonId: string | null = null;
       let senderPersonNome: string | null = null;
       let senderPapel: string | null = null;
+      let senderEmail: string | null = null;
+      let senderName: string = "Alguém";
       {
-        const sp = await findPersonBySlackIdentity(supabase, { slackUserId, email: senderEmail });
-        if (sp) { senderPersonId = sp.id; senderPersonNome = sp.nome; senderPapel = sp.papel; }
+        const sp = await findPersonBySlackIdentity(supabase, { slackUserId, email: null });
+        if (sp) { senderPersonId = sp.id; senderPersonNome = sp.nome; senderPapel = sp.papel; senderName = sp.nome; }
+      }
+      // Only hit Slack users.info if we still can't identify the sender
+      // (need email/name for kudos row + pending_people record).
+      if (!senderPersonId) {
+        try {
+          const senderInfoRes = await fetch(`https://slack.com/api/users.info?user=${slackUserId}`, {
+            headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}` },
+          });
+          const senderInfo = await senderInfoRes.json();
+          senderEmail = senderInfo?.user?.profile?.email ?? null;
+          senderName =
+            senderInfo?.user?.profile?.display_name?.trim() ||
+            senderInfo?.user?.profile?.real_name?.trim() ||
+            senderInfo?.user?.real_name?.trim() ||
+            senderInfo?.user?.name ||
+            "Alguém";
+          const sp = await findPersonBySlackIdentity(supabase, { slackUserId, email: senderEmail });
+          if (sp) { senderPersonId = sp.id; senderPersonNome = sp.nome; senderPapel = sp.papel; senderName = sp.nome; }
+        } catch (e) {
+          console.warn("[biscoito_submit] sender users.info failed:", e);
+        }
       }
 
       const senderDisplay = senderPersonNome || senderName;
