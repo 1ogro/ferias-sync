@@ -1074,7 +1074,7 @@ serve(async (req) => {
 
         for (const it of inserted) {
           if (it.recipient.personId) {
-            await notifyRecipientDM(supabase, it.recipient.personId, senderDisplay, category, message, "biscoito_submit");
+            await notifyRecipientDM(supabase, it.recipient.personId, senderDisplay, category, message, "biscoito_submit", it.kudo.id);
           } else if (it.recipient.slackUserId) {
             try {
               const openRes = await fetch("https://slack.com/api/conversations.open", {
