@@ -201,20 +201,24 @@ const VacationManagement = () => {
   });
 
   // Sincronizar Carousel → Tab (quando usuário faz swipe)
+  // IMPORTANTE: só reagir a eventos 'select' reais do usuário, nunca sincronizar
+  // no mount — o startIndex do embla é computado com dados possivelmente stale
+  // (antes do person carregar) e sobrescreveria o activeTab vindo da URL.
   const onSelect = useCallback(() => {
     if (!emblaApi) return;
     const index = emblaApi.selectedScrollSnap();
-    setActiveTab(tabValues[index]);
-  }, [emblaApi]);
+    const next = tabValues[index];
+    if (next) setActiveTab(next);
+  }, [emblaApi, tabValues]);
 
   useEffect(() => {
     if (!emblaApi) return;
     emblaApi.on('select', onSelect);
-    onSelect();
     return () => {
       emblaApi.off('select', onSelect);
     };
   }, [emblaApi, onSelect]);
+
 
   // Sincronizar Tab → Carousel (quando usuário clica em tab)
   useEffect(() => {
