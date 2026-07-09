@@ -99,7 +99,7 @@ interface VacationData {
 }
 
 const VacationManagement = () => {
-  const { person } = useAuth();
+  const { person, loading: authLoading } = useAuth();
   const { toast } = useToast();
   const [vacationData, setVacationData] = useState<VacationData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -238,6 +238,24 @@ const VacationManagement = () => {
       fetchVacationData();
     }
   }, [selectedYear]);
+
+  // Sincronizar aba com o query param ?tab= quando a URL mudar
+  useEffect(() => {
+    const tabParam = searchParams.get('tab');
+    if (tabParam && availableTabs.includes(tabParam) && tabParam !== activeTab) {
+      setActiveTab(tabParam);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, person]);
+
+  // Aguardar auth carregar antes de decidir sobre redirect
+  if (authLoading || person === undefined) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh] text-muted-foreground">
+        Carregando...
+      </div>
+    );
+  }
 
   // Check if user is authorized (DIRETOR, ADMIN, or GESTOR)
   if (!person || (person.papel !== 'DIRETOR' && person.papel !== 'GESTOR' && !person.is_admin)) {
