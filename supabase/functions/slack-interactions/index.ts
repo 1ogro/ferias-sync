@@ -1024,57 +1024,68 @@ serve(async (req) => {
         ? `${catLabel} *${fromLabel}* deu um biscoito para *${toLabels[0]}*\n> ${message}`
         : `${catLabel} *${fromLabel}* deu biscoitos para ${toLabels.map((n) => `*${n}*`).join(", ")}\n> ${message}`;
 
-      const postToChannel = async (channel: string, label: string) => {
-        const r = await fetch("https://slack.com/api/chat.postMessage", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ channel, text: cardText }),
-        });
-        const j = await r.json();
-        if (!j.ok) console.log(`[biscoito_submit] ${label} post skipped: ${j.error || "unknown"} (channel=${channel})`);
-      };
-
-      const origin = meta.origin_channel_id;
-      if (origin && !origin.startsWith("D")) await postToChannel(origin, "origin");
-      if (channelToPost) await postToChannel(channelToPost, "share");
-
-      // ---- DM individual a cada destinatário ----
-      for (const it of inserted) {
-        if (it.recipient.personId) {
-          await notifyRecipientDM(supabase, it.recipient.personId, senderDisplay, category, message, "biscoito_submit");
-        } else if (it.recipient.slackUserId) {
+      // All downstream Slack work (channel post + DMs + manager notifications) runs
+      // in background so the view_submission ack returns within Slack's 3s window.
+      const postBiscoitoSideEffects = async () => {
+        const postToChannel = async (channel: string, label: string) => {
           try {
-            const openRes = await fetch("https://slack.com/api/conversations.open", {
+            const r = await fetch("https://slack.com/api/chat.postMessage", {
               method: "POST",
               headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}`, "Content-Type": "application/json" },
-              body: JSON.stringify({ users: it.recipient.slackUserId }),
+              body: JSON.stringify({ channel, text: cardText }),
             });
-            const open = await openRes.json();
-            if (open.ok && open.channel?.id) {
-              const txt =
-                `🍪 *Você ganhou um biscoito!*\n${catLabel}\nDe: *${senderDisplay}*\n> ${message}\n\n` +
-                `_Seu cadastro no app ainda está pendente. Assim que for aprovado, os pontos entram no painel de Engajamento._`;
-              await fetch("https://slack.com/api/chat.postMessage", {
+            const j = await r.json();
+            if (!j.ok) console.log(`[biscoito_submit] ${label} post skipped: ${j.error || "unknown"} (channel=${channel})`);
+          } catch (e: any) {
+            console.error(`[biscoito_submit] ${label} post error:`, e?.message || e);
+          }
+        };
+
+        const origin = meta.origin_channel_id;
+        if (origin && !origin.startsWith("D")) await postToChannel(origin, "origin");
+        if (channelToPost) await postToChannel(channelToPost, "share");
+
+        for (const it of inserted) {
+          if (it.recipient.personId) {
+            await notifyRecipientDM(supabase, it.recipient.personId, senderDisplay, category, message, "biscoito_submit");
+          } else if (it.recipient.slackUserId) {
+            try {
+              const openRes = await fetch("https://slack.com/api/conversations.open", {
                 method: "POST",
                 headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}`, "Content-Type": "application/json" },
-                body: JSON.stringify({ channel: open.channel.id, text: txt }),
+                body: JSON.stringify({ users: it.recipient.slackUserId }),
               });
+              const open = await openRes.json();
+              if (open.ok && open.channel?.id) {
+                const txt =
+                  `🍪 *Você ganhou um biscoito!*\n${catLabel}\nDe: *${senderDisplay}*\n> ${message}\n\n` +
+                  `_Seu cadastro no app ainda está pendente. Assim que for aprovado, os pontos entram no painel de Engajamento._`;
+                await fetch("https://slack.com/api/chat.postMessage", {
+                  method: "POST",
+                  headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}`, "Content-Type": "application/json" },
+                  body: JSON.stringify({ channel: open.channel.id, text: txt }),
+                });
+              }
+            } catch (e: any) {
+              console.error("[biscoito_submit] slack-only recipient DM error:", e?.message || e);
             }
-          } catch (e: any) {
-            console.error("[biscoito_submit] slack-only recipient DM error:", e?.message || e);
           }
         }
-      }
 
-      // ---- Notificação agrupada para gestores/diretores (uma DM por notificado) ----
-      const notifyKudoIds = inserted.filter((it) => it.recipient.personId).map((it) => it.kudo.id);
-      if (notifyKudoIds.length > 0) {
-        const payload = notifyKudoIds.length === 1
-          ? { kudo_id: notifyKudoIds[0] }
-          : { kudo_ids: notifyKudoIds };
-        supabase.functions.invoke("kudos-notify-managers", { body: payload })
-          .catch((e: any) => console.error("[biscoito_submit] notify invoke failed", e?.message));
-      }
+        const notifyKudoIds = inserted.filter((it) => it.recipient.personId).map((it) => it.kudo.id);
+        if (notifyKudoIds.length > 0) {
+          const payload = notifyKudoIds.length === 1
+            ? { kudo_id: notifyKudoIds[0] }
+            : { kudo_ids: notifyKudoIds };
+          try {
+            await supabase.functions.invoke("kudos-notify-managers", { body: payload });
+          } catch (e: any) {
+            console.error("[biscoito_submit] notify invoke failed", e?.message);
+          }
+        }
+      };
+      // @ts-ignore EdgeRuntime disponível no Supabase
+      EdgeRuntime.waitUntil(postBiscoitoSideEffects());
 
       console.log(`[biscoito_submit] inserted ${inserted.length} kudo(s) from=${senderPersonId ?? `slack:${slackUserId}`}`);
       return new Response(JSON.stringify({ response_action: "clear" }), {
