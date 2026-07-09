@@ -1,28 +1,24 @@
-## Objetivo
-Fazer com que as mensagens dos kudos exibidas no feed de `/engagement` respeitem as quebras de linha digitadas pelo remetente, em vez de colapsarem tudo em uma única linha.
+## Plano
 
-## Onde está o problema
-No componente `KudosFeed` (dentro de `src/pages/Engagement.tsx`), a mensagem é renderizada assim:
+Ajustar o componente do feed em `/engagement` para que depoimentos de kudos quebrem linha corretamente dentro do box.
 
-```tsx
-<p className="text-sm">{k.message}</p>
-```
+## Mudança proposta
 
-O HTML colapsa whitespace por padrão, então quebras de linha (`\n`) do usuário desaparecem na interface.
+- Atualizar o texto do kudo no `KudosFeed` para usar uma combinação mais robusta de CSS:
+  - preservar quebras manuais (`\n`);
+  - permitir quebra de palavras/URLs longas;
+  - impedir overflow horizontal dentro do card/scroll area.
 
-## Alteração proposta
-Trocar a classe da mensagem para preservar quebras de linha e evitar estouro horizontal:
+## Detalhes técnicos
 
-```tsx
-<p className="text-sm whitespace-pre-wrap break-words">{k.message}</p>
-```
-
-- `whitespace-pre-wrap`: preserva `\n` e espaços, mas ainda quebra automaticamente quando a linha é longa.
-- `break-words`: evita que palavras muito longas (URLs, por exemplo) estourem o card.
-
-## Escopo
-- Apenas o feed de kudos em `src/pages/Engagement.tsx`.
-- O card resumo de engajamento (`EngagementSummaryCard.tsx`) **não** será alterado, pois o usuário pediu especificamente `/engagement`.
+- Arquivo alvo: `src/pages/Engagement.tsx`.
+- Substituir a classe atual do parágrafo da mensagem por algo equivalente a:
+  - `whitespace-pre-wrap`
+  - `break-all` ou `overflow-wrap-anywhere` via classe utilitária arbitrária (`[overflow-wrap:anywhere]`)
+  - `min-w-0 max-w-full`
+- Se o problema estiver vindo do container flex/acima do texto, ajustar também o `li`/container para `min-w-0 max-w-full overflow-hidden`.
 
 ## Validação
-Após a mudança, kudos com mensagens de várias linhas devem aparecer no feed com as linhas separadas conforme digitado.
+
+- Conferir que mensagens com múltiplas linhas aparecem em linhas separadas.
+- Conferir que mensagens muito longas/URLs não estouram para fora do feed.

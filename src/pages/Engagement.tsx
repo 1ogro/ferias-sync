@@ -327,7 +327,7 @@ function KudosFeed() {
               {kudos.map((k) => {
                 const meta = CATEGORY_META[k.category];
                 return (
-                  <li key={k.id} className="border rounded-lg p-3">
+                  <li key={k.id} className="border rounded-lg p-3 min-w-0 max-w-full overflow-hidden">
                     <div className="flex items-center justify-between mb-1">
                       <div className="flex items-center gap-2 text-sm flex-wrap">
                         <span className="font-semibold">{k.from?.nome ?? k.from_slack_name ?? "Alguém"}</span>
@@ -338,7 +338,7 @@ function KudosFeed() {
                       </div>
                       <Badge className={meta.className} variant="secondary">{meta.emoji} {meta.label}</Badge>
                     </div>
-                    <p className="text-sm whitespace-pre-wrap break-words">{k.message}</p>
+                    <p className="text-sm whitespace-pre-wrap break-words [overflow-wrap:anywhere] min-w-0 max-w-full">{k.message}</p>
                     <p className="text-xs text-muted-foreground mt-1">{format(new Date(k.created_at), "dd/MM 'às' HH:mm", { locale: ptBR })}</p>
                   </li>
                 );
