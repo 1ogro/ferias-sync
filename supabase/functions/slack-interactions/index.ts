@@ -909,7 +909,24 @@ serve(async (req) => {
         if (!slackId && !email) return;
         try {
           const existingPerson = await findPersonBySlackIdentity(supabase, { slackUserId: slackId, email });
-          if (existingPerson) return;
+          if (existingPerson) {
+            try {
+              const or: string[] = [];
+              if (slackId) or.push(`slack_user_id.eq.${slackId}`);
+              if (email) or.push(`email.ilike.${email}`);
+              if (or.length) {
+                const { data: stale } = await supabase
+                  .from("pending_people").select("id")
+                  .neq("status", "MERGED").or(or.join(","));
+                for (const s of stale || []) {
+                  await supabase.rpc("merge_pending_into_person", { _pending_id: s.id, _person_id: existingPerson.id });
+                }
+              }
+            } catch (mErr: any) {
+              console.warn("[biscoito_submit] auto-merge failed:", mErr?.message || mErr);
+            }
+            return;
+          }
 
           const { data: rows } = await supabase.from("pending_people").select("id, slack_request_count").eq("status", "PENDENTE");
           const match = (rows || []).find((r: any) =>
