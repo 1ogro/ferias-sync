@@ -163,9 +163,17 @@ const VacationManagement = () => {
     { value: '12', label: 'Dezembro' },
   ];
   
-  // Get tab from URL query params
+  // Get tab from URL query params (?tab=...) or hash (#tab=... / #pulses)
   const [searchParams] = useSearchParams();
-  
+
+  const getTabFromHash = (): string | null => {
+    if (typeof window === 'undefined') return null;
+    const raw = window.location.hash.replace(/^#/, '');
+    if (!raw) return null;
+    const params = new URLSearchParams(raw);
+    return params.get('tab') || raw; // supports #tab=pulses and #pulses
+  };
+
   // Determine role-based access
   const isManager = person?.papel === 'GESTOR';
   const isDirectorOrAdmin = person?.papel === 'DIRETOR' || person?.is_admin;
@@ -174,8 +182,9 @@ const VacationManagement = () => {
   const managerTabs = ['active', 'dashboard', 'medical', 'pulses'];
   const allTabs = ['active', 'vacation', 'medical', 'summary', 'dashboard', 'pulses', 'historical'];
   const availableTabs = isManager && !isDirectorOrAdmin ? managerTabs : allTabs;
-  
-  const initialTab = searchParams.get('tab') || (isManager && !isDirectorOrAdmin ? 'active' : 'vacation');
+
+  const initialTab = searchParams.get('tab') || getTabFromHash() || (isManager && !isDirectorOrAdmin ? 'active' : 'vacation');
+
 
   // Tab values mapping for swipe navigation
   const tabValues = availableTabs;
@@ -239,14 +248,28 @@ const VacationManagement = () => {
     }
   }, [selectedYear]);
 
-  // Sincronizar aba com o query param ?tab= quando a URL mudar
+  // Sincronizar aba com o query param ?tab= ou hash #tab= quando a URL mudar
   useEffect(() => {
-    const tabParam = searchParams.get('tab');
+    const tabParam = searchParams.get('tab') || getTabFromHash();
     if (tabParam && availableTabs.includes(tabParam) && tabParam !== activeTab) {
       setActiveTab(tabParam);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams, person]);
+
+  // Reagir a mudanças de hash (hashchange não dispara re-render por si só)
+  useEffect(() => {
+    const onHashChange = () => {
+      const tabParam = getTabFromHash();
+      if (tabParam && availableTabs.includes(tabParam) && tabParam !== activeTab) {
+        setActiveTab(tabParam);
+      }
+    };
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, person]);
+
 
   // Aguardar auth carregar antes de decidir sobre redirect
   if (authLoading || person === undefined) {
