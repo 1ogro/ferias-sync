@@ -1,95 +1,40 @@
+# Corrigir kudos multiplicados no Slack
 
-## Objetivo
+## Diagnóstico
 
-Painel administrativo para visualizar todas as notificações do sistema (Slack, Email, DMs internos, Kudos, Pulses, lembretes) com:
-- **Gatilho / dependência** (evento no app, cron schedule, ação de usuário).
-- **Público-alvo** (quem recebe: colaborador, gestor, diretor, admin, canal público).
-- **Canal** (Slack DM, Slack canal, Email, ou combinação).
-- Status (ativo / inativo) e link para o log da edge function correspondente.
+Cada kudo enviado dispara `kudos-notify-managers` uma vez, e essa função manda 1 DM para o gestor direto do destinatário + 1 DM para **cada diretor ativo**. Quando um gestor/diretor envia um kudo coletivo (categoria "delivery") para N pessoas, o `kudos-send` invoca a função N vezes — resultado: cada diretor recebe N DMs quase idênticas em segundos. Os logs de `audit_logs` confirmam o padrão (ex.: 3 kudos disparados em 17:25:13 geraram 3 DMs seguidas para o mesmo diretor).
 
-## Escopo
+## Solução
 
-Não é feed de notificações por usuário — é um **catálogo estático** do que o sistema envia, para consulta por admins/diretores (útil pra auditoria, treinamento, debugging).
+Consolidar kudos coletivos em **uma única DM por notificado**, mantendo gestor direto + diretores como público-alvo.
 
-## Plano
+### Alterações
 
-### 1. Catálogo curado em código
+**1. `supabase/functions/kudos-send/index.ts`**
+- Substituir o loop atual `for (const k of insertedKudos) invoke("kudos-notify-managers", { kudo_id })` por **uma única invocação** passando `{ kudo_ids: [...] }` quando `insertedKudos.length > 1`. Kudo único continua enviando `{ kudo_id }` (compatibilidade).
 
-Criar `src/lib/notificationsCatalog.ts` com a lista completa de todas as notificações do sistema, cada uma com:
+**2. `supabase/functions/slack-interactions/index.ts`**
+- No handler do modal `biscoito_submit` (linha ~1027), aplicar o mesmo agrupamento: se o modal inseriu múltiplos kudos na mesma submissão, invocar `kudos-notify-managers` uma vez com `{ kudo_ids: [...] }`.
+- O handler `kudos_submit` individual (linha ~710) permanece igual.
 
-```ts
-{
-  id: string;                   // "vacation-approved-collaborator"
-  nome: string;                 // "Solicitação de férias aprovada"
-  descricao: string;            // frase curta
-  categoria: "Férias" | "Engajamento" | "Cadastro" | "Aniversários" | "Pulses" | "Autenticação" | "Admin";
-  gatilho: {
-    tipo: "evento" | "cron" | "manual";
-    detalhe: string;            // "Diretor aprova pedido" | "Diariamente 09:00 seg-sex"
-    cronExpr?: string;          // se cron
-  };
-  publico: string[];            // ["Colaborador"], ["Gestor", "Diretor"], ...
-  canais: ("slack_dm" | "slack_canal" | "email")[];
-  edgeFunction: string;         // "send-scheduled-reminders"
-  ativo: boolean;
-}
-```
+**3. `supabase/functions/kudos-notify-managers/index.ts`** — aceitar payload agrupado:
+- Novo contrato: aceita `{ kudo_id }` OU `{ kudo_ids: string[] }` (validação Zod-like leve).
+- Carrega todos os kudos em uma query (`.in("id", ids)`), agrupa por `(from_person_id, category, message)` — normalmente será um único grupo.
+- Monta a lista de destinatários do kudo (`to_person_id` de cada linha), busca nomes em uma query.
+- Recalcula o conjunto de notificados: união dos `gestor_id` dos destinatários + todos os diretores ativos, excluindo remetente e destinatários.
+- Idempotência: chave de audit passa de `${kudo_id}:${recipient}` para `${sorted(kudo_ids).join(",")}:${recipient}`, `entidade_id` truncada se necessário (usar hash curto se >255 chars). Mantém `acao='KUDOS_NOTIFY'`.
+- Formato da mensagem:
+  - 1 destinatário: mantém o texto atual `"{categoria}\n*{from}* deu kudos para *{to}*\n> {msg}"`.
+  - N destinatários: `"{categoria}\n*{from}* deu kudos para *{A}*, *{B}* e *{C}*\n> {msg}"` (usar `Intl`-style join manual em pt-BR).
+- Email idem: assunto vira `"🎉 {from} deu kudos para {N} pessoas"` e o corpo lista os nomes em `<ul>`.
+- Retrocompatibilidade: se vier `{ kudo_id }` único, o fluxo é idêntico ao atual.
 
-Cobre os fluxos identificados na exploração:
+### Fora de escopo
 
-- **Férias / Solicitações:**
-  - Pedido criado → gestor (Slack + Email) — `slack-notification`, `send-notification-email`
-  - Aprovação intermediária/final → colaborador (Slack DM + Email) — `notify-approved-collaborator`
-  - Lembrete diário de pedidos pendentes >3 dias → gestor (Slack) — `send-scheduled-reminders` (cron seg-sex 09:00)
-  - Alertas mensais de férias → colaborador (Slack + Email) — `send-scheduled-reminders MONTHLY_VACATION_ALERTS` (dia 1 08:00)
-  - Lembrete semanal do diretor → diretor (Slack) — `send-scheduled-reminders WEEKLY_DIRECTOR` (seg 10:00)
-  - Digest semanal de pedidos abertos → gestores (Email) — `send-weekly-open-requests-digest` (seg 09:00)
-- **Cadastro:**
-  - Colaborador pendente aprovado → colaborador (Email/Slack) — `notify-approved-collaborator`
-  - Lembretes semanal/fim-de-mês para completar cadastro — `send-registration-reminders` (seg 12:00 / dias 28-31 13:00)
-  - Admin invite / recuperação de senha — `send-password-reset-slack`, `admin-auth-management`
-- **Aniversários / Contrato:**
-  - Aniversários do mês → canal (Slack) — `send-birthday-digest` (dias 1,10,20,30 12:00)
-  - Aniversário de contrato diário → canal + colaborador — `send-daily-anniversaries` (diário 12:00)
-  - Checkpoints de anuênio (accrual) → colaborador + gestor — `send-contract-anniversary-notifications` (dias 1,10,20,30 12:00)
-  - Accrual de férias por aniversário → sistema (job silencioso) — `apply-contract-anniversary-accrual` (diário 06:00)
-- **Engajamento:**
-  - Kudos enviado → destinatário (Slack DM) e opcionalmente canal — `kudos-send`, `slack-interactions kudos_submit`
-  - Kudos para gestores do destinatário → gestores/diretores (Slack DM) — `kudos-notify-managers`
-  - Relatório mensal de engajamento → diretores/canal (Slack) — `engagement-monthly-report` (dia 1 09:00)
-  - `/biscoito` slash command → Slack modal — `slack-slash-biscoito`
-- **Pulses:**
-  - Envio de pulse → destinatários (Slack DM) — `pulse-dispatch` (cada 15min)
-  - Lembretes de pulse não respondido → destinatários (Slack DM) — `pulse-reminders` (cada 15min)
-  - Resposta de pulse recebida → PO / diretor (Slack) — `pulse-response-notify`
+- Alterar preferências de opt-in/opt-out de diretores (usuário escolheu manter público).
+- Mexer no DM enviado ao próprio destinatário do kudo (fluxo `slack-interactions` slack-only) — esse já é 1 por destinatário e é esperado.
+- Backfill dos audit_logs antigos.
 
-### 2. Página `/admin/notificacoes`
+## Verificação
 
-Nova rota, protegida por `ProtectedRoute` restrita a `is_admin` ou `papel = DIRETOR`. Layout:
-
-- Barra de filtros no topo: **Categoria**, **Canal**, **Público**, campo de busca.
-- Tabela responsiva (em mobile vira cards) com colunas: Nome, Categoria, Gatilho, Público, Canais (badges coloridos), Edge Function (link para logs).
-- Cada linha expansível mostra: descrição completa, cron expression legível (com `cronstrue-pt-br` ou tradução manual — sem dependência nova, faço um helper simples pros ~15 crons), link direto para o log da função no Supabase, e link para o código-fonte no repo (opcional).
-- Header do painel com contagem por canal (X notificações Slack, Y Email, Z ambos) e badge indicando quais estão inativas.
-
-### 3. Entrada no menu / navegação
-
-Adicionar item **"Notificações do sistema"** em Admin (`src/pages/Admin.tsx`) — apenas para admins/diretores, ao lado dos outros painéis administrativos existentes.
-
-### 4. Sem alterações no backend
-
-O catálogo é código de frontend. Não muda o banco, edge functions ou permissões existentes. Nenhuma migration.
-
-## Detalhes técnicos
-
-Arquivos novos:
-- `src/lib/notificationsCatalog.ts` — catálogo tipado.
-- `src/pages/AdminNotifications.tsx` — página com filtros e tabela.
-- `src/components/admin/NotificationsCatalogTable.tsx` — tabela/cards + linhas expansíveis.
-- `src/lib/cronHumanize.ts` — pequeno helper para traduzir os cron expressions do catálogo em português (sem lib externa).
-
-Arquivos editados:
-- `src/App.tsx` — nova rota `/admin/notificacoes` protegida.
-- `src/pages/Admin.tsx` — link/card para o novo painel.
-
-Sem novas dependências, sem mudança de schema, sem mexer em fluxos existentes. Se no futuro alguma notificação for adicionada/removida, basta atualizar o catálogo.
+Após deploy, testar via `/biscoito` (Slack) enviando um kudo delivery para 3 pessoas cujos gestores/diretores sejam os mesmos: cada notificado deve receber **1** DM listando os 3 nomes, não 3 DMs.
