@@ -26,6 +26,7 @@ const Inbox = lazy(() => import("./pages/Inbox"));
 const RequestDetail = lazy(() => import("./pages/RequestDetail"));
 const Admin = lazy(() => import("./pages/Admin"));
 const AdminNotifications = lazy(() => import("./pages/AdminNotifications"));
+const AdminMergedPeople = lazy(() => import("./pages/AdminMergedPeople"));
 const VacationManagement = lazy(() => import("./pages/VacationManagement"));
 const HistoricalRequests = lazy(() => import("./pages/HistoricalRequests"));
 const Settings = lazy(() => import("./pages/Settings"));
