@@ -1,9 +1,10 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { usePulseSurveys, useTogglePulseActive, useDeletePulseSurvey, useDuplicatePulseSurvey, dispatchPulseNow, PulseSurvey } from "@/hooks/usePulses";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Send, Power, Trash2, Pencil, Copy, Sparkles } from "lucide-react";
+import { Plus, Send, Power, Trash2, Pencil, Copy, Sparkles, Heart } from "lucide-react";
 import { PulseFormDialog } from "./PulseFormDialog";
 import { PulseResultsPanel } from "./PulseResultsPanel";
 import { PULSE_TEMPLATES, PulseTemplate } from "./pulseTemplates";
