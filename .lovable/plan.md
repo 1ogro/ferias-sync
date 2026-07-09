@@ -1,68 +1,47 @@
 ## Objetivo
 
-1. Garantir que a Melissa Cardoso receba a DM do kudo `ff5cea70…` no Slack.
-2. Vincular o `slack_user_id` dela em `people` para os próximos kudos funcionarem.
-3. Passar a registrar audit log da DM ao destinatário (sucesso/falha) e exibir esse status no card do feed de kudos.
+Evitar duplicidade quando um kudo é enviado no Slack para alguém cujo email do Slack já está cadastrado como `email_pessoal` de uma pessoa ativa. Consolidar os `pending_people` existentes que já batem com uma pessoa (via `slack_user_id` ou email pessoal) e migrar quaisquer atribuições de pontuação.
 
-## Bloqueio de dados
+## Contexto encontrado
 
-Preciso do **Slack User ID** (formato `U…`) da Melissa Cardoso — no sandbox o `SLACK_BOT_TOKEN` está retornando `token_revoked`, então não consigo descobrir sozinho. Alternativa: o email real dela no Slack (se for diferente de `mmachado.melissacard@rededor.com.br`), que uso via `users.lookupByEmail`.
+- `people` já tem `email_pessoal` e `slack_user_id`; `findPersonBySlackIdentity` (em `slack-interactions/index.ts`) já resolve por `slack_user_id → email → email_pessoal` e faz backfill do `slack_user_id` na pessoa quando o match veio pelo email.
+- Ainda assim existem 4 `pending_people` (Antenor Junior x2, Renato Albuquerque x2) cujo email bate com `people.email_pessoal` e cujo `slack_user_id` já está gravado na pessoa correspondente — precisam ser marcados como merged.
+- Não há kudos com `to_person_id IS NULL` nem `engagement_points` órfãos hoje, então a migração de pontos é preventiva (para o caso de aparecerem entradas antigas).
 
-Vou pedir isso no fim do plano. Assim que tiver, executo (1) e (2). O item (3) não depende disso e já pode ser implementado.
+## Mudanças
 
-## Passo 1 — Enviar a DM manualmente
+### 1. Reforço no fluxo de envio de kudo (`supabase/functions/slack-interactions/index.ts`)
 
-Edge function pontual `send-kudo-dm-backfill` (temporária) OU execução direta do `chat.postMessage` via `standard_connectors--call_gateway_connection` do meu lado, usando a mesma mensagem que o `slack-interactions` monta:
+No `ensurePending` (dentro do `biscoito_submit`) e no handler equivalente do slash command:
+- Antes de inserir/atualizar `pending_people`, se `findPersonBySlackIdentity` casar via `email_pessoal`, além de fazer o backfill do `slack_user_id` (já existe), **não criar** pendente e **descartar** pendentes anteriores do mesmo Slack/email marcando-os como `MERGED` (novo status ou usar `REJEITADO` + `rejection_reason='merged_into:<person_id>'`).
+- Garantir que a resolução do destinatário (`toRaw.startsWith("slack:")`) sempre passe o email do Slack para o lookup — hoje o fast-path por `slack_user_id` ignora o email, então adicionar fallback: se o fast-path não achou, buscar users.info e tentar por `email_pessoal` antes de cair em pendente.
 
-- Categoria + emoji (`CATEGORY_LABEL`)
-- `*Raul Queiroz* te deu um kudo`
-- `> Um grande biscoitola pra senhora pelo hotsite de infusões! Isabela e Priscila elogiaram bastante a sua apresentação. 🫶`
+### 2. Função de merge reutilizável
 
-Após envio, grava `audit_logs` com `acao='KUDOS_RECIPIENT_DM'`, `entidade_id=<kudo_id>:<recipient_id>`, `payload={ channel, ts, backfill:true }`.
+Criar RPC `public.merge_pending_into_person(pending_id uuid, person_id text)` (SECURITY DEFINER) que, em uma transação:
+- Atualiza `kudos.to_person_id`/`from_person_id` quando estiverem NULL e o `to_slack_user_id`/`from_slack_user_id` corresponder ao slack do pendente.
+- Atualiza `engagement_points.person_id` se algum registro apontar para o id do pendente (defensivo).
+- Faz backfill de `people.slack_user_id` se estiver vazio.
+- Marca o `pending_people` com `status='MERGED'` (adicionar valor ao check/enum se existir) + `reviewed_at=now()` + `director_notes='auto-merge por email_pessoal'`.
 
-## Passo 2 — Vincular `slack_user_id`
+Usar essa RPC tanto no `ensurePending` quanto no script de limpeza.
 
-`UPDATE public.people SET slack_user_id = '<U…>' WHERE id = 'pessoa_029';`
+### 3. Migração de limpeza única
 
-Via ferramenta de insert (data change), com o ID fornecido.
+Rodar, dentro da mesma migration, um bloco que percorre `pending_people` onde `status IN ('PENDENTE','APROVADO','REJEITADO')` e existe uma pessoa ativa com match por `slack_user_id` ou `email_pessoal`, chamando `merge_pending_into_person`. Isso resolve os 4 registros atuais (Antenor, Renato).
 
-## Passo 3 — Audit log da DM ao destinatário + exibição no feed
+### 4. UI (mínimo)
 
-### Backend — `supabase/functions/slack-interactions/index.ts`
-
-No bloco `postBiscoitoSideEffects` (loop de DMs para destinatários), envolver cada `notifyRecipientDM` / DM slack-only com try/catch e gravar em `audit_logs`:
-
-- `entidade='kudos'`, `entidade_id='<kudo_id>:<recipient_id>'`, `acao='KUDOS_RECIPIENT_DM'`
-- `payload`: `{ kudo_id, recipient_id, status: 'sent' | 'failed' | 'no_slack_id', error?, channel?, ts? }`
-
-Fazer o mesmo em `supabase/functions/kudos-send/index.ts` (fluxo web equivalente) para paridade — se lá também existir DM ao destinatário.
-
-### Backend — RPC `get_kudos_feed`
-
-Adicionar campos derivados por linha:
-- `recipient_dm_status text` — `'sent' | 'failed' | 'no_slack_id' | 'pending' | null`
-- `recipient_dm_error text` — nulo quando `sent`
-
-Deriva via `LEFT JOIN LATERAL` no `audit_logs` mais recente onde `acao='KUDOS_RECIPIENT_DM'` e `entidade_id = kudo.id || ':' || kudo.to_person_id`.
-
-Para kudos multi-destinatário (múltiplas linhas), cada linha já tem seu próprio `to_person_id`, então o join casa naturalmente.
-
-### Frontend
-
-- `src/hooks/useEngagement.ts` — incluir os novos campos no tipo `Kudo`.
-- Componente que renderiza o card do feed de kudos (localizar em `src/pages/Engagement.tsx` ou subcomponente correspondente) — adicionar um pequeno indicador ao lado do nome do destinatário:
-  - ✅ badge sutil "DM enviada" quando `sent`
-  - ⚠️ badge "DM não enviada" com tooltip mostrando `recipient_dm_error` ou "Sem Slack vinculado" quando `no_slack_id` / `failed`
-  - Sem badge quando `null` (kudo antigo, sem registro).
-
-Usar tokens semânticos do design system (variantes `secondary` / `destructive` do `Badge` do shadcn).
+Nenhuma mudança de UI necessária — os pendentes marcados como `MERGED` deixam de aparecer nas listas de aprovação (filtrar por `status='PENDENTE'` já é o padrão). Se algum componente listar todos os status, adicionar filtro para esconder `MERGED`.
 
 ## Detalhes técnicos
 
-- Nenhuma migração de schema nova é necessária (uso `audit_logs` existente). Só altero a função SQL `get_kudos_feed` — isso vai via `supabase--migration`.
-- O tipo `audit_logs.entidade_id` já é texto e comporta o formato composto.
-- Backfill: como o kudo da Melissa é único, gravo o audit log manualmente no Passo 1; kudos históricos ficarão sem badge (esperado).
+- Novo status `MERGED` em `pending_people.status` (hoje é TEXT livre, sem check constraint — validar antes de migrar).
+- RPC concede `EXECUTE` a `authenticated` e `service_role`.
+- Audit log: gravar `audit_logs` com `acao='PENDING_MERGED'`, `entidade_id=pending_id`, detalhes com `person_id` alvo.
+- Não alterar `slack-slash-biscoito` (o fluxo principal passa por `slack-interactions`).
 
-## Pergunta antes de implementar
+## Fora de escopo
 
-Qual o **Slack User ID** (`U…`) da Melissa Cardoso, ou o email dela no Slack? Sem isso não consigo executar os Passos 1 e 2 — o Passo 3 (audit log + badge no feed) posso implementar em paralelo.
+- UI para desfazer merge (pode ser feito manualmente via SQL se necessário).
+- Merge entre dois registros ativos de `people` (o pedido é sobre Slack↔pessoa cadastrada).
