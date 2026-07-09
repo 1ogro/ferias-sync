@@ -259,13 +259,34 @@ async function findRecentKudoDuplicate(
   }) || null;
 }
 
+export async function recordRecipientDmAudit(
+  supabase: any,
+  kudoId: string | null | undefined,
+  recipientPersonId: string | null | undefined,
+  status: "sent" | "failed" | "no_slack_id" | "no_email",
+  extras: Record<string, unknown> = {},
+) {
+  if (!kudoId || !recipientPersonId) return;
+  try {
+    await supabase.from("audit_logs").insert({
+      entidade: "kudos",
+      entidade_id: `${kudoId}:${recipientPersonId}`,
+      acao: "KUDOS_RECIPIENT_DM",
+      payload: { kudo_id: kudoId, recipient_id: recipientPersonId, status, ...extras },
+    });
+  } catch (e: any) {
+    console.error("[recordRecipientDmAudit] insert failed:", e?.message || e);
+  }
+}
+
 async function notifyRecipientDM(
   supabase: any,
   toPersonId: string,
   fromName: string,
   category: string,
   message: string,
-  context: string
+  context: string,
+  kudoId?: string,
 ) {
   try {
     const { data: toP } = await supabase
@@ -275,6 +296,7 @@ async function notifyRecipientDM(
       .maybeSingle();
     if (!toP?.email) {
       console.log(`[${context}] dm skipped: recipient has no email (${toPersonId})`);
+      await recordRecipientDmAudit(supabase, kudoId, toPersonId, "no_email", { reason: "no_email_on_people" });
       return;
     }
 
@@ -285,6 +307,7 @@ async function notifyRecipientDM(
     const lookup = await lookupRes.json();
     if (!lookup.ok || !lookup.user?.id) {
       console.log(`[${context}] dm skipped: slack user not found for ${toP.email} (${lookup.error || "unknown"})`);
+      await recordRecipientDmAudit(supabase, kudoId, toPersonId, "no_slack_id", { email: toP.email, error: lookup.error || "users_not_found" });
       return;
     }
     const slackUserId = lookup.user.id;
@@ -298,6 +321,7 @@ async function notifyRecipientDM(
     const channelId = open?.channel?.id;
     if (!open.ok || !channelId) {
       console.log(`[${context}] dm skipped: conversations.open failed (${open.error || "unknown"})`);
+      await recordRecipientDmAudit(supabase, kudoId, toPersonId, "failed", { stage: "conversations.open", error: open.error || "unknown" });
       return;
     }
 
@@ -324,11 +348,14 @@ async function notifyRecipientDM(
     const post = await postRes.json();
     if (!post.ok) {
       console.log(`[${context}] dm skipped: chat.postMessage failed (${post.error || "unknown"})`);
+      await recordRecipientDmAudit(supabase, kudoId, toPersonId, "failed", { stage: "chat.postMessage", error: post.error || "unknown" });
       return;
     }
     console.log(`[${context}] dm sent to ${slackUserId}`);
+    await recordRecipientDmAudit(supabase, kudoId, toPersonId, "sent", { slack_user_id: slackUserId, channel: channelId, ts: post.ts });
   } catch (e: any) {
     console.error(`[${context}] dm error:`, e?.message || e);
+    await recordRecipientDmAudit(supabase, kudoId, toPersonId, "failed", { stage: "exception", error: e?.message || String(e) });
   }
 }
 
