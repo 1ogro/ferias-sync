@@ -338,7 +338,7 @@ function KudosFeed() {
                       </div>
                       <Badge className={meta.className} variant="secondary">{meta.emoji} {meta.label}</Badge>
                     </div>
-                    <p className="text-sm">{k.message}</p>
+                    <p className="text-sm whitespace-pre-wrap break-words">{k.message}</p>
                     <p className="text-xs text-muted-foreground mt-1">{format(new Date(k.created_at), "dd/MM 'às' HH:mm", { locale: ptBR })}</p>
                   </li>
                 );
