@@ -1035,11 +1035,6 @@ serve(async (req) => {
           continue;
         }
         inserted.push({ kudo, recipient: rec, pendingTo });
-
-        if (rec.personId) await awardPoints(supabase, rec.personId, 10, "kudo_received", kudo.id);
-        if (senderPersonId) await awardPoints(supabase, senderPersonId, 2, "kudo_given", kudo.id);
-
-        if (pendingTo) await ensurePending(rec.slackUserId, rec.slackEmail, rec.slackName);
       }
 
       if (inserted.length === 0 && deduped.length > 0) {
