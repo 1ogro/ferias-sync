@@ -1050,7 +1050,7 @@ serve(async (req) => {
         );
       }
 
-      if (pendingFrom) await ensurePending(slackUserId, senderEmail, senderName);
+      // Points + pending consolidation moved to background (see postBiscoitoSideEffects).
 
       // Notifica admins quando há lado pendente (best-effort, uma vez só)
       const hasPending = pendingFrom || inserted.some((x) => x.pendingTo);
