@@ -28,8 +28,21 @@ async function resolveSlackId(admin: any, person: any): Promise<{ id: string | n
     const d = await r.json();
     if (d.ok && d.user?.id) {
       await admin.from("people").update({ slack_user_id: d.user.id }).eq("id", person.id);
+      await admin.from("audit_logs").insert({
+        entidade: "people",
+        entidade_id: person.id,
+        acao: "SLACK_ID_BACKFILL",
+        actor_id: person.id,
+        payload: {
+          slack_user_id: d.user.id,
+          matched_email: email,
+          emails_tried: tried,
+          source: "redeliver_dm",
+        },
+      });
       return { id: d.user.id, tried, err: null };
     }
+
     err = d.error || "users_not_found";
   }
   return { id: null, tried, err };
