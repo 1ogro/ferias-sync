@@ -1,47 +1,53 @@
-## Objetivo
+## Diagnóstico
 
-Evitar duplicidade quando um kudo é enviado no Slack para alguém cujo email do Slack já está cadastrado como `email_pessoal` de uma pessoa ativa. Consolidar os `pending_people` existentes que já batem com uma pessoa (via `slack_user_id` ou email pessoal) e migrar quaisquer atribuições de pontuação.
+Ao enviar `/biscoito` para Pedro Belsito e Steffani Nascimento (que existem em `people` com `email_pessoal` cadastrado, mas sem `slack_user_id`):
 
-## Contexto encontrado
+- **Os kudos foram inseridos** (log `[biscoito_submit] inserted 2 kudo(s) from=pessoa_016`) com `to_person_id` correto — as **pontuações foram creditadas normalmente**.
+- **A DM para o destinatário falhou** com `users_not_found` porque `notifyRecipientDM` só consulta `people.email` (email corporativo `@rededor.com.br`). O Slack conhece as duas pessoas pelo `email_pessoal` (hotmail/gmail). Isso gera o badge "Sem Slack vinculado" no feed.
+- O erro "Tivemos alguns problemas de conexão" no modal é o ACK do Slack estourando 3s — hoje o handler ainda faz `awardPoints`, `ensurePending` e `notifyAdmins` de forma síncrona antes de responder.
 
-- `people` já tem `email_pessoal` e `slack_user_id`; `findPersonBySlackIdentity` (em `slack-interactions/index.ts`) já resolve por `slack_user_id → email → email_pessoal` e faz backfill do `slack_user_id` na pessoa quando o match veio pelo email.
-- Ainda assim existem 4 `pending_people` (Antenor Junior x2, Renato Albuquerque x2) cujo email bate com `people.email_pessoal` e cujo `slack_user_id` já está gravado na pessoa correspondente — precisam ser marcados como merged.
-- Não há kudos com `to_person_id IS NULL` nem `engagement_points` órfãos hoje, então a migração de pontos é preventiva (para o caso de aparecerem entradas antigas).
+Portanto o app não está tentando o `email_pessoal` no lookup do Slack (nem faz backfill do `slack_user_id`), e o handler do modal responde tarde demais em envios múltiplos.
 
 ## Mudanças
 
-### 1. Reforço no fluxo de envio de kudo (`supabase/functions/slack-interactions/index.ts`)
+### 1. `supabase/functions/slack-interactions/index.ts` — `notifyRecipientDM`
 
-No `ensurePending` (dentro do `biscoito_submit`) e no handler equivalente do slash command:
-- Antes de inserir/atualizar `pending_people`, se `findPersonBySlackIdentity` casar via `email_pessoal`, além de fazer o backfill do `slack_user_id` (já existe), **não criar** pendente e **descartar** pendentes anteriores do mesmo Slack/email marcando-os como `MERGED` (novo status ou usar `REJEITADO` + `rejection_reason='merged_into:<person_id>'`).
-- Garantir que a resolução do destinatário (`toRaw.startsWith("slack:")`) sempre passe o email do Slack para o lookup — hoje o fast-path por `slack_user_id` ignora o email, então adicionar fallback: se o fast-path não achou, buscar users.info e tentar por `email_pessoal` antes de cair em pendente.
+- Buscar `email, email_pessoal, slack_user_id, nome` da pessoa.
+- Se `slack_user_id` já existir, usar direto (pular `lookupByEmail`).
+- Caso contrário, tentar `users.lookupByEmail` para `email` **e** `email_pessoal` (nessa ordem), aceitando o primeiro que resolver.
+- Ao resolver via lookup, `UPDATE people SET slack_user_id = ...` para backfill (evita nova busca em futuros kudos).
+- Só registrar `no_slack_id` quando ambos os emails falharem; incluir os emails tentados no `audit_logs`.
+- Continuar registrando `no_email` só se nenhum dos dois campos estiver preenchido.
 
-### 2. Função de merge reutilizável
+### 2. `supabase/functions/slack-interactions/index.ts` — ACK mais rápido do modal
 
-Criar RPC `public.merge_pending_into_person(pending_id uuid, person_id text)` (SECURITY DEFINER) que, em uma transação:
-- Atualiza `kudos.to_person_id`/`from_person_id` quando estiverem NULL e o `to_slack_user_id`/`from_slack_user_id` corresponder ao slack do pendente.
-- Atualiza `engagement_points.person_id` se algum registro apontar para o id do pendente (defensivo).
-- Faz backfill de `people.slack_user_id` se estiver vazio.
-- Marca o `pending_people` com `status='MERGED'` (adicionar valor ao check/enum se existir) + `reviewed_at=now()` + `director_notes='auto-merge por email_pessoal'`.
+Mover para `EdgeRuntime.waitUntil` o trabalho pós-insert que hoje bloqueia a resposta:
 
-Usar essa RPC tanto no `ensurePending` quanto no script de limpeza.
+- `awardPoints` de cada kudo (recipient + sender).
+- `ensurePending` do sender pendente e dos destinatários pendentes.
+- Notificação de admins (já está em `waitUntil`, ok).
 
-### 3. Migração de limpeza única
+O ACK `{response_action: "clear"}` volta assim que os INSERTs de `kudos` terminam, deixando o modal fechar dentro dos 3s. Os pontos e pendências continuam sendo processados em background.
 
-Rodar, dentro da mesma migration, um bloco que percorre `pending_people` onde `status IN ('PENDENTE','APROVADO','REJEITADO')` e existe uma pessoa ativa com match por `slack_user_id` ou `email_pessoal`, chamando `merge_pending_into_person`. Isso resolve os 4 registros atuais (Antenor, Renato).
+### 3. Reenvio retroativo dos 2 biscoitos
 
-### 4. UI (mínimo)
+Chamar `slack-interactions` não é apropriado; em vez disso rodar uma ação one-off (via edge function pontual ou SQL + `curl_edge_functions`) que:
 
-Nenhuma mudança de UI necessária — os pendentes marcados como `MERGED` deixam de aparecer nas listas de aprovação (filtrar por `status='PENDENTE'` já é o padrão). Se algum componente listar todos os status, adicionar filtro para esconder `MERGED`.
+- Faz `users.lookupByEmail` para `pedrogiovanityf@hotmail.com` e `steffanisnascimento@gmail.com`.
+- Atualiza `people.slack_user_id` de `pessoa_013` e `pessoa_023` com o ID retornado.
+- Para cada kudo recente cujo `to_person_id ∈ {pessoa_013, pessoa_023}` e cujo último `audit_logs.KUDOS_RECIPIENT_DM` seja `no_slack_id` (ou inexistente): abrir DM via `conversations.open` e postar o card "🍪 Você ganhou um biscoito!" com o remetente/categoria/mensagem originais; gravar novo `audit_logs` com `status='sent'` (o feed passa a mostrar "Enviado").
+- Não recriar pontuações: elas já existem em `engagement_points` para os dois kudos.
 
-## Detalhes técnicos
-
-- Novo status `MERGED` em `pending_people.status` (hoje é TEXT livre, sem check constraint — validar antes de migrar).
-- RPC concede `EXECUTE` a `authenticated` e `service_role`.
-- Audit log: gravar `audit_logs` com `acao='PENDING_MERGED'`, `entidade_id=pending_id`, detalhes com `person_id` alvo.
-- Não alterar `slack-slash-biscoito` (o fluxo principal passa por `slack-interactions`).
+Implementação: reaproveitar as helpers já existentes (`notifyRecipientDM` corrigido). O script one-off pode ser feito ad-hoc em runtime — não precisa virar feature permanente.
 
 ## Fora de escopo
 
-- UI para desfazer merge (pode ser feito manualmente via SQL se necessário).
-- Merge entre dois registros ativos de `people` (o pedido é sobre Slack↔pessoa cadastrada).
+- Alterar `kudos-send` (fluxo do app UI já entrega DM pelo `kudos-notify-managers`, sem o mesmo bug).
+- Redesenhar o badge "Sem Slack vinculado" no feed (basta o audit passar a `sent` que o badge muda).
+- Merge de `pending_people` (fora do sintoma reportado; já tratado em conversas anteriores).
+
+## Detalhes técnicos
+
+- O backfill de `slack_user_id` em `people` deve ser tolerante a conflito (checar `.eq('slack_user_id', ...).maybeSingle()` antes ou aceitar erro de unique).
+- Novo campo em `audit_logs.payload`: `emails_tried: [...]` para auditoria.
+- Manter a interface `notifyRecipientDM(supabase, personId, ...)` — só a implementação muda.
