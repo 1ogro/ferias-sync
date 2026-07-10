@@ -284,6 +284,43 @@ export async function recordRecipientDmAudit(
   }
 }
 
+async function resolveSlackUserIdForPerson(
+  supabase: any,
+  person: { id: string; email: string | null; email_pessoal: string | null; slack_user_id: string | null },
+): Promise<{ slackUserId: string | null; emailsTried: string[]; lastError: string | null }> {
+  if (person.slack_user_id) {
+    return { slackUserId: person.slack_user_id, emailsTried: [], lastError: null };
+  }
+  const emails = [person.email, person.email_pessoal]
+    .map((e) => (e || "").trim())
+    .filter((e, i, arr) => e.length > 0 && arr.indexOf(e) === i);
+  const emailsTried: string[] = [];
+  let lastError: string | null = null;
+  for (const email of emails) {
+    emailsTried.push(email);
+    try {
+      const res = await fetch(
+        `https://slack.com/api/users.lookupByEmail?email=${encodeURIComponent(email)}`,
+        { headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}` } },
+      );
+      const data = await res.json();
+      if (data.ok && data.user?.id) {
+        // Backfill slack_user_id (best-effort; ignore unique conflicts).
+        try {
+          await supabase.from("people").update({ slack_user_id: data.user.id }).eq("id", person.id);
+        } catch (e: any) {
+          console.warn(`[resolveSlackUserIdForPerson] backfill failed for ${person.id}:`, e?.message || e);
+        }
+        return { slackUserId: data.user.id, emailsTried, lastError: null };
+      }
+      lastError = data.error || "users_not_found";
+    } catch (e: any) {
+      lastError = e?.message || String(e);
+    }
+  }
+  return { slackUserId: null, emailsTried, lastError };
+}
+
 async function notifyRecipientDM(
   supabase: any,
   toPersonId: string,
@@ -296,26 +333,24 @@ async function notifyRecipientDM(
   try {
     const { data: toP } = await supabase
       .from("people")
-      .select("email, nome")
+      .select("id, email, email_pessoal, slack_user_id, nome")
       .eq("id", toPersonId)
       .maybeSingle();
-    if (!toP?.email) {
-      console.log(`[${context}] dm skipped: recipient has no email (${toPersonId})`);
+    if (!toP || (!toP.email && !toP.email_pessoal && !toP.slack_user_id)) {
+      console.log(`[${context}] dm skipped: recipient has no email/slack (${toPersonId})`);
       await recordRecipientDmAudit(supabase, kudoId, toPersonId, "no_email", { reason: "no_email_on_people" });
       return;
     }
 
-    const lookupRes = await fetch(
-      `https://slack.com/api/users.lookupByEmail?email=${encodeURIComponent(toP.email)}`,
-      { headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}` } }
-    );
-    const lookup = await lookupRes.json();
-    if (!lookup.ok || !lookup.user?.id) {
-      console.log(`[${context}] dm skipped: slack user not found for ${toP.email} (${lookup.error || "unknown"})`);
-      await recordRecipientDmAudit(supabase, kudoId, toPersonId, "no_slack_id", { email: toP.email, error: lookup.error || "users_not_found" });
+    const { slackUserId, emailsTried, lastError } = await resolveSlackUserIdForPerson(supabase, toP);
+    if (!slackUserId) {
+      console.log(`[${context}] dm skipped: slack user not found for ${toPersonId} (tried=${emailsTried.join(",")}, err=${lastError})`);
+      await recordRecipientDmAudit(supabase, kudoId, toPersonId, "no_slack_id", {
+        emails_tried: emailsTried,
+        error: lastError || "users_not_found",
+      });
       return;
     }
-    const slackUserId = lookup.user.id;
 
     const openRes = await fetch("https://slack.com/api/conversations.open", {
       method: "POST",
@@ -357,7 +392,7 @@ async function notifyRecipientDM(
       return;
     }
     console.log(`[${context}] dm sent to ${slackUserId}`);
-    await recordRecipientDmAudit(supabase, kudoId, toPersonId, "sent", { slack_user_id: slackUserId, channel: channelId, ts: post.ts });
+    await recordRecipientDmAudit(supabase, kudoId, toPersonId, "sent", { slack_user_id: slackUserId, channel: channelId, ts: post.ts, emails_tried: emailsTried });
   } catch (e: any) {
     console.error(`[${context}] dm error:`, e?.message || e);
     await recordRecipientDmAudit(supabase, kudoId, toPersonId, "failed", { stage: "exception", error: e?.message || String(e) });
@@ -1000,11 +1035,6 @@ serve(async (req) => {
           continue;
         }
         inserted.push({ kudo, recipient: rec, pendingTo });
-
-        if (rec.personId) await awardPoints(supabase, rec.personId, 10, "kudo_received", kudo.id);
-        if (senderPersonId) await awardPoints(supabase, senderPersonId, 2, "kudo_given", kudo.id);
-
-        if (pendingTo) await ensurePending(rec.slackUserId, rec.slackEmail, rec.slackName);
       }
 
       if (inserted.length === 0 && deduped.length > 0) {
@@ -1020,7 +1050,7 @@ serve(async (req) => {
         );
       }
 
-      if (pendingFrom) await ensurePending(slackUserId, senderEmail, senderName);
+      // Points + pending consolidation moved to background (see postBiscoitoSideEffects).
 
       // Notifica admins quando há lado pendente (best-effort, uma vez só)
       const hasPending = pendingFrom || inserted.some((x) => x.pendingTo);
@@ -1087,6 +1117,27 @@ serve(async (req) => {
       // All downstream Slack work (channel post + DMs + manager notifications) runs
       // in background so the view_submission ack returns within Slack's 3s window.
       const postBiscoitoSideEffects = async () => {
+        // Awards + pending consolidation first (fast DB writes) so the feed reflects
+        // points right after ack. These were previously blocking the modal response.
+        for (const it of inserted) {
+          if (it.recipient.personId) {
+            try { await awardPoints(supabase, it.recipient.personId, 10, "kudo_received", it.kudo.id); }
+            catch (e: any) { console.error("[biscoito_submit] awardPoints recipient error:", e?.message || e); }
+          }
+          if (senderPersonId) {
+            try { await awardPoints(supabase, senderPersonId, 2, "kudo_given", it.kudo.id); }
+            catch (e: any) { console.error("[biscoito_submit] awardPoints sender error:", e?.message || e); }
+          }
+          if (it.pendingTo) {
+            try { await ensurePending(it.recipient.slackUserId, it.recipient.slackEmail, it.recipient.slackName); }
+            catch (e: any) { console.error("[biscoito_submit] ensurePending recipient error:", e?.message || e); }
+          }
+        }
+        if (pendingFrom) {
+          try { await ensurePending(slackUserId, senderEmail, senderName); }
+          catch (e: any) { console.error("[biscoito_submit] ensurePending sender error:", e?.message || e); }
+        }
+
         const postToChannel = async (channel: string, label: string) => {
           try {
             const r = await fetch("https://slack.com/api/chat.postMessage", {
