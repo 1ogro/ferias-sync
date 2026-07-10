@@ -1117,6 +1117,27 @@ serve(async (req) => {
       // All downstream Slack work (channel post + DMs + manager notifications) runs
       // in background so the view_submission ack returns within Slack's 3s window.
       const postBiscoitoSideEffects = async () => {
+        // Awards + pending consolidation first (fast DB writes) so the feed reflects
+        // points right after ack. These were previously blocking the modal response.
+        for (const it of inserted) {
+          if (it.recipient.personId) {
+            try { await awardPoints(supabase, it.recipient.personId, 10, "kudo_received", it.kudo.id); }
+            catch (e: any) { console.error("[biscoito_submit] awardPoints recipient error:", e?.message || e); }
+          }
+          if (senderPersonId) {
+            try { await awardPoints(supabase, senderPersonId, 2, "kudo_given", it.kudo.id); }
+            catch (e: any) { console.error("[biscoito_submit] awardPoints sender error:", e?.message || e); }
+          }
+          if (it.pendingTo) {
+            try { await ensurePending(it.recipient.slackUserId, it.recipient.slackEmail, it.recipient.slackName); }
+            catch (e: any) { console.error("[biscoito_submit] ensurePending recipient error:", e?.message || e); }
+          }
+        }
+        if (pendingFrom) {
+          try { await ensurePending(slackUserId, senderEmail, senderName); }
+          catch (e: any) { console.error("[biscoito_submit] ensurePending sender error:", e?.message || e); }
+        }
+
         const postToChannel = async (channel: string, label: string) => {
           try {
             const r = await fetch("https://slack.com/api/chat.postMessage", {
