@@ -308,9 +308,22 @@ async function resolveSlackUserIdForPerson(
         // Backfill slack_user_id (best-effort; ignore unique conflicts).
         try {
           await supabase.from("people").update({ slack_user_id: data.user.id }).eq("id", person.id);
+          await supabase.from("audit_logs").insert({
+            entidade: "people",
+            entidade_id: person.id,
+            acao: "SLACK_ID_BACKFILL",
+            actor_id: person.id,
+            payload: {
+              slack_user_id: data.user.id,
+              matched_email: email,
+              emails_tried: emailsTried,
+              source: "notify_recipient_dm",
+            },
+          });
         } catch (e: any) {
           console.warn(`[resolveSlackUserIdForPerson] backfill failed for ${person.id}:`, e?.message || e);
         }
+
         return { slackUserId: data.user.id, emailsTried, lastError: null };
       }
       lastError = data.error || "users_not_found";
