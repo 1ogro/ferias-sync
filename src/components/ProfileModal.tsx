@@ -38,12 +38,16 @@ export const ProfileModal = ({ open, onOpenChange }: ProfileModalProps) => {
   const [birthdateInput, setBirthdateInput] = useState("");
   const [showChangeRequest, setShowChangeRequest] = useState(false);
   const [desiredPaymentDay, setDesiredPaymentDay] = useState<string>("");
+  const [changeJustification, setChangeJustification] = useState("");
   const [isRequestingChange, setIsRequestingChange] = useState(false);
+  const [pendingPaymentRequest, setPendingPaymentRequest] = useState<{ id: string; requested_day: number; created_at: string } | null>(null);
+  const [cancellingRequest, setCancellingRequest] = useState(false);
   const [showSetPassword, setShowSetPassword] = useState(false);
   const [newPassword, setNewPassword] = useState("");
   const [confirmNewPassword, setConfirmNewPassword] = useState("");
   const [settingPassword, setSettingPassword] = useState(false);
   const [unlinkingIdentity, setUnlinkingIdentity] = useState<string | null>(null);
+
 
   const isFigmaEnabled = integrationSettings?.figma_enabled === true &&
     (integrationSettings?.figma_status === 'active' || integrationSettings?.figma_status === 'configured');
@@ -64,8 +68,22 @@ export const ProfileModal = ({ open, onOpenChange }: ProfileModalProps) => {
       setBirthdateInput(formatDateToBRString(birthDate));
       setShowChangeRequest(false);
       setDesiredPaymentDay("");
+      setChangeJustification("");
+      // Load existing pending payment day change request
+      (async () => {
+        const { data } = await (supabase as any)
+          .from('payment_day_change_requests')
+          .select('id, requested_day, created_at')
+          .eq('person_id', person.id)
+          .eq('status', 'PENDENTE')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        setPendingPaymentRequest(data || null);
+      })();
     }
   }, [person, open]);
+
 
   const handleBirthdateInputChange = (value: string) => {
     const maskedValue = applyDateMask(value);
@@ -130,48 +148,77 @@ export const ProfileModal = ({ open, onOpenChange }: ProfileModalProps) => {
     if (!person || !desiredPaymentDay) return;
     setIsRequestingChange(true);
     try {
-      const { data: directorEmails, error: dirError } = await supabase
-        .rpc('get_director_emails');
+      const { data, error } = await (supabase as any).rpc('request_payment_day_change', {
+        p_requested_day: Number(desiredPaymentDay),
+        p_justification: changeJustification.trim() || null,
+      });
+      if (error) throw error;
+      const result = data as { success: boolean; message?: string; request_id?: string };
+      if (!result?.success) throw new Error(result?.message || 'Falha ao criar solicitação');
 
-      if (dirError) throw dirError;
-
-      if (!directorEmails || directorEmails.length === 0) {
-        toast({ title: "Erro", description: "Nenhum diretor encontrado para enviar a solicitação.", variant: "destructive" });
-        return;
-      }
-
-      // Send email to each director
-      for (const dir of directorEmails) {
-        await supabase.functions.invoke('send-notification-email', {
-          body: {
-            type: 'PAYMENT_DAY_CHANGE_REQUEST',
-            to: dir.email,
-            requesterName: person.nome,
-            currentPaymentDay: person.dia_pagamento,
-            desiredPaymentDay: Number(desiredPaymentDay),
-          },
+      // Notify directors (fire-and-forget) with the request_id
+      supabase.rpc('get_director_emails').then(({ data: directors }) => {
+        (directors || []).forEach((dir: { email: string }) => {
+          supabase.functions.invoke('send-notification-email', {
+            body: {
+              type: 'PAYMENT_DAY_CHANGE_REQUEST',
+              to: dir.email,
+              requesterName: person.nome,
+              currentPaymentDay: person.dia_pagamento,
+              desiredPaymentDay: Number(desiredPaymentDay),
+              justification: changeJustification.trim() || null,
+              requestId: result.request_id,
+            },
+          }).catch(err => console.warn('Email notification failed:', err));
         });
-      }
-
-      // Fire-and-forget Slack notification
+      });
       supabase.functions.invoke('slack-notification', {
         body: {
           type: 'PAYMENT_DAY_CHANGE_REQUEST',
           requesterName: person.nome,
           currentPaymentDay: person.dia_pagamento,
           desiredPaymentDay: Number(desiredPaymentDay),
+          justification: changeJustification.trim() || null,
+          requestId: result.request_id,
         },
       }).catch(err => console.warn('Slack notification failed:', err));
 
-      toast({ title: "Solicitação enviada!", description: "Os diretores foram notificados sobre sua solicitação de alteração." });
+      toast({ title: "Solicitação enviada!", description: "Aguarde a aprovação de um diretor." });
+      setPendingPaymentRequest({
+        id: result.request_id!,
+        requested_day: Number(desiredPaymentDay),
+        created_at: new Date().toISOString(),
+      });
       setShowChangeRequest(false);
       setDesiredPaymentDay("");
+      setChangeJustification("");
     } catch (error: any) {
       toast({ title: "Erro", description: error.message || "Erro ao enviar solicitação.", variant: "destructive" });
     } finally {
       setIsRequestingChange(false);
     }
   };
+
+  const handleCancelPaymentDayChange = async () => {
+    if (!pendingPaymentRequest) return;
+    setCancellingRequest(true);
+    try {
+      const { data, error } = await (supabase as any).rpc('cancel_payment_day_change', {
+        p_request_id: pendingPaymentRequest.id,
+      });
+      if (error) throw error;
+      const result = data as { success: boolean; message?: string };
+      if (!result?.success) throw new Error(result?.message || 'Falha ao cancelar');
+      setPendingPaymentRequest(null);
+      toast({ title: "Solicitação cancelada" });
+    } catch (error: any) {
+      toast({ title: "Erro", description: error.message, variant: "destructive" });
+    } finally {
+      setCancellingRequest(false);
+    }
+  };
+
+
 
   const getBirthdayThisYear = () => {
     if (!formData.data_nascimento) return null;
@@ -273,26 +320,44 @@ export const ProfileModal = ({ open, onOpenChange }: ProfileModalProps) => {
           {isPJ && (
             <div className="space-y-2">
               <Label>Dia de Pagamento</Label>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <Badge variant="secondary" className="text-sm">
                   {person?.dia_pagamento ? `Dia ${person.dia_pagamento}` : 'Não definido'}
                 </Badge>
-                {!showChangeRequest && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setShowChangeRequest(true)}
-                    className="text-xs"
-                  >
-                    Solicitar alteração
-                  </Button>
+                {pendingPaymentRequest ? (
+                  <>
+                    <Badge variant="outline" className="text-xs">
+                      Solicitação pendente: dia {pendingPaymentRequest.requested_day}
+                    </Badge>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="text-xs"
+                      disabled={cancellingRequest}
+                      onClick={handleCancelPaymentDayChange}
+                    >
+                      {cancellingRequest ? "Cancelando..." : "Cancelar solicitação"}
+                    </Button>
+                  </>
+                ) : (
+                  !showChangeRequest && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowChangeRequest(true)}
+                      className="text-xs"
+                    >
+                      Solicitar alteração
+                    </Button>
+                  )
                 )}
               </div>
-              
-              {showChangeRequest && (
-                <div className="flex items-end gap-2 p-3 rounded-md border bg-muted/50">
-                  <div className="flex-1 space-y-1">
+
+              {!pendingPaymentRequest && showChangeRequest && (
+                <div className="space-y-2 p-3 rounded-md border bg-muted/50">
+                  <div className="space-y-1">
                     <Label className="text-xs">Novo dia desejado</Label>
                     <Select value={desiredPaymentDay} onValueChange={setDesiredPaymentDay}>
                       <SelectTrigger className="h-8">
@@ -307,29 +372,44 @@ export const ProfileModal = ({ open, onOpenChange }: ProfileModalProps) => {
                       </SelectContent>
                     </Select>
                   </div>
-                  <Button
-                    type="button"
-                    size="sm"
-                    disabled={!desiredPaymentDay || isRequestingChange}
-                    onClick={handleRequestPaymentDayChange}
-                    className="h-8"
-                  >
-                    <Send className="h-3 w-3 mr-1" />
-                    {isRequestingChange ? "Enviando..." : "Enviar"}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => { setShowChangeRequest(false); setDesiredPaymentDay(""); }}
-                    className="h-8"
-                  >
-                    Cancelar
-                  </Button>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Justificativa (opcional)</Label>
+                    <Input
+                      value={changeJustification}
+                      onChange={(e) => setChangeJustification(e.target.value)}
+                      placeholder="Motivo da alteração"
+                      className="h-8"
+                    />
+                  </div>
+                  <div className="flex gap-2 justify-end">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => { setShowChangeRequest(false); setDesiredPaymentDay(""); setChangeJustification(""); }}
+                      className="h-8"
+                    >
+                      Cancelar
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={!desiredPaymentDay || isRequestingChange}
+                      onClick={handleRequestPaymentDayChange}
+                      className="h-8"
+                    >
+                      <Send className="h-3 w-3 mr-1" />
+                      {isRequestingChange ? "Enviando..." : "Enviar solicitação"}
+                    </Button>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    A alteração só será aplicada após aprovação de um diretor.
+                  </p>
                 </div>
               )}
             </div>
           )}
+
 
           <Separator />
 

@@ -24,12 +24,24 @@ const Inbox = () => {
   const [pendingPeopleLoading, setPendingPeopleLoading] = useState(true);
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [currentUserPerson, setCurrentUserPerson] = useState<any>(null);
-  const [selectedTab, setSelectedTab] = useState<"requests" | "registrations">("requests");
+  const [selectedTab, setSelectedTab] = useState<"requests" | "registrations" | "payment_days">("requests");
   const [selectedPending, setSelectedPending] = useState<PendingPerson | null>(null);
   const [approveDialogOpen, setApproveDialogOpen] = useState(false);
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
   const [rejectionReason, setRejectionReason] = useState("");
   const [rejectingId, setRejectingId] = useState<string | null>(null);
+  const [paymentDayRequests, setPaymentDayRequests] = useState<Array<{
+    id: string;
+    person_id: string;
+    person_nome: string;
+    current_day: number | null;
+    requested_day: number;
+    justification: string | null;
+    created_at: string;
+  }>>([]);
+  const [paymentReviewNotes, setPaymentReviewNotes] = useState<Record<string, string>>({});
+  const [processingPaymentId, setProcessingPaymentId] = useState<string | null>(null);
+
 
   const fetchPendingRequests = async () => {
     if (!person) {
@@ -221,6 +233,76 @@ const Inbox = () => {
     }
   };
 
+  const fetchPaymentDayRequests = async () => {
+
+    const { data, error } = await (supabase as any)
+      .from('payment_day_change_requests')
+      .select('id, person_id, current_day, requested_day, justification, created_at, person:people!payment_day_change_requests_person_id_fkey(nome)')
+      .eq('status', 'PENDENTE')
+      .order('created_at', { ascending: false });
+    if (error) {
+      console.error('Error fetching payment day requests:', error);
+      return;
+    }
+    setPaymentDayRequests((data || []).map((r: any) => ({
+      id: r.id,
+      person_id: r.person_id,
+      person_nome: r.person?.nome || r.person_id,
+      current_day: r.current_day,
+      requested_day: r.requested_day,
+      justification: r.justification,
+      created_at: r.created_at,
+    })));
+  };
+
+  const handleReviewPaymentDay = async (id: string, approve: boolean) => {
+    setProcessingPaymentId(id);
+    try {
+      const notes = paymentReviewNotes[id] || null;
+      const { data, error } = await (supabase as any).rpc('review_payment_day_change', {
+        p_request_id: id,
+        p_approve: approve,
+        p_notes: notes,
+      });
+      if (error) throw error;
+      const result = data as { success: boolean; message?: string };
+      if (!result?.success) throw new Error(result?.message || 'Falha ao revisar');
+      const req = paymentDayRequests.find(r => r.id === id);
+      // Fire-and-forget notification of decision
+      if (req) {
+        supabase.functions.invoke('send-notification-email', {
+          body: {
+            type: 'PAYMENT_DAY_CHANGE_DECISION',
+            targetPersonId: req.person_id,
+            approved: approve,
+            currentPaymentDay: req.current_day,
+            desiredPaymentDay: req.requested_day,
+            notes,
+            requestId: id,
+          },
+        }).catch(err => console.warn('Email notify failed:', err));
+        supabase.functions.invoke('slack-notification', {
+          body: {
+            type: 'PAYMENT_DAY_CHANGE_DECISION',
+            targetPersonId: req.person_id,
+            approved: approve,
+            currentPaymentDay: req.current_day,
+            desiredPaymentDay: req.requested_day,
+            notes,
+            requestId: id,
+          },
+        }).catch(err => console.warn('Slack notify failed:', err));
+      }
+      toast({ title: approve ? 'Solicitação aprovada' : 'Solicitação rejeitada' });
+      setPaymentReviewNotes(prev => { const n = { ...prev }; delete n[id]; return n; });
+      fetchPaymentDayRequests();
+    } catch (e: any) {
+      toast({ title: 'Erro', description: e.message, variant: 'destructive' });
+    } finally {
+      setProcessingPaymentId(null);
+    }
+  };
+
 
   useEffect(() => {
     if (person) {
@@ -228,6 +310,8 @@ const Inbox = () => {
       fetchPendingRequests();
       if (person.papel === 'DIRETOR' || person.is_admin) {
         fetchPendingPeople();
+        fetchPaymentDayRequests();
+
       } else {
         setPendingPeopleLoading(false);
       }
@@ -520,7 +604,8 @@ const Inbox = () => {
   };
 
   const isDirectorOrAdmin = person?.papel === 'DIRETOR' || person?.is_admin;
-  const showTabs = isDirectorOrAdmin && pendingPeople.length > 0;
+  const showTabs = isDirectorOrAdmin && (pendingPeople.length > 0 || paymentDayRequests.length > 0);
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/30">
@@ -558,8 +643,17 @@ const Inbox = () => {
               Cadastros Pendentes
               <Badge variant="secondary" className="ml-2">{pendingPeople.length}</Badge>
             </Button>
+            <Button
+              variant={selectedTab === "payment_days" ? "default" : "ghost"}
+              onClick={() => setSelectedTab("payment_days")}
+              className="flex-1"
+            >
+              Dia de Pagamento
+              <Badge variant="secondary" className="ml-2">{paymentDayRequests.length}</Badge>
+            </Button>
           </div>
         )}
+
 
         {/* Requests tab */}
         {selectedTab === "requests" && (
@@ -682,7 +776,76 @@ const Inbox = () => {
             )}
           </>
         )}
+
+        {/* Payment day change tab */}
+        {selectedTab === "payment_days" && isDirectorOrAdmin && (
+          <>
+            {paymentDayRequests.length > 0 ? (
+              <div className="space-y-4">
+                {paymentDayRequests.map((req) => (
+                  <Card key={req.id}>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base">
+                        {req.person_nome}{" "}
+                        <span className="text-muted-foreground font-normal text-sm">
+                          quer alterar do dia {req.current_day ?? '—'} para o dia {req.requested_day}
+                        </span>
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      {req.justification && (
+                        <p className="text-sm">
+                          <span className="font-medium">Justificativa:</span> {req.justification}
+                        </p>
+                      )}
+                      <p className="text-xs text-muted-foreground">
+                        Solicitado em {new Date(req.created_at).toLocaleString('pt-BR')}
+                      </p>
+                      <Textarea
+                        placeholder="Observações (opcional)"
+                        value={paymentReviewNotes[req.id] || ""}
+                        onChange={(e) => setPaymentReviewNotes(prev => ({ ...prev, [req.id]: e.target.value }))}
+                        className="min-h-[60px]"
+                      />
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          disabled={processingPaymentId !== null}
+                          onClick={() => handleReviewPaymentDay(req.id, true)}
+                          className="bg-status-approved hover:bg-status-approved/90 text-white"
+                        >
+                          <CheckCircle className="w-4 h-4 mr-1" />
+                          {processingPaymentId === req.id ? 'Aprovando...' : 'Aprovar'}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={processingPaymentId !== null}
+                          onClick={() => handleReviewPaymentDay(req.id, false)}
+                          className="border-status-rejected text-status-rejected hover:bg-status-rejected/10"
+                        >
+                          <XCircle className="w-4 h-4 mr-1" />
+                          Rejeitar
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : (
+              <Card className="p-8 text-center">
+                <InboxIcon className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-medium mb-2">Nenhuma solicitação pendente</h3>
+                <p className="text-muted-foreground">
+                  Não há solicitações de alteração de dia de pagamento no momento.
+                </p>
+              </Card>
+            )}
+          </>
+        )}
+
       </main>
+
 
       {/* Approve Dialog */}
       {selectedPending && (
