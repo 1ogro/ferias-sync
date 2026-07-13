@@ -643,8 +643,17 @@ const Inbox = () => {
               Cadastros Pendentes
               <Badge variant="secondary" className="ml-2">{pendingPeople.length}</Badge>
             </Button>
+            <Button
+              variant={selectedTab === "payment_days" ? "default" : "ghost"}
+              onClick={() => setSelectedTab("payment_days")}
+              className="flex-1"
+            >
+              Dia de Pagamento
+              <Badge variant="secondary" className="ml-2">{paymentDayRequests.length}</Badge>
+            </Button>
           </div>
         )}
+
 
         {/* Requests tab */}
         {selectedTab === "requests" && (
