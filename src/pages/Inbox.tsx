@@ -24,12 +24,24 @@ const Inbox = () => {
   const [pendingPeopleLoading, setPendingPeopleLoading] = useState(true);
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [currentUserPerson, setCurrentUserPerson] = useState<any>(null);
-  const [selectedTab, setSelectedTab] = useState<"requests" | "registrations">("requests");
+  const [selectedTab, setSelectedTab] = useState<"requests" | "registrations" | "payment_days">("requests");
   const [selectedPending, setSelectedPending] = useState<PendingPerson | null>(null);
   const [approveDialogOpen, setApproveDialogOpen] = useState(false);
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
   const [rejectionReason, setRejectionReason] = useState("");
   const [rejectingId, setRejectingId] = useState<string | null>(null);
+  const [paymentDayRequests, setPaymentDayRequests] = useState<Array<{
+    id: string;
+    person_id: string;
+    person_nome: string;
+    current_day: number | null;
+    requested_day: number;
+    justification: string | null;
+    created_at: string;
+  }>>([]);
+  const [paymentReviewNotes, setPaymentReviewNotes] = useState<Record<string, string>>({});
+  const [processingPaymentId, setProcessingPaymentId] = useState<string | null>(null);
+
 
   const fetchPendingRequests = async () => {
     if (!person) {
