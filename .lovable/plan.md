@@ -1,40 +1,67 @@
-## Por que Pedro e Steffani não aparecem hoje
+# Fluxo de aprovação para alteração de dia de pagamento (PJ)
 
-A tela `/admin/mescladas` lê apenas `pending_people` com `status='MERGED'`. Pedro e Steffani **nunca tiveram** um registro em `pending_people`: eles já estavam em `people`, apenas sem `slack_user_id`. O que aconteceu com eles foi um **backfill de `slack_user_id`** (via `email_pessoal`) — um evento diferente de "merge de pending".
+## Situação atual
 
-Ou seja: hoje a página lista consolidações de _cadastros pendentes_. O vínculo Slack↔pessoa existente é outro tipo de operação e não está sendo registrado como consolidação.
+Hoje, no `ProfileModal`, quando um colaborador PJ clica em **"Solicitar alteração"** do dia de pagamento:
 
-## Mudanças
+- Um email é enviado a todos os diretores (`get_director_emails` + `send-notification-email` tipo `PAYMENT_DAY_CHANGE_REQUEST`).
+- Uma notificação Slack é disparada (`slack-notification` tipo `PAYMENT_DAY_CHANGE_REQUEST`).
+- **Nada é persistido**: não há registro da solicitação, não há estado "pendente", não há aprovação/rejeição, não há histórico e o diretor precisa entrar no Admin e editar manualmente o campo `dia_pagamento` para efetivar.
 
-### 1. Registrar audit log no backfill
+Ou seja, **não existe fluxo de aprovação real** — apenas um aviso informal.
 
-Em `resolveSlackUserIdForPerson` (dentro de `supabase/functions/slack-interactions/index.ts`) e no mesmo helper duplicado dentro de `supabase/functions/kudos-redeliver-dm/index.ts`, quando o `UPDATE people SET slack_user_id = ...` for feito com sucesso, inserir `audit_logs`:
+## O que criar
 
-- `entidade = 'people'`
-- `entidade_id = person.id`
-- `acao = 'SLACK_ID_BACKFILL'`
-- `payload = { slack_user_id, matched_email, emails_tried, source: 'notify_recipient_dm' | 'redeliver_dm' }`
+Fluxo completo de aprovação com estado persistido, aprovação/rejeição em 1 clique pelo diretor e aplicação automática da mudança quando aprovada.
 
-### 2. Ampliar a tela `/admin/mescladas` para mostrar os dois tipos
+### 1. Banco (migração)
 
-Renomear seção interna para incluir "Vínculos de Slack" além de pending merges. Duas fontes na mesma tabela:
+Nova tabela `payment_day_change_requests`:
 
-- **Merges de pendentes** (fonte atual): `pending_people WHERE status='MERGED'`.
-- **Backfills de Slack ID** (nova fonte): `audit_logs WHERE acao='SLACK_ID_BACKFILL'`, com JOIN em `people` pelo `entidade_id` para pegar nome/email/email_pessoal.
+- `person_id` (FK people)
+- `current_day`, `requested_day` (int, 10/20/30)
+- `status` — `PENDENTE` | `APROVADO` | `REJEITADO` | `CANCELADO`
+- `justification` (texto opcional que o colaborador informa)
+- `reviewed_by` (person_id do diretor), `reviewed_at`, `review_notes`
+- `effective_from` (data em que o novo dia passa a valer — default próximo ciclo)
+- timestamps padrão + trigger `updated_at`
 
-Unificar em uma lista com coluna adicional "Tipo" (`Cadastro pendente` | `Vínculo Slack`). Filtros por email e Slack User ID continuam aplicando aos dois tipos. Ordem: `reviewed_at`/`created_at` desc combinado.
+RLS/GRANTs:
+- Colaborador vê/cria/cancela apenas as próprias solicitações pendentes.
+- Diretores/admin veem tudo e aprovam/rejeitam.
 
-### 3. Backfill retroativo dos 2 casos já resolvidos
+Regra: só uma solicitação `PENDENTE` por pessoa (índice único parcial).
 
-Como Pedro e Steffani tiveram o `slack_user_id` gravado hoje sem gerar audit log, inserir 2 linhas em `audit_logs` manualmente (via insert tool) com `acao='SLACK_ID_BACKFILL'`, referenciando `pessoa_013` e `pessoa_023`, para que apareçam na nova visualização. Payload inclui os emails tentados que já vimos no retorno de `kudos-redeliver-dm`.
+Duas funções `SECURITY DEFINER`:
+- `request_payment_day_change(p_requested_day, p_justification)` — valida PJ, cria a linha, retorna id.
+- `review_payment_day_change(p_id, p_approve, p_notes)` — só admin/diretor; se aprovado, atualiza `people.dia_pagamento`, grava audit log, marca `reviewed_*`.
 
-## Fora de escopo
+### 2. Frontend
 
-- Trigger genérico em `people` para gravar audit sempre que `slack_user_id` mudar (poderia ser feito, mas duplica o audit do `audit_people_changes` existente).
-- UI para desfazer o vínculo (basta editar `slack_user_id` na tabela).
+**`ProfileModal.tsx`** (colaborador PJ):
+- Substituir o botão atual por chamada à RPC `request_payment_day_change` + campo opcional de justificativa.
+- Mostrar badge "Solicitação pendente: dia X" enquanto houver uma aberta, com botão "Cancelar solicitação".
+- Manter os disparos de email/Slack existentes, apenas incluindo o `request_id`.
+
+**Inbox do diretor (`src/pages/Inbox.tsx`)**:
+- Nova seção/aba "Alterações de dia de pagamento" listando solicitações `PENDENTE`.
+- Ações **Aprovar** / **Rejeitar** (com nota), chamando `review_payment_day_change`.
+- Ao aprovar, dispara notificação (email + Slack) ao colaborador via edge functions existentes (novo tipo `PAYMENT_DAY_CHANGE_DECISION`).
+
+**Admin (`src/pages/Admin.tsx`)**:
+- Ao lado do campo `dia_pagamento`, mostrar aviso se existir solicitação pendente e link para a inbox.
+
+### 3. Notificações
+
+Reaproveitar `send-notification-email` e `slack-notification` adicionando o tipo `PAYMENT_DAY_CHANGE_DECISION` (aprovada/rejeitada) com o resultado e a nota do revisor.
 
 ## Detalhes técnicos
 
-- `audit_logs` já tem RLS que permite leitura por admins; a nova query da tela reaproveita isso.
-- A tela passa a fazer 2 queries paralelas (pending_people + audit_logs) e mescla no cliente; volume esperado é baixo.
-- Nenhuma migração de schema é necessária.
+- Aprovação atualiza `people.dia_pagamento` dentro da própria função SQL (transação única) e grava `audit_logs` com `acao='PAYMENT_DAY_CHANGE_APPROVED'` / `REJECTED`.
+- Cancelamento pelo colaborador permitido apenas em `PENDENTE`.
+- Emails/Slack seguem o padrão fire-and-forget já usado no projeto.
+
+## Fora de escopo
+
+- Alteração de `dia_pagamento` para CLT (campo só existe para PJ).
+- Alterações em massa por RH.
