@@ -320,26 +320,44 @@ export const ProfileModal = ({ open, onOpenChange }: ProfileModalProps) => {
           {isPJ && (
             <div className="space-y-2">
               <Label>Dia de Pagamento</Label>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <Badge variant="secondary" className="text-sm">
                   {person?.dia_pagamento ? `Dia ${person.dia_pagamento}` : 'Não definido'}
                 </Badge>
-                {!showChangeRequest && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setShowChangeRequest(true)}
-                    className="text-xs"
-                  >
-                    Solicitar alteração
-                  </Button>
+                {pendingPaymentRequest ? (
+                  <>
+                    <Badge variant="outline" className="text-xs">
+                      Solicitação pendente: dia {pendingPaymentRequest.requested_day}
+                    </Badge>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="text-xs"
+                      disabled={cancellingRequest}
+                      onClick={handleCancelPaymentDayChange}
+                    >
+                      {cancellingRequest ? "Cancelando..." : "Cancelar solicitação"}
+                    </Button>
+                  </>
+                ) : (
+                  !showChangeRequest && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowChangeRequest(true)}
+                      className="text-xs"
+                    >
+                      Solicitar alteração
+                    </Button>
+                  )
                 )}
               </div>
-              
-              {showChangeRequest && (
-                <div className="flex items-end gap-2 p-3 rounded-md border bg-muted/50">
-                  <div className="flex-1 space-y-1">
+
+              {!pendingPaymentRequest && showChangeRequest && (
+                <div className="space-y-2 p-3 rounded-md border bg-muted/50">
+                  <div className="space-y-1">
                     <Label className="text-xs">Novo dia desejado</Label>
                     <Select value={desiredPaymentDay} onValueChange={setDesiredPaymentDay}>
                       <SelectTrigger className="h-8">
@@ -354,29 +372,44 @@ export const ProfileModal = ({ open, onOpenChange }: ProfileModalProps) => {
                       </SelectContent>
                     </Select>
                   </div>
-                  <Button
-                    type="button"
-                    size="sm"
-                    disabled={!desiredPaymentDay || isRequestingChange}
-                    onClick={handleRequestPaymentDayChange}
-                    className="h-8"
-                  >
-                    <Send className="h-3 w-3 mr-1" />
-                    {isRequestingChange ? "Enviando..." : "Enviar"}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => { setShowChangeRequest(false); setDesiredPaymentDay(""); }}
-                    className="h-8"
-                  >
-                    Cancelar
-                  </Button>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Justificativa (opcional)</Label>
+                    <Input
+                      value={changeJustification}
+                      onChange={(e) => setChangeJustification(e.target.value)}
+                      placeholder="Motivo da alteração"
+                      className="h-8"
+                    />
+                  </div>
+                  <div className="flex gap-2 justify-end">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => { setShowChangeRequest(false); setDesiredPaymentDay(""); setChangeJustification(""); }}
+                      className="h-8"
+                    >
+                      Cancelar
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={!desiredPaymentDay || isRequestingChange}
+                      onClick={handleRequestPaymentDayChange}
+                      className="h-8"
+                    >
+                      <Send className="h-3 w-3 mr-1" />
+                      {isRequestingChange ? "Enviando..." : "Enviar solicitação"}
+                    </Button>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    A alteração só será aplicada após aprovação de um diretor.
+                  </p>
                 </div>
               )}
             </div>
           )}
+
 
           <Separator />
 
