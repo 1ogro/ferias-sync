@@ -68,8 +68,22 @@ export const ProfileModal = ({ open, onOpenChange }: ProfileModalProps) => {
       setBirthdateInput(formatDateToBRString(birthDate));
       setShowChangeRequest(false);
       setDesiredPaymentDay("");
+      setChangeJustification("");
+      // Load existing pending payment day change request
+      (async () => {
+        const { data } = await (supabase as any)
+          .from('payment_day_change_requests')
+          .select('id, requested_day, created_at')
+          .eq('person_id', person.id)
+          .eq('status', 'PENDENTE')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        setPendingPaymentRequest(data || null);
+      })();
     }
   }, [person, open]);
+
 
   const handleBirthdateInputChange = (value: string) => {
     const maskedValue = applyDateMask(value);
