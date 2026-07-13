@@ -237,9 +237,84 @@ const Inbox = () => {
   useEffect(() => {
     if (person) {
       console.log('Person available, fetching pending requests');
+  const fetchPaymentDayRequests = async () => {
+    const { data, error } = await (supabase as any)
+      .from('payment_day_change_requests')
+      .select('id, person_id, current_day, requested_day, justification, created_at, person:people!payment_day_change_requests_person_id_fkey(nome)')
+      .eq('status', 'PENDENTE')
+      .order('created_at', { ascending: false });
+    if (error) {
+      console.error('Error fetching payment day requests:', error);
+      return;
+    }
+    setPaymentDayRequests((data || []).map((r: any) => ({
+      id: r.id,
+      person_id: r.person_id,
+      person_nome: r.person?.nome || r.person_id,
+      current_day: r.current_day,
+      requested_day: r.requested_day,
+      justification: r.justification,
+      created_at: r.created_at,
+    })));
+  };
+
+  const handleReviewPaymentDay = async (id: string, approve: boolean) => {
+    setProcessingPaymentId(id);
+    try {
+      const notes = paymentReviewNotes[id] || null;
+      const { data, error } = await (supabase as any).rpc('review_payment_day_change', {
+        p_request_id: id,
+        p_approve: approve,
+        p_notes: notes,
+      });
+      if (error) throw error;
+      const result = data as { success: boolean; message?: string };
+      if (!result?.success) throw new Error(result?.message || 'Falha ao revisar');
+      const req = paymentDayRequests.find(r => r.id === id);
+      // Fire-and-forget notification of decision
+      if (req) {
+        supabase.functions.invoke('send-notification-email', {
+          body: {
+            type: 'PAYMENT_DAY_CHANGE_DECISION',
+            targetPersonId: req.person_id,
+            approved: approve,
+            currentPaymentDay: req.current_day,
+            desiredPaymentDay: req.requested_day,
+            notes,
+            requestId: id,
+          },
+        }).catch(err => console.warn('Email notify failed:', err));
+        supabase.functions.invoke('slack-notification', {
+          body: {
+            type: 'PAYMENT_DAY_CHANGE_DECISION',
+            targetPersonId: req.person_id,
+            approved: approve,
+            currentPaymentDay: req.current_day,
+            desiredPaymentDay: req.requested_day,
+            notes,
+            requestId: id,
+          },
+        }).catch(err => console.warn('Slack notify failed:', err));
+      }
+      toast({ title: approve ? 'Solicitação aprovada' : 'Solicitação rejeitada' });
+      setPaymentReviewNotes(prev => { const n = { ...prev }; delete n[id]; return n; });
+      fetchPaymentDayRequests();
+    } catch (e: any) {
+      toast({ title: 'Erro', description: e.message, variant: 'destructive' });
+    } finally {
+      setProcessingPaymentId(null);
+    }
+  };
+
+
+  useEffect(() => {
+    if (person) {
+      console.log('Person available, fetching pending requests');
       fetchPendingRequests();
       if (person.papel === 'DIRETOR' || person.is_admin) {
         fetchPendingPeople();
+        fetchPaymentDayRequests();
+
       } else {
         setPendingPeopleLoading(false);
       }
