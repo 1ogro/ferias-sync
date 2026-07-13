@@ -38,12 +38,16 @@ export const ProfileModal = ({ open, onOpenChange }: ProfileModalProps) => {
   const [birthdateInput, setBirthdateInput] = useState("");
   const [showChangeRequest, setShowChangeRequest] = useState(false);
   const [desiredPaymentDay, setDesiredPaymentDay] = useState<string>("");
+  const [changeJustification, setChangeJustification] = useState("");
   const [isRequestingChange, setIsRequestingChange] = useState(false);
+  const [pendingPaymentRequest, setPendingPaymentRequest] = useState<{ id: string; requested_day: number; created_at: string } | null>(null);
+  const [cancellingRequest, setCancellingRequest] = useState(false);
   const [showSetPassword, setShowSetPassword] = useState(false);
   const [newPassword, setNewPassword] = useState("");
   const [confirmNewPassword, setConfirmNewPassword] = useState("");
   const [settingPassword, setSettingPassword] = useState(false);
   const [unlinkingIdentity, setUnlinkingIdentity] = useState<string | null>(null);
+
 
   const isFigmaEnabled = integrationSettings?.figma_enabled === true &&
     (integrationSettings?.figma_status === 'active' || integrationSettings?.figma_status === 'configured');
