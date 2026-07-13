@@ -604,7 +604,8 @@ const Inbox = () => {
   };
 
   const isDirectorOrAdmin = person?.papel === 'DIRETOR' || person?.is_admin;
-  const showTabs = isDirectorOrAdmin && pendingPeople.length > 0;
+  const showTabs = isDirectorOrAdmin && (pendingPeople.length > 0 || paymentDayRequests.length > 0);
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/30">
