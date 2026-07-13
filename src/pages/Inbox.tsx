@@ -840,8 +840,10 @@ const Inbox = () => {
                   Não há solicitações de alteração de dia de pagamento no momento.
                 </p>
               </Card>
+            )}
           </>
         )}
+
       </main>
 
 
