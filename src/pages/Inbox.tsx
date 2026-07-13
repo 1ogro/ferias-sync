@@ -776,6 +776,72 @@ const Inbox = () => {
             )}
           </>
         )}
+
+        {/* Payment day change tab */}
+        {selectedTab === "payment_days" && isDirectorOrAdmin && (
+          <>
+            {paymentDayRequests.length > 0 ? (
+              <div className="space-y-4">
+                {paymentDayRequests.map((req) => (
+                  <Card key={req.id}>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base">
+                        {req.person_nome}{" "}
+                        <span className="text-muted-foreground font-normal text-sm">
+                          quer alterar do dia {req.current_day ?? '—'} para o dia {req.requested_day}
+                        </span>
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      {req.justification && (
+                        <p className="text-sm">
+                          <span className="font-medium">Justificativa:</span> {req.justification}
+                        </p>
+                      )}
+                      <p className="text-xs text-muted-foreground">
+                        Solicitado em {new Date(req.created_at).toLocaleString('pt-BR')}
+                      </p>
+                      <Textarea
+                        placeholder="Observações (opcional)"
+                        value={paymentReviewNotes[req.id] || ""}
+                        onChange={(e) => setPaymentReviewNotes(prev => ({ ...prev, [req.id]: e.target.value }))}
+                        className="min-h-[60px]"
+                      />
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          disabled={processingPaymentId !== null}
+                          onClick={() => handleReviewPaymentDay(req.id, true)}
+                          className="bg-status-approved hover:bg-status-approved/90 text-white"
+                        >
+                          <CheckCircle className="w-4 h-4 mr-1" />
+                          {processingPaymentId === req.id ? 'Aprovando...' : 'Aprovar'}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={processingPaymentId !== null}
+                          onClick={() => handleReviewPaymentDay(req.id, false)}
+                          className="border-status-rejected text-status-rejected hover:bg-status-rejected/10"
+                        >
+                          <XCircle className="w-4 h-4 mr-1" />
+                          Rejeitar
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : (
+              <Card className="p-8 text-center">
+                <InboxIcon className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-medium mb-2">Nenhuma solicitação pendente</h3>
+                <p className="text-muted-foreground">
+                  Não há solicitações de alteração de dia de pagamento no momento.
+                </p>
+              </Card>
+            )}
+
       </main>
 
       {/* Approve Dialog */}
