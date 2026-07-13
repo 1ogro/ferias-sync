@@ -148,48 +148,77 @@ export const ProfileModal = ({ open, onOpenChange }: ProfileModalProps) => {
     if (!person || !desiredPaymentDay) return;
     setIsRequestingChange(true);
     try {
-      const { data: directorEmails, error: dirError } = await supabase
-        .rpc('get_director_emails');
+      const { data, error } = await (supabase as any).rpc('request_payment_day_change', {
+        p_requested_day: Number(desiredPaymentDay),
+        p_justification: changeJustification.trim() || null,
+      });
+      if (error) throw error;
+      const result = data as { success: boolean; message?: string; request_id?: string };
+      if (!result?.success) throw new Error(result?.message || 'Falha ao criar solicitação');
 
-      if (dirError) throw dirError;
-
-      if (!directorEmails || directorEmails.length === 0) {
-        toast({ title: "Erro", description: "Nenhum diretor encontrado para enviar a solicitação.", variant: "destructive" });
-        return;
-      }
-
-      // Send email to each director
-      for (const dir of directorEmails) {
-        await supabase.functions.invoke('send-notification-email', {
-          body: {
-            type: 'PAYMENT_DAY_CHANGE_REQUEST',
-            to: dir.email,
-            requesterName: person.nome,
-            currentPaymentDay: person.dia_pagamento,
-            desiredPaymentDay: Number(desiredPaymentDay),
-          },
+      // Notify directors (fire-and-forget) with the request_id
+      supabase.rpc('get_director_emails').then(({ data: directors }) => {
+        (directors || []).forEach((dir: { email: string }) => {
+          supabase.functions.invoke('send-notification-email', {
+            body: {
+              type: 'PAYMENT_DAY_CHANGE_REQUEST',
+              to: dir.email,
+              requesterName: person.nome,
+              currentPaymentDay: person.dia_pagamento,
+              desiredPaymentDay: Number(desiredPaymentDay),
+              justification: changeJustification.trim() || null,
+              requestId: result.request_id,
+            },
+          }).catch(err => console.warn('Email notification failed:', err));
         });
-      }
-
-      // Fire-and-forget Slack notification
+      });
       supabase.functions.invoke('slack-notification', {
         body: {
           type: 'PAYMENT_DAY_CHANGE_REQUEST',
           requesterName: person.nome,
           currentPaymentDay: person.dia_pagamento,
           desiredPaymentDay: Number(desiredPaymentDay),
+          justification: changeJustification.trim() || null,
+          requestId: result.request_id,
         },
       }).catch(err => console.warn('Slack notification failed:', err));
 
-      toast({ title: "Solicitação enviada!", description: "Os diretores foram notificados sobre sua solicitação de alteração." });
+      toast({ title: "Solicitação enviada!", description: "Aguarde a aprovação de um diretor." });
+      setPendingPaymentRequest({
+        id: result.request_id!,
+        requested_day: Number(desiredPaymentDay),
+        created_at: new Date().toISOString(),
+      });
       setShowChangeRequest(false);
       setDesiredPaymentDay("");
+      setChangeJustification("");
     } catch (error: any) {
       toast({ title: "Erro", description: error.message || "Erro ao enviar solicitação.", variant: "destructive" });
     } finally {
       setIsRequestingChange(false);
     }
   };
+
+  const handleCancelPaymentDayChange = async () => {
+    if (!pendingPaymentRequest) return;
+    setCancellingRequest(true);
+    try {
+      const { data, error } = await (supabase as any).rpc('cancel_payment_day_change', {
+        p_request_id: pendingPaymentRequest.id,
+      });
+      if (error) throw error;
+      const result = data as { success: boolean; message?: string };
+      if (!result?.success) throw new Error(result?.message || 'Falha ao cancelar');
+      setPendingPaymentRequest(null);
+      toast({ title: "Solicitação cancelada" });
+    } catch (error: any) {
+      toast({ title: "Erro", description: error.message, variant: "destructive" });
+    } finally {
+      setCancellingRequest(false);
+    }
+  };
+
+
 
   const getBirthdayThisYear = () => {
     if (!formData.data_nascimento) return null;
