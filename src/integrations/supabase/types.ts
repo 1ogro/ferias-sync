@@ -431,6 +431,66 @@ export type Database = {
           },
         ]
       }
+      payment_day_change_requests: {
+        Row: {
+          created_at: string
+          current_day: number | null
+          effective_from: string | null
+          id: string
+          justification: string | null
+          person_id: string
+          requested_day: number
+          review_notes: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          current_day?: number | null
+          effective_from?: string | null
+          id?: string
+          justification?: string | null
+          person_id: string
+          requested_day: number
+          review_notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          current_day?: number | null
+          effective_from?: string | null
+          id?: string
+          justification?: string | null
+          person_id?: string
+          requested_day?: number
+          review_notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_day_change_requests_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_day_change_requests_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       peer_review_pairs: {
         Row: {
           completed_at: string | null
@@ -1345,6 +1405,10 @@ export type Database = {
         }
         Returns: string
       }
+      cancel_payment_day_change: {
+        Args: { p_request_id: string }
+        Returns: Json
+      }
       cleanup_orphan_profiles: { Args: never; Returns: number }
       complete_own_profile:
         | {
@@ -1531,6 +1595,14 @@ export type Database = {
           p_rejection_reason: string
           p_reviewer_id: string
         }
+        Returns: Json
+      }
+      request_payment_day_change: {
+        Args: { p_justification?: string; p_requested_day: number }
+        Returns: Json
+      }
+      review_payment_day_change: {
+        Args: { p_approve: boolean; p_notes?: string; p_request_id: string }
         Returns: Json
       }
       set_contract_data_for_current_user:
