@@ -233,11 +233,8 @@ const Inbox = () => {
     }
   };
 
-
-  useEffect(() => {
-    if (person) {
-      console.log('Person available, fetching pending requests');
   const fetchPaymentDayRequests = async () => {
+
     const { data, error } = await (supabase as any)
       .from('payment_day_change_requests')
       .select('id, person_id, current_day, requested_day, justification, created_at, person:people!payment_day_change_requests_person_id_fkey(nome)')
