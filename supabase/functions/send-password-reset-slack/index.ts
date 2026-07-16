@@ -366,7 +366,9 @@ Deno.serve(async (req) => {
     log("dm_result", { ok: dmResult.ok, error: dmResult.error });
     log("email_result", { ok: emailResult.ok, error: emailResult.error });
 
-    const dmStatus = dmResult.ok ? "sent" : "failed";
+    const dmStatus = dmResult.ok
+      ? "sent"
+      : (dmResult.error === "no_slack_linked" ? "no_slack_linked" : "failed");
     const emailStatus = emailResult.ok ? "sent" : "failed";
 
     // 5) Audit + canal admin
