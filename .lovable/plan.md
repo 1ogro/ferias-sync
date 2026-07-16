@@ -1,67 +1,51 @@
-# Fluxo de aprovação para alteração de dia de pagamento (PJ)
 
-## Situação atual
+## Objetivo
 
-Hoje, no `ProfileModal`, quando um colaborador PJ clica em **"Solicitar alteração"** do dia de pagamento:
+Toda notificação de **reset de senha** e de **validação de novos cadastros** deve sair simultaneamente por **email e Slack DM** (redundantes, não excludentes). Quando o destinatário não tiver um usuário Slack vinculado ao email pessoal, o sistema avisa para procurar o administrador — sem falhar silenciosamente.
 
-- Um email é enviado a todos os diretores (`get_director_emails` + `send-notification-email` tipo `PAYMENT_DAY_CHANGE_REQUEST`).
-- Uma notificação Slack é disparada (`slack-notification` tipo `PAYMENT_DAY_CHANGE_REQUEST`).
-- **Nada é persistido**: não há registro da solicitação, não há estado "pendente", não há aprovação/rejeição, não há histórico e o diretor precisa entrar no Admin e editar manualmente o campo `dia_pagamento` para efetivar.
+## Diagnóstico do estado atual
 
-Ou seja, **não existe fluxo de aprovação real** — apenas um aviso informal.
+| Fluxo | Email | Slack DM | Aviso se sem Slack |
+|---|---|---|---|
+| Reset de senha (`send-password-reset-slack`) | ✅ enviado em paralelo | ✅ enviado se lookup achar | ❌ apenas retorna `dm_status: failed`, UI não mostra nada |
+| Novo cadastro pendente → admins (`NewCollaboratorForm`, `PendingCollaboratorsList`) | ✅ `send-notification-email` (um email agregado) | ⚠️ `slack-notification` posta em **canal**, não DM por admin | ❌ sem verificação por admin |
+| Aprovação → colaborador (`notify-approved-collaborator`) | ✅ Resend + invite | ✅ DM se `lookupByEmail` achar | ❌ email não menciona o problema quando Slack falha |
 
-## O que criar
+## Mudanças
 
-Fluxo completo de aprovação com estado persistido, aprovação/rejeição em 1 clique pelo diretor e aplicação automática da mudança quando aprovada.
+### 1. `supabase/functions/send-password-reset-slack/index.ts`
+- Sempre tentar email primeiro, mesmo quando o Slack lookup falha (hoje quando `slackUserId` não é encontrado a função retorna antes de gerar link/email). Mover a geração do `recoveryLink` e o `sendRecoveryEmail` para antes do early-return.
+- Quando `slackUserId` for `null`, retornar `{ ok: true, dm_status: "no_slack_linked", email_status, ...}` em vez de `dm_error: "slack_user_not_found"`.
+- Manter aviso no canal admin já existente.
 
-### 1. Banco (migração)
+### 2. `src/pages/Auth.tsx` (tela de "esqueci minha senha")
+- Ler `dm_status` da resposta. Se `no_slack_linked`, exibir toast/alert:  
+  _"Enviamos o link por email. Não encontramos seu usuário no Slack vinculado a este email — se precisar receber também por DM, procure um administrador."_
+- Se `email_status === "failed"` e sem Slack, mostrar erro pedindo contato com admin.
 
-Nova tabela `payment_day_change_requests`:
+### 3. `supabase/functions/notify-approved-collaborator/index.ts`
+- Quando não houver `slackId`, incluir no HTML do email um bloco:  
+  _"Não conseguimos localizar seu usuário no Slack. Para receber notificações por DM, peça a um administrador para vincular seu Slack."_
+- Já envia ambos os canais; apenas anexa o aviso.
 
-- `person_id` (FK people)
-- `current_day`, `requested_day` (int, 10/20/30)
-- `status` — `PENDENTE` | `APROVADO` | `REJEITADO` | `CANCELADO`
-- `justification` (texto opcional que o colaborador informa)
-- `reviewed_by` (person_id do diretor), `reviewed_at`, `review_notes`
-- `effective_from` (data em que o novo dia passa a valer — default próximo ciclo)
-- timestamps padrão + trigger `updated_at`
+### 4. Notificação de novo cadastro pendente para admins/diretores
+Trocar a chamada única `slack-notification` (canal) por **DM individual redundante ao email** para cada admin/diretor:
+- Criar helper reutilizável `supabase/functions/_shared/notify-admins.ts` que:
+  1. Busca `people` com `is_admin = true` ou papel director/admin ativos.
+  2. Para cada admin: envia email (Resend) **e** DM Slack via `lookupByEmail`.
+  3. Retorna lista `{ person_id, email_ok, dm_ok, slack_linked }`.
+- `send-notification-email` (type `NEW_PENDING_PERSON`) e `slack-notification` (type `NEW_PENDING_PERSON`) passam a delegar para esse helper — ou é criada nova função `notify-admins-pending` chamada pelo front, substituindo as duas chamadas em `NewCollaboratorForm.tsx` e `PendingCollaboratorsList.tsx`.
+- Persistir em `audit_logs` (ação `NOTIFY_ADMINS_PENDING`) o resultado por admin, para permitir que outro admin veja quais colegas não têm Slack vinculado.
 
-RLS/GRANTs:
-- Colaborador vê/cria/cancela apenas as próprias solicitações pendentes.
-- Diretores/admin veem tudo e aprovam/rejeitam.
-
-Regra: só uma solicitação `PENDENTE` por pessoa (índice único parcial).
-
-Duas funções `SECURITY DEFINER`:
-- `request_payment_day_change(p_requested_day, p_justification)` — valida PJ, cria a linha, retorna id.
-- `review_payment_day_change(p_id, p_approve, p_notes)` — só admin/diretor; se aprovado, atualiza `people.dia_pagamento`, grava audit log, marca `reviewed_*`.
-
-### 2. Frontend
-
-**`ProfileModal.tsx`** (colaborador PJ):
-- Substituir o botão atual por chamada à RPC `request_payment_day_change` + campo opcional de justificativa.
-- Mostrar badge "Solicitação pendente: dia X" enquanto houver uma aberta, com botão "Cancelar solicitação".
-- Manter os disparos de email/Slack existentes, apenas incluindo o `request_id`.
-
-**Inbox do diretor (`src/pages/Inbox.tsx`)**:
-- Nova seção/aba "Alterações de dia de pagamento" listando solicitações `PENDENTE`.
-- Ações **Aprovar** / **Rejeitar** (com nota), chamando `review_payment_day_change`.
-- Ao aprovar, dispara notificação (email + Slack) ao colaborador via edge functions existentes (novo tipo `PAYMENT_DAY_CHANGE_DECISION`).
-
-**Admin (`src/pages/Admin.tsx`)**:
-- Ao lado do campo `dia_pagamento`, mostrar aviso se existir solicitação pendente e link para a inbox.
-
-### 3. Notificações
-
-Reaproveitar `send-notification-email` e `slack-notification` adicionando o tipo `PAYMENT_DAY_CHANGE_DECISION` (aprovada/rejeitada) com o resultado e a nota do revisor.
-
-## Detalhes técnicos
-
-- Aprovação atualiza `people.dia_pagamento` dentro da própria função SQL (transação única) e grava `audit_logs` com `acao='PAYMENT_DAY_CHANGE_APPROVED'` / `REJECTED`.
-- Cancelamento pelo colaborador permitido apenas em `PENDENTE`.
-- Emails/Slack seguem o padrão fire-and-forget já usado no projeto.
+### 5. UI de gestão
+- Em `Admin.tsx` (ou banner no dashboard admin), mostrar aviso quando existe log recente `NOTIFY_ADMINS_PENDING` com `slack_linked=false` para o próprio usuário: _"Seu Slack não está vinculado ao email X — você só recebe alertas por email."_
 
 ## Fora de escopo
+- Não altera regras de aprovação nem cria novas tabelas.
+- Não muda templates visuais do email além do bloco de aviso.
+- Não mexe em outros fluxos (kudos, birthdays, pulses) — a redundância explícita pedida cobre apenas reset de senha e cadastros.
 
-- Alteração de `dia_pagamento` para CLT (campo só existe para PJ).
-- Alterações em massa por RH.
+## Detalhes técnicos
+- Reaproveitar `notify-helpers.ts` (`lookupSlackUserByEmail`, `sendSlackDM`, `sendEmail`) no novo helper.
+- Preservar respeito às `notification_preferences` **exceto** para reset de senha e aprovação de cadastro, que são obrigatórios (transacional/segurança) — hoje `send-password-reset-slack` e `notify-approved-collaborator` já ignoram prefs; manter assim.
+- Audit logs continuam sendo a fonte de verdade para debugging (`USER_PASSWORD_RESET_SLACK`, `NOTIFY_APPROVED`, `NOTIFY_ADMINS_PENDING`).
