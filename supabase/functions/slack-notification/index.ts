@@ -198,6 +198,43 @@ serve(async (req) => {
     } else if (payload!.type === 'NEW_PENDING_PERSON') {
       text = `Novo Cadastro Pendente`;
       blocks = [{ type: "section", text: { type: "mrkdwn", text: `*📋 Novo Cadastro Pendente*\n👤 *${payload!.managerName}* submeteu o cadastro de *${payload!.personName}* (${payload!.personEmail}) para aprovação.` } }];
+
+      // Fan-out: DM redundante a cada admin/diretor
+      try {
+        const supabaseAdmin = getSupabaseAdmin();
+        const { data: admins } = await supabaseAdmin
+          .from('people')
+          .select('id, nome, email')
+          .or('papel.eq.DIRETOR,is_admin.eq.true')
+          .eq('ativo', true);
+
+        const fanout: any[] = [];
+        for (const a of admins ?? []) {
+          if (!a.email) { fanout.push({ id: a.id, ok: false, error: 'no_email' }); continue; }
+          const r = await lookupSlackUser(a.email, a.nome);
+          if (!r.slackUserId) {
+            fanout.push({ id: a.id, email: a.email, ok: false, error: 'no_slack_linked' });
+            continue;
+          }
+          const dmRes = await fetch("https://slack.com/api/chat.postMessage", {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${SLACK_BOT_TOKEN}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ channel: r.slackUserId, text, blocks }),
+          });
+          const dmJson = await dmRes.json();
+          fanout.push({ id: a.id, email: a.email, ok: !!dmJson.ok, error: dmJson.error, slack_user_id: r.slackUserId });
+        }
+
+        await supabaseAdmin.from('audit_logs').insert({
+          entidade: 'slack_notification',
+          entidade_id: payload!.targetPersonId || 'n/a',
+          acao: 'NEW_PENDING_PERSON_FANOUT',
+          actor_id: null,
+          payload: { fanout, missing_slack: fanout.filter((f) => f.error === 'no_slack_linked').map((f) => f.email) },
+        });
+      } catch (fanErr) {
+        console.warn('NEW_PENDING_PERSON fanout failed:', fanErr);
+      }
     } else if (payload!.type === 'PAYMENT_DAY_CHANGE_REQUEST') {
       text = `Solicitação de Alteração de Dia de Pagamento`;
       blocks = [{ type: "section", text: { type: "mrkdwn", text: `*💰 Solicitação de Alteração de Dia de Pagamento*\n👤 *${payload!.requesterName}*\n📅 Dia atual: ${payload!.currentPaymentDay} → Dia desejado: ${payload!.desiredPaymentDay}` } }];

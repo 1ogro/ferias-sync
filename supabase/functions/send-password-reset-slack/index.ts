@@ -241,7 +241,7 @@ Deno.serve(async (req) => {
       return respond({ ok: true, reason: "person_not_found" });
     }
 
-    // 2) Resolver Slack user ID
+    // 2) Resolver Slack user ID (best-effort — email é sempre enviado)
     let slackUserId: string | null = null;
     let lookupMethod: "email" | "name" | "person_email" | "none" = "none";
     let nameLookupReason: string | null = null;
@@ -272,29 +272,7 @@ Deno.serve(async (req) => {
 
     log("slack_lookup", { method: lookupMethod, slackUserId, nameLookupReason });
 
-    if (!slackUserId) {
-      sendSlackChannel(
-        `⚠️ *Reset de senha* — não foi possível localizar *${person.nome}* (${person.email}) no Slack.`
-      );
-      await admin.from("audit_logs").insert({
-        entidade: "auth",
-        entidade_id: person.id,
-        acao: "USER_PASSWORD_RESET_SLACK",
-        actor_id: person.id,
-        payload: {
-          identifier_type: identifierType,
-          slack_lookup_method: lookupMethod,
-          name_lookup_reason: nameLookupReason,
-          target_email: person.email,
-          target_name: person.nome,
-          dm_status: "failed",
-          dm_error: "slack_user_not_found",
-        },
-      });
-      return respond({ ok: true, dm_status: "failed", dm_error: "slack_user_not_found" });
-    }
-
-    // 3) Garantir auth user e gerar link de recovery
+    // 3) Garantir auth user e gerar link de recovery (independente do Slack)
     const { data: usersData } = await admin.auth.admin.listUsers();
     let authUser = usersData?.users?.find(
       (u: any) => (u.email || "").toLowerCase() === person.email.toLowerCase()
@@ -314,7 +292,6 @@ Deno.serve(async (req) => {
         authUserCreated = !!authUser;
       }
     } else if (!authUser.email_confirmed_at) {
-      // Confirmar email para permitir recovery
       const { error: updErr } = await admin.auth.admin.updateUserById(authUser.id, {
         email_confirm: true,
       } as any);
@@ -325,7 +302,7 @@ Deno.serve(async (req) => {
       sendSlackChannel(
         `⚠️ *Reset de senha* — não consegui preparar usuário auth para *${person.nome}* (${person.email}).`
       );
-      return respond({ ok: true, dm_status: "failed", dm_error: "auth_user_unavailable" });
+      return respond({ ok: true, dm_status: "failed", dm_error: "auth_user_unavailable", email_status: "failed" });
     }
 
     const { data: linkData, error: linkError } = await admin.auth.admin.generateLink({
@@ -339,14 +316,13 @@ Deno.serve(async (req) => {
       sendSlackChannel(
         `⚠️ *Reset de senha* — falha ao gerar link para *${person.nome}* (${person.email}): ${linkError?.message ?? "sem hashed_token"}`
       );
-      return respond({ ok: true, dm_status: "failed", dm_error: "link_generation_failed" });
+      return respond({ ok: true, dm_status: "failed", dm_error: "link_generation_failed", email_status: "failed" });
     }
-    // Montar link no domínio do app (não no Supabase) — validado via verifyOtp
     const sep = redirectTo.includes("?") ? "&" : "?";
     const recoveryLink = `${redirectTo}${sep}token_hash=${encodeURIComponent(hashedToken)}&type=recovery`;
     log("link_generated", { personId: person.id, authUserCreated });
 
-    // 4) Enviar DM
+    // 4) Enviar Email + Slack DM (redundantes). Email SEMPRE; DM só se slackUserId existir.
     const blocks = [
       {
         type: "section",
@@ -374,12 +350,14 @@ Deno.serve(async (req) => {
     ];
 
     const [dmResult, emailResult] = await Promise.all([
-      postSlackDM(
-        slackToken,
-        slackUserId,
-        `Olá ${person.nome}! Acesse ${recoveryLink} para redefinir sua senha.`,
-        blocks
-      ),
+      slackUserId
+        ? postSlackDM(
+            slackToken,
+            slackUserId,
+            `Olá ${person.nome}! Acesse ${recoveryLink} para redefinir sua senha.`,
+            blocks
+          )
+        : Promise.resolve({ ok: false, error: "no_slack_linked" } as { ok: boolean; error?: string }),
       person.email
         ? sendRecoveryEmail(person.email, person.nome, recoveryLink)
         : Promise.resolve({ ok: false, error: "no_email" } as { ok: boolean; error?: string }),
@@ -388,7 +366,9 @@ Deno.serve(async (req) => {
     log("dm_result", { ok: dmResult.ok, error: dmResult.error });
     log("email_result", { ok: emailResult.ok, error: emailResult.error });
 
-    const dmStatus = dmResult.ok ? "sent" : "failed";
+    const dmStatus = dmResult.ok
+      ? "sent"
+      : (dmResult.error === "no_slack_linked" ? "no_slack_linked" : "failed");
     const emailStatus = emailResult.ok ? "sent" : "failed";
 
     // 5) Audit + canal admin

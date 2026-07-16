@@ -182,6 +182,13 @@ serve(async (req) => {
         }
 
         const url = actionLink || `${APP_URL}/auth`;
+        const slackWarning = !slackId
+          ? `<div style="margin-top:16px;padding:12px 16px;background:#fef3c7;border-left:4px solid #f59e0b;border-radius:6px;color:#78350f;font-size:13px;">
+              <strong>Atenção:</strong> não localizamos seu usuário no Slack vinculado a este email.
+              Você continuará recebendo notificações por email; se quiser também receber por DM no Slack,
+              procure um administrador para vincular seu usuário.
+            </div>`
+          : '';
         const html = `
           <div style="font-family: Arial, sans-serif; max-width: 560px; margin: 0 auto; padding: 24px;">
             <h2 style="color: #111;">🎉 Seu cadastro foi aprovado!</h2>
@@ -194,6 +201,7 @@ serve(async (req) => {
               </a>
             </p>
             <p style="color:#666;font-size:13px;">Se o botão não funcionar, copie e cole no navegador:<br/>${url}</p>
+            ${slackWarning}
           </div>
         `;
         const er = await sendEmail(person.email, "🎉 Bem-vindo(a) ao Férias UXTD — complete seu perfil", html);
