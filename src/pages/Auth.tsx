@@ -358,9 +358,19 @@ export default function Auth() {
                               if (channels.length > 0) {
                                 toast({
                                   title: 'Link enviado!',
-                                  description: `Enviamos o link de redefinição por ${channels.join(' e ')}.`,
+                                  description:
+                                    dmStatus === 'no_slack_linked'
+                                      ? 'Enviamos o link por email. Não encontramos um usuário no Slack vinculado a este email — se quiser receber também por DM, procure um administrador.'
+                                      : `Enviamos o link de redefinição por ${channels.join(' e ')}.`,
                                 });
                                 setShowForgotPassword(false);
+                              } else if (dmStatus === 'no_slack_linked') {
+                                toast({
+                                  title: 'Não conseguimos enviar o link',
+                                  description:
+                                    'Seu email não recebeu o link e não há usuário do Slack vinculado. Procure um administrador para liberar seu acesso.',
+                                  variant: 'destructive',
+                                });
                               } else {
                                 toast({
                                   title: 'Não foi possível enviar o link',
