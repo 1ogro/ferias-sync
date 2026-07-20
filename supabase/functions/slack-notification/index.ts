@@ -99,7 +99,7 @@ const TIPO_EMOJI = {
   'LICENCA_MEDICA': '🏥',
 };
 
-const DM_TYPES = new Set(['NEW_REQUEST', 'APPROVAL', 'REJECTION', 'REQUEST_INFO']);
+const DM_TYPES = new Set(['NEW_REQUEST', 'APPROVAL', 'REJECTION', 'REQUEST_INFO', 'PAYMENT_DAY_CHANGE_DECISION']);
 
 function getPreferenceColumn(type: string): string | null {
   if (DM_TYPES.has(type)) return 'request_updates_slack';
