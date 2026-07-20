@@ -353,6 +353,7 @@ function generateEmailContent(notification: NotificationRequest): { subject: str
       };
     }
 
+    case 'INVITE_ACCEPTED':
       return {
         subject: `Convite aceito — ${notification.collaboratorName} criou sua conta`,
         html: `
