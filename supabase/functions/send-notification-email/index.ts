@@ -329,7 +329,30 @@ function generateEmailContent(notification: NotificationRequest): { subject: str
         `,
       };
 
-    case 'INVITE_ACCEPTED':
+    case 'PAYMENT_DAY_CHANGE_DECISION': {
+      const approved = notification.approved === true;
+      const color = approved ? '#16a34a' : '#dc2626';
+      const icon = approved ? '✅' : '❌';
+      const title = approved ? 'Alteração de dia de pagamento aprovada' : 'Alteração de dia de pagamento recusada';
+      return {
+        subject: `${icon} ${title}`,
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2 style="color: ${color};">${icon} ${title}</h2>
+            <p>Olá <strong>${notification.requesterName || ''}</strong>,</p>
+            <p>Sua solicitação de alteração do dia de pagamento foi <strong>${approved ? 'aprovada' : 'recusada'}</strong>.</p>
+            <div style="background-color: #f8fafc; padding: 15px; border-left: 3px solid ${color}; margin: 15px 0;">
+              <p style="margin: 5px 0;"><strong>Dia atual:</strong> ${notification.currentPaymentDay ?? 'Não definido'}</p>
+              <p style="margin: 5px 0;"><strong>Dia solicitado:</strong> ${notification.desiredPaymentDay ?? '-'}</p>
+            </div>
+            ${notification.notes ? `<p><strong>Observações:</strong> ${notification.notes}</p>` : ''}
+            <br/>
+            <p style="color: #666; font-size: 12px;">Este é um email automático, por favor não responda.</p>
+          </div>
+        `,
+      };
+    }
+
       return {
         subject: `Convite aceito — ${notification.collaboratorName} criou sua conta`,
         html: `
