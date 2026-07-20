@@ -138,11 +138,33 @@ const handler = async (req: Request): Promise<Response> => {
       }
     }
 
+    // Resolve recipient email from targetPersonId if not provided
+    let recipientEmail = notification.to;
+    if (!recipientEmail && notification.targetPersonId) {
+      const { data: person } = await supabaseAdmin
+        .from('people')
+        .select('email, nome')
+        .eq('id', notification.targetPersonId)
+        .maybeSingle();
+      if (person?.email) {
+        recipientEmail = person.email;
+        if (!notification.requesterName && person.nome) notification.requesterName = person.nome;
+      }
+    }
+
+    if (!recipientEmail) {
+      console.warn('No recipient email resolved for notification', notification.type);
+      return new Response(JSON.stringify({ success: false, error: 'no_recipient_email' }), {
+        status: 400,
+        headers: { "Content-Type": "application/json", ...corsHeaders },
+      });
+    }
+
     const emailContent = generateEmailContent(notification);
 
     const emailResponse = await resend.emails.send({
       from: "Sistema de Férias <onboarding@resend.dev>",
-      to: [notification.to!],
+      to: [recipientEmail],
       subject: emailContent.subject,
       html: emailContent.html,
     });
