@@ -259,6 +259,12 @@ serve(async (req) => {
     } else if (payload!.type === 'PAYMENT_DAY_CHANGE_REQUEST') {
       text = `Solicitação de Alteração de Dia de Pagamento`;
       blocks = [{ type: "section", text: { type: "mrkdwn", text: `*💰 Solicitação de Alteração de Dia de Pagamento*\n👤 *${payload!.requesterName}*\n📅 Dia atual: ${payload!.currentPaymentDay} → Dia desejado: ${payload!.desiredPaymentDay}` } }];
+    } else if (payload!.type === 'PAYMENT_DAY_CHANGE_DECISION') {
+      const approved = payload!.approved === true;
+      const icon = approved ? '✅' : '❌';
+      const status = approved ? 'aprovada' : 'recusada';
+      text = `Alteração de dia de pagamento ${status}`;
+      blocks = [{ type: "section", text: { type: "mrkdwn", text: `*${icon} Alteração de dia de pagamento ${status}*\n📅 Dia atual: ${payload!.currentPaymentDay ?? '-'} → Dia solicitado: ${payload!.desiredPaymentDay ?? '-'}${payload!.notes ? `\n💬 ${payload!.notes}` : ''}` } }];
     } else if (payload!.type === 'USER_LOGIN') {
       text = `Login realizado`;
       blocks = [{ type: "section", text: { type: "mrkdwn", text: `*🔐 Login*\n${payload!.personName ? `👤 *${payload!.personName}*` : ''} (${payload!.email})` } }];
