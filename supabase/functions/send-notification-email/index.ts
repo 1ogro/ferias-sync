@@ -10,7 +10,10 @@ const corsHeaders = {
 };
 
 interface NotificationRequest {
-  type: 'NEW_REQUEST' | 'APPROVAL_MANAGER' | 'APPROVAL_FINAL' | 'REJECTION' | 'REQUEST_INFO' | 'PAYMENT_DAY_CHANGE_REQUEST' | 'INVITE_ACCEPTED' | 'NEW_PENDING_PERSON';
+  type: 'NEW_REQUEST' | 'APPROVAL_MANAGER' | 'APPROVAL_FINAL' | 'REJECTION' | 'REQUEST_INFO' | 'PAYMENT_DAY_CHANGE_REQUEST' | 'PAYMENT_DAY_CHANGE_DECISION' | 'INVITE_ACCEPTED' | 'NEW_PENDING_PERSON';
+  approved?: boolean;
+  notes?: string | null;
+  requestId?: string;
   to?: string;
   requesterName: string;
   requestType?: string;
@@ -38,6 +41,9 @@ function getPreferenceColumn(type: string): string | null {
   }
   if (type === 'PAYMENT_DAY_CHANGE_REQUEST' || type === 'INVITE_ACCEPTED' || type === 'NEW_PENDING_PERSON') {
     return 'admin_actions_email';
+  }
+  if (type === 'PAYMENT_DAY_CHANGE_DECISION') {
+    return 'request_updates_email';
   }
   return null;
 }
@@ -132,11 +138,33 @@ const handler = async (req: Request): Promise<Response> => {
       }
     }
 
+    // Resolve recipient email from targetPersonId if not provided
+    let recipientEmail = notification.to;
+    if (!recipientEmail && notification.targetPersonId) {
+      const { data: person } = await supabaseAdmin
+        .from('people')
+        .select('email, nome')
+        .eq('id', notification.targetPersonId)
+        .maybeSingle();
+      if (person?.email) {
+        recipientEmail = person.email;
+        if (!notification.requesterName && person.nome) notification.requesterName = person.nome;
+      }
+    }
+
+    if (!recipientEmail) {
+      console.warn('No recipient email resolved for notification', notification.type);
+      return new Response(JSON.stringify({ success: false, error: 'no_recipient_email' }), {
+        status: 400,
+        headers: { "Content-Type": "application/json", ...corsHeaders },
+      });
+    }
+
     const emailContent = generateEmailContent(notification);
 
     const emailResponse = await resend.emails.send({
       from: "Sistema de Férias <onboarding@resend.dev>",
-      to: [notification.to!],
+      to: [recipientEmail],
       subject: emailContent.subject,
       html: emailContent.html,
     });
@@ -301,7 +329,30 @@ function generateEmailContent(notification: NotificationRequest): { subject: str
         `,
       };
 
-    case 'INVITE_ACCEPTED':
+    case 'PAYMENT_DAY_CHANGE_DECISION': {
+      const approved = notification.approved === true;
+      const color = approved ? '#16a34a' : '#dc2626';
+      const icon = approved ? '✅' : '❌';
+      const title = approved ? 'Alteração de dia de pagamento aprovada' : 'Alteração de dia de pagamento recusada';
+      return {
+        subject: `${icon} ${title}`,
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2 style="color: ${color};">${icon} ${title}</h2>
+            <p>Olá <strong>${notification.requesterName || ''}</strong>,</p>
+            <p>Sua solicitação de alteração do dia de pagamento foi <strong>${approved ? 'aprovada' : 'recusada'}</strong>.</p>
+            <div style="background-color: #f8fafc; padding: 15px; border-left: 3px solid ${color}; margin: 15px 0;">
+              <p style="margin: 5px 0;"><strong>Dia atual:</strong> ${notification.currentPaymentDay ?? 'Não definido'}</p>
+              <p style="margin: 5px 0;"><strong>Dia solicitado:</strong> ${notification.desiredPaymentDay ?? '-'}</p>
+            </div>
+            ${notification.notes ? `<p><strong>Observações:</strong> ${notification.notes}</p>` : ''}
+            <br/>
+            <p style="color: #666; font-size: 12px;">Este é um email automático, por favor não responda.</p>
+          </div>
+        `,
+      };
+    }
+
       return {
         subject: `Convite aceito — ${notification.collaboratorName} criou sua conta`,
         html: `

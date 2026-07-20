@@ -10,7 +10,9 @@ const corsHeaders = {
 };
 
 interface SlackNotificationRequest {
-  type: 'NEW_REQUEST' | 'APPROVAL' | 'REJECTION' | 'REQUEST_INFO' | 'PERSON_APPROVED' | 'PERSON_REJECTED' | 'INVITE_ACCEPTED' | 'NEW_PENDING_PERSON' | 'PAYMENT_DAY_CHANGE_REQUEST' | 'USER_LOGIN' | 'USER_SIGNUP' | 'USER_PASSWORD_RESET_REQUEST' | 'USER_FIGMA_LOGIN' | 'PROFILE_UPDATE' | 'CONTRACT_SETUP' | 'MEDICAL_LEAVE_CREATED' | 'MEDICAL_LEAVE_ENDED';
+  type: 'NEW_REQUEST' | 'APPROVAL' | 'REJECTION' | 'REQUEST_INFO' | 'PERSON_APPROVED' | 'PERSON_REJECTED' | 'INVITE_ACCEPTED' | 'NEW_PENDING_PERSON' | 'PAYMENT_DAY_CHANGE_REQUEST' | 'PAYMENT_DAY_CHANGE_DECISION' | 'USER_LOGIN' | 'USER_SIGNUP' | 'USER_PASSWORD_RESET_REQUEST' | 'USER_FIGMA_LOGIN' | 'PROFILE_UPDATE' | 'CONTRACT_SETUP' | 'MEDICAL_LEAVE_CREATED' | 'MEDICAL_LEAVE_ENDED';
+  approved?: boolean;
+  notes?: string | null;
   requestId?: string;
   requesterName?: string;
   requestType?: string;
@@ -97,7 +99,7 @@ const TIPO_EMOJI = {
   'LICENCA_MEDICA': '🏥',
 };
 
-const DM_TYPES = new Set(['NEW_REQUEST', 'APPROVAL', 'REJECTION', 'REQUEST_INFO']);
+const DM_TYPES = new Set(['NEW_REQUEST', 'APPROVAL', 'REJECTION', 'REQUEST_INFO', 'PAYMENT_DAY_CHANGE_DECISION']);
 
 function getPreferenceColumn(type: string): string | null {
   if (DM_TYPES.has(type)) return 'request_updates_slack';
@@ -123,6 +125,25 @@ serve(async (req) => {
 
     const url = new URL(req.url);
     const diagnose = payload!.diagnose === true || url.searchParams.get('diagnose') === 'true';
+
+    // Resolve recipient info from targetPersonId when needed
+    if (payload!.targetPersonId && !payload!.recipientEmail) {
+      try {
+        const supabaseAdmin = getSupabaseAdmin();
+        const { data: person } = await supabaseAdmin
+          .from('people')
+          .select('email, nome')
+          .eq('id', payload!.targetPersonId)
+          .maybeSingle();
+        if (person) {
+          payload!.recipientEmail = person.email || undefined;
+          if (!payload!.recipientName) payload!.recipientName = person.nome || undefined;
+          if (!payload!.requesterName) payload!.requesterName = person.nome || undefined;
+        }
+      } catch (e) {
+        console.warn('Failed to resolve targetPersonId:', e);
+      }
+    }
 
     const lookupEmail = payload!.recipientEmail || payload!.approverEmail;
     const lookupName = payload!.recipientName || payload!.approverName;
@@ -238,6 +259,12 @@ serve(async (req) => {
     } else if (payload!.type === 'PAYMENT_DAY_CHANGE_REQUEST') {
       text = `Solicitação de Alteração de Dia de Pagamento`;
       blocks = [{ type: "section", text: { type: "mrkdwn", text: `*💰 Solicitação de Alteração de Dia de Pagamento*\n👤 *${payload!.requesterName}*\n📅 Dia atual: ${payload!.currentPaymentDay} → Dia desejado: ${payload!.desiredPaymentDay}` } }];
+    } else if (payload!.type === 'PAYMENT_DAY_CHANGE_DECISION') {
+      const approved = payload!.approved === true;
+      const icon = approved ? '✅' : '❌';
+      const status = approved ? 'aprovada' : 'recusada';
+      text = `Alteração de dia de pagamento ${status}`;
+      blocks = [{ type: "section", text: { type: "mrkdwn", text: `*${icon} Alteração de dia de pagamento ${status}*\n📅 Dia atual: ${payload!.currentPaymentDay ?? '-'} → Dia solicitado: ${payload!.desiredPaymentDay ?? '-'}${payload!.notes ? `\n💬 ${payload!.notes}` : ''}` } }];
     } else if (payload!.type === 'USER_LOGIN') {
       text = `Login realizado`;
       blocks = [{ type: "section", text: { type: "mrkdwn", text: `*🔐 Login*\n${payload!.personName ? `👤 *${payload!.personName}*` : ''} (${payload!.email})` } }];
