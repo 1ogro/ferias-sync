@@ -1,41 +1,34 @@
 ## Objetivo
+Classificar votos de pulse como check-in ou check-out pelo **dia da semana da resposta** (em horário de São Paulo), ignorando o título do pulse — porque colaboradores respondem qualquer pulse recebido no Slack sem se importar se é o do dia.
 
-Nos resultados de cada pulse (aba Pulses em `/vacation-management`), passar a exibir três médias em vez de apenas uma:
+## Regra de classificação
+Baseada em `pulse_responses.submitted_at` convertido para `America/Sao_Paulo`:
 
-- **Semanal** (últimos 7 dias)
-- **Mensal** (últimos 30 dias)
-- **Geral** (todo o histórico da pesquisa)
+- **Check-in**: Segunda, Terça, Quarta, Quinta
+- **Check-out**: Sexta, Sábado, Domingo
 
-Isso vale tanto para cada pergunta de escala 1–5 quanto para uma nova média consolidada da pesquisa.
+(Segunda conta como check-in — início da semana, conforme resposta do usuário.)
 
-## O que muda na tela
+## Mudança
 
-No painel `PulseResultsPanel` (aberto ao selecionar uma pulse):
+Reescrever a função `public.get_pulse_checkin_averages()` para substituir a classificação por título (`ILIKE '%check-in%'`) pela classificação por dia da semana em fuso local:
 
-1. Novo bloco no topo, ao lado dos cards de "Disparos / Destinatários / Respondentes / Taxa de resposta":
-   - **Média geral da pesquisa** — média de todas as respostas de escala 1–5, com três valores lado a lado: 7d, 30d, geral. Cada valor mostra a média (x.xx / 5) e a contagem de respostas.
-
-2. Seção "Médias por pergunta (escala 1-5)":
-   - Cada pergunta passa a mostrar três colunas de média (7d, 30d, geral) em vez de uma única.
-   - Contagem de respostas continua exibida ao lado de cada média.
-   - Quando uma janela não tem respostas, mostra "—" com contagem 0 (sem quebrar layout).
-
-```text
-Pergunta                              7d          30d         Geral
-Como você está se sentindo hoje?      4.20 (5)    4.10 (22)   4.05 (118)
+```sql
+CASE EXTRACT(dow FROM (resp.submitted_at AT TIME ZONE 'America/Sao_Paulo'))
+  WHEN 1 THEN 'in'  -- seg
+  WHEN 2 THEN 'in'  -- ter
+  WHEN 3 THEN 'in'  -- qua
+  WHEN 4 THEN 'in'  -- qui
+  WHEN 5 THEN 'out' -- sex
+  WHEN 6 THEN 'out' -- sáb
+  WHEN 0 THEN 'out' -- dom
+END AS bucket
 ```
 
-O restante do painel (respostas recentes, exportação, peer review) não muda.
-
-## Fora do escopo
-
-- Não mexer no card `EngagementSummaryCard` (dashboard), que já mostra check-in/check-out em 30 dias. Se o usuário quiser depois, tratamos separado.
-- Nenhuma mudança em schema, RPC, edge function ou permissões.
+Mantém tudo o mais igual: janela de 30 dias, filtro `question_type = 'scale_1_5'`, guard de admin/gestor/diretor, grants.
 
 ## Detalhes técnicos
-
-- Alteração isolada em `src/components/pulses/PulseResultsPanel.tsx`.
-- Cálculo 100% client-side sobre `responses` já carregadas por `usePulseResponses(survey.id)` — a tabela `pulse_responses` já tem `submitted_at` e `scale_value` (confirmado no schema), então basta filtrar por janela de data no `useMemo`.
-- Helper local `avgInWindow(values, days | null)` que recebe pares `{ scale_value, submitted_at }` e devolve `{ avg, count }`; `days=null` = geral.
-- Ajustar o `useMemo` para produzir, por `question_id`, três agregados (7d/30d/all) e um agregado global agregando todas as perguntas de `scale_1_5`.
-- Sem novas dependências.
+- Migração única `CREATE OR REPLACE FUNCTION public.get_pulse_checkin_averages()`.
+- Nenhuma mudança no frontend — `usePulseCheckinAverages` e `EngagementSummaryCard` continuam consumindo os mesmos campos.
+- Efeito é retroativo: as médias mostradas passam a refletir a nova regra imediatamente, inclusive para respostas antigas.
+- Não altera a coleta ou o armazenamento de respostas — só a agregação exibida.
