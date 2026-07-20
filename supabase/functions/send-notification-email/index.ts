@@ -42,6 +42,9 @@ function getPreferenceColumn(type: string): string | null {
   if (type === 'PAYMENT_DAY_CHANGE_REQUEST' || type === 'INVITE_ACCEPTED' || type === 'NEW_PENDING_PERSON') {
     return 'admin_actions_email';
   }
+  if (type === 'PAYMENT_DAY_CHANGE_DECISION') {
+    return 'request_updates_email';
+  }
   return null;
 }
 
