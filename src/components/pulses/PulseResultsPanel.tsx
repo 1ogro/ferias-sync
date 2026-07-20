@@ -196,3 +196,20 @@ function Stat({ label, value }: { label: string; value: any }) {
     </div>
   );
 }
+
+function AvgStat({ label, data }: { label: string; data: { avg: number | null; count: number } }) {
+  return (
+    <div className="rounded border p-3">
+      <div className="text-xs text-muted-foreground">{label}</div>
+      <div className="flex items-baseline gap-1 mt-1">
+        <span className="text-2xl font-semibold tabular-nums">
+          {data.avg != null ? data.avg.toFixed(2) : "—"}
+        </span>
+        <span className="text-xs text-muted-foreground">/ 5</span>
+      </div>
+      <div className="text-[11px] text-muted-foreground mt-0.5">
+        {data.count} resposta{data.count === 1 ? "" : "s"}
+      </div>
+    </div>
+  );
+}
