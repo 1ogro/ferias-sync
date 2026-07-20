@@ -126,6 +126,25 @@ serve(async (req) => {
     const url = new URL(req.url);
     const diagnose = payload!.diagnose === true || url.searchParams.get('diagnose') === 'true';
 
+    // Resolve recipient info from targetPersonId when needed
+    if (payload!.targetPersonId && !payload!.recipientEmail) {
+      try {
+        const supabaseAdmin = getSupabaseAdmin();
+        const { data: person } = await supabaseAdmin
+          .from('people')
+          .select('email, nome')
+          .eq('id', payload!.targetPersonId)
+          .maybeSingle();
+        if (person) {
+          payload!.recipientEmail = person.email || undefined;
+          if (!payload!.recipientName) payload!.recipientName = person.nome || undefined;
+          if (!payload!.requesterName) payload!.requesterName = person.nome || undefined;
+        }
+      } catch (e) {
+        console.warn('Failed to resolve targetPersonId:', e);
+      }
+    }
+
     const lookupEmail = payload!.recipientEmail || payload!.approverEmail;
     const lookupName = payload!.recipientName || payload!.approverName;
 
