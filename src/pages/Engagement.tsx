@@ -494,7 +494,11 @@ export default function Engagement() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="space-y-6 lg:col-span-1">
             <MyPointsCard personId={person?.id} />
+            {(person?.papel === 'GESTOR' || person?.papel === 'DIRETOR' || person?.is_admin) && (
+              <EngagementSummaryCard />
+            )}
             <PrefsCard personId={person?.id} />
+
           </div>
           <div className="space-y-6 lg:col-span-1">
             <LeaderboardCard />
