@@ -1433,15 +1433,19 @@ serve(async (req) => {
             subjectId = pair?.subject_id ?? null;
           }
 
+          const eff = pairId
+            ? { runId, questionId }
+            : await resolveExpectedRunAndQuestion(supabase, runId, questionId);
+
           const { data: upRow, error: upErr } = await supabase.from("pulse_responses").upsert(
-            { run_id: runId, question_id: questionId, respondent_id: respondent.id, scale_value: parseInt(value, 10), slack_message_ts: payload.message?.ts, subject_id: subjectId },
+            { run_id: eff.runId, question_id: eff.questionId, respondent_id: respondent.id, scale_value: parseInt(value, 10), slack_message_ts: payload.message?.ts, subject_id: subjectId },
             { onConflict: "run_id,question_id,respondent_id,subject_id" }
           ).select("id").single();
           if (upErr) {
             console.error("[pulse_answer] upsert error:", upErr);
           } else {
-            await bumpResponseCount(runId, supabase);
-            await awardPoints(supabase, respondent.id, 5, "pulse_response", runId);
+            await bumpResponseCount(eff.runId, supabase);
+            await awardPoints(supabase, respondent.id, 5, "pulse_response", eff.runId);
             await completePeerPair(supabase, runId, respondent.id, pairId);
             await markRecipientResponded(supabase, runId, respondent.id);
             await postEphemeralAck(payload, `✅ Resposta registrada: *${value}/5*`);
@@ -1449,6 +1453,7 @@ serve(async (req) => {
               supabase.functions.invoke("pulse-response-notify", { body: { response_id: upRow.id } })
                 .catch((e: any) => console.error("[pulse_answer] notify invoke failed", e?.message));
             }
+
           }
 
         } else {
