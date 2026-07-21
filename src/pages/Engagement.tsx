@@ -18,6 +18,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Sparkles, Trophy, Heart, Send, Settings as SettingsIcon, Check, ChevronsUpDown, X, MessageSquareOff, CheckCircle2 } from "lucide-react";
 import { useKudosFeed, useLeaderboard, useMyPoints, useSendKudo, useActivePeople, useEngagementPrefs, useSaveEngagementPrefs, KudosCategory } from "@/hooks/useEngagement";
+import { EngagementSummaryCard } from "@/components/EngagementSummaryCard";
 import { useToast } from "@/hooks/use-toast";
 import { Papel } from "@/lib/types";
 import { format } from "date-fns";
