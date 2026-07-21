@@ -1524,6 +1524,19 @@ export type Database = {
           checkout_count: number
         }[]
       }
+      get_pulse_checkin_averages_v2: {
+        Args: never
+        Returns: {
+          month_checkin_avg: number
+          month_checkin_count: number
+          month_checkout_avg: number
+          month_checkout_count: number
+          week_checkin_avg: number
+          week_checkin_count: number
+          week_checkout_avg: number
+          week_checkout_count: number
+        }[]
+      }
       get_pulse_responses_safe: {
         Args: { p_survey_id: string }
         Returns: {
