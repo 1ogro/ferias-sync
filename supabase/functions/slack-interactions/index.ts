@@ -1382,14 +1382,19 @@ serve(async (req) => {
           subjectId = pair?.subject_id ?? null;
         }
 
+        // Reroute to the survey matching today's classification (only for non-peer runs)
+        const eff = pairId
+          ? { runId, questionId }
+          : await resolveExpectedRunAndQuestion(supabase, runId, questionId);
+
         const { data: upRow, error: upErr } = await supabase.from("pulse_responses").upsert(
-          { run_id: runId, question_id: questionId, respondent_id: respondent.id, text_value: text, subject_id: subjectId },
+          { run_id: eff.runId, question_id: eff.questionId, respondent_id: respondent.id, text_value: text, subject_id: subjectId },
           { onConflict: "run_id,question_id,respondent_id,subject_id" }
         ).select("id").single();
         if (upErr) console.error("[pulse view_submission] upsert error:", upErr);
         else {
-          await bumpResponseCount(runId, supabase);
-          await awardPoints(supabase, respondent.id, 5, "pulse_response", runId);
+          await bumpResponseCount(eff.runId, supabase);
+          await awardPoints(supabase, respondent.id, 5, "pulse_response", eff.runId);
           await completePeerPair(supabase, runId, respondent.id, pairId);
           await markRecipientResponded(supabase, runId, respondent.id);
           if (upRow?.id) {
@@ -1397,6 +1402,7 @@ serve(async (req) => {
               .catch((e: any) => console.error("[pulse_text] notify invoke failed", e?.message));
           }
         }
+
       }
 
       return new Response(JSON.stringify({ response_action: "clear" }), {
