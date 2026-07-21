@@ -82,18 +82,23 @@ export function EngagementSummaryCard() {
           <ScoreBlock
             icon={Sunrise}
             label="Check-in"
-            avg={averages.data?.checkin_avg ?? null}
-            count={averages.data?.checkin_count ?? 0}
+            weekAvg={averages.data?.week.checkin_avg ?? null}
+            weekCount={averages.data?.week.checkin_count ?? 0}
+            monthAvg={averages.data?.month.checkin_avg ?? null}
+            monthCount={averages.data?.month.checkin_count ?? 0}
             loading={averages.isLoading}
           />
           <ScoreBlock
             icon={Sunset}
             label="Check-out"
-            avg={averages.data?.checkout_avg ?? null}
-            count={averages.data?.checkout_count ?? 0}
+            weekAvg={averages.data?.week.checkout_avg ?? null}
+            weekCount={averages.data?.week.checkout_count ?? 0}
+            monthAvg={averages.data?.month.checkout_avg ?? null}
+            monthCount={averages.data?.month.checkout_count ?? 0}
             loading={averages.isLoading}
           />
         </div>
+
 
         <div className="flex items-center gap-3 p-3 rounded-lg border">
           <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
