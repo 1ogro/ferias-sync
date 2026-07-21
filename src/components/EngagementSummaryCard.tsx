@@ -19,14 +19,18 @@ function timeAgo(iso: string) {
 function ScoreBlock({
   icon: Icon,
   label,
-  avg,
-  count,
+  weekAvg,
+  weekCount,
+  monthAvg,
+  monthCount,
   loading,
 }: {
   icon: typeof Sunrise;
   label: string;
-  avg: number | null;
-  count: number;
+  weekAvg: number | null;
+  weekCount: number;
+  monthAvg: number | null;
+  monthCount: number;
   loading: boolean;
 }) {
   return (
@@ -40,17 +44,21 @@ function ScoreBlock({
       ) : (
         <div className="flex items-baseline gap-1 mt-1">
           <span className="text-2xl font-semibold tabular-nums">
-            {avg != null ? avg.toFixed(1) : "—"}
+            {weekAvg != null ? weekAvg.toFixed(1) : "—"}
           </span>
           <span className="text-xs text-muted-foreground">/ 5</span>
         </div>
       )}
       <div className="text-[11px] text-muted-foreground mt-0.5">
-        {count} resposta{count === 1 ? "" : "s"} · 30d
+        {weekCount} resposta{weekCount === 1 ? "" : "s"} · esta semana
+      </div>
+      <div className="text-[10px] text-muted-foreground/80 mt-0.5">
+        30d: {monthAvg != null ? monthAvg.toFixed(1) : "—"} · {monthCount} resp.
       </div>
     </div>
   );
 }
+
 
 export function EngagementSummaryCard() {
   const navigate = useNavigate();
