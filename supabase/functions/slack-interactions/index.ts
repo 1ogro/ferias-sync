@@ -86,6 +86,139 @@ async function resolveRespondent(slackUserId: string, supabase: any) {
   return await findPersonBySlackIdentity(supabase, { slackUserId, email });
 }
 
+/**
+ * Ensures a pulse response is stored under the survey that matches the actual
+ * date of submission (America/Sao_Paulo). Mon–Thu → "Check-in semanal de bem-estar",
+ * Fri–Sun → "Check-out semanal". If the run's survey doesn't match today's
+ * expected classification, reroute to a weekly reclassification run of the
+ * correct survey and remap the question by (position, question_type).
+ * Returns overridden { runId, questionId } — or the originals when no change is needed.
+ */
+async function resolveExpectedRunAndQuestion(
+  supabase: any,
+  runId: string,
+  questionId: string,
+): Promise<{ runId: string; questionId: string }> {
+  try {
+    const { data: run } = await supabase
+      .from("pulse_runs")
+      .select("id, survey_id, survey:pulse_surveys(id,title)")
+      .eq("id", runId)
+      .maybeSingle();
+    const currentTitle: string | undefined = run?.survey?.title;
+    if (!currentTitle) return { runId, questionId };
+    const CHECKIN = "Check-in semanal de bem-estar";
+    const CHECKOUT = "Check-out semanal";
+    if (currentTitle !== CHECKIN && currentTitle !== CHECKOUT) {
+      return { runId, questionId };
+    }
+    // Compute expected kind by SP local dow
+    const now = new Date();
+    const spLocal = new Date(now.toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }));
+    const dow = spLocal.getDay(); // 0=Sun..6=Sat
+    const expectedTitle = dow >= 1 && dow <= 4 ? CHECKIN : CHECKOUT;
+    if (currentTitle === expectedTitle) return { runId, questionId };
+
+    // Look up expected survey id
+    const { data: survey } = await supabase
+      .from("pulse_surveys")
+      .select("id")
+      .eq("title", expectedTitle)
+      .maybeSingle();
+    if (!survey?.id) return { runId, questionId };
+
+    // Compute Monday 00:00 SP for current week
+    const day = spLocal.getDay();
+    const daysFromMon = (day + 6) % 7;
+    const monday = new Date(spLocal);
+    monday.setDate(spLocal.getDate() - daysFromMon);
+    monday.setHours(0, 0, 0, 0);
+    // Convert SP-local wall time to UTC by re-parsing with SP offset
+    const yyyy = monday.getFullYear();
+    const mm = String(monday.getMonth() + 1).padStart(2, "0");
+    const dd = String(monday.getDate()).padStart(2, "0");
+    const spIso = `${yyyy}-${mm}-${dd}T00:00:00-03:00`;
+    const weekAnchor = new Date(spIso).toISOString();
+
+    // Find or create reclassification run for the week
+    let targetRunId: string | null = null;
+    const { data: existingRun } = await supabase
+      .from("pulse_runs")
+      .select("id")
+      .eq("survey_id", survey.id)
+      .eq("error_message", "RECLASSIFIED_WEEK")
+      .eq("dispatched_at", weekAnchor)
+      .maybeSingle();
+    if (existingRun?.id) {
+      targetRunId = existingRun.id;
+    } else {
+      const { data: newRun, error: runErr } = await supabase
+        .from("pulse_runs")
+        .insert({
+          survey_id: survey.id,
+          status: "sent",
+          dispatched_at: weekAnchor,
+          recipients_count: 0,
+          responses_count: 0,
+          error_message: "RECLASSIFIED_WEEK",
+        })
+        .select("id")
+        .single();
+      if (runErr) {
+        console.error("[resolveExpectedRun] create run error:", runErr);
+        return { runId, questionId };
+      }
+      targetRunId = newRun!.id;
+    }
+
+    // Map question by (position, question_type)
+    const { data: srcQ } = await supabase
+      .from("pulse_questions")
+      .select("position, question_type, question_text, required, kind")
+      .eq("id", questionId)
+      .maybeSingle();
+    if (!srcQ) return { runId: targetRunId!, questionId };
+
+    let targetQuestionId: string | null = null;
+    const { data: tgtQ } = await supabase
+      .from("pulse_questions")
+      .select("id")
+      .eq("survey_id", survey.id)
+      .eq("position", srcQ.position)
+      .eq("question_type", srcQ.question_type)
+      .maybeSingle();
+    if (tgtQ?.id) {
+      targetQuestionId = tgtQ.id;
+    } else {
+      const { data: newQ, error: qErr } = await supabase
+        .from("pulse_questions")
+        .insert({
+          survey_id: survey.id,
+          position: srcQ.position,
+          question_text: srcQ.question_text,
+          question_type: srcQ.question_type,
+          required: srcQ.required,
+          kind: srcQ.kind,
+        })
+        .select("id")
+        .single();
+      if (qErr) {
+        console.error("[resolveExpectedRun] create question error:", qErr);
+        return { runId: targetRunId!, questionId };
+      }
+      targetQuestionId = newQ!.id;
+    }
+
+    console.log(`[resolveExpectedRun] rerouted run=${runId}→${targetRunId} q=${questionId}→${targetQuestionId} (dow=${dow}, "${currentTitle}"→"${expectedTitle}")`);
+    return { runId: targetRunId!, questionId: targetQuestionId! };
+  } catch (e: any) {
+    console.error("[resolveExpectedRun] unexpected:", e?.message || e);
+    return { runId, questionId };
+  }
+}
+
+
+
 
 async function awardPoints(supabase: any, personId: string, points: number, reason: string, sourceId: string) {
   const { error } = await supabase.rpc("award_points", {
@@ -1249,14 +1382,19 @@ serve(async (req) => {
           subjectId = pair?.subject_id ?? null;
         }
 
+        // Reroute to the survey matching today's classification (only for non-peer runs)
+        const eff = pairId
+          ? { runId, questionId }
+          : await resolveExpectedRunAndQuestion(supabase, runId, questionId);
+
         const { data: upRow, error: upErr } = await supabase.from("pulse_responses").upsert(
-          { run_id: runId, question_id: questionId, respondent_id: respondent.id, text_value: text, subject_id: subjectId },
+          { run_id: eff.runId, question_id: eff.questionId, respondent_id: respondent.id, text_value: text, subject_id: subjectId },
           { onConflict: "run_id,question_id,respondent_id,subject_id" }
         ).select("id").single();
         if (upErr) console.error("[pulse view_submission] upsert error:", upErr);
         else {
-          await bumpResponseCount(runId, supabase);
-          await awardPoints(supabase, respondent.id, 5, "pulse_response", runId);
+          await bumpResponseCount(eff.runId, supabase);
+          await awardPoints(supabase, respondent.id, 5, "pulse_response", eff.runId);
           await completePeerPair(supabase, runId, respondent.id, pairId);
           await markRecipientResponded(supabase, runId, respondent.id);
           if (upRow?.id) {
@@ -1264,6 +1402,7 @@ serve(async (req) => {
               .catch((e: any) => console.error("[pulse_text] notify invoke failed", e?.message));
           }
         }
+
       }
 
       return new Response(JSON.stringify({ response_action: "clear" }), {
@@ -1294,15 +1433,19 @@ serve(async (req) => {
             subjectId = pair?.subject_id ?? null;
           }
 
+          const eff = pairId
+            ? { runId, questionId }
+            : await resolveExpectedRunAndQuestion(supabase, runId, questionId);
+
           const { data: upRow, error: upErr } = await supabase.from("pulse_responses").upsert(
-            { run_id: runId, question_id: questionId, respondent_id: respondent.id, scale_value: parseInt(value, 10), slack_message_ts: payload.message?.ts, subject_id: subjectId },
+            { run_id: eff.runId, question_id: eff.questionId, respondent_id: respondent.id, scale_value: parseInt(value, 10), slack_message_ts: payload.message?.ts, subject_id: subjectId },
             { onConflict: "run_id,question_id,respondent_id,subject_id" }
           ).select("id").single();
           if (upErr) {
             console.error("[pulse_answer] upsert error:", upErr);
           } else {
-            await bumpResponseCount(runId, supabase);
-            await awardPoints(supabase, respondent.id, 5, "pulse_response", runId);
+            await bumpResponseCount(eff.runId, supabase);
+            await awardPoints(supabase, respondent.id, 5, "pulse_response", eff.runId);
             await completePeerPair(supabase, runId, respondent.id, pairId);
             await markRecipientResponded(supabase, runId, respondent.id);
             await postEphemeralAck(payload, `✅ Resposta registrada: *${value}/5*`);
@@ -1310,6 +1453,7 @@ serve(async (req) => {
               supabase.functions.invoke("pulse-response-notify", { body: { response_id: upRow.id } })
                 .catch((e: any) => console.error("[pulse_answer] notify invoke failed", e?.message));
             }
+
           }
 
         } else {
