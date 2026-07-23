@@ -16,11 +16,20 @@ function timeAgo(iso: string) {
   return new Date(iso).toLocaleDateString("pt-BR");
 }
 
+function formatWeekLabel(weekStart: string | null, count: number): string {
+  if (!weekStart) {
+    return count === 0 ? "sem respostas ainda" : `${count} resposta${count === 1 ? "" : "s"}`;
+  }
+  const [y, m, d] = weekStart.split("-");
+  return `${count} resposta${count === 1 ? "" : "s"} · semana de ${d}/${m}`;
+}
+
 function ScoreBlock({
   icon: Icon,
   label,
   weekAvg,
   weekCount,
+  weekStart,
   monthAvg,
   monthCount,
   loading,
@@ -29,6 +38,7 @@ function ScoreBlock({
   label: string;
   weekAvg: number | null;
   weekCount: number;
+  weekStart: string | null;
   monthAvg: number | null;
   monthCount: number;
   loading: boolean;
@@ -50,7 +60,7 @@ function ScoreBlock({
         </div>
       )}
       <div className="text-[11px] text-muted-foreground mt-0.5">
-        {weekCount} resposta{weekCount === 1 ? "" : "s"} · esta semana
+        {formatWeekLabel(weekStart, weekCount)}
       </div>
       <div className="text-[10px] text-muted-foreground/80 mt-0.5">
         30d: {monthAvg != null ? monthAvg.toFixed(1) : "—"} · {monthCount} resp.
@@ -84,6 +94,7 @@ export function EngagementSummaryCard() {
             label="Check-in"
             weekAvg={averages.data?.week.checkin_avg ?? null}
             weekCount={averages.data?.week.checkin_count ?? 0}
+            weekStart={averages.data?.week.checkin_week_start ?? null}
             monthAvg={averages.data?.month.checkin_avg ?? null}
             monthCount={averages.data?.month.checkin_count ?? 0}
             loading={averages.isLoading}
@@ -93,11 +104,13 @@ export function EngagementSummaryCard() {
             label="Check-out"
             weekAvg={averages.data?.week.checkout_avg ?? null}
             weekCount={averages.data?.week.checkout_count ?? 0}
+            weekStart={averages.data?.week.checkout_week_start ?? null}
             monthAvg={averages.data?.month.checkout_avg ?? null}
             monthCount={averages.data?.month.checkout_count ?? 0}
             loading={averages.isLoading}
           />
         </div>
+
 
 
         <div className="flex items-center gap-3 p-3 rounded-lg border">

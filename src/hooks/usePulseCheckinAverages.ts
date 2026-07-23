@@ -8,8 +8,13 @@ export interface PulseAveragesWindow {
   checkout_count: number;
 }
 
+export interface PulseWeekWindow extends PulseAveragesWindow {
+  checkin_week_start: string | null;
+  checkout_week_start: string | null;
+}
+
 export interface PulseCheckinAverages {
-  week: PulseAveragesWindow;
+  week: PulseWeekWindow;
   month: PulseAveragesWindow;
   // Back-compat flat fields (30d)
   checkin_avg: number | null;
@@ -30,11 +35,13 @@ export function usePulseCheckinAverages(enabled = true) {
       const { data, error } = await (supabase as any).rpc("get_pulse_checkin_averages_v2");
       if (error) throw error;
       const row = Array.isArray(data) ? data[0] : data;
-      const week: PulseAveragesWindow = {
+      const week: PulseWeekWindow = {
         checkin_avg: num(row?.week_checkin_avg),
         checkin_count: Number(row?.week_checkin_count ?? 0),
+        checkin_week_start: row?.week_checkin_start ?? null,
         checkout_avg: num(row?.week_checkout_avg),
         checkout_count: Number(row?.week_checkout_count ?? 0),
+        checkout_week_start: row?.week_checkout_start ?? null,
       };
       const month: PulseAveragesWindow = {
         checkin_avg: num(row?.month_checkin_avg),
