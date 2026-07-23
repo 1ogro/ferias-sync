@@ -1533,8 +1533,10 @@ export type Database = {
           month_checkout_count: number
           week_checkin_avg: number
           week_checkin_count: number
+          week_checkin_start: string
           week_checkout_avg: number
           week_checkout_count: number
+          week_checkout_start: string
         }[]
       }
       get_pulse_responses_safe: {
