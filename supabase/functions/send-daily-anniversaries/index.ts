@@ -34,10 +34,11 @@ function parseIsoDateParts(value?: string | null) {
 }
 
 function parseOverrideDate(value?: string) {
+  if (!value) return null;
   const parts = parseIsoDateParts(value);
   if (!parts) return null;
   return {
-    iso: value!,
+    iso: value,
     day: parts.day,
     month: parts.month,
     year: parts.year,
