@@ -154,7 +154,7 @@ serve(async (req) => {
 
       await admin.from("audit_logs").insert({
         entidade: "requests",
-        entidade_id: `weekly:${new Date().toISOString().slice(0, 10)}:${mid}`,
+        entidade_id: `weekly:${todayInSP().iso}:${mid}`,
         acao: "WEEKLY_OPEN_REQUESTS_DIGEST",
         actor_id: mid,
         payload: { manager_id: mid, count: reqs.length, audience: "manager" },
@@ -191,7 +191,7 @@ serve(async (req) => {
       await sendSlackDM(slackId, directorText);
       await admin.from("audit_logs").insert({
         entidade: "requests",
-        entidade_id: `weekly:${new Date().toISOString().slice(0, 10)}:dir:${d.id}`,
+        entidade_id: `weekly:${todayInSP().iso}:dir:${d.id}`,
         acao: "WEEKLY_OPEN_REQUESTS_DIGEST",
         actor_id: d.id,
         payload: { director_id: d.id, count: sortedAll.length, audience: "director" },
