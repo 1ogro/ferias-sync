@@ -547,7 +547,17 @@ async function dispatchSurvey(supabase: any, survey: any): Promise<{ sent: numbe
   }
 
   const now = new Date();
-  const next = nextRunFromFrequency(survey.frequency, now);
+  // Anchor next_run_at on the planned time (survey.next_run_at), not on `now`,
+  // so the scheduled hour does not drift forward by the cron tick delay each cycle.
+  // If the planned time is far in the past (paused/reactivated survey), advance
+  // in whole cycles until strictly after now.
+  const anchorBase = survey.next_run_at ? new Date(survey.next_run_at) : now;
+  let next = nextRunFromFrequency(survey.frequency, anchorBase);
+  while (next && next <= now) {
+    const advanced = nextRunFromFrequency(survey.frequency, next);
+    if (!advanced) break;
+    next = advanced;
+  }
 
   // If everyone was deferred (and nothing sent), reschedule the survey to the earliest defer time.
   const allDeferred = deferred > 0 && sent === 0 && deferred === recipients.length;

@@ -1,45 +1,53 @@
 ## Problema
 
-O bloco Check-out no card de engajamento (home e `/engagement`) aparece vazio porque a RPC `get_pulse_checkin_averages_v2` só considera respostas dentro da semana ISO em curso (seg 20/07 → dom 26/07). Como hoje é quinta e Check-out só é coletado sex/sáb/dom, ainda não há dados nesse bucket para a semana atual — enquanto Check-in já tem 6 respostas de segunda.
+O painel de pulses mostrava "próximo envio 17h45", mas o disparo saiu 18h00 — 15 minutos depois. Isso vem se repetindo semana a semana (16h30 → 16h45 → 17h00 → … → 17h45 → 18h00) porque o horário do pulse **drifta pra frente a cada execução**.
+
+## Causa raiz (confirmada)
+
+Em `supabase/functions/pulse-dispatch/index.ts`, quando um survey é despachado, o próximo agendamento é calculado a partir de `now()`:
+
+```ts
+const next = nextRunFromFrequency(survey.frequency, now); // now = Date.now()
+```
+
+O cron `pulse-dispatch-every-15-min` roda a cada 15 min (`*/15 * * * *`) e só pega jobs com `next_run_at <= now()`. Então:
+
+- Semana N: `next_run_at` cai às 17h45 exatas → cron às 17h45 dispara → grava `next_run_at = 17h45 + 7d`.
+- Semana N+1: `next_run_at` = 17h45. Cron mais próximo pode ser 17h45 (ok) ou 18h00 (se o tick de 17h45 atrasar/pular). Quando atrasa 15 min, grava `next_run_at = 18h00 + 7d`, e o horário nunca mais volta.
+
+O que aconteceu hoje: o tick das 17h45 BRT não pegou o job (provavelmente porque `next_run_at` ficou marcado 20h45:15 UTC = 17h45:15 BRT, alguns segundos depois do tick), então quem despachou foi o das 18h00 BRT, gravando `next_run_at = 2026-07-31 21:00:13 UTC` (18h00:13 BRT) — que é o que o banco tem agora.
 
 ## Solução
 
-Para cada bucket independentemente, exibir a **semana ISO mais recente que tenha respostas** (em vez de forçar a semana atual). Assim:
-- Check-in continua mostrando a semana atual (tem respostas de seg 20/07).
-- Check-out cai automaticamente para a semana passada (sex 17/07) até que sex 24/07 comece a receber respostas.
+Ancorar `next_run_at` no **horário planejado anterior** (não em `now`), com um pequeno "snap" para o próximo múltiplo de 15 min pra ficar alinhado com a granularidade do cron.
 
-O rótulo passa de "esta semana" para "semana de DD/MM" (data do início da semana ISO daquele bucket), deixando explícito qual janela está sendo exibida.
+Alteração em `nextRunFromFrequency` e no call site:
 
-## Mudanças
+```ts
+// antes
+const next = nextRunFromFrequency(survey.frequency, now);
 
-### 1. RPC `get_pulse_checkin_averages_v2` (nova migração)
-
-Substituir o cálculo semanal por lógica que, para cada bucket, encontra a semana ISO mais recente com respostas e agrega apenas essa semana. Novo retorno adiciona duas colunas:
-
-```
-week_checkin_avg, week_checkin_count, week_checkin_start date,
-week_checkout_avg, week_checkout_count, week_checkout_start date,
-month_checkin_avg, month_checkin_count,
-month_checkout_avg, month_checkout_count
+// depois
+const anchor = survey.next_run_at ? new Date(survey.next_run_at) : now;
+const next = nextRunFromFrequency(survey.frequency, anchor);
 ```
 
-Guard (admin/diretor/gestor) e janela de 30d permanecem inalterados. `GRANT EXECUTE ... TO authenticated` reafirmado.
+Assim `next_run_at` sempre é `next_run_at_anterior + 7 dias`, sem herdar o atraso do tick de cron. O disparo continua acontecendo no primeiro tick após o horário planejado (comportamento inevitável dado o cron de 15 min), mas o horário planejado em si para de escorregar.
 
-### 2. Hook `usePulseCheckinAverages`
+Guarda: se `anchor` estiver muito no passado (ex.: survey pausado e reativado), avançar em ciclos até `anchor > now` para não gerar múltiplas execuções perdidas.
 
-Estender `PulseAveragesWindow` para incluir `week_start: string | null` no ramo `week`. Sem breaking changes nos consumidores existentes.
+## Correção retroativa
 
-### 3. UI — `EngagementSummaryCard` e bloco equivalente em `/engagement`
+Reancorar os três surveys ativos ao horário histórico correto:
 
-No `ScoreBlock`:
-- Substituir "N respostas · esta semana" por "N respostas · semana de DD/MM" quando `week_start` estiver presente.
-- Se `week_count === 0` (nunca houve resposta naquele bucket), manter fallback "sem respostas ainda".
-- Rodapé de 30d permanece igual.
+- Check-in semanal (`6a8e78a7…`) → segunda 10h15 BRT (13h15 UTC), próximo: **2026-07-27 13:15 UTC**.
+- Check-out semanal (`d7937f3c…`) → sexta 17h45 BRT (20h45 UTC), próximo: **2026-07-31 20:45 UTC**.
+- Kudos da semana (`cc71fbb8…`) → sexta 12h45 BRT (15h45 UTC), próximo: **2026-07-31 15:45 UTC** (já está nesse horário; não muda).
 
-Formatação de data via `formatDateSafe` (`dateUtils.ts`) para evitar drift de fuso.
+Feito via migração `UPDATE pulse_surveys SET next_run_at = … WHERE id = …`.
 
 ## Fora do escopo
 
-- Alterações no painel `/vacation-management?tab=pulses`.
-- Comparativo entre semanas ou highlight de variação.
-- Mudança na regra de classificação por dia da semana (mantida: seg–qui = check-in, sex–dom = check-out).
+- Mudança na granularidade do cron (`*/15`) — 15 min é suficiente.
+- Reprocessar o run das 18h00 de hoje (já foi enviado; recolher aos poucos).
+- Mudança na UI do painel de pulses (o valor exibido passa a bater sozinho depois do fix).
