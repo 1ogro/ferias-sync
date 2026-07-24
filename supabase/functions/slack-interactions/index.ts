@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { nowInSP, mondayOfWeekSP, spWallClockToUTC } from "../_shared/date.ts";
 // Inlined from ../kudos-send/lib.ts to keep the function self-contained
 // (cross-function relative imports don't bundle on deploy).
 const DEDUP_WINDOW_SECONDS = 60;
@@ -112,10 +113,9 @@ async function resolveExpectedRunAndQuestion(
     if (currentTitle !== CHECKIN && currentTitle !== CHECKOUT) {
       return { runId, questionId };
     }
-    // Compute expected kind by SP local dow
-    const now = new Date();
-    const spLocal = new Date(now.toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }));
-    const dow = spLocal.getDay(); // 0=Sun..6=Sat
+    // Compute expected kind by SP local dow (uses Intl parts — locale-safe)
+    const sp = nowInSP();
+    const dow = sp.dow; // 0=Sun..6=Sat, SP-local
     const expectedTitle = dow >= 1 && dow <= 4 ? CHECKIN : CHECKOUT;
     if (currentTitle === expectedTitle) return { runId, questionId };
 
@@ -127,18 +127,10 @@ async function resolveExpectedRunAndQuestion(
       .maybeSingle();
     if (!survey?.id) return { runId, questionId };
 
-    // Compute Monday 00:00 SP for current week
-    const day = spLocal.getDay();
-    const daysFromMon = (day + 6) % 7;
-    const monday = new Date(spLocal);
-    monday.setDate(spLocal.getDate() - daysFromMon);
-    monday.setHours(0, 0, 0, 0);
-    // Convert SP-local wall time to UTC by re-parsing with SP offset
-    const yyyy = monday.getFullYear();
-    const mm = String(monday.getMonth() + 1).padStart(2, "0");
-    const dd = String(monday.getDate()).padStart(2, "0");
-    const spIso = `${yyyy}-${mm}-${dd}T00:00:00-03:00`;
-    const weekAnchor = new Date(spIso).toISOString();
+    // Anchor: Monday 00:00 SP for the current week, as a UTC instant.
+    const mondayIso = mondayOfWeekSP(); // YYYY-MM-DD (SP)
+    const [my, mm, md] = mondayIso.split("-").map(Number);
+    const weekAnchor = spWallClockToUTC(my, mm, md, 0, 0).toISOString();
 
     // Find or create reclassification run for the week
     let targetRunId: string | null = null;

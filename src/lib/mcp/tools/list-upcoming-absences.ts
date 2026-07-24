@@ -17,11 +17,20 @@ export default defineTool({
     if (!ctx.isAuthenticated()) {
       return { content: [{ type: "text", text: "Não autenticado." }], isError: true };
     }
-    const today = new Date();
-    const in60 = new Date(today.getTime() + 60 * 24 * 60 * 60 * 1000);
-    const iso = (d: Date) => d.toISOString().slice(0, 10);
-    const start = start_date || iso(today);
-    const end = end_date || iso(in60);
+    // "hoje" em SP (evita off-by-one entre 21h e 24h BRT quando o servidor está em UTC)
+    const spFmt = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/Sao_Paulo",
+      year: "numeric", month: "2-digit", day: "2-digit",
+    });
+    const todayIsoSP = spFmt.format(new Date());
+    const addDays = (iso: string, n: number) => {
+      const [y, m, d] = iso.split("-").map(Number);
+      const dt = new Date(Date.UTC(y, m - 1, d));
+      dt.setUTCDate(dt.getUTCDate() + n);
+      return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, "0")}-${String(dt.getUTCDate()).padStart(2, "0")}`;
+    };
+    const start = start_date || todayIsoSP;
+    const end = end_date || addDays(todayIsoSP, 60);
 
     const sb = supabaseForCaller(ctx);
     const { data, error } = await sb
