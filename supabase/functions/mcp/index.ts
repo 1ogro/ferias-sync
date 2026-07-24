@@ -167,11 +167,21 @@ var list_upcoming_absences_default = defineTool5({
     if (!ctx.isAuthenticated()) {
       return { content: [{ type: "text", text: "N\xE3o autenticado." }], isError: true };
     }
-    const today = /* @__PURE__ */ new Date();
-    const in60 = new Date(today.getTime() + 60 * 24 * 60 * 60 * 1e3);
-    const iso = (d) => d.toISOString().slice(0, 10);
-    const start = start_date || iso(today);
-    const end = end_date || iso(in60);
+    const spFmt = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/Sao_Paulo",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit"
+    });
+    const todayIsoSP = spFmt.format(/* @__PURE__ */ new Date());
+    const addDays = (iso, n) => {
+      const [y, m, d] = iso.split("-").map(Number);
+      const dt = new Date(Date.UTC(y, m - 1, d));
+      dt.setUTCDate(dt.getUTCDate() + n);
+      return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, "0")}-${String(dt.getUTCDate()).padStart(2, "0")}`;
+    };
+    const start = start_date || todayIsoSP;
+    const end = end_date || addDays(todayIsoSP, 60);
     const sb = supabaseForCaller(ctx);
     const { data, error } = await sb.from("requests").select("id, solicitante_id, data_inicio, data_fim, dias_solicitados, status, tipo").eq("status", "APROVADO").lte("data_inicio", end).gte("data_fim", start).order("data_inicio", { ascending: true }).limit(limit);
     if (error) return { content: [{ type: "text", text: error.message }], isError: true };
