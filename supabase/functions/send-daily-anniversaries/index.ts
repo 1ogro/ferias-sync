@@ -21,6 +21,29 @@ function todayInSaoPaulo() {
   return { iso: `${year}-${String(month).padStart(2,"0")}-${String(day).padStart(2,"0")}`, day, month, year };
 }
 
+function parseIsoDateParts(value?: string | null) {
+  if (!value) return null;
+  const match = String(value).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return null;
+  const [, year, month, day] = match;
+  return {
+    year: Number(year),
+    month: Number(month),
+    day: Number(day),
+  };
+}
+
+function parseOverrideDate(value?: string) {
+  const parts = parseIsoDateParts(value);
+  if (!parts) return null;
+  return {
+    iso: value!,
+    day: parts.day,
+    month: parts.month,
+    year: parts.year,
+  };
+}
+
 async function findSlackUserId(name: string, email: string): Promise<string | null> {
   if (!SLACK_BOT_TOKEN) return null;
   try {
@@ -72,9 +95,12 @@ serve(async (req) => {
     const dryRun = body?.dry_run === true;
     const overrideDate: string | undefined = body?.date;
 
-    const { iso: todayIso, day: todayDay, month: todayMonth, year } = overrideDate
-      ? (() => { const [y,m,d] = overrideDate.split("-").map(Number); return { iso: overrideDate, day:d, month:m, year:y }; })()
-      : todayInSaoPaulo();
+    const resolvedDate = overrideDate ? parseOverrideDate(overrideDate) : todayInSaoPaulo();
+    if (!resolvedDate) {
+      return new Response(JSON.stringify({ success: false, error: "date must be YYYY-MM-DD" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+    const { iso: todayIso, day: todayDay, month: todayMonth, year } = resolvedDate;
 
     // Idempotency
     const { data: existingLog } = await supabase
@@ -93,19 +119,19 @@ serve(async (req) => {
       .eq("ativo", true);
 
     const birthdayToday = (people || []).filter((p: any) => {
-      if (!p.data_nascimento) return false;
-      const [, m, d] = p.data_nascimento.split("-").map(Number);
-      return m === todayMonth && d === todayDay;
+      const parts = parseIsoDateParts(p.data_nascimento);
+      return parts?.month === todayMonth && parts.day === todayDay;
     });
 
     const contractToday = (people || []).filter((p: any) => {
-      if (!p.data_contrato) return false;
-      const [y, m, d] = p.data_contrato.split("-").map(Number);
+      const parts = parseIsoDateParts(p.data_contrato);
+      if (!parts) return false;
+      const { year: y, month: m, day: d } = parts;
       if (m !== todayMonth || d !== todayDay) return false;
       // Skip the day they were hired (year=0)
       return year > y;
     }).map((p: any) => {
-      const [y] = p.data_contrato.split("-").map(Number);
+      const y = parseIsoDateParts(p.data_contrato)?.year || year;
       return { ...p, years_completed: year - y };
     });
 
@@ -205,7 +231,7 @@ serve(async (req) => {
         actor_id: null,
         payload: {
           trigger_date: todayIso,
-          birthdays: birthdayToday.map((p: any) => ({ id: p.id, nome: p.nome })),
+          birthdays: birthdayToday.map((p: any) => ({ id: p.id, nome: p.nome, data_nascimento: p.data_nascimento })),
           contracts: contractToday.map((p: any) => ({ id: p.id, nome: p.nome, years: p.years_completed })),
           results,
         },
