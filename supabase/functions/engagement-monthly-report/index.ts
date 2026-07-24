@@ -42,11 +42,15 @@ async function sendDM(channel: string, blocks: any[], text: string) {
 type PeriodKind = "month" | "quarter" | "year";
 
 function resolvePeriod(forced?: string | null): { start: Date; end: Date; label: string; kind: PeriodKind; auditId: string; titleSuffix: string } {
-  const now = new Date();
-  // O mês recém-encerrado é o anterior ao mês corrente (a função roda no dia 1).
-  const prevMonth = now.getMonth() - 1; // pode ser -1 em janeiro
-  const prevMonthDate = new Date(now.getFullYear(), prevMonth, 1);
-  const prevMonthIdx = prevMonthDate.getMonth(); // 0..11
+  // "Hoje" em SP → mês recém-encerrado = mês anterior (função roda no dia 1 BRT)
+  const spFmt = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit",
+  });
+  const spParts = spFmt.formatToParts(new Date());
+  const spY = Number(spParts.find(p => p.type === "year")?.value);
+  const spM = Number(spParts.find(p => p.type === "month")?.value); // 1..12
+  const prevMonthDate = new Date(spY, spM - 2, 1); // mês -1
+  const prevMonthIdx = prevMonthDate.getMonth();   // 0..11
   const prevMonthYear = prevMonthDate.getFullYear();
 
   let kind: PeriodKind;
@@ -86,7 +90,7 @@ function resolvePeriod(forced?: string | null): { start: Date; end: Date; label:
   return {
     start, end, kind,
     label: start.toLocaleString("pt-BR", { month: "long", year: "numeric" }),
-    auditId: start.toISOString().slice(0, 7),
+    auditId: `${prevMonthYear}-${String(prevMonthIdx + 1).padStart(2, "0")}`,
     titleSuffix: "mensal",
   };
 }
