@@ -8,6 +8,7 @@ import {
   lookupSlackUserByEmail,
   sendSlackDM,
 } from "../_shared/notify-helpers.ts";
+import { todayInSP } from "../_shared/date.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
