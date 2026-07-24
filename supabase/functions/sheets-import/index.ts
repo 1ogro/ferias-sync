@@ -51,6 +51,19 @@ async function getGoogleAccessToken(): Promise<string> {
   return tokenData.access_token;
 }
 
+function normalizeDate(raw?: string): string | null {
+  if (!raw) return null;
+  const s = String(raw).trim();
+  if (!s) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  const br = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (br) {
+    const [, d, m, y] = br;
+    return `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
+  }
+  return null;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -107,8 +120,8 @@ serve(async (req) => {
           cargo: cargo || null,
           sub_time: sub_time || null,
           papel: papel || 'COLABORADOR',
-          data_nascimento: data_nascimento || null,
-          data_contrato: data_contrato || null,
+          data_nascimento: normalizeDate(data_nascimento),
+          data_contrato: normalizeDate(data_contrato),
           modelo_contrato: modelo_contrato || 'CLT',
           ativo: ativo?.toUpperCase() === 'TRUE' || ativo === '1',
         };

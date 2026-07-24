@@ -26,6 +26,29 @@ function todayInSaoPaulo() {
   return { iso: `${year}-${String(month).padStart(2,"0")}-${String(day).padStart(2,"0")}`, day, month, year };
 }
 
+function parseIsoDateParts(value?: string | null) {
+  if (!value) return null;
+  const match = String(value).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return null;
+  const [, year, month, day] = match;
+  return {
+    year: Number(year),
+    month: Number(month),
+    day: Number(day),
+  };
+}
+
+function parseOverrideDate(value?: string) {
+  const parts = parseIsoDateParts(value);
+  if (!parts) return null;
+  return {
+    iso: value!,
+    day: parts.day,
+    month: parts.month,
+    year: parts.year,
+  };
+}
+
 async function findSlackUserId(name: string, email: string): Promise<string | null> {
   if (!SLACK_BOT_TOKEN) return null;
   try {
@@ -77,9 +100,12 @@ serve(async (req) => {
     const dryRun = body?.dry_run === true;
     const overrideDate: string | undefined = body?.date;
 
-    const { iso: todayIso, day: todayDay, month, year } = overrideDate
-      ? (() => { const [y,m,d] = overrideDate.split("-").map(Number); return { iso: overrideDate, day:d, month:m, year:y }; })()
-      : todayInSaoPaulo();
+    const resolvedDate = overrideDate ? parseOverrideDate(overrideDate) : todayInSaoPaulo();
+    if (!resolvedDate) {
+      return new Response(JSON.stringify({ success: false, error: "date must be YYYY-MM-DD" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+    const { iso: todayIso, day: todayDay, month, year } = resolvedDate;
 
     const { data: existingLog } = await supabase
       .from("audit_logs").select("id")
@@ -97,9 +123,9 @@ serve(async (req) => {
       .not("data_nascimento", "is", null);
 
     const birthdays = (people || [])
-      .filter((p: any) => Number(p.data_nascimento.split("-")[1]) === month)
+      .filter((p: any) => parseIsoDateParts(p.data_nascimento)?.month === month)
       .map((p: any) => {
-        const d = Number(p.data_nascimento.split("-")[2]);
+        const d = parseIsoDateParts(p.data_nascimento)?.day || 0;
         return { ...p, aniv_day: d, passed: d < todayDay };
       })
       .sort((a: any, b: any) => a.aniv_day - b.aniv_day);
@@ -180,7 +206,10 @@ serve(async (req) => {
       await supabase.from("audit_logs").insert({
         entidade: "birthday", entidade_id: todayIso, acao: "MONTHLY_DIGEST", actor_id: null,
         payload: { trigger_date: todayIso, month: `${year}-${String(month).padStart(2,"0")}`,
-          count: birthdays.length, results, manager_results: managerResults },
+          count: birthdays.length,
+          birthdays: birthdays.map((p: any) => ({ id: p.id, nome: p.nome, data_nascimento: p.data_nascimento, aniv_day: p.aniv_day })),
+          results,
+          manager_results: managerResults },
       });
     }
 
