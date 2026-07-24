@@ -87,8 +87,9 @@ export function useMyPoints(personId?: string) {
     if (!personId) return;
     // engagement_points was removed from the realtime publication to avoid
     // broadcasting teammates' points; piggy-back on kudos inserts instead.
+    const uid = globalThis.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2);
     const ch = supabase
-      .channel(`my-points-${personId}`)
+      .channel(`my-points-${personId}-${uid}`)
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "kudos", filter: `to_person_id=eq.${personId}` },
@@ -101,6 +102,7 @@ export function useMyPoints(personId?: string) {
       )
       .subscribe();
     return () => { supabase.removeChannel(ch); };
+
   }, [personId, qc]);
 
   return useQuery({
