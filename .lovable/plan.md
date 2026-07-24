@@ -1,70 +1,23 @@
-# Auditoria de datas e notificações (fuso America/Sao_Paulo)
+## Problema
 
-Objetivo: eliminar antecipação/postergação de eventos (aniversários, contratos, férias, pulses, kudos, lembretes) causadas por comparações em UTC ou parsing de datas com offset. Toda regra e notificação deve refletir o "hoje" em `America/Sao_Paulo` (BRT, sem DST desde 2019).
+`/engagement` quebra com o erro:
+`cannot add \`postgres_changes\` callbacks for realtime:kudos-feed after \`subscribe()\`.`
 
-## Escopo (código a revisar)
+O Supabase Realtime lança essa exceção quando `.on("postgres_changes", ...)` é chamado em um canal que já está no estado `subscribed`. Em `src/hooks/useEngagement.ts` (hook `useKudosFeed`) o canal é criado com nome fixo `"kudos-feed"`. Em StrictMode/HMR (e em qualquer situação onde o efeito é re-executado antes do `removeChannel` anterior propagar no cliente), o cliente reaproveita o canal pelo topic e a segunda chamada `.on(...)` acontece após o `subscribe()` do primeiro ciclo — quebrando a página inteira via ErrorBoundary.
 
-Edge functions com dependência de data:
-- `send-daily-anniversaries` (já corrigida — reavaliar consistência)
-- `send-birthday-digest` (já corrigida — reavaliar)
-- `send-contract-anniversary-notifications`
-- `apply-contract-anniversary-accrual`
-- `send-registration-reminders` + `lib.ts`
-- `send-scheduled-reminders`
-- `send-weekly-open-requests-digest`
-- `engagement-monthly-report`
-- `pulse-dispatch` (já ajustada — validar drift em cron)
-- `pulse-reminders`
-- `pulse-response-notify`, `pulse-export`
-- `kudos-send`, `kudos-notify-managers`, `slack-slash-biscoito`, `slack-interactions`
-- `sheets-import`, `sheets-import-users`, `sheets-export`, `sync-existing-integrations`
+O mesmo padrão de risco existe em `useMyPoints`, mas ali o topic já inclui `personId`; ainda assim, dois mounts consecutivos com o mesmo `personId` podem colidir.
 
-Frontend/lib:
-- `src/lib/dateUtils.ts` (fonte da verdade — `formatDateSafe`, `parseDateSafely`)
-- `src/lib/vacationUtils.ts`, `maternityLeaveUtils.ts`, `medicalLeaveUtils.ts`
-- `src/lib/mcp/tools/list-upcoming-absences.ts`
-- Componentes que exibem/filtram datas de aniversário, contrato, férias, pulses.
+## Correção
 
-Banco:
-- RPCs com data (`get_pulse_checkin_averages*`, quaisquer `date_trunc`, `now()` sem `AT TIME ZONE`).
-- Colunas `date` vs `timestamptz` e triggers que gravam `now()`.
-- Cron jobs (`pg_cron`) — validar expressões UTC vs intenção BRT.
+Ajustar apenas `src/hooks/useEngagement.ts`:
 
-## Método
+1. **`useKudosFeed`**: gerar um topic único por instância do hook (ex.: `` `kudos-feed-${crypto.randomUUID()}` ``) para que cada mount tenha seu próprio canal, eliminando a colisão pós-`subscribe`.
+2. **`useMyPoints`**: aplicar o mesmo padrão (`` `my-points-${personId}-${uid}` ``) para blindar contra remounts rápidos com o mesmo `personId`.
+3. Manter o cleanup existente com `supabase.removeChannel(ch)`.
 
-Para cada item acima, um subagente lê o arquivo e classifica cada uso de data em uma destas categorias, produzindo um relatório com `arquivo:linha`, categoria e correção sugerida:
+Nenhuma outra alteração de lógica, UI ou backend. Sem migrações.
 
-1. **OK** — já usa helper local (`parseDateSafely`, `AT TIME ZONE 'America/Sao_Paulo'`, `Intl.DateTimeFormat('pt-BR', { timeZone: ... })`).
-2. **Risco de fuso** — usa `new Date(iso).getMonth()/getDate()/getDay()` ou `toISOString().slice(0,10)` para derivar "hoje"/"dia do evento". Corrigir com helper TZ-safe.
-3. **Comparação de data como string** desalinhada (ex.: `d.toISOString()` para comparar com coluna `date`). Corrigir para YYYY-MM-DD em SP.
-4. **Cron** — validar que a expressão UTC corresponde ao horário BRT desejado; documentar no comentário do job.
-5. **Cálculo de janelas** (semana ISO, mês, "próximos 30 dias") — deve começar/terminar à meia-noite BRT, não UTC.
+## Verificação
 
-## Correções padronizadas
-
-- Introduzir (ou consolidar) em `supabase/functions/_shared/date.ts` os helpers:
-  - `todayInSP(): { y, m, d, iso, dow }`
-  - `parseIsoDateParts(iso)` (já existe em daily-anniversaries — mover para shared)
-  - `formatDateSP(date, opts)`
-  - `startOfIsoWeekSP(date)` / `endOfIsoWeekSP(date)`
-  - `startOfMonthSP(date)` / `endOfMonthSP(date)`
-- Todo lugar que hoje faz `new Date().getMonth()+1` passa a chamar `todayInSP()`.
-- Toda comparação `mes/dia` (aniversário natalício, aniversário de contrato, dia de pagamento PJ) usa mês/dia de SP em ambos os lados.
-- Colunas `date` (ex.: `data_nascimento`, `data_admissao`) são interpretadas como "data civil" — nunca convertidas via `new Date(iso)` sem `parseIsoDateParts`.
-- Cron jobs: adicionar comentário `-- BRT HH:MM` ao lado da expressão UTC; reagendar se divergentes.
-
-## Entregáveis
-
-1. Relatório de auditoria (chat) listando cada finding com `arquivo:linha`, categoria e ação.
-2. Novo módulo `supabase/functions/_shared/date.ts` + refatoração dos consumidores.
-3. Refatoração equivalente no frontend consolidando em `dateUtils.ts`.
-4. Migração corrigindo cron jobs desalinhados e recalculando `next_run_at` dos surveys de pulse se necessário.
-5. Validação: para cada notificação com data crítica (aniversário, contrato, pagamento PJ, lembrete, pulse, kudos semanal, digest), rodar dry-run/simulação para `hoje`, `hoje-1` e `hoje+1` em BRT e conferir que dispara no dia certo.
-6. `audit_logs` com o resumo das correções.
-
-## Fora de escopo
-
-- Mudar regras de negócio (janelas de elegibilidade, prazos). A auditoria só corrige *quando* o gatilho ocorre, não o *que* ele faz.
-- Migração de colunas `timestamp` para `timestamptz` (avaliada apenas se aparecer como causa raiz de algum finding).
-
-Aprovar este plano dispara a fase 1 (relatório) antes de qualquer alteração de código.
+- Recarregar `/engagement` e confirmar que a página renderiza sem cair no ErrorBoundary.
+- Enviar um kudo em outra aba e confirmar que o feed continua atualizando em tempo real (invalidação da query `kudos_feed`).
