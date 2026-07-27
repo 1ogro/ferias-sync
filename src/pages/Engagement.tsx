@@ -104,13 +104,12 @@ function LeaderboardCard({
           {rows.length ? (
             <ol className="space-y-2">
               {rows.map((r, i) => (
-                <li key={r.person_id} className="flex items-center justify-between text-sm">
-                  <div className="flex items-center gap-3">
-                    <span className="w-6 text-center font-semibold text-muted-foreground">{i + 1}</span>
-                    <span className="font-medium">{r.nome}</span>
-                    {r.sub_time && <Badge variant="outline" className="text-xs">{r.sub_time}</Badge>}
+                <li key={r.person_id} className="flex items-center justify-between gap-3 text-sm">
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                    <span className="w-6 text-center font-semibold text-muted-foreground shrink-0">{i + 1}</span>
+                    <span className="font-medium truncate">{r.nome}</span>
                   </div>
-                  <span className="font-bold text-primary">{r.total_points} pts</span>
+                  <span className="font-bold text-primary tabular-nums shrink-0">{r.total_points} pts</span>
                 </li>
               ))}
             </ol>
