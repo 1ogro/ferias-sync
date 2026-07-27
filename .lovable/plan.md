@@ -1,17 +1,11 @@
-## Objetivo
-Diretores continuam acumulando pontos (kudos, pulses, etc.), mas não aparecem no ranking de engajamento.
+## Problema
+Nos cards de ranking em `/engagement`, o nome + badge do sub_time ocupam a linha e empurram/truncam a pontuação, que fica pouco visível.
 
-## Mudança
-Atualizar a função `public.get_engagement_leaderboard` para filtrar `papel <> 'DIRETOR'` (mantendo os demais critérios de escopo). A tabela `engagement_points` continua registrando pontos normalmente — nenhuma alteração em `award_points`, `kudos-send`, `pulse-response-notify` ou UI de "Meus Pontos".
+## Correção
+Em `src/pages/Engagement.tsx` (componente `LeaderboardCard`, linhas 106–114):
 
-## SQL (migração)
-```sql
-CREATE OR REPLACE FUNCTION public.get_engagement_leaderboard(...)
--- adicionar cláusula:  AND COALESCE(pe.papel, '') <> 'DIRETOR'
-```
-Mantém `SECURITY DEFINER`, assinatura e demais regras (scope team/global, período).
+- Remover a `<Badge>` de `sub_time` para priorizar nome + pontuação.
+- Ajustar o `<li>` com `gap-3` e `min-w-0` na coluna esquerda; aplicar `truncate` no nome para evitar quebra.
+- Manter a pontuação (`{r.total_points} pts`) com `shrink-0`, `tabular-nums` e destaque em `text-primary`, garantindo que sempre apareça alinhada à direita.
 
-## Fora do escopo
-- Não altera `EngagementSummaryCard` nem `useLeaderboard` (mesmo contrato).
-- Não remove pontos históricos de diretores.
-- Ranking pessoal (`useMyPoints`) segue funcionando para diretores.
+Sem alterações de dados/lógica — apenas apresentação.
