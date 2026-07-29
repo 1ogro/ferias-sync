@@ -1,33 +1,42 @@
-## Contexto verificado
+## Diagnóstico confirmado
 
-- **Ariana** (`pessoa_037`, email `aneves.adncti@rededor.com.br`) tem `auth.users` (`cdec2bf6…`) com login e reset de senha bem-sucedidos hoje, **mas não tem linha em `public.profiles`**. Sem esse vínculo, o `ProtectedRoute` a joga para `/setup-profile` a cada login, e o "Confirmar" está falhando.
-- Não há trigger `handle_new_user` criando profile automático. `profiles` tem `UNIQUE(user_id)` e `UNIQUE(person_id)` — nenhuma linha órfã bloqueando o insert.
-- O **hard reset ainda existe** no backend (`admin-auth-management` action `clear_identities`) e no frontend (`src/pages/Admin.tsx` linhas 1072-1092), gated em `isDirector`. O Raul é diretor, então tecnicamente deveria ver o botão — porém ele é só um ícone `ShieldOff` sem rótulo dentro de uma linha muito cheia, o que explica a percepção de "sumiu".
+- Ariana (`pessoa_037`) já tem uma linha em `public.profiles` vinculada ao auth user `81eb6fdd-7c87-46be-8e90-4c40ee7674c7`, criada em `2026-07-29 12:48:11 UTC`.
+- O erro anexado acontece quando o app tenta criar `profiles` pelo cliente em `/setup-profile` e a política de criação exige que o email do JWT seja igual ao `people.email` ativo.
+- A política atual de `profiles` não permite criação por `email_pessoal`; isso quebra casos em que o usuário entra por email pessoal ou quando o fluxo cai indevidamente no setup mesmo já havendo vínculo.
+- O convite via Slack gerou o usuário e o profile, mas depois a UI ainda oferece o caminho de `createProfile`, que bate na RLS em vez de recuperar/validar o vínculo existente.
 
 ## Plano
 
-### 1. Destravar a Ariana agora (operacional, sem código)
-- Rodar `clear_identities` para `pessoa_037` (apaga `auth.users` + qualquer profile órfão).
-- Enviar novo convite via `send_invite` (email + Slack). Esse fluxo cria a linha em `profiles` já ligada a `pessoa_037` na hora do invite, então quando ela definir a senha ela cai direto autenticada, sem passar por `/setup-profile`.
-- Registrar em `audit_logs` a razão da intervenção manual.
+### 1. Destravar a Ariana agora
+- Revalidar a linha atual de `profiles` da Ariana.
+- Se necessário, recriar/normalizar o vínculo `profiles.user_id -> pessoa_037` usando operação administrativa segura.
+- Registrar o ajuste em `audit_logs` com motivo claro.
 
-### 2. Diagnosticar o erro do `/setup-profile` (para não repetir)
-- Adicionar log estruturado em `createProfile` (`useAuth.tsx`) capturando `error.code`, `error.message` e `error.details` do Supabase, para que o próximo caso mostre a causa exata no console e nos toasts.
-- Se o erro for identificado como duplicate key ou RLS check, tratar com fallback silencioso (buscar profile existente antes de tentar inserir).
+### 2. Corrigir a regra de RLS de `profiles`
+- Ajustar as políticas de criação/atualização de `profiles` para aceitar vínculo quando o email autenticado bater com:
+  - `people.email` corporativo; ou
+  - `people.email_pessoal`, quando preenchido.
+- Manter a exigência de `people.ativo = true`.
+- Manter leitura restrita ao próprio usuário e admins.
+- Não abrir `profiles` publicamente.
 
-### 3. Tornar o hard reset visivelmente acessível em `/admin`
-- Trocar o botão só-ícone `ShieldOff` por botão com ícone + label ("Zerar auth") em telas ≥ md, mantendo o tooltip.
-- Agrupar os três botões de auth (Convidar / Resetar senha / Zerar auth) em um menu dropdown "Auth ▾" quando existir pelo menos um deles, para reduzir ruído visual e deixar as opções sempre encontráveis.
-- Manter o gate `isDirector` e o `AlertDialog` de confirmação atuais.
+### 3. Corrigir o fallback do `/setup-profile`
+- Em `createProfile`, antes de tentar inserir, buscar se já existe `profiles` para o `user.id` atual.
+- Se existir, tratar como sucesso e recarregar os dados do colaborador.
+- Se a inserção falhar por RLS mas um vínculo válido já existir para o usuário, tratar como sucesso em vez de bloquear.
+- Manter log estruturado para erros reais.
 
-## Detalhes técnicos
+### 4. Fortalecer o convite admin
+- No `admin-auth-management`, conferir erros do `upsert` de `profiles` no envio de convite; hoje o código não interrompe nem reporta se o vínculo falhar.
+- Em convite Slack/email, garantir que o link enviado use domínio/rota consistentes e que o profile seja criado antes de avisar sucesso.
 
-- **Migração / operação de dados**: usar a Edge Function `admin-auth-management` autenticado como diretor (Raul) via `supabase.functions.invoke('admin-auth-management', { body: { action: 'clear_identities', person_id: 'pessoa_037' } })` e depois `action: 'send_invite'` com `invite_method: 'both'`. Alternativa segura: eu executo via `supabase--curl_edge_functions` já autenticado, ou por SQL direto (delete cascata em `auth.users` + reinvite pela UI).
-- **`src/hooks/useAuth.tsx`**: envolver o `insert` em `createProfile` com `console.error({ code, message, details, hint })` e, quando `code === '23505'`, refazer `fetchPersonData` antes de retornar erro.
-- **`src/pages/Admin.tsx`** (~linhas 1048-1094): novo componente `AuthActionsMenu` com `DropdownMenu` (já usado no projeto) contendo "Enviar convite", "Resetar senha", "Zerar autenticação". Preserva os dialogs existentes (`resetPasswordTarget`, `clearAuthTarget`).
+### 5. Verificação
+- Consultar `profiles` e `auth.users` da Ariana após a correção.
+- Validar que a política permite criação quando o email autenticado bate com corporativo ou pessoal, e bloqueia outros emails.
+- Confirmar que o app deixa de tentar recriar profile quando o vínculo já existe.
 
 ## Fora de escopo
 
-- Não alterar a Edge Function `admin-auth-management`.
-- Não mudar as RLS de `profiles`.
-- Não mexer no fluxo de `/setup-profile` além do log/fallback.
+- Não alterar permissões de admin/diretor.
+- Não mudar fluxo de roles.
+- Não mexer em outras políticas/tabelas além do necessário para `profiles` e o fluxo de convite/setup.
