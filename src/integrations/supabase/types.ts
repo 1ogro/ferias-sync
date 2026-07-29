@@ -1405,6 +1405,10 @@ export type Database = {
         }
         Returns: string
       }
+      can_link_profile_to_person: {
+        Args: { _person_id: string }
+        Returns: boolean
+      }
       cancel_payment_day_change: {
         Args: { p_request_id: string }
         Returns: Json
