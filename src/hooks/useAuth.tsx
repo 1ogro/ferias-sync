@@ -351,7 +351,24 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         });
 
       if (error) {
-        console.error('Error creating profile:', error);
+        console.error('Error creating profile:', {
+          code: (error as any).code,
+          message: error.message,
+          details: (error as any).details,
+          hint: (error as any).hint,
+          user_id: user.id,
+          person_id: personId,
+          auth_email: user.email,
+        });
+
+        // Duplicate key: profile already exists — treat as success and re-fetch.
+        if ((error as any).code === '23505') {
+          console.warn('Profile already exists, re-fetching person data');
+          loadedUserIdRef.current = null;
+          await fetchPersonData(user.id);
+          return { error: null };
+        }
+
         return { error };
       }
 
@@ -359,10 +376,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       await fetchPersonData(user.id);
       return { error: null };
     } catch (error) {
-      console.error('Error creating profile:', error);
+      console.error('Error creating profile (exception):', error);
       return { error };
     }
   };
+
 
   const value = {
     user,
