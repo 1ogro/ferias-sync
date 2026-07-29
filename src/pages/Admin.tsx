@@ -1057,7 +1057,7 @@ const Admin = () => {
                                       disabled={authActionLoading === `reset_password_${targetPerson.id}`}
                                     >
                                       {authActionLoading === `reset_password_${targetPerson.id}` ? (
-                                        <Loader2 className="h-4 w-4" />
+                                        <Loader2 className="h-4 w-4 animate-spin" />
                                       ) : (
                                         <KeyRound className="h-4 w-4" />
                                       )}
