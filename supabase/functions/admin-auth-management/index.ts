@@ -161,6 +161,29 @@ async function sendSlackDM(
   return { ok: true, slackUserId, lookupMethod, ts: msgData.ts };
 }
 
+async function upsertInviteProfile(
+  adminClient: any,
+  userId: string,
+  personId: string,
+): Promise<void> {
+  const { error } = await adminClient.from("profiles").upsert({
+    user_id: userId,
+    person_id: personId,
+  }, { onConflict: "person_id" });
+
+  if (error) {
+    console.error("Failed to create invite profile link:", {
+      code: error.code,
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+      user_id: userId,
+      person_id: personId,
+    });
+    throw new Error(`Falha ao vincular perfil ao convite: ${error.message}`);
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -555,10 +578,7 @@ Deno.serve(async (req) => {
 
         // Create profile linking auth user to person
         if (inviteData?.user) {
-          await adminClient.from("profiles").upsert({
-            user_id: inviteData.user.id,
-            person_id: person_id,
-          }, { onConflict: "user_id" });
+          await upsertInviteProfile(adminClient, inviteData.user.id, person_id);
         }
 
         results.push("email");
@@ -586,10 +606,7 @@ Deno.serve(async (req) => {
 
         // Create profile linking auth user to person
         if (linkData?.user) {
-          await adminClient.from("profiles").upsert({
-            user_id: linkData.user.id,
-            person_id: person_id,
-          }, { onConflict: "user_id" });
+          await upsertInviteProfile(adminClient, linkData.user.id, person_id);
         }
       }
 

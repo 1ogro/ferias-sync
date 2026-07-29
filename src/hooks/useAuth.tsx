@@ -343,6 +343,44 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
 
     try {
+      const recoverExistingProfile = async () => {
+        const { data: existingProfile, error: existingError } = await supabase
+          .from('profiles')
+          .select('person_id')
+          .eq('user_id', user.id)
+          .maybeSingle();
+
+        if (existingError) {
+          console.error('Error checking existing profile:', {
+            code: (existingError as any).code,
+            message: existingError.message,
+            details: (existingError as any).details,
+            hint: (existingError as any).hint,
+            user_id: user.id,
+            person_id: personId,
+            auth_email: user.email,
+          });
+          return false;
+        }
+
+        if (!existingProfile?.person_id) {
+          return false;
+        }
+
+        console.warn('Profile already linked, re-fetching person data', {
+          user_id: user.id,
+          requested_person_id: personId,
+          existing_person_id: existingProfile.person_id,
+        });
+        loadedUserIdRef.current = null;
+        await fetchPersonData(user.id);
+        return true;
+      };
+
+      if (await recoverExistingProfile()) {
+        return { error: null };
+      }
+
       const { error } = await supabase
         .from('profiles')
         .insert({
@@ -363,10 +401,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
         // Duplicate key: profile already exists — treat as success and re-fetch.
         if ((error as any).code === '23505') {
-          console.warn('Profile already exists, re-fetching person data');
-          loadedUserIdRef.current = null;
-          await fetchPersonData(user.id);
-          return { error: null };
+          if (await recoverExistingProfile()) {
+            return { error: null };
+          }
+        }
+
+        // RLS can reject a stale create attempt after an admin invite already linked the profile.
+        if ((error as any).code === '42501') {
+          if (await recoverExistingProfile()) {
+            return { error: null };
+          }
         }
 
         return { error };
