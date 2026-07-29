@@ -1057,10 +1057,11 @@ const Admin = () => {
                                       disabled={authActionLoading === `reset_password_${targetPerson.id}`}
                                     >
                                       {authActionLoading === `reset_password_${targetPerson.id}` ? (
-                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                        <Loader2 className="h-4 w-4" />
                                       ) : (
                                         <KeyRound className="h-4 w-4" />
                                       )}
+                                      <span className="ml-1 hidden md:inline">Reset senha</span>
                                     </Button>
                                   </TooltipTrigger>
                                   <TooltipContent>
@@ -1083,10 +1084,11 @@ const Admin = () => {
                                       ) : (
                                         <ShieldOff className="h-4 w-4" />
                                       )}
+                                      <span className="ml-1 hidden md:inline">Zerar auth</span>
                                     </Button>
                                   </TooltipTrigger>
                                   <TooltipContent>
-                                    <p>Zerar autenticação (permite recadastro)</p>
+                                    <p>Zerar autenticação (apaga auth.users e permite recadastro)</p>
                                   </TooltipContent>
                                 </Tooltip>
                               </TooltipProvider>
@@ -1108,6 +1110,7 @@ const Admin = () => {
                                     ) : (
                                       <Mail className="h-4 w-4" />
                                     )}
+                                    <span className="ml-1 hidden md:inline">Convite</span>
                                   </Button>
                                 </TooltipTrigger>
                                 <TooltipContent>
@@ -1116,6 +1119,7 @@ const Admin = () => {
                               </Tooltip>
                             </TooltipProvider>
                           )}
+
                         </div>
                      </TableCell>
                    </TableRow>
