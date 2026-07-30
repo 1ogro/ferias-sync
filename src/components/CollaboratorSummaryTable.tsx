@@ -303,7 +303,16 @@ export function CollaboratorSummaryTable({ highlightId }: CollaboratorSummaryTab
                     const birthdaySoon = isWithin30Days(anivPessoal);
 
                     return (
-                      <TableRow key={person.id} className={birthdaySoon || contractSoon ? "bg-accent/30" : ""}>
+                      <TableRow
+                        key={person.id}
+                        className={
+                          highlightId && person.id === highlightId
+                            ? "bg-primary/10 ring-1 ring-primary/40"
+                            : birthdaySoon || contractSoon
+                              ? "bg-accent/30"
+                              : ""
+                        }
+                      >
                         <TableCell className="font-medium">
                           <div>
                             {person.nome}
