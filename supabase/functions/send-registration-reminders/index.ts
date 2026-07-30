@@ -17,6 +17,7 @@ import {
   Mode,
   peopleIncompleteReasons,
   selectPendings,
+  type SlackLinkState,
 } from "./lib.ts";
 
 const APP_BASE_URL = Deno.env.get("APP_BASE_URL") || "https://ferias-sync.lovable.app";
@@ -74,12 +75,14 @@ Deno.serve(async (req) => {
     auth: { persistSession: false },
   });
 
-  let body: { mode?: Mode; dry_run?: boolean } = {};
+  let body: { mode?: Mode; dry_run?: boolean; link_only?: boolean } = {};
   try {
     body = await req.json();
   } catch (_) { /* GET/no body */ }
   const mode: Mode = body.mode === "month_end" ? "month_end" : "weekly";
   const dryRun = !!body.dry_run;
+  // link_only: resolve/backfill Slack ids and report, without sending any DM.
+  const linkOnly = !!body.link_only;
 
   // month_end guard: only actually send within 3 days of month end
   if (mode === "month_end" && !isNearMonthEnd() && !dryRun) {
@@ -110,8 +113,10 @@ Deno.serve(async (req) => {
   const results = {
     mode,
     dry_run: dryRun,
+    link_only: linkOnly,
     pending_reminded: 0,
     people_reminded: 0,
+    slack_linked: 0,
     skipped_dedup: 0,
     slack_missing: 0,
     errors: [] as string[],
@@ -176,7 +181,7 @@ Deno.serve(async (req) => {
       const slackId = r.slack_user_id || (r.email ? await slackLookupByEmail(r.email) : null);
       if (!slackId) { results.slack_missing++; continue; }
 
-      if (!dryRun) {
+      if (!dryRun && !linkOnly) {
         const sent = await sendSlackDM(slackId, text, blocks);
         if (sent) {
           results.pending_reminded++;
@@ -202,12 +207,57 @@ Deno.serve(async (req) => {
   // ---------- 2) active people with incomplete profile ----------
   const { data: peopleAll, error: eerr } = await admin
     .from("people")
-    .select("id, nome, email, slack_user_id, data_contrato, modelo_contrato, dia_pagamento, data_nascimento, profile_completed_at, gestor_id, ativo")
+    .select("id, nome, email, email_pessoal, slack_user_id, data_contrato, modelo_contrato, dia_pagamento, data_nascimento, profile_completed_at, gestor_id, ativo")
     .eq("ativo", true);
   if (eerr) results.errors.push(`people: ${eerr.message}`);
 
-  const incompleteReasons = peopleIncompleteReasons;
-  const incomplete = ((peopleAll || []) as any[]).filter((p) => incompleteReasons(p as any).length > 0);
+  // Resolve the Slack link for everyone still missing slack_user_id, trying the
+  // corporate email first and then the personal one. When found, backfill the
+  // column (+ audit log) so the person is no longer reported as "sem Slack".
+  const slackLinkByPerson = new Map<string, SlackLinkState>();
+  for (const p of (peopleAll || []) as any[]) {
+    if (p.slack_user_id) { slackLinkByPerson.set(p.id, "linked"); continue; }
+
+    let found: string | null = null;
+    let matchedEmail: string | null = null;
+    for (const email of [p.email, p.email_pessoal].filter(Boolean) as string[]) {
+      found = await slackLookupByEmail(email);
+      if (found) { matchedEmail = email; break; }
+    }
+
+    if (found) {
+      slackLinkByPerson.set(p.id, "linked");
+      p.slack_user_id = found;
+      results.slack_linked++;
+      if (!dryRun) {
+        const { error: upErr } = await admin
+          .from("people")
+          .update({ slack_user_id: found })
+          .eq("id", p.id);
+        if (upErr) {
+          results.errors.push(`backfill ${p.id}: ${upErr.message}`);
+        } else {
+          await admin.from("audit_logs").insert({
+            entidade: "people",
+            entidade_id: p.id,
+            acao: "SLACK_ID_BACKFILL",
+            actor_id: null,
+            payload: {
+              source: "send-registration-reminders",
+              matched_email: matchedEmail,
+              slack_user_id: found,
+            },
+          });
+        }
+      }
+    } else {
+      slackLinkByPerson.set(p.id, p.email_pessoal ? "not_found" : "no_personal_email");
+    }
+  }
+
+  const incompleteReasons = (p: any) =>
+    peopleIncompleteReasons(p, slackLinkByPerson.get(p.id));
+  const incomplete = ((peopleAll || []) as any[]).filter((p) => incompleteReasons(p).length > 0);
 
 
   for (const p of incomplete) {
@@ -231,7 +281,7 @@ Deno.serve(async (req) => {
     // to person themself
     let slackId = wantsSlack ? (p.slack_user_id || (p.email ? await slackLookupByEmail(p.email) : null)) : null;
     if (slackId) {
-      if (!dryRun) {
+      if (!dryRun && !linkOnly) {
         const sent = await sendSlackDM(slackId, selfPayload.text, selfPayload.blocks);
         if (sent) {
           results.people_reminded++;
@@ -267,7 +317,7 @@ Deno.serve(async (req) => {
           .maybeSingle();
         if (!mpref || mpref.registration_reminders_slack !== false) {
           const mid = mgr.slack_user_id || (mgr.email ? await slackLookupByEmail(mgr.email) : null);
-          if (mid && !dryRun) {
+          if (mid && !dryRun && !linkOnly) {
             const mgrPayload = buildIncompleteProfileManagerMessage(
               { id: p.id, nome: p.nome },
               reasons,

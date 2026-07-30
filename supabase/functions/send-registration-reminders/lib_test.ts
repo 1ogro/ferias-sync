@@ -17,6 +17,7 @@ import {
   PersonRow,
   selectPendings,
   SlackBlock,
+  slackLinkStateFromRow,
 } from "./lib.ts";
 
 // ─────────────────────────────────────────────────────────────
@@ -45,6 +46,7 @@ const person = (over: Partial<PersonRow> = {}): PersonRow => ({
   id: pick(over, "id", crypto.randomUUID()),
   nome: pick(over, "nome", "Pessoa"),
   email: pick(over, "email", "pessoa@empresa.com"),
+  email_pessoal: pick(over, "email_pessoal", null),
   slack_user_id: pick(over, "slack_user_id", "U123"),
   data_contrato: pick(over, "data_contrato", "2024-01-01"),
   modelo_contrato: pick(over, "modelo_contrato", "CLT"),
@@ -178,6 +180,34 @@ Deno.test("peopleIncompleteReasons — email inválido ou faltando bloqueia auth
 Deno.test("peopleIncompleteReasons — falta de Slack bloqueia notificações", () => {
   const semSlack = peopleIncompleteReasons(person({ slack_user_id: null }));
   assert(semSlack.some((r) => r.includes("Slack")));
+});
+
+Deno.test("slackLinkStateFromRow — deriva os três estados de vínculo", () => {
+  assertStrictEquals(slackLinkStateFromRow(person({ slack_user_id: "U1" })), "linked");
+  assertStrictEquals(
+    slackLinkStateFromRow(person({ slack_user_id: null, email_pessoal: null })),
+    "no_personal_email",
+  );
+  assertStrictEquals(
+    slackLinkStateFromRow(person({ slack_user_id: null, email_pessoal: "a@gmail.com" })),
+    "not_found",
+  );
+});
+
+Deno.test("peopleIncompleteReasons — vínculo resolvido não gera pendência de Slack", () => {
+  const r = peopleIncompleteReasons(person({ slack_user_id: null }), "linked");
+  assertEquals(r.filter((x) => x.includes("Slack")), []);
+});
+
+Deno.test("peopleIncompleteReasons — sem email pessoal pede cadastro do email", () => {
+  const r = peopleIncompleteReasons(person({ slack_user_id: null }), "no_personal_email");
+  assert(r.some((x) => x.includes("cadastrar o e-mail pessoal")));
+});
+
+Deno.test("peopleIncompleteReasons — email pessoal sem conta Slack orienta procurar admin", () => {
+  const r = peopleIncompleteReasons(person({ slack_user_id: null }), "not_found");
+  assert(r.some((x) => x.includes("não corresponde a nenhuma conta do Slack")));
+  assert(r.some((x) => x.includes("administrador")));
 });
 
 Deno.test("peopleIncompleteReasons — PJ sem dia de pagamento é apontado", () => {
