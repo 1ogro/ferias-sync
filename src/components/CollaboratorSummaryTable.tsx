@@ -54,15 +54,25 @@ const CONTRACT_LABELS: Record<string, string> = {
   PJ: "PJ",
 };
 
-export function CollaboratorSummaryTable() {
+interface CollaboratorSummaryTableProps {
+  /** Person id coming from a deep link (?person=...) — pre-filters and highlights the row. */
+  highlightId?: string | null;
+}
+
+export function CollaboratorSummaryTable({ highlightId }: CollaboratorSummaryTableProps = {}) {
   const [data, setData] = useState<CollaboratorSummary[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState("");
+  const [searchTerm, setSearchTerm] = useState(highlightId || "");
   const [filterTime, setFilterTime] = useState<string>("all");
   const [filterContract, setFilterContract] = useState<string>("all");
   const [filterPayment, setFilterPayment] = useState<string>("all");
   const [sortColumn, setSortColumn] = useState<string | null>(null);
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
+
+  useEffect(() => {
+    if (highlightId) setSearchTerm(highlightId);
+  }, [highlightId]);
+
 
   useEffect(() => {
     fetchData();
