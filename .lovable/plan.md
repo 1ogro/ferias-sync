@@ -1,42 +1,33 @@
-## Diagnóstico confirmado
+# Corrigir links quebrados nos lembretes de cadastro incompleto
 
-- Ariana (`pessoa_037`) já tem uma linha em `public.profiles` vinculada ao auth user `81eb6fdd-7c87-46be-8e90-4c40ee7674c7`, criada em `2026-07-29 12:48:11 UTC`.
-- O erro anexado acontece quando o app tenta criar `profiles` pelo cliente em `/setup-profile` e a política de criação exige que o email do JWT seja igual ao `people.email` ativo.
-- A política atual de `profiles` não permite criação por `email_pessoal`; isso quebra casos em que o usuário entra por email pessoal ou quando o fluxo cai indevidamente no setup mesmo já havendo vínculo.
-- O convite via Slack gerou o usuário e o profile, mas depois a UI ainda oferece o caminho de `createProfile`, que bate na RLS em vez de recuperar/validar o vínculo existente.
+## Problema confirmado
 
-## Plano
+O DM enviado ao gestor (`send-registration-reminders`) monta o botão apontando para
+`{APP}/team/{person.id}`. Essa rota **não existe** no `App.tsx` — cai no `*` (NotFound), por isso o 404.
 
-### 1. Destravar a Ariana agora
-- Revalidar a linha atual de `profiles` da Ariana.
-- Se necessário, recriar/normalizar o vínculo `profiles.user_id -> pessoa_037` usando operação administrativa segura.
-- Registrar o ajuste em `audit_logs` com motivo claro.
+O DM enviado à própria pessoa aponta para `{APP}/settings?tab=profile`. A rota existe, mas o
+`Settings` usa `defaultValue="appearance"` e não lê `?tab=`, e não há aba "profile" — o link
+abre a página errada.
 
-### 2. Corrigir a regra de RLS de `profiles`
-- Ajustar as políticas de criação/atualização de `profiles` para aceitar vínculo quando o email autenticado bater com:
-  - `people.email` corporativo; ou
-  - `people.email_pessoal`, quando preenchido.
-- Manter a exigência de `people.ativo = true`.
-- Manter leitura restrita ao próprio usuário e admins.
-- Não abrir `profiles` publicamente.
+## Correção
 
-### 3. Corrigir o fallback do `/setup-profile`
-- Em `createProfile`, antes de tentar inserir, buscar se já existe `profiles` para o `user.id` atual.
-- Se existir, tratar como sucesso e recarregar os dados do colaborador.
-- Se a inserção falhar por RLS mas um vínculo válido já existir para o usuário, tratar como sucesso em vez de bloquear.
-- Manter log estruturado para erros reais.
+1. **CTA do gestor** → `{APP}/vacation-management?tab=summary&person={id}`
+   (aba "Resumo do Colaborador", que já lista os liderados).
+   - `CollaboratorSummaryTable` passa a aceitar um termo de busca inicial vindo da URL
+     (nome/id do liderado), pré-preenchendo o campo de busca e destacando a linha.
+2. **CTA da própria pessoa** → `{APP}/complete-profile`, que é o fluxo real de completar
+   cadastro (campos faltantes). Mantém-se o texto listando os itens pendentes.
+3. Atualizar `lib_test.ts` para as novas URLs.
 
-### 4. Fortalecer o convite admin
-- No `admin-auth-management`, conferir erros do `upsert` de `profiles` no envio de convite; hoje o código não interrompe nem reporta se o vínculo falhar.
-- Em convite Slack/email, garantir que o link enviado use domínio/rota consistentes e que o profile seja criado antes de avisar sucesso.
+## Detalhes técnicos
 
-### 5. Verificação
-- Consultar `profiles` e `auth.users` da Ariana após a correção.
-- Validar que a política permite criação quando o email autenticado bate com corporativo ou pessoal, e bloqueia outros emails.
-- Confirmar que o app deixa de tentar recriar profile quando o vínculo já existe.
+- `supabase/functions/send-registration-reminders/lib.ts`:
+  - `buildIncompleteProfileManagerMessage`: URL `?tab=summary&person=<id>`.
+  - `buildIncompleteProfileSelfMessage`: URL `/complete-profile`.
+- `src/pages/VacationManagement.tsx`: ler `person` de `searchParams` e repassar ao
+  `CollaboratorSummaryTable` como `initialSearch`.
+- `src/components/CollaboratorSummaryTable.tsx`: nova prop opcional `initialSearch`/`highlightId`
+  para inicializar `searchTerm` e destacar a linha correspondente.
+- `supabase/functions/send-registration-reminders/lib_test.ts`: ajustar asserts de URL.
 
-## Fora de escopo
-
-- Não alterar permissões de admin/diretor.
-- Não mudar fluxo de roles.
-- Não mexer em outras políticas/tabelas além do necessário para `profiles` e o fluxo de convite/setup.
+Nenhuma mudança de banco de dados.
