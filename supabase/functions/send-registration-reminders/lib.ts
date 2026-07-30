@@ -18,6 +18,7 @@ export interface PersonRow {
   id: string;
   nome: string;
   email: string | null;
+  email_pessoal?: string | null;
   slack_user_id: string | null;
   data_contrato: string | null;
   modelo_contrato: string | null;
@@ -50,13 +51,37 @@ export function pendingMissingFields(row: PendingRow): string[] {
   return miss;
 }
 
+/**
+ * Result of trying to resolve a person's Slack account.
+ * - `linked`: slack_user_id present (already stored or just backfilled via email lookup)
+ * - `no_personal_email`: no Slack id and no personal email registered to look up
+ * - `not_found`: emails registered, but none matches a Slack account
+ */
+export type SlackLinkState = "linked" | "no_personal_email" | "not_found";
+
+/** Derives the fallback link state from the row alone (no Slack lookup performed). */
+export function slackLinkStateFromRow(p: PersonRow): SlackLinkState {
+  if (p.slack_user_id) return "linked";
+  return p.email_pessoal ? "not_found" : "no_personal_email";
+}
+
+const SLACK_LINK_REASON: Record<Exclude<SlackLinkState, "linked">, string> = {
+  no_personal_email:
+    "🔴 cadastrar o e-mail pessoal usado no Slack (necessário para notificações)",
+  not_found:
+    "🔴 o e-mail pessoal cadastrado não corresponde a nenhuma conta do Slack — procure o administrador",
+};
+
 /** Returns missing critical fields for an active person profile. */
-export function peopleIncompleteReasons(p: PersonRow): string[] {
+export function peopleIncompleteReasons(
+  p: PersonRow,
+  slackLink: SlackLinkState = slackLinkStateFromRow(p),
+): string[] {
   const miss: string[] = [];
   if (!p.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(p.email)) {
     miss.push("🔴 email corporativo válido (necessário para login)");
   }
-  if (!p.slack_user_id) miss.push("🔴 vincular usuário do Slack (necessário para notificações)");
+  if (slackLink !== "linked") miss.push(SLACK_LINK_REASON[slackLink]);
   if (!p.data_contrato) miss.push("🟠 data de contrato");
   if (!p.modelo_contrato) miss.push("🟠 modelo de contrato");
   if (p.modelo_contrato === "PJ" && !p.dia_pagamento) miss.push("🟠 dia de pagamento (PJ)");
