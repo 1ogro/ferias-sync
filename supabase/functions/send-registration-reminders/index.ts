@@ -113,6 +113,7 @@ Deno.serve(async (req) => {
   const results = {
     mode,
     dry_run: dryRun,
+    link_only: linkOnly,
     pending_reminded: 0,
     people_reminded: 0,
     slack_linked: 0,
@@ -180,7 +181,7 @@ Deno.serve(async (req) => {
       const slackId = r.slack_user_id || (r.email ? await slackLookupByEmail(r.email) : null);
       if (!slackId) { results.slack_missing++; continue; }
 
-      if (!dryRun) {
+      if (!dryRun && !linkOnly) {
         const sent = await sendSlackDM(slackId, text, blocks);
         if (sent) {
           results.pending_reminded++;
@@ -280,7 +281,7 @@ Deno.serve(async (req) => {
     // to person themself
     let slackId = wantsSlack ? (p.slack_user_id || (p.email ? await slackLookupByEmail(p.email) : null)) : null;
     if (slackId) {
-      if (!dryRun) {
+      if (!dryRun && !linkOnly) {
         const sent = await sendSlackDM(slackId, selfPayload.text, selfPayload.blocks);
         if (sent) {
           results.people_reminded++;
@@ -316,7 +317,7 @@ Deno.serve(async (req) => {
           .maybeSingle();
         if (!mpref || mpref.registration_reminders_slack !== false) {
           const mid = mgr.slack_user_id || (mgr.email ? await slackLookupByEmail(mgr.email) : null);
-          if (mid && !dryRun) {
+          if (mid && !dryRun && !linkOnly) {
             const mgrPayload = buildIncompleteProfileManagerMessage(
               { id: p.id, nome: p.nome },
               reasons,
