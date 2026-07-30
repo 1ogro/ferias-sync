@@ -115,9 +115,11 @@ export function CollaboratorSummaryTable({ highlightId }: CollaboratorSummaryTab
   const filtered = useMemo(() => {
     let result = data.filter(p => {
       const matchSearch = !searchTerm ||
+        p.id.toLowerCase() === searchTerm.toLowerCase() ||
         p.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (p.cargo && p.cargo.toLowerCase().includes(searchTerm.toLowerCase())) ||
         (p.sub_time && p.sub_time.toLowerCase().includes(searchTerm.toLowerCase()));
+
       const matchTime = filterTime === "all" || p.sub_time === filterTime;
       const matchContract = filterContract === "all" || p.modelo_contrato === filterContract;
       const matchPayment = filterPayment === "all" ||
