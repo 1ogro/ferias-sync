@@ -54,15 +54,25 @@ const CONTRACT_LABELS: Record<string, string> = {
   PJ: "PJ",
 };
 
-export function CollaboratorSummaryTable() {
+interface CollaboratorSummaryTableProps {
+  /** Person id coming from a deep link (?person=...) — pre-filters and highlights the row. */
+  highlightId?: string | null;
+}
+
+export function CollaboratorSummaryTable({ highlightId }: CollaboratorSummaryTableProps = {}) {
   const [data, setData] = useState<CollaboratorSummary[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState("");
+  const [searchTerm, setSearchTerm] = useState(highlightId || "");
   const [filterTime, setFilterTime] = useState<string>("all");
   const [filterContract, setFilterContract] = useState<string>("all");
   const [filterPayment, setFilterPayment] = useState<string>("all");
   const [sortColumn, setSortColumn] = useState<string | null>(null);
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
+
+  useEffect(() => {
+    if (highlightId) setSearchTerm(highlightId);
+  }, [highlightId]);
+
 
   useEffect(() => {
     fetchData();
@@ -105,9 +115,11 @@ export function CollaboratorSummaryTable() {
   const filtered = useMemo(() => {
     let result = data.filter(p => {
       const matchSearch = !searchTerm ||
+        p.id.toLowerCase() === searchTerm.toLowerCase() ||
         p.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (p.cargo && p.cargo.toLowerCase().includes(searchTerm.toLowerCase())) ||
         (p.sub_time && p.sub_time.toLowerCase().includes(searchTerm.toLowerCase()));
+
       const matchTime = filterTime === "all" || p.sub_time === filterTime;
       const matchContract = filterContract === "all" || p.modelo_contrato === filterContract;
       const matchPayment = filterPayment === "all" ||
@@ -291,7 +303,16 @@ export function CollaboratorSummaryTable() {
                     const birthdaySoon = isWithin30Days(anivPessoal);
 
                     return (
-                      <TableRow key={person.id} className={birthdaySoon || contractSoon ? "bg-accent/30" : ""}>
+                      <TableRow
+                        key={person.id}
+                        className={
+                          highlightId && person.id === highlightId
+                            ? "bg-primary/10 ring-1 ring-primary/40"
+                            : birthdaySoon || contractSoon
+                              ? "bg-accent/30"
+                              : ""
+                        }
+                      >
                         <TableCell className="font-medium">
                           <div>
                             {person.nome}

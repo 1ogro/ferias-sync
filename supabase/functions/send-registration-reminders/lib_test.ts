@@ -296,12 +296,12 @@ Deno.test("payload perfil incompleto (auto) — CTA leva para configurações do
 
   const btn = findButton(blocks, "open_profile_settings");
   assert(btn, "botão open_profile_settings ausente");
-  assertStrictEquals(btn!.url, `${APP}/settings?tab=profile`);
+  assertStrictEquals(btn!.url, `${APP}/complete-profile`);
   assertStrictEquals(btn!.style, "primary");
   assertStrictEquals(btn!.text.text, "Completar perfil");
 });
 
-Deno.test("payload perfil incompleto (gestor) — CTA leva para /team/:id do liderado, sem estilo primário", () => {
+Deno.test("payload perfil incompleto (gestor) — CTA leva para o resumo do liderado, sem estilo primário", () => {
   const p = person({ id: "liderado-1", nome: "Diego", data_contrato: null });
   const reasons = peopleIncompleteReasons(p);
   const { text, blocks } = buildIncompleteProfileManagerMessage(
@@ -313,11 +313,11 @@ Deno.test("payload perfil incompleto (gestor) — CTA leva para /team/:id do lid
   assert(text.startsWith("🗓️ *Fim de mês* — "));
   assert(text.includes("Diego"));
   assert(text.includes("data de contrato"));
-  assert(text.includes(`${APP}/team/liderado-1`));
+  assert(text.includes(`${APP}/vacation-management?tab=summary&person=liderado-1`));
 
   const btn = findButton(blocks, "open_team_member");
   assert(btn, "botão open_team_member ausente");
-  assertStrictEquals(btn!.url, `${APP}/team/liderado-1`);
+  assertStrictEquals(btn!.url, `${APP}/vacation-management?tab=summary&person=liderado-1`);
   assertEquals(btn!.style, undefined); // secundário
   assertStrictEquals(btn!.text.text, "Ver liderado");
 });
@@ -339,7 +339,7 @@ Deno.test("payload — base URL com barra final é normalizada nos três tipos",
     { mode: "month_end", appBaseUrl: `${APP}/` },
   );
   assertStrictEquals(findButton(a.blocks, "open_pending_approvals")!.url, `${APP}/admin`);
-  assertStrictEquals(findButton(b.blocks, "open_profile_settings")!.url, `${APP}/settings?tab=profile`);
-  assertStrictEquals(findButton(c.blocks, "open_team_member")!.url, `${APP}/team/id-1`);
+  assertStrictEquals(findButton(b.blocks, "open_profile_settings")!.url, `${APP}/complete-profile`);
+  assertStrictEquals(findButton(c.blocks, "open_team_member")!.url, `${APP}/vacation-management?tab=summary&person=id-1`);
 });
 

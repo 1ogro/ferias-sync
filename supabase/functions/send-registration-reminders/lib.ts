@@ -186,7 +186,7 @@ export function buildIncompleteProfileSelfMessage(
   reasons: string[],
   opts: { mode: Mode; appBaseUrl: string },
 ): SlackMessagePayload {
-  const url = `${trimSlash(opts.appBaseUrl)}/settings?tab=profile`;
+  const url = `${trimSlash(opts.appBaseUrl)}/complete-profile`;
   const header = `${urgencyPrefix(opts.mode)}Olá *${person.nome}*, seu cadastro ainda está incompleto.`;
   const body = reasons.map((r) => `• ${r}`).join("\n");
   const text = `${header}\nItens pendentes:\n${body}\n\nComplete em: ${url}`;
@@ -221,7 +221,7 @@ export function buildIncompleteProfileManagerMessage(
   reasons: string[],
   opts: { mode: Mode; appBaseUrl: string },
 ): SlackMessagePayload {
-  const url = `${trimSlash(opts.appBaseUrl)}/team/${person.id}`;
+  const url = `${trimSlash(opts.appBaseUrl)}/vacation-management?tab=summary&person=${encodeURIComponent(person.id)}`;
   const header = `${urgencyPrefix(opts.mode)}Seu liderado *${person.nome}* está com cadastro incompleto.`;
   const body = reasons.map((r) => `• ${r}`).join("\n");
   const text = `${header}\n${body}\n\nAcompanhe em: ${url}`;

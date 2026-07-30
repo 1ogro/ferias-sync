@@ -1302,7 +1302,7 @@ const VacationManagement = () => {
       case 'summary':
         return (
           <div className="space-y-6 mt-6">
-            <CollaboratorSummaryTable />
+            <CollaboratorSummaryTable highlightId={searchParams.get('person')} />
           </div>
         );
 
@@ -1869,7 +1869,7 @@ const VacationManagement = () => {
 
           {/* Collaborator Summary Tab */}
           <TabsContent value="summary" className="space-y-6 hidden lg:block">
-            <CollaboratorSummaryTable />
+            <CollaboratorSummaryTable highlightId={searchParams.get('person')} />
           </TabsContent>
 
 
