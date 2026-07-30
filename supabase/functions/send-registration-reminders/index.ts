@@ -75,12 +75,14 @@ Deno.serve(async (req) => {
     auth: { persistSession: false },
   });
 
-  let body: { mode?: Mode; dry_run?: boolean } = {};
+  let body: { mode?: Mode; dry_run?: boolean; link_only?: boolean } = {};
   try {
     body = await req.json();
   } catch (_) { /* GET/no body */ }
   const mode: Mode = body.mode === "month_end" ? "month_end" : "weekly";
   const dryRun = !!body.dry_run;
+  // link_only: resolve/backfill Slack ids and report, without sending any DM.
+  const linkOnly = !!body.link_only;
 
   // month_end guard: only actually send within 3 days of month end
   if (mode === "month_end" && !isNearMonthEnd() && !dryRun) {
