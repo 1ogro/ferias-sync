@@ -46,6 +46,7 @@ const person = (over: Partial<PersonRow> = {}): PersonRow => ({
   id: pick(over, "id", crypto.randomUUID()),
   nome: pick(over, "nome", "Pessoa"),
   email: pick(over, "email", "pessoa@empresa.com"),
+  email_pessoal: pick(over, "email_pessoal", null),
   slack_user_id: pick(over, "slack_user_id", "U123"),
   data_contrato: pick(over, "data_contrato", "2024-01-01"),
   modelo_contrato: pick(over, "modelo_contrato", "CLT"),
