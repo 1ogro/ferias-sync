@@ -261,6 +261,15 @@ const VacationManagement = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams, person]);
 
+  // Garantir que a aba ativa sempre exista para o papel do usuário
+  // (ex.: link externo com ?tab=summary para um GESTOR sem essa aba)
+  useEffect(() => {
+    if (person && !availableTabs.includes(activeTab)) {
+      setActiveTab(availableTabs[0]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, person]);
+
   // Reagir a mudanças de hash (hashchange não dispara re-render por si só)
   useEffect(() => {
     const onHashChange = () => {
