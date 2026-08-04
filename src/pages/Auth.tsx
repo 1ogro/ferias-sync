@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -21,6 +21,9 @@ interface PersonOption {
 
 export default function Auth() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const rawNext = searchParams.get('next');
+  const nextPath = rawNext && rawNext.startsWith('/') && !rawNext.startsWith('//') ? rawNext : '/';
   const { signIn, signUp, signInWithFigma, user } = useAuth();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
@@ -73,9 +76,9 @@ export default function Auth() {
         window.location.href = next;
         return;
       }
-      navigate('/');
+      navigate(nextPath);
     }
-  }, [user, navigate]);
+  }, [user, navigate, nextPath]);
 
   useEffect(() => {
     fetchPeople();
@@ -137,7 +140,7 @@ export default function Auth() {
         supabase.functions.invoke('slack-notification', {
           body: { type: 'USER_LOGIN', email: loginData.email },
         }).catch(err => console.warn('Slack notification failed:', err));
-        navigate('/');
+        navigate(nextPath);
       }
     } catch (error) {
       toast({

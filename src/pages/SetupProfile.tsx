@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -18,6 +18,9 @@ interface PersonOption {
 export default function SetupProfile() {
   const { user, person, loading: authLoading, profileChecked, createProfile, fetchPersonData } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const rawNext = searchParams.get('next');
+  const nextPath = rawNext && rawNext.startsWith('/') && !rawNext.startsWith('//') ? rawNext : '/';
   const [people, setPeople] = useState<PersonOption[]>([]);
   const [selectedPersonId, setSelectedPersonId] = useState<string>('');
   const [submitting, setSubmitting] = useState(false);
@@ -40,12 +43,16 @@ export default function SetupProfile() {
   }, [profileChecked, authLoading, user, person]);
 
   useEffect(() => {
-    // Redirect if user already has a profile
-    if (!authLoading && profileChecked && user && person) {
-      console.log('User already has profile, redirecting to dashboard');
-      navigate('/');
+    if (authLoading || !profileChecked) return;
+    if (!user) {
+      navigate(`/auth?next=${encodeURIComponent(nextPath)}`, { replace: true });
+      return;
     }
-  }, [user, person, authLoading, profileChecked, navigate]);
+    if (person) {
+      console.log('User already has profile, redirecting');
+      navigate(nextPath, { replace: true });
+    }
+  }, [user, person, authLoading, profileChecked, navigate, nextPath]);
 
   const fetchPeople = async () => {
     console.log('Fetching people for signup...');
@@ -125,7 +132,7 @@ export default function SetupProfile() {
           // If already linked, treat as success and continue
           if (result?.message && /já vinculado/i.test(result.message)) {
             await fetchPersonData();
-            navigate('/');
+            navigate(nextPath);
             return;
           }
           throw new Error(result?.message || 'Falha ao vincular perfil');
@@ -138,10 +145,10 @@ export default function SetupProfile() {
 
       toast({
         title: 'Perfil criado com sucesso!',
-        description: 'Redirecionando para o dashboard...',
+        description: 'Redirecionando...',
       });
 
-      navigate('/');
+      navigate(nextPath);
     } catch (error: any) {
       console.error('Error creating profile:', error);
       const description =
@@ -159,13 +166,8 @@ export default function SetupProfile() {
   };
 
 
-  if (!user) {
-    navigate('/auth');
-    return null;
-  }
-
-  // Show loading while checking profile
-  if (authLoading || !profileChecked) {
+  // Show loading while checking profile (redirects handled in useEffect)
+  if (authLoading || !profileChecked || !user) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/30 flex items-center justify-center p-4">
         <Card className="w-full max-w-md">

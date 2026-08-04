@@ -13,7 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ModeloContrato, MODELO_CONTRATO_LABELS } from "@/lib/types";
 
 export default function CompleteProfile() {
-  const { person, fetchPersonData, loading: authLoading, profileChecked } = useAuth();
+  const { user, person, fetchPersonData, loading: authLoading, profileChecked } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -44,10 +44,19 @@ export default function CompleteProfile() {
   }, [person]);
 
   useEffect(() => {
-    if (!authLoading && profileChecked && person && (person as any).profile_completed_at) {
-      navigate("/");
+    if (authLoading || !profileChecked) return;
+    if (!user) {
+      navigate("/auth?next=/complete-profile", { replace: true });
+      return;
     }
-  }, [authLoading, profileChecked, person, navigate]);
+    if (!person) {
+      navigate("/setup-profile?next=/complete-profile", { replace: true });
+      return;
+    }
+    if ((person as any).profile_completed_at) {
+      navigate("/", { replace: true });
+    }
+  }, [authLoading, profileChecked, user, person, navigate]);
 
   const handleSubmit = async () => {
     if (!person) return;
@@ -101,7 +110,7 @@ export default function CompleteProfile() {
     }
   };
 
-  if (authLoading || !profileChecked) {
+  if (authLoading || !profileChecked || (user && !person)) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
@@ -109,9 +118,22 @@ export default function CompleteProfile() {
     );
   }
 
-  if (!person) {
-    navigate("/setup-profile");
-    return null;
+  if (!user || !person) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/30 flex items-center justify-center p-4">
+        <Card className="w-full max-w-md">
+          <CardContent className="pt-6 text-center space-y-4">
+            <h2 className="text-lg font-semibold">Faça login para continuar</h2>
+            <p className="text-muted-foreground text-sm">
+              Para completar seu cadastro, entre na sua conta do Férias UXTD.
+            </p>
+            <Button className="w-full" onClick={() => navigate("/auth?next=/complete-profile")}>
+              Ir para login
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
   }
 
   return (
