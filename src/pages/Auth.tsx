@@ -140,7 +140,7 @@ export default function Auth() {
         supabase.functions.invoke('slack-notification', {
           body: { type: 'USER_LOGIN', email: loginData.email },
         }).catch(err => console.warn('Slack notification failed:', err));
-        navigate('/');
+        navigate(nextPath);
       }
     } catch (error) {
       toast({
