@@ -2,7 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "./StatusBadge";
 import { Status } from "@/lib/types";
-import { Clock, CheckCircle, XCircle, User, Calendar } from "lucide-react";
+import { Clock, CheckCircle, XCircle, User, Calendar, MessageCircle } from "lucide-react";
 
 interface TimelineEvent {
   id: string;
@@ -10,6 +10,7 @@ interface TimelineEvent {
   actor: string;
   date: Date;
   comment?: string;
+  isComment?: boolean;
 }
 
 interface RequestTimelineProps {
@@ -48,7 +49,7 @@ export const RequestTimeline = ({ events }: RequestTimelineProps) => {
             <div key={event.id} className="flex items-start gap-4">
               <div className="flex flex-col items-center">
                 <div className="p-2 rounded-full bg-muted">
-                  {getIcon(event.status)}
+                  {event.isComment ? <MessageCircle className="w-4 h-4 text-muted-foreground" /> : getIcon(event.status)}
                 </div>
                 {index < events.length - 1 && (
                   <div className="w-px h-8 bg-border mt-2" />
@@ -56,7 +57,11 @@ export const RequestTimeline = ({ events }: RequestTimelineProps) => {
               </div>
               <div className="flex-1 space-y-1">
                 <div className="flex items-center gap-2">
-                  <StatusBadge status={event.status} />
+                  {event.isComment ? (
+                    <Badge variant="outline">Comentário</Badge>
+                  ) : (
+                    <StatusBadge status={event.status} />
+                  )}
                   <span className="text-sm text-muted-foreground">
                     por {event.actor}
                   </span>
