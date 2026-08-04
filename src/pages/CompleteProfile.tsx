@@ -44,10 +44,19 @@ export default function CompleteProfile() {
   }, [person]);
 
   useEffect(() => {
-    if (!authLoading && profileChecked && person && (person as any).profile_completed_at) {
-      navigate("/");
+    if (authLoading || !profileChecked) return;
+    if (!user) {
+      navigate("/auth?next=/complete-profile", { replace: true });
+      return;
     }
-  }, [authLoading, profileChecked, person, navigate]);
+    if (!person) {
+      navigate("/setup-profile?next=/complete-profile", { replace: true });
+      return;
+    }
+    if ((person as any).profile_completed_at) {
+      navigate("/", { replace: true });
+    }
+  }, [authLoading, profileChecked, user, person, navigate]);
 
   const handleSubmit = async () => {
     if (!person) return;
