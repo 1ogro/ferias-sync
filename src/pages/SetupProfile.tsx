@@ -43,12 +43,16 @@ export default function SetupProfile() {
   }, [profileChecked, authLoading, user, person]);
 
   useEffect(() => {
-    // Redirect if user already has a profile
-    if (!authLoading && profileChecked && user && person) {
-      console.log('User already has profile, redirecting to dashboard');
-      navigate('/');
+    if (authLoading || !profileChecked) return;
+    if (!user) {
+      navigate(`/auth?next=${encodeURIComponent(nextPath)}`, { replace: true });
+      return;
     }
-  }, [user, person, authLoading, profileChecked, navigate]);
+    if (person) {
+      console.log('User already has profile, redirecting');
+      navigate(nextPath, { replace: true });
+    }
+  }, [user, person, authLoading, profileChecked, navigate, nextPath]);
 
   const fetchPeople = async () => {
     console.log('Fetching people for signup...');
