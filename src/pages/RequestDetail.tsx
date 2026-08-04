@@ -267,6 +267,135 @@ const RequestDetail = () => {
   
   const canCancel = canDelete;
 
+  // Somente aprovadores (gestor do solicitante, diretor ou admin) e nunca o próprio solicitante
+  const isApprover = !isOwnRequest && (isManager || isDirectorOrAdmin);
+  const isPendingDecision = [Status.EM_ANALISE_GESTOR, Status.EM_ANALISE_DIRETOR, Status.PENDENTE].includes(request.status);
+
+  const reloadRequest = async () => {
+    window.location.reload();
+  };
+
+  const handleApproval = async (action: 'approve' | 'reject' | 'ask_info') => {
+    if (!currentUserPerson || !request) return;
+    setProcessing(true);
+
+    try {
+      let newStatus: Status;
+      let approvalAction: string;
+
+      if (action === 'approve') {
+        if (isDirectorOrAdmin || request.status === Status.EM_ANALISE_DIRETOR) {
+          newStatus = Status.APROVADO_FINAL;
+        } else {
+          newStatus = Status.EM_ANALISE_DIRETOR;
+        }
+        approvalAction = 'APROVAR';
+      } else if (action === 'reject') {
+        newStatus = Status.REPROVADO;
+        approvalAction = 'REPROVAR';
+      } else {
+        newStatus = Status.INFORMACOES_ADICIONAIS;
+        approvalAction = 'PEDIR_INFO';
+      }
+
+      const { error: updateError } = await supabase
+        .from('requests')
+        .update({ status: newStatus })
+        .eq('id', request.id);
+      if (updateError) throw updateError;
+
+      const { error: approvalError } = await supabase
+        .from('approvals')
+        .insert({
+          request_id: request.id,
+          approver_id: currentUserPerson.id,
+          acao: approvalAction,
+          level: isDirectorOrAdmin ? 'DIRETOR_2' : 'GESTOR_1',
+          comentario: comment.trim() || null,
+        });
+      if (approvalError) throw approvalError;
+
+      await supabase.from('audit_logs').insert({
+        entidade: 'requests',
+        entidade_id: request.id,
+        acao: approvalAction,
+        actor_id: currentUserPerson.id,
+        payload: { old_status: request.status, new_status: newStatus },
+      });
+
+      // Notificações (não bloqueiam o fluxo)
+      const startStr = request.inicio ? request.inicio.toLocaleDateString('pt-BR') : '';
+      const endStr = request.fim ? request.fim.toLocaleDateString('pt-BR') : '';
+      const notificationType =
+        action === 'reject' ? 'REJECTION' :
+        action === 'ask_info' ? 'REQUEST_INFO' :
+        newStatus === Status.APROVADO_FINAL ? 'APPROVAL_FINAL' : 'APPROVAL_MANAGER';
+
+      supabase.functions.invoke('send-notification-email', {
+        body: {
+          type: notificationType,
+          to: request.requester.email,
+          requesterName: request.requester.nome,
+          requestType: request.tipo,
+          startDate: startStr,
+          endDate: endStr,
+          approverName: currentUserPerson.nome,
+        },
+      }).catch((e) => console.error('email error', e));
+
+      supabase.functions.invoke('slack-notification', {
+        body: {
+          type: action === 'reject' ? 'REJECTION' : action === 'ask_info' ? 'REQUEST_INFO' : 'APPROVAL',
+          requestId: request.id,
+          requesterName: request.requester.nome,
+          requestType: request.tipo,
+          startDate: startStr,
+          endDate: endStr,
+          comment: comment.trim() || null,
+          recipientEmail: request.requester.email || undefined,
+          recipientName: request.requester.nome || undefined,
+          targetPersonId: request.requesterId,
+        },
+      }).catch((e) => console.error('slack error', e));
+
+      toast({
+        title: 'Sucesso',
+        description: action === 'approve' ? 'Solicitação aprovada.' : action === 'reject' ? 'Solicitação reprovada.' : 'Informações adicionais solicitadas.',
+      });
+
+      setComment('');
+      await reloadRequest();
+    } catch (error: any) {
+      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const handleAddComment = async () => {
+    if (!currentUserPerson || !request || !comment.trim()) return;
+    setProcessing(true);
+    try {
+      const { error } = await supabase.from('approvals').insert({
+        request_id: request.id,
+        approver_id: currentUserPerson.id,
+        acao: 'COMENTARIO',
+        level: 'SOLICITANTE',
+        comentario: comment.trim(),
+      });
+      if (error) throw error;
+
+      toast({ title: 'Comentário enviado', description: 'Seu comentário foi registrado no histórico.' });
+      setComment('');
+      await fetchTimelineEvents(request.id, request);
+    } catch (error: any) {
+      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+
   const handleCancel = async () => {
     setCancelDialogOpen(false);
 
