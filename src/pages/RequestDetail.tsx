@@ -23,12 +23,14 @@ const RequestDetail = () => {
   const [request, setRequest] = useState<Request | null>(null);
   const [loading, setLoading] = useState(true);
   const [currentUserPerson, setCurrentUserPerson] = useState<Person | null>(null);
+  const [processing, setProcessing] = useState(false);
   const [timelineEvents, setTimelineEvents] = useState<Array<{
     id: string;
     status: Status;
     actor: string;
     date: Date;
     comment?: string;
+    isComment?: boolean;
   }>>([]);
   
   // Estados para os dialogs
@@ -163,13 +165,16 @@ const RequestDetail = () => {
       
       // Add approval events
       if (approvals) {
-        approvals.forEach((approval, index) => {
+        approvals.forEach((approval) => {
+          const isComment = approval.acao === 'COMENTARIO';
           let eventStatus: Status;
-          if (approval.acao === 'APROVADO') {
+          if (approval.acao === 'APROVADO' || approval.acao === 'APROVAR') {
             eventStatus = approval.level === 'AUTO_APROVACAO' ? Status.APROVADO_FINAL : 
-                         approval.level === 'GESTOR' ? Status.APROVADO_1NIVEL : Status.APROVADO_FINAL;
-          } else if (approval.acao === 'REPROVADO') {
+                         (approval.level === 'GESTOR' || approval.level === 'GESTOR_1') ? Status.APROVADO_1NIVEL : Status.APROVADO_FINAL;
+          } else if (approval.acao === 'REPROVADO' || approval.acao === 'REPROVAR') {
             eventStatus = Status.REPROVADO;
+          } else if (approval.acao === 'PEDIR_INFO') {
+            eventStatus = Status.INFORMACOES_ADICIONAIS;
           } else {
             eventStatus = Status.EM_ANALISE_GESTOR;
           }
@@ -179,13 +184,17 @@ const RequestDetail = () => {
             status: eventStatus,
             actor: approval.approver?.nome || 'Sistema',
             date: new Date(approval.created_at),
+            isComment,
             comment: approval.comentario || 
-                    (approval.level === 'AUTO_APROVACAO' ? 'Auto-aprovação (Diretor)' : 
-                     approval.acao === 'APROVADO' ? 'Solicitação aprovada' : 
-                     approval.acao === 'REPROVADO' ? 'Solicitação reprovada' : 'Em análise')
+                    (isComment ? 'Comentário' :
+                     approval.level === 'AUTO_APROVACAO' ? 'Auto-aprovação (Diretor)' : 
+                     (approval.acao === 'APROVADO' || approval.acao === 'APROVAR') ? 'Solicitação aprovada' : 
+                     (approval.acao === 'REPROVADO' || approval.acao === 'REPROVAR') ? 'Solicitação reprovada' : 
+                     approval.acao === 'PEDIR_INFO' ? 'Informações adicionais solicitadas' : 'Em análise')
           });
         });
       }
+
       
       setTimelineEvents(events);
     } catch (error) {
@@ -257,6 +266,135 @@ const RequestDetail = () => {
     : (isManager || isDirectorOrAdmin) && request.status !== Status.RASCUNHO; // Gestor/diretor exclui tudo exceto rascunhos
   
   const canCancel = canDelete;
+
+  // Somente aprovadores (gestor do solicitante, diretor ou admin) e nunca o próprio solicitante
+  const isApprover = !isOwnRequest && (isManager || isDirectorOrAdmin);
+  const isPendingDecision = [Status.EM_ANALISE_GESTOR, Status.EM_ANALISE_DIRETOR, Status.PENDENTE].includes(request.status);
+
+  const reloadRequest = async () => {
+    window.location.reload();
+  };
+
+  const handleApproval = async (action: 'approve' | 'reject' | 'ask_info') => {
+    if (!currentUserPerson || !request) return;
+    setProcessing(true);
+
+    try {
+      let newStatus: Status;
+      let approvalAction: string;
+
+      if (action === 'approve') {
+        if (isDirectorOrAdmin || request.status === Status.EM_ANALISE_DIRETOR) {
+          newStatus = Status.APROVADO_FINAL;
+        } else {
+          newStatus = Status.EM_ANALISE_DIRETOR;
+        }
+        approvalAction = 'APROVAR';
+      } else if (action === 'reject') {
+        newStatus = Status.REPROVADO;
+        approvalAction = 'REPROVAR';
+      } else {
+        newStatus = Status.INFORMACOES_ADICIONAIS;
+        approvalAction = 'PEDIR_INFO';
+      }
+
+      const { error: updateError } = await supabase
+        .from('requests')
+        .update({ status: newStatus })
+        .eq('id', request.id);
+      if (updateError) throw updateError;
+
+      const { error: approvalError } = await supabase
+        .from('approvals')
+        .insert({
+          request_id: request.id,
+          approver_id: currentUserPerson.id,
+          acao: approvalAction,
+          level: isDirectorOrAdmin ? 'DIRETOR_2' : 'GESTOR_1',
+          comentario: comment.trim() || null,
+        });
+      if (approvalError) throw approvalError;
+
+      await supabase.from('audit_logs').insert({
+        entidade: 'requests',
+        entidade_id: request.id,
+        acao: approvalAction,
+        actor_id: currentUserPerson.id,
+        payload: { old_status: request.status, new_status: newStatus },
+      });
+
+      // Notificações (não bloqueiam o fluxo)
+      const startStr = request.inicio ? request.inicio.toLocaleDateString('pt-BR') : '';
+      const endStr = request.fim ? request.fim.toLocaleDateString('pt-BR') : '';
+      const notificationType =
+        action === 'reject' ? 'REJECTION' :
+        action === 'ask_info' ? 'REQUEST_INFO' :
+        newStatus === Status.APROVADO_FINAL ? 'APPROVAL_FINAL' : 'APPROVAL_MANAGER';
+
+      supabase.functions.invoke('send-notification-email', {
+        body: {
+          type: notificationType,
+          to: request.requester.email,
+          requesterName: request.requester.nome,
+          requestType: request.tipo,
+          startDate: startStr,
+          endDate: endStr,
+          approverName: currentUserPerson.nome,
+        },
+      }).catch((e) => console.error('email error', e));
+
+      supabase.functions.invoke('slack-notification', {
+        body: {
+          type: action === 'reject' ? 'REJECTION' : action === 'ask_info' ? 'REQUEST_INFO' : 'APPROVAL',
+          requestId: request.id,
+          requesterName: request.requester.nome,
+          requestType: request.tipo,
+          startDate: startStr,
+          endDate: endStr,
+          comment: comment.trim() || null,
+          recipientEmail: request.requester.email || undefined,
+          recipientName: request.requester.nome || undefined,
+          targetPersonId: request.requesterId,
+        },
+      }).catch((e) => console.error('slack error', e));
+
+      toast({
+        title: 'Sucesso',
+        description: action === 'approve' ? 'Solicitação aprovada.' : action === 'reject' ? 'Solicitação reprovada.' : 'Informações adicionais solicitadas.',
+      });
+
+      setComment('');
+      await reloadRequest();
+    } catch (error: any) {
+      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const handleAddComment = async () => {
+    if (!currentUserPerson || !request || !comment.trim()) return;
+    setProcessing(true);
+    try {
+      const { error } = await supabase.from('approvals').insert({
+        request_id: request.id,
+        approver_id: currentUserPerson.id,
+        acao: 'COMENTARIO',
+        level: 'SOLICITANTE',
+        comentario: comment.trim(),
+      });
+      if (error) throw error;
+
+      toast({ title: 'Comentário enviado', description: 'Seu comentário foi registrado no histórico.' });
+      setComment('');
+      await fetchTimelineEvents(request.id, request);
+    } catch (error: any) {
+      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+    } finally {
+      setProcessing(false);
+    }
+  };
+
 
   const handleCancel = async () => {
     setCancelDialogOpen(false);
@@ -479,11 +617,14 @@ const RequestDetail = () => {
               </CardContent>
             </Card>
 
-            {/* Actions for Approvers */}
-            {[Status.EM_ANALISE_GESTOR, Status.EM_ANALISE_DIRETOR].includes(request.status) && (
+            {/* Ações de aprovação — somente para aprovadores */}
+            {isApprover && [Status.EM_ANALISE_GESTOR, Status.EM_ANALISE_DIRETOR].includes(request.status) && (
               <Card>
                 <CardHeader>
                   <CardTitle>Ações de Aprovação</CardTitle>
+                  <p className="text-sm text-muted-foreground">
+                    Você está avaliando a solicitação de {request.requester.nome}.
+                  </p>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
@@ -494,20 +635,65 @@ const RequestDetail = () => {
                       onChange={(e) => setComment(e.target.value)}
                     />
                   </div>
-                  <div className="flex gap-2">
-                    <Button className="bg-status-approved hover:bg-status-approved/90 text-white">
-                      Aprovar
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      disabled={processing}
+                      onClick={() => handleApproval('approve')}
+                      className="bg-status-approved hover:bg-status-approved/90 text-white"
+                    >
+                      {processing ? 'Processando...' : 'Aprovar'}
                     </Button>
-                    <Button variant="outline" className="border-status-rejected text-status-rejected">
+                    <Button
+                      variant="outline"
+                      disabled={processing}
+                      onClick={() => handleApproval('reject')}
+                      className="border-status-rejected text-status-rejected"
+                    >
                       Reprovar
                     </Button>
-                    <Button variant="outline">
+                    <Button variant="outline" disabled={processing} onClick={() => handleApproval('ask_info')}>
                       Pedir Informações
                     </Button>
                   </div>
                 </CardContent>
               </Card>
             )}
+
+            {/* Acompanhamento — visão do solicitante */}
+            {isOwnRequest && request.status !== Status.RASCUNHO && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Acompanhamento</CardTitle>
+                  <p className="text-sm text-muted-foreground">
+                    {request.status === Status.EM_ANALISE_DIRETOR
+                      ? 'Aguardando aprovação da diretoria.'
+                      : isPendingDecision
+                        ? 'Aguardando aprovação do seu gestor.'
+                        : 'Esta solicitação já foi avaliada. Você pode registrar observações abaixo.'}
+                  </p>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium" htmlFor="requester-comment">
+                      Adicionar comentário
+                    </label>
+                    <p className="text-xs text-muted-foreground">
+                      Envie uma observação ao aprovador — isso não altera o status da solicitação.
+                    </p>
+                    <Textarea
+                      id="requester-comment"
+                      placeholder="Ex.: preciso adiar o início em uma semana..."
+                      value={comment}
+                      onChange={(e) => setComment(e.target.value)}
+                    />
+                  </div>
+                  <Button onClick={handleAddComment} disabled={processing || !comment.trim()}>
+                    {processing ? 'Enviando...' : 'Enviar comentário'}
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+
           </div>
 
           {/* Sidebar */}
