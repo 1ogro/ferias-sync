@@ -21,6 +21,9 @@ interface PersonOption {
 
 export default function Auth() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const rawNext = searchParams.get('next');
+  const nextPath = rawNext && rawNext.startsWith('/') && !rawNext.startsWith('//') ? rawNext : '/';
   const { signIn, signUp, signInWithFigma, user } = useAuth();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
