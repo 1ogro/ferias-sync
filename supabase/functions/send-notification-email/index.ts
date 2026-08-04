@@ -10,7 +10,7 @@ const corsHeaders = {
 };
 
 interface NotificationRequest {
-  type: 'NEW_REQUEST' | 'APPROVAL_MANAGER' | 'APPROVAL_FINAL' | 'REJECTION' | 'REQUEST_INFO' | 'PAYMENT_DAY_CHANGE_REQUEST' | 'PAYMENT_DAY_CHANGE_DECISION' | 'INVITE_ACCEPTED' | 'NEW_PENDING_PERSON';
+  type: 'NEW_REQUEST' | 'APPROVAL_MANAGER' | 'APPROVAL_FINAL' | 'REJECTION' | 'REQUEST_INFO' | 'REQUEST_UPDATED' | 'REQUEST_CANCELLED_BY_REQUESTER' | 'REQUESTER_COMMENT' | 'PAYMENT_DAY_CHANGE_REQUEST' | 'PAYMENT_DAY_CHANGE_DECISION' | 'INVITE_ACCEPTED' | 'NEW_PENDING_PERSON';
   approved?: boolean;
   notes?: string | null;
   requestId?: string;
@@ -36,7 +36,7 @@ interface NotificationRequest {
 
 // Map notification types to preference columns
 function getPreferenceColumn(type: string): string | null {
-  if (['NEW_REQUEST', 'APPROVAL_MANAGER', 'APPROVAL_FINAL', 'REJECTION', 'REQUEST_INFO'].includes(type)) {
+  if (['NEW_REQUEST', 'APPROVAL_MANAGER', 'APPROVAL_FINAL', 'REJECTION', 'REQUEST_INFO', 'REQUEST_UPDATED', 'REQUEST_CANCELLED_BY_REQUESTER', 'REQUESTER_COMMENT'].includes(type)) {
     return 'request_updates_email';
   }
   if (type === 'PAYMENT_DAY_CHANGE_REQUEST' || type === 'INVITE_ACCEPTED' || type === 'NEW_PENDING_PERSON') {
@@ -226,6 +226,51 @@ function generateEmailContent(notification: NotificationRequest): { subject: str
               Acessar Sistema
             </a>
             <br/><br/>
+            <p style="color: #666; font-size: 12px;">Este é um email automático, por favor não responda.</p>
+          </div>
+        `,
+      };
+
+    case 'REQUEST_UPDATED':
+      return {
+        subject: `Solicitação atualizada - ${notification.requesterName}`,
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2 style="color: #2563eb;">✏️ Solicitação Atualizada</h2>
+            <p>Olá,</p>
+            <p><strong>${notification.requesterName}</strong> alterou a solicitação de <strong>${requestTypeLabel}</strong> e ela voltou para sua análise.</p>
+            ${dateRange ? `<p><strong>Novo período:</strong> ${dateRange}</p>` : ''}
+            ${notification.comment ? `<p><strong>Comentário:</strong> ${notification.comment}</p>` : ''}
+            <p style="color: #666; font-size: 12px;">Este é um email automático, por favor não responda.</p>
+          </div>
+        `,
+      };
+
+    case 'REQUEST_CANCELLED_BY_REQUESTER':
+      return {
+        subject: `Solicitação cancelada pelo solicitante - ${notification.requesterName}`,
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2 style="color: #dc2626;">🚫 Solicitação Cancelada</h2>
+            <p>Olá,</p>
+            <p><strong>${notification.requesterName}</strong> cancelou a solicitação de <strong>${requestTypeLabel}</strong>.</p>
+            ${dateRange ? `<p><strong>Período:</strong> ${dateRange}</p>` : ''}
+            ${notification.comment ? `<p><strong>Motivo:</strong> ${notification.comment}</p>` : ''}
+            <p style="color: #666; font-size: 12px;">Este é um email automático, por favor não responda.</p>
+          </div>
+        `,
+      };
+
+    case 'REQUESTER_COMMENT':
+      return {
+        subject: `Novo comentário na solicitação - ${notification.requesterName}`,
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2 style="color: #2563eb;">💬 Novo Comentário</h2>
+            <p>Olá,</p>
+            <p><strong>${notification.requesterName}</strong> comentou na solicitação de <strong>${requestTypeLabel}</strong>.</p>
+            ${dateRange ? `<p><strong>Período:</strong> ${dateRange}</p>` : ''}
+            ${notification.comment ? `<p style="background:#f3f4f6;padding:10px;border-radius:6px;">${notification.comment}</p>` : ''}
             <p style="color: #666; font-size: 12px;">Este é um email automático, por favor não responda.</p>
           </div>
         `,

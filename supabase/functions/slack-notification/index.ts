@@ -10,7 +10,7 @@ const corsHeaders = {
 };
 
 interface SlackNotificationRequest {
-  type: 'NEW_REQUEST' | 'APPROVAL' | 'REJECTION' | 'REQUEST_INFO' | 'PERSON_APPROVED' | 'PERSON_REJECTED' | 'INVITE_ACCEPTED' | 'NEW_PENDING_PERSON' | 'PAYMENT_DAY_CHANGE_REQUEST' | 'PAYMENT_DAY_CHANGE_DECISION' | 'USER_LOGIN' | 'USER_SIGNUP' | 'USER_PASSWORD_RESET_REQUEST' | 'USER_FIGMA_LOGIN' | 'PROFILE_UPDATE' | 'CONTRACT_SETUP' | 'MEDICAL_LEAVE_CREATED' | 'MEDICAL_LEAVE_ENDED';
+  type: 'NEW_REQUEST' | 'APPROVAL' | 'REJECTION' | 'REQUEST_INFO' | 'REQUEST_UPDATED' | 'REQUEST_CANCELLED_BY_REQUESTER' | 'REQUESTER_COMMENT' | 'PERSON_APPROVED' | 'PERSON_REJECTED' | 'INVITE_ACCEPTED' | 'NEW_PENDING_PERSON' | 'PAYMENT_DAY_CHANGE_REQUEST' | 'PAYMENT_DAY_CHANGE_DECISION' | 'USER_LOGIN' | 'USER_SIGNUP' | 'USER_PASSWORD_RESET_REQUEST' | 'USER_FIGMA_LOGIN' | 'PROFILE_UPDATE' | 'CONTRACT_SETUP' | 'MEDICAL_LEAVE_CREATED' | 'MEDICAL_LEAVE_ENDED';
   approved?: boolean;
   notes?: string | null;
   requestId?: string;
@@ -99,7 +99,7 @@ const TIPO_EMOJI = {
   'LICENCA_MEDICA': '🏥',
 };
 
-const DM_TYPES = new Set(['NEW_REQUEST', 'APPROVAL', 'REJECTION', 'REQUEST_INFO', 'PAYMENT_DAY_CHANGE_DECISION']);
+const DM_TYPES = new Set(['NEW_REQUEST', 'APPROVAL', 'REJECTION', 'REQUEST_INFO', 'REQUEST_UPDATED', 'REQUEST_CANCELLED_BY_REQUESTER', 'REQUESTER_COMMENT', 'PAYMENT_DAY_CHANGE_DECISION']);
 
 function getPreferenceColumn(type: string): string | null {
   if (DM_TYPES.has(type)) return 'request_updates_slack';
@@ -207,6 +207,15 @@ serve(async (req) => {
     } else if (payload!.type === 'REQUEST_INFO') {
       text = `Informações Adicionais Solicitadas`;
       blocks = [{ type: "section", text: { type: "mrkdwn", text: `*📋 Informações Adicionais Solicitadas*\n👤 ${payload!.requesterName}\n📅 ${payload!.startDate} até ${payload!.endDate}${payload!.comment ? `\n💬 ${payload!.comment}` : ''}` } }];
+    } else if (payload!.type === 'REQUEST_UPDATED') {
+      text = `Solicitação Atualizada`;
+      blocks = [{ type: "section", text: { type: "mrkdwn", text: `*✏️ Solicitação Atualizada*\n👤 ${payload!.requesterName} alterou o pedido e ele voltou para sua análise\n📅 ${payload!.startDate} até ${payload!.endDate}${payload!.comment ? `\n💬 ${payload!.comment}` : ''}` } }];
+    } else if (payload!.type === 'REQUEST_CANCELLED_BY_REQUESTER') {
+      text = `Solicitação Cancelada pelo Solicitante`;
+      blocks = [{ type: "section", text: { type: "mrkdwn", text: `*🚫 Solicitação Cancelada*\n👤 ${payload!.requesterName} cancelou o pedido\n📅 ${payload!.startDate} até ${payload!.endDate}${payload!.comment ? `\n💬 ${payload!.comment}` : ''}` } }];
+    } else if (payload!.type === 'REQUESTER_COMMENT') {
+      text = `Novo comentário na solicitação`;
+      blocks = [{ type: "section", text: { type: "mrkdwn", text: `*💬 Novo comentário de ${payload!.requesterName}*\n📅 ${payload!.startDate} até ${payload!.endDate}${payload!.comment ? `\n> ${payload!.comment}` : ''}` } }];
     } else if (payload!.type === 'PERSON_APPROVED') {
       text = `Colaborador Aprovado`;
       blocks = [{ type: "section", text: { type: "mrkdwn", text: `*✅ Colaborador Aprovado*\n👤 *${payload!.personName}* (${payload!.personEmail})\n🔑 Aprovado por: ${payload!.directorName}` } }];

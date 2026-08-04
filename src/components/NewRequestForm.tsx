@@ -454,6 +454,49 @@ export const NewRequestForm = () => {
           console.error('Error sending Slack notification:', slackError);
           // Don't block the flow if Slack fails
         }
+      } else if (!isDirector && !managerIdForNotify) {
+        // Sem gestor direto: avisar a diretoria para que a solicitação não fique invisível
+        try {
+          const { data: directors } = await supabase
+            .from('people')
+            .select('id, nome, email')
+            .or('papel.eq.DIRETOR,is_admin.eq.true')
+            .eq('ativo', true);
+
+          const startStr = parseDateSafely(formData.inicio).toLocaleDateString('pt-BR');
+          const endStr = parseDateSafely(formData.fim).toLocaleDateString('pt-BR');
+
+          for (const d of directors || []) {
+            if (!d.email) continue;
+            supabase.functions.invoke('send-notification-email', {
+              body: {
+                type: 'NEW_REQUEST',
+                to: d.email,
+                requesterName: person.nome,
+                requestType: formData.tipo,
+                startDate: startStr,
+                endDate: endStr,
+                targetPersonId: d.id,
+              },
+            }).catch((e) => console.error('email error', e));
+
+            supabase.functions.invoke('slack-notification', {
+              body: {
+                type: 'NEW_REQUEST',
+                requestId: newRequest.id,
+                requesterName: person.nome,
+                requestType: formData.tipo,
+                startDate: startStr,
+                endDate: endStr,
+                approverEmail: d.email,
+                approverName: d.nome,
+                targetPersonId: d.id,
+              },
+            }).catch((e) => console.error('slack error', e));
+          }
+        } catch (e) {
+          console.error('Error notifying directors (no manager):', e);
+        }
       }
 
       toast({
