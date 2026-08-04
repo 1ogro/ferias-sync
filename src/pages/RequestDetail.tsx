@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { StatusBadge } from "@/components/StatusBadge";
 import { RequestTimeline } from "@/components/RequestTimeline";
 import { Status, TIPO_LABELS, Request, TipoAusencia, Person, Papel, OrganizationalRole } from "@/lib/types";
-import { ArrowLeft, Calendar, User, Clock, AlertTriangle, Edit, Trash2 } from "lucide-react";
+import { ArrowLeft, Calendar, User, Clock, AlertTriangle, Edit, Trash2, XCircle } from "lucide-react";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { parseDateSafely } from "@/lib/dateUtils";
@@ -254,18 +254,30 @@ const RequestDetail = () => {
   const isOwnRequest = currentUserPerson?.id === request.requesterId;
   const isManager = currentUserPerson?.id === request.requester.gestorId;
   const isDirectorOrAdmin = currentUserPerson?.papel === Papel.DIRETOR || currentUserPerson?.is_admin;
-  
+
+  // Status em que o solicitante ainda pode mexer na própria solicitação
+  const OWN_OPEN_STATUSES: Status[] = [
+    Status.RASCUNHO,
+    Status.PENDENTE,
+    Status.EM_ANALISE_GESTOR,
+    Status.EM_ANALISE_DIRETOR,
+    Status.INFORMACOES_ADICIONAIS,
+  ];
+
   // Permissões de edição
-  const canEdit = isOwnRequest 
-    ? request.status === Status.RASCUNHO // Próprio usuário só edita rascunhos
-    : (isManager || isDirectorOrAdmin) && request.status !== Status.RASCUNHO; // Gestor/diretor edita tudo exceto rascunhos
-  
+  const canEdit = isOwnRequest
+    ? OWN_OPEN_STATUSES.includes(request.status) // Antes da aprovação o próprio usuário pode editar
+    : (isManager || isDirectorOrAdmin) && request.status !== Status.RASCUNHO;
+
   // Permissões de exclusão
   const canDelete = isOwnRequest
     ? request.status === Status.RASCUNHO // Próprio usuário só exclui rascunhos
-    : (isManager || isDirectorOrAdmin) && request.status !== Status.RASCUNHO; // Gestor/diretor exclui tudo exceto rascunhos
-  
-  const canCancel = canDelete;
+    : (isManager || isDirectorOrAdmin) && request.status !== Status.RASCUNHO;
+
+  // Permissões de cancelamento
+  const canCancel = isOwnRequest
+    ? OWN_OPEN_STATUSES.includes(request.status) && request.status !== Status.RASCUNHO
+    : (isManager || isDirectorOrAdmin) && request.status !== Status.RASCUNHO;
 
   // Somente aprovadores (gestor do solicitante, diretor ou admin) e nunca o próprio solicitante
   const isApprover = !isOwnRequest && (isManager || isDirectorOrAdmin);
@@ -372,20 +384,99 @@ const RequestDetail = () => {
     }
   };
 
+  // Resolve quem deve ser avisado (gestor direto; diretoria como fallback)
+  const resolveApproverContacts = async (): Promise<Array<{ id?: string; nome: string; email: string }>> => {
+    const contacts: Array<{ id?: string; nome: string; email: string }> = [];
+    const gestorId = request?.requester?.gestorId;
+
+    if (gestorId) {
+      const { data } = await supabase
+        .from('people')
+        .select('id, nome, email')
+        .eq('id', gestorId)
+        .maybeSingle();
+      if (data?.email) contacts.push({ id: data.id, nome: data.nome, email: data.email });
+    }
+
+    if (contacts.length === 0) {
+      const { data } = await supabase.rpc('get_director_emails');
+      (data || []).forEach((d: any) => {
+        if (d?.email) contacts.push({ nome: 'Diretoria', email: d.email });
+      });
+    }
+
+    return contacts;
+  };
+
+  const notifyApprovers = async (
+    type: 'REQUEST_UPDATED' | 'REQUEST_CANCELLED_BY_REQUESTER' | 'REQUESTER_COMMENT',
+    extraComment?: string,
+  ) => {
+    if (!request) return;
+    try {
+      const contacts = await resolveApproverContacts();
+      const startStr = request.inicio ? request.inicio.toLocaleDateString('pt-BR') : '';
+      const endStr = request.fim ? request.fim.toLocaleDateString('pt-BR') : '';
+
+      for (const contact of contacts) {
+        supabase.functions.invoke('send-notification-email', {
+          body: {
+            type,
+            to: contact.email,
+            requesterName: request.requester.nome,
+            requestType: request.tipo,
+            startDate: startStr,
+            endDate: endStr,
+            comment: extraComment || null,
+            targetPersonId: contact.id,
+          },
+        }).catch((e) => console.error('email error', e));
+
+        supabase.functions.invoke('slack-notification', {
+          body: {
+            type,
+            requestId: request.id,
+            requesterName: request.requester.nome,
+            requestType: request.tipo,
+            startDate: startStr,
+            endDate: endStr,
+            comment: extraComment || null,
+            recipientEmail: contact.email,
+            recipientName: contact.nome,
+            targetPersonId: contact.id,
+          },
+        }).catch((e) => console.error('slack error', e));
+      }
+
+      await supabase.from('audit_logs').insert({
+        entidade: 'requests',
+        entidade_id: request.id,
+        acao: type,
+        actor_id: currentUserPerson?.id,
+        payload: { recipients: contacts.map(c => c.email), comment: extraComment || null } as any,
+      });
+    } catch (e) {
+      console.error('notifyApprovers error', e);
+    }
+  };
+
   const handleAddComment = async () => {
     if (!currentUserPerson || !request || !comment.trim()) return;
     setProcessing(true);
+    const commentText = comment.trim();
     try {
       const { error } = await supabase.from('approvals').insert({
         request_id: request.id,
         approver_id: currentUserPerson.id,
         acao: 'COMENTARIO',
         level: 'SOLICITANTE',
-        comentario: comment.trim(),
+        comentario: commentText,
       });
       if (error) throw error;
 
-      toast({ title: 'Comentário enviado', description: 'Seu comentário foi registrado no histórico.' });
+      notifyApprovers('REQUESTER_COMMENT', commentText);
+
+      toast({ title: 'Comentário enviado', description: 'Seu comentário foi registrado e o aprovador foi avisado.' });
       setComment('');
       await fetchTimelineEvents(request.id, request);
     } catch (error: any) {
@@ -406,6 +497,10 @@ const RequestDetail = () => {
         .eq('id', id);
 
       if (error) throw error;
+
+      if (isOwnRequest) {
+        await notifyApprovers('REQUEST_CANCELLED_BY_REQUESTER');
+      }
 
       toast({
         title: "Solicitação cancelada",
@@ -531,16 +626,29 @@ const RequestDetail = () => {
                       )}
                     </div>
                   </div>
-                  {canEdit && (
-                    <div className="flex gap-2">
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={() => navigate(`/requests/${request.id}/edit`)}
-                      >
-                        <Edit className="w-4 h-4 mr-1" />
-                        {isOwnRequest ? 'Editar' : 'Editar (Admin)'}
-                      </Button>
+                  {(canEdit || canDelete || canCancel) && (
+                    <div className="flex flex-wrap gap-2">
+                      {canEdit && (
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => navigate(`/requests/${request.id}/edit`)}
+                        >
+                          <Edit className="w-4 h-4 mr-1" />
+                          {isOwnRequest ? 'Editar' : 'Editar (Admin)'}
+                        </Button>
+                      )}
+                      {canCancel && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-status-rejected border-status-rejected hover:bg-status-rejected/10"
+                          onClick={() => setCancelDialogOpen(true)}
+                        >
+                          <XCircle className="w-4 h-4 mr-1" />
+                          Cancelar solicitação
+                        </Button>
+                      )}
                       {canDelete && (
                         <Button 
                           variant="outline" 

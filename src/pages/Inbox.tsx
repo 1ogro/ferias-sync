@@ -78,16 +78,23 @@ const Inbox = () => {
       // Filter data based on user role and status
       let filteredData = data || [];
 
+      const OPEN_STATUSES: Status[] = [
+        Status.PENDENTE,
+        Status.EM_ANALISE_GESTOR,
+        Status.EM_ANALISE_DIRETOR,
+        Status.INFORMACOES_ADICIONAIS,
+      ];
+
       if (person.papel === 'DIRETOR' || person.is_admin) {
-        // Directors see all requests needing approval (including PENDENTE)
-        filteredData = filteredData.filter(item => 
-          [Status.PENDENTE, Status.EM_ANALISE_DIRETOR, Status.EM_ANALISE_GESTOR].includes(item.status as Status)
+        // Directors see everything still open
+        filteredData = filteredData.filter(item =>
+          OPEN_STATUSES.includes(item.status as Status)
         );
         console.log('Director view: filtered to', filteredData.length, 'requests');
       } else {
-        // Managers see requests from their direct reports that need manager approval
-        filteredData = filteredData.filter(item => 
-          item.status === Status.EM_ANALISE_GESTOR && 
+        // Managers see every open request from their direct reports
+        filteredData = filteredData.filter(item =>
+          OPEN_STATUSES.includes(item.status as Status) &&
           item.requester.gestor_id === person.id
         );
         console.log('Manager view: filtered to', filteredData.length, 'requests for gestor_id:', person.id);
@@ -683,6 +690,11 @@ const Inbox = () => {
                         </div>
                       </CardHeader>
                     <CardContent className="pt-0">
+                      {request.status === Status.INFORMACOES_ADICIONAIS && (
+                        <Badge variant="outline" className="mb-3 bg-status-pending/10 text-status-pending">
+                          Aguardando colaborador
+                        </Badge>
+                      )}
                       <div className="mb-3">
                         <p className="text-sm text-muted-foreground">
                           <span className="font-medium">Solicitante:</span> {request.requester?.nome}

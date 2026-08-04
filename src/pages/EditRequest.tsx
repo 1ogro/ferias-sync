@@ -81,9 +81,17 @@ const EditRequest = () => {
         const isManager = person.id === requestData.requester?.gestor_id;
         const isDirectorOrAdmin = person.papel === Papel.DIRETOR || person.is_admin;
         
-        // Usuário só pode editar próprio rascunho OU ser gestor/diretor
+        // Solicitante pode editar enquanto não houver aprovação; gestor/diretor editam administrativamente
+        const ownEditable = [
+          Status.RASCUNHO,
+          Status.PENDENTE,
+          Status.EM_ANALISE_GESTOR,
+          Status.EM_ANALISE_DIRETOR,
+          Status.INFORMACOES_ADICIONAIS,
+        ].includes(requestData.status as Status);
+
         const hasPermission = 
-          (isOwnRequest && requestData.status === Status.RASCUNHO) ||
+          (isOwnRequest && ownEditable) ||
           (isManager && requestData.status !== Status.RASCUNHO) ||
           (isDirectorOrAdmin && requestData.status !== Status.RASCUNHO);
         
@@ -291,6 +299,36 @@ const EditRequest = () => {
     setIsSubmitting(true);
 
     try {
+      // Descobrir se a edição é do próprio solicitante
+      const { data: requestRow } = await supabase
+        .from('requests')
+        .select('requester_id')
+        .eq('id', id!)
+        .single();
+
+      const isAdminEdit = !!requestRow && requestRow.requester_id !== person.id;
+      const isOwnEdit = !isAdminEdit;
+
+      // Gestor do solicitante (para reiniciar o fluxo e notificar)
+      const gestorIdResolved = person.gestorId ?? (person as any).gestor_id ?? null;
+      let managerData: { id: string; nome: string; email: string; papel: string | null } | null = null;
+      if (isOwnEdit && gestorIdResolved) {
+        const { data } = await supabase
+          .from('people')
+          .select('id, nome, email, papel')
+          .eq('id', gestorIdResolved)
+          .maybeSingle();
+        managerData = data as any;
+      }
+
+      // Ao editar a própria solicitação já em análise, ela volta ao início do fluxo
+      let newStatus: string = originalStatus;
+      if (originalStatus === Status.RASCUNHO) {
+        newStatus = 'PENDENTE';
+      } else if (isOwnEdit && !isDirector) {
+        newStatus = managerData?.papel === 'DIRETOR' ? Status.EM_ANALISE_DIRETOR : Status.EM_ANALISE_GESTOR;
+      }
+
       const { error } = await supabase
         .from('requests')
         .update({
@@ -304,21 +342,12 @@ const EditRequest = () => {
           contract_exception_justification: isDirector && (conflicts.length > 0 || vacationConflicts.length > 0) 
             ? 'Edição administrativa por diretor com conflitos conhecidos' 
             : null,
-          status: originalStatus === Status.RASCUNHO ? 'PENDENTE' : originalStatus // Submit draft as PENDENTE
+          status: newStatus
         })
         .eq('id', id);
 
       if (error) throw error;
 
-      // Create audit log (diferente se for edição administrativa)
-      const { data: requestForAudit } = await supabase
-        .from('requests')
-        .select('requester_id')
-        .eq('id', id!)
-        .single();
-      
-      const isAdminEdit = requestForAudit && requestForAudit.requester_id !== person.id;
-      
       await supabase
         .from('audit_logs')
         .insert({
@@ -329,14 +358,64 @@ const EditRequest = () => {
             tipo: formData.tipo, 
             inicio: formData.inicio, 
             fim: formData.fim,
+            old_status: originalStatus,
+            new_status: newStatus,
             admin_role: isAdminEdit ? person.papel : undefined
           },
           actor_id: person.id
         });
 
+      // Avisar a liderança quando o próprio solicitante altera algo já enviado
+      if (isOwnEdit && originalStatus !== Status.RASCUNHO) {
+        const recipients: Array<{ id?: string; nome: string; email: string }> = [];
+        if (managerData?.email) {
+          recipients.push({ id: managerData.id, nome: managerData.nome, email: managerData.email });
+        } else {
+          const { data: directors } = await supabase.rpc('get_director_emails');
+          (directors || []).forEach((d: any) => {
+            if (d?.email) recipients.push({ nome: 'Diretoria', email: d.email });
+          });
+        }
+
+        const startStr = parseDateSafely(formData.inicio).toLocaleDateString('pt-BR');
+        const endStr = parseDateSafely(formData.fim).toLocaleDateString('pt-BR');
+
+        recipients.forEach((r) => {
+          supabase.functions.invoke('send-notification-email', {
+            body: {
+              type: 'REQUEST_UPDATED',
+              to: r.email,
+              requesterName: person.nome,
+              requestType: formData.tipo,
+              startDate: startStr,
+              endDate: endStr,
+              targetPersonId: r.id,
+            },
+          }).catch((err) => console.error('email error', err));
+
+          supabase.functions.invoke('slack-notification', {
+            body: {
+              type: 'REQUEST_UPDATED',
+              requestId: id,
+              requesterName: person.nome,
+              requestType: formData.tipo,
+              startDate: startStr,
+              endDate: endStr,
+              recipientEmail: r.email,
+              recipientName: r.nome,
+              targetPersonId: r.id,
+            },
+          }).catch((err) => console.error('slack error', err));
+        });
+      }
+
       toast({
         title: originalStatus === Status.RASCUNHO ? "Solicitação enviada!" : "Solicitação atualizada!",
-        description: originalStatus === Status.RASCUNHO ? "Sua solicitação foi enviada para aprovação." : "As alterações foram salvas.",
+        description: originalStatus === Status.RASCUNHO
+          ? "Sua solicitação foi enviada para aprovação."
+          : isOwnEdit
+            ? "As alterações foram salvas e enviadas novamente para aprovação."
+            : "As alterações foram salvas.",
       });
       
       navigate('/');
