@@ -306,18 +306,39 @@ Deno.serve(async (req) => {
     if (action === "reset_password") {
       const resetMethod: string = invite_method || "email";
 
-      // Find auth user by email
+      // Find auth user by corporate OR personal email (case-insensitive)
+      const corpEmail = (targetPerson.email || "").toLowerCase();
+      const persEmail = (targetPerson.email_pessoal || "").toLowerCase();
       const { data: authUsers } = await adminClient.auth.admin.listUsers();
-      const authUser = authUsers?.users?.find(
-        (u: any) => u.email === targetPerson.email
-      );
+      let authUser = authUsers?.users?.find((u: any) => {
+        const e = (u.email || "").toLowerCase();
+        return (corpEmail && e === corpEmail) || (persEmail && e === persEmail);
+      });
 
+      // No account yet: create a confirmed auth user so the recovery link works
       if (!authUser) {
-        return new Response(
-          JSON.stringify({ error: `${targetPerson.nome} ainda não criou uma conta. Envie um convite (botão de envelope) em vez de redefinir senha.` }),
-          { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+        const createEmail = targetPerson.email || targetPerson.email_pessoal;
+        if (!createEmail) {
+          return new Response(
+            JSON.stringify({ error: `${targetPerson.nome} não possui e-mail cadastrado. Cadastre um e-mail antes de redefinir a senha.` }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        const { data: created, error: createErr } = await adminClient.auth.admin.createUser({
+          email: createEmail,
+          email_confirm: true,
+          user_metadata: { auto_created_for_password_reset: true, person_id },
+        });
+        if (createErr || !created?.user) {
+          return new Response(
+            JSON.stringify({ error: `Não foi possível preparar a conta de ${targetPerson.nome}: ${createErr?.message ?? "erro desconhecido"}` }),
+            { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        authUser = created.user;
       }
+
+      const recoveryEmail = authUser.email || targetPerson.email;
 
       // Generate recovery link — build link on app domain using hashed_token
       // so that Slack/email prefetch doesn't consume the one-time token.
@@ -327,9 +348,10 @@ Deno.serve(async (req) => {
       const { data: linkData, error: linkError } =
         await adminClient.auth.admin.generateLink({
           type: "recovery",
-          email: targetPerson.email,
+          email: recoveryEmail,
           options: { redirectTo: appRedirect },
         });
+
 
       if (linkError) {
         throw linkError;
