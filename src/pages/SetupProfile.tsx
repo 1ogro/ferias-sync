@@ -132,7 +132,7 @@ export default function SetupProfile() {
           // If already linked, treat as success and continue
           if (result?.message && /já vinculado/i.test(result.message)) {
             await fetchPersonData();
-            navigate('/');
+            navigate(nextPath);
             return;
           }
           throw new Error(result?.message || 'Falha ao vincular perfil');
