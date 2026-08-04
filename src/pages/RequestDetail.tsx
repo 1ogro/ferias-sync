@@ -165,13 +165,16 @@ const RequestDetail = () => {
       
       // Add approval events
       if (approvals) {
-        approvals.forEach((approval, index) => {
+        approvals.forEach((approval) => {
+          const isComment = approval.acao === 'COMENTARIO';
           let eventStatus: Status;
-          if (approval.acao === 'APROVADO') {
+          if (approval.acao === 'APROVADO' || approval.acao === 'APROVAR') {
             eventStatus = approval.level === 'AUTO_APROVACAO' ? Status.APROVADO_FINAL : 
-                         approval.level === 'GESTOR' ? Status.APROVADO_1NIVEL : Status.APROVADO_FINAL;
-          } else if (approval.acao === 'REPROVADO') {
+                         (approval.level === 'GESTOR' || approval.level === 'GESTOR_1') ? Status.APROVADO_1NIVEL : Status.APROVADO_FINAL;
+          } else if (approval.acao === 'REPROVADO' || approval.acao === 'REPROVAR') {
             eventStatus = Status.REPROVADO;
+          } else if (approval.acao === 'PEDIR_INFO') {
+            eventStatus = Status.INFORMACOES_ADICIONAIS;
           } else {
             eventStatus = Status.EM_ANALISE_GESTOR;
           }
@@ -181,13 +184,17 @@ const RequestDetail = () => {
             status: eventStatus,
             actor: approval.approver?.nome || 'Sistema',
             date: new Date(approval.created_at),
+            isComment,
             comment: approval.comentario || 
-                    (approval.level === 'AUTO_APROVACAO' ? 'Auto-aprovação (Diretor)' : 
-                     approval.acao === 'APROVADO' ? 'Solicitação aprovada' : 
-                     approval.acao === 'REPROVADO' ? 'Solicitação reprovada' : 'Em análise')
+                    (isComment ? 'Comentário' :
+                     approval.level === 'AUTO_APROVACAO' ? 'Auto-aprovação (Diretor)' : 
+                     (approval.acao === 'APROVADO' || approval.acao === 'APROVAR') ? 'Solicitação aprovada' : 
+                     (approval.acao === 'REPROVADO' || approval.acao === 'REPROVAR') ? 'Solicitação reprovada' : 
+                     approval.acao === 'PEDIR_INFO' ? 'Informações adicionais solicitadas' : 'Em análise')
           });
         });
       }
+
       
       setTimelineEvents(events);
     } catch (error) {
