@@ -110,7 +110,7 @@ export default function CompleteProfile() {
     }
   };
 
-  if (authLoading || !profileChecked) {
+  if (authLoading || !profileChecked || (user && !person)) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
@@ -118,9 +118,22 @@ export default function CompleteProfile() {
     );
   }
 
-  if (!person) {
-    navigate("/setup-profile");
-    return null;
+  if (!user || !person) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/30 flex items-center justify-center p-4">
+        <Card className="w-full max-w-md">
+          <CardContent className="pt-6 text-center space-y-4">
+            <h2 className="text-lg font-semibold">Faça login para continuar</h2>
+            <p className="text-muted-foreground text-sm">
+              Para completar seu cadastro, entre na sua conta do Férias UXTD.
+            </p>
+            <Button className="w-full" onClick={() => navigate("/auth?next=/complete-profile")}>
+              Ir para login
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
   }
 
   return (
