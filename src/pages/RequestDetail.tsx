@@ -617,11 +617,14 @@ const RequestDetail = () => {
               </CardContent>
             </Card>
 
-            {/* Actions for Approvers */}
-            {[Status.EM_ANALISE_GESTOR, Status.EM_ANALISE_DIRETOR].includes(request.status) && (
+            {/* Ações de aprovação — somente para aprovadores */}
+            {isApprover && [Status.EM_ANALISE_GESTOR, Status.EM_ANALISE_DIRETOR].includes(request.status) && (
               <Card>
                 <CardHeader>
                   <CardTitle>Ações de Aprovação</CardTitle>
+                  <p className="text-sm text-muted-foreground">
+                    Você está avaliando a solicitação de {request.requester.nome}.
+                  </p>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
@@ -632,20 +635,65 @@ const RequestDetail = () => {
                       onChange={(e) => setComment(e.target.value)}
                     />
                   </div>
-                  <div className="flex gap-2">
-                    <Button className="bg-status-approved hover:bg-status-approved/90 text-white">
-                      Aprovar
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      disabled={processing}
+                      onClick={() => handleApproval('approve')}
+                      className="bg-status-approved hover:bg-status-approved/90 text-white"
+                    >
+                      {processing ? 'Processando...' : 'Aprovar'}
                     </Button>
-                    <Button variant="outline" className="border-status-rejected text-status-rejected">
+                    <Button
+                      variant="outline"
+                      disabled={processing}
+                      onClick={() => handleApproval('reject')}
+                      className="border-status-rejected text-status-rejected"
+                    >
                       Reprovar
                     </Button>
-                    <Button variant="outline">
+                    <Button variant="outline" disabled={processing} onClick={() => handleApproval('ask_info')}>
                       Pedir Informações
                     </Button>
                   </div>
                 </CardContent>
               </Card>
             )}
+
+            {/* Acompanhamento — visão do solicitante */}
+            {isOwnRequest && request.status !== Status.RASCUNHO && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Acompanhamento</CardTitle>
+                  <p className="text-sm text-muted-foreground">
+                    {request.status === Status.EM_ANALISE_DIRETOR
+                      ? 'Aguardando aprovação da diretoria.'
+                      : isPendingDecision
+                        ? 'Aguardando aprovação do seu gestor.'
+                        : 'Esta solicitação já foi avaliada. Você pode registrar observações abaixo.'}
+                  </p>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium" htmlFor="requester-comment">
+                      Adicionar comentário
+                    </label>
+                    <p className="text-xs text-muted-foreground">
+                      Envie uma observação ao aprovador — isso não altera o status da solicitação.
+                    </p>
+                    <Textarea
+                      id="requester-comment"
+                      placeholder="Ex.: preciso adiar o início em uma semana..."
+                      value={comment}
+                      onChange={(e) => setComment(e.target.value)}
+                    />
+                  </div>
+                  <Button onClick={handleAddComment} disabled={processing || !comment.trim()}>
+                    {processing ? 'Enviando...' : 'Enviar comentário'}
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+
           </div>
 
           {/* Sidebar */}
