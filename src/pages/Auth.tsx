@@ -76,9 +76,9 @@ export default function Auth() {
         window.location.href = next;
         return;
       }
-      navigate('/');
+      navigate(nextPath);
     }
-  }, [user, navigate]);
+  }, [user, navigate, nextPath]);
 
   useEffect(() => {
     fetchPeople();
