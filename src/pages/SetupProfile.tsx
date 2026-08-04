@@ -145,10 +145,10 @@ export default function SetupProfile() {
 
       toast({
         title: 'Perfil criado com sucesso!',
-        description: 'Redirecionando para o dashboard...',
+        description: 'Redirecionando...',
       });
 
-      navigate('/');
+      navigate(nextPath);
     } catch (error: any) {
       console.error('Error creating profile:', error);
       const description =
@@ -166,13 +166,8 @@ export default function SetupProfile() {
   };
 
 
-  if (!user) {
-    navigate('/auth');
-    return null;
-  }
-
-  // Show loading while checking profile
-  if (authLoading || !profileChecked) {
+  // Show loading while checking profile (redirects handled in useEffect)
+  if (authLoading || !profileChecked || !user) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/30 flex items-center justify-center p-4">
         <Card className="w-full max-w-md">
