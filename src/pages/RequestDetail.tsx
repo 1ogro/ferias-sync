@@ -23,12 +23,14 @@ const RequestDetail = () => {
   const [request, setRequest] = useState<Request | null>(null);
   const [loading, setLoading] = useState(true);
   const [currentUserPerson, setCurrentUserPerson] = useState<Person | null>(null);
+  const [processing, setProcessing] = useState(false);
   const [timelineEvents, setTimelineEvents] = useState<Array<{
     id: string;
     status: Status;
     actor: string;
     date: Date;
     comment?: string;
+    isComment?: boolean;
   }>>([]);
   
   // Estados para os dialogs
