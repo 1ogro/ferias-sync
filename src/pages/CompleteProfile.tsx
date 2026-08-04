@@ -13,7 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ModeloContrato, MODELO_CONTRATO_LABELS } from "@/lib/types";
 
 export default function CompleteProfile() {
-  const { person, fetchPersonData, loading: authLoading, profileChecked } = useAuth();
+  const { user, person, fetchPersonData, loading: authLoading, profileChecked } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
