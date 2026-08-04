@@ -455,7 +455,7 @@ const EditRequest = () => {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Edit className="w-5 h-5 text-primary" />
-                Editar Solicitação
+                {originalStatus === Status.RASCUNHO ? "Editar Rascunho" : "Editar Solicitação (Administrativo)"}
                 {originalStatus === Status.RASCUNHO && (
                   <Badge variant="outline" className="ml-2">Rascunho</Badge>
                 )}
