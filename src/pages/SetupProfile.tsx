@@ -18,6 +18,9 @@ interface PersonOption {
 export default function SetupProfile() {
   const { user, person, loading: authLoading, profileChecked, createProfile, fetchPersonData } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const rawNext = searchParams.get('next');
+  const nextPath = rawNext && rawNext.startsWith('/') && !rawNext.startsWith('//') ? rawNext : '/';
   const [people, setPeople] = useState<PersonOption[]>([]);
   const [selectedPersonId, setSelectedPersonId] = useState<string>('');
   const [submitting, setSubmitting] = useState(false);
