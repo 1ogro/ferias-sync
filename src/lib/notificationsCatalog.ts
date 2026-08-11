@@ -285,7 +285,19 @@ export const NOTIFICATIONS_CATALOG: NotificationCatalogEntry[] = [
 
   // ============ AUTENTICAÇÃO ============
   {
-    id: "password-reset-slack",
+    id: "signup-confirmation",
+    nome: "Confirmação de cadastro",
+    descricao:
+      "Confirma a criação da conta pelos dois canais (e-mail + DM no Slack). Se o usuário do Slack não for localizado, o app avisa para procurar o administrador.",
+    categoria: "Autenticação",
+    gatilho: { tipo: "evento", detalhe: "Colaborador conclui o cadastro em /auth" },
+    publico: ["Colaborador"],
+    canais: ["slack_dm", "email"],
+    edgeFunction: "self-signup",
+    ativo: true,
+  },
+  {
+
     nome: "Recuperação de senha via Slack",
     descricao: "Envia link temporário de reset de senha por DM no Slack.",
     categoria: "Autenticação",
