@@ -27,7 +27,7 @@ Deno.serve(async (req) => {
     if (!personId || !emailRegex.test(email) || email.length > 255 || password.length < 6) {
       return json(
         { success: false, code: "invalid_input", message: "Dados inválidos. Verifique email, senha (mín. 6 caracteres) e a pessoa selecionada." },
-        400,
+        200,
       );
     }
 
@@ -45,11 +45,11 @@ Deno.serve(async (req) => {
 
     if (personError) {
       console.error("Error loading person:", personError);
-      return json({ success: false, code: "person_lookup_failed", message: "Não foi possível validar o colaborador." }, 500);
+      return json({ success: false, code: "person_lookup_failed", message: "Não foi possível validar o colaborador." }, 200);
     }
 
     if (!person || person.ativo === false) {
-      return json({ success: false, code: "person_not_found", message: "Colaborador não encontrado ou inativo." }, 404);
+      return json({ success: false, code: "person_not_found", message: "Colaborador não encontrado ou inativo." }, 200);
     }
 
     const corporate = (person.email || "").toLowerCase();
@@ -64,7 +64,7 @@ Deno.serve(async (req) => {
           message:
             "Esse email não está cadastrado no perfil do colaborador. Peça ao administrador para cadastrar seu email pessoal, ou use o email corporativo.",
         },
-        403,
+        200,
       );
     }
 
@@ -78,7 +78,7 @@ Deno.serve(async (req) => {
     if (existingProfile) {
       return json(
         { success: false, code: "person_already_linked", message: "Esse colaborador já possui uma conta. Faça login ou use 'Esqueci minha senha'." },
-        409,
+        200,
       );
     }
 
@@ -94,11 +94,11 @@ Deno.serve(async (req) => {
       if (msg.includes("already") || msg.includes("registered") || msg.includes("exists")) {
         return json(
           { success: false, code: "email_taken", message: "Já existe uma conta com esse email. Faça login ou use 'Esqueci minha senha'." },
-          409,
+          200,
         );
       }
       console.error("createUser failed:", createError);
-      return json({ success: false, code: "create_failed", message: createError?.message || "Não foi possível criar a conta." }, 500);
+      return json({ success: false, code: "create_failed", message: createError?.message || "Não foi possível criar a conta." }, 200);
     }
 
     const userId = created.user.id;
@@ -110,7 +110,7 @@ Deno.serve(async (req) => {
     if (profileError) {
       console.error("Profile link failed, rolling back user:", profileError);
       await admin.auth.admin.deleteUser(userId).catch((e) => console.error("rollback failed:", e));
-      return json({ success: false, code: "link_failed", message: "Conta criada, mas não foi possível vincular ao perfil. Tente novamente." }, 500);
+      return json({ success: false, code: "link_failed", message: "Conta criada, mas não foi possível vincular ao perfil. Tente novamente." }, 200);
     }
 
     await admin.from("audit_logs").insert({
