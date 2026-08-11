@@ -297,6 +297,7 @@ export const NOTIFICATIONS_CATALOG: NotificationCatalogEntry[] = [
     ativo: true,
   },
   {
+    id: "password-reset-slack",
 
     nome: "Recuperação de senha via Slack",
     descricao: "Envia link temporário de reset de senha por DM no Slack.",
