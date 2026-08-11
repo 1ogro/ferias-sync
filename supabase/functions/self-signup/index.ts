@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { lookupSlackUserByEmail, sendSlackDM, sendEmail } from "../_shared/notify-helpers.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -6,11 +7,100 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+const APP_URL = "https://ferias-sync.lovable.app";
+
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
+
+interface PersonRow {
+  id: string;
+  nome: string;
+  email: string | null;
+  email_pessoal: string | null;
+  slack_user_id?: string | null;
+}
+
+/**
+ * Sends the signup confirmation redundantly via Email + Slack DM.
+ * Slack lookup cascade: people.slack_user_id -> corporate email -> personal email.
+ * Backfills people.slack_user_id when found by email.
+ */
+async function sendSignupConfirmation(
+  admin: any,
+  person: PersonRow,
+  authEmail: string,
+): Promise<{ slack_delivered: boolean; email_delivered: boolean }> {
+  const firstName = (person.nome || "").split(" ")[0] || "Olá";
+
+  const slackText =
+    `:white_check_mark: *Cadastro confirmado!*\n\n` +
+    `Oi, ${firstName}! Sua conta no Sistema de Férias foi criada e já está ativa.\n` +
+    `E-mail de acesso: \`${authEmail}\`\n\n` +
+    `Acesse: ${APP_URL}`;
+
+  const emailHtml = `
+    <div style="font-family: Arial, Helvetica, sans-serif; font-size: 15px; color: #1f2937;">
+      <h2 style="margin:0 0 12px;">Cadastro confirmado</h2>
+      <p>Oi, ${firstName}! Sua conta no <strong>Sistema de Férias</strong> foi criada e já está ativa.</p>
+      <p>E-mail de acesso: <strong>${authEmail}</strong></p>
+      <p><a href="${APP_URL}" style="background:#2563eb;color:#fff;padding:10px 16px;border-radius:6px;text-decoration:none;">Acessar o sistema</a></p>
+      <p style="color:#6b7280;font-size:13px;">Se você não fez este cadastro, avise o administrador.</p>
+    </div>`;
+
+  // Slack lookup cascade
+  let slackId: string | null = person.slack_user_id || null;
+  let foundByEmail = false;
+  if (!slackId) {
+    const candidates = [person.email, person.email_pessoal, authEmail]
+      .filter((e): e is string => !!e)
+      .map((e) => e.toLowerCase());
+    for (const candidate of Array.from(new Set(candidates))) {
+      slackId = await lookupSlackUserByEmail(candidate);
+      if (slackId) {
+        foundByEmail = true;
+        break;
+      }
+    }
+  }
+
+  const results = await Promise.allSettled([
+    slackId ? sendSlackDM(slackId, slackText) : Promise.reject(new Error("slack_user_not_found")),
+    sendEmail(authEmail, "Cadastro confirmado — Sistema de Férias", emailHtml),
+  ]);
+
+  const slack_delivered = results[0].status === "fulfilled" && !!slackId;
+  const email_delivered = results[1].status === "fulfilled";
+
+  if (slackId && foundByEmail) {
+    await admin
+      .from("people")
+      .update({ slack_user_id: slackId })
+      .eq("id", person.id)
+      .then(
+        () => {},
+        (e: any) => console.error("slack_user_id backfill failed:", e?.message),
+      );
+  }
+
+  await admin.from("audit_logs").insert({
+    entidade: "people",
+    entidade_id: person.id,
+    acao: "SIGNUP_CONFIRMATION_SENT",
+    actor_id: person.id,
+    payload: {
+      auth_email: authEmail,
+      slack_delivered,
+      email_delivered,
+      slack_user_id: slackId,
+      slack_found_by_email: foundByEmail,
+    },
+  });
+
+  return { slack_delivered, email_delivered };
+}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -19,17 +109,10 @@ Deno.serve(async (req) => {
 
   try {
     const body = await req.json().catch(() => ({}));
+    const mode = typeof body.mode === "string" ? body.mode : "signup";
     const personId = typeof body.person_id === "string" ? body.person_id.trim() : "";
     const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
     const password = typeof body.password === "string" ? body.password : "";
-
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!personId || !emailRegex.test(email) || email.length > 255 || password.length < 6) {
-      return json(
-        { success: false, code: "invalid_input", message: "Dados inválidos. Verifique email, senha (mín. 6 caracteres) e a pessoa selecionada." },
-        200,
-      );
-    }
 
     const admin = createClient(
       Deno.env.get("SUPABASE_URL")!,
@@ -37,9 +120,38 @@ Deno.serve(async (req) => {
       { auth: { persistSession: false } },
     );
 
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    // Notify-only mode: used by the standard signup fallback so the confirmation
+    // still goes out redundantly (Email + Slack DM).
+    if (mode === "notify") {
+      if (!personId || !emailRegex.test(email)) {
+        return json({ success: false, code: "invalid_input", message: "Dados inválidos." }, 200);
+      }
+      const { data: person } = await admin
+        .from("people")
+        .select("id, nome, email, email_pessoal, slack_user_id")
+        .eq("id", personId)
+        .maybeSingle();
+
+      if (!person) {
+        return json({ success: false, code: "person_not_found", message: "Colaborador não encontrado." }, 200);
+      }
+
+      const delivery = await sendSignupConfirmation(admin, person as PersonRow, email);
+      return json({ success: true, ...delivery });
+    }
+
+    if (!personId || !emailRegex.test(email) || email.length > 255 || password.length < 6) {
+      return json(
+        { success: false, code: "invalid_input", message: "Dados inválidos. Verifique email, senha (mín. 6 caracteres) e a pessoa selecionada." },
+        200,
+      );
+    }
+
     const { data: person, error: personError } = await admin
       .from("people")
-      .select("id, nome, email, email_pessoal, ativo")
+      .select("id, nome, email, email_pessoal, slack_user_id, ativo")
       .eq("id", personId)
       .maybeSingle();
 
@@ -121,7 +233,14 @@ Deno.serve(async (req) => {
       payload: { auth_email: email, match_method: matchMethod, user_id: userId },
     });
 
-    return json({ success: true, message: "Conta criada com sucesso.", match_method: matchMethod });
+    let delivery = { slack_delivered: false, email_delivered: false };
+    try {
+      delivery = await sendSignupConfirmation(admin, person as PersonRow, email);
+    } catch (e: any) {
+      console.error("signup confirmation failed:", e?.message);
+    }
+
+    return json({ success: true, message: "Conta criada com sucesso.", match_method: matchMethod, ...delivery });
   } catch (error) {
     console.error("self-signup error:", error);
     return json({ success: false, code: "unexpected", message: "Erro inesperado ao criar a conta." }, 500);
