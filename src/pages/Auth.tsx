@@ -262,6 +262,19 @@ export default function Auth() {
             : 'Verifique seu email para confirmar a conta.',
         });
         notifySignup();
+        // Redundância: dispara também a confirmação por Slack DM + email.
+        supabase.functions.invoke('self-signup', {
+          body: { mode: 'notify', person_id: signupData.personId, email: signupData.email.trim().toLowerCase() },
+        }).then(({ data }) => {
+          if ((data as { slack_delivered?: boolean } | null)?.slack_delivered === false) {
+            toast({
+              title: 'Slack não vinculado',
+              description: 'Não localizamos seu usuário no Slack. Procure o administrador para cadastrar seu email pessoal.',
+              variant: 'destructive',
+            });
+          }
+        }).catch(err => console.warn('signup confirmation notify failed:', err));
+
       }
     } catch (error) {
       toast({
