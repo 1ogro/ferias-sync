@@ -177,8 +177,66 @@ export default function Auth() {
     setLoading(true);
 
     try {
+      const selectedPerson = people.find(p => p.id === signupData.personId);
+
+      const notifySignup = () => {
+        supabase.functions.invoke('slack-notification', {
+          body: { type: 'USER_SIGNUP', email: signupData.email, personName: selectedPerson?.nome },
+        }).catch(err => console.warn('Slack notification failed:', err));
+      };
+
+      // 1) Try the server-validated path: if the email is already registered in the
+      // collaborator profile (corporate or personal), the account is created already
+      // confirmed — no confirmation email needed.
+      const { data: selfSignup, error: fnError } = await supabase.functions.invoke('self-signup', {
+        body: {
+          person_id: signupData.personId,
+          email: signupData.email.trim().toLowerCase(),
+          password: signupData.password,
+        },
+      });
+
+      const result = selfSignup as { success?: boolean; code?: string; message?: string } | null;
+
+      if (result?.success) {
+        notifySignup();
+        const { error: signInError } = await signIn(signupData.email.trim().toLowerCase(), signupData.password);
+        if (signInError) {
+          toast({
+            title: 'Cadastro realizado com sucesso!',
+            description: 'Faça login com seu email e senha para continuar.',
+          });
+        } else {
+          toast({
+            title: 'Cadastro realizado com sucesso!',
+            description: 'Redirecionando...',
+          });
+          navigate(nextPath);
+        }
+        return;
+      }
+
+      const code = result?.code;
+      const blockingCodes = ['person_already_linked', 'email_taken', 'invalid_input', 'person_not_found'];
+      if (code && blockingCodes.includes(code)) {
+        toast({
+          title: 'Erro no cadastro',
+          description: result?.message || 'Não foi possível criar a conta.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      if (code && code !== 'email_mismatch') {
+        console.warn('self-signup failed, falling back to standard signup:', result);
+      }
+      if (fnError) {
+        console.warn('self-signup invoke error, falling back to standard signup:', fnError);
+      }
+
+      // 2) Fallback: standard signup with email confirmation.
       const { error } = await signUp(signupData.email, signupData.password, signupData.personId);
-      
+
       if (error) {
         toast({
           title: 'Erro no cadastro',
@@ -186,15 +244,13 @@ export default function Auth() {
           variant: 'destructive',
         });
       } else {
-        const selectedPerson = people.find(p => p.id === signupData.personId);
         toast({
-          title: 'Cadastro realizado com sucesso!',
-          description: 'Verifique seu email para confirmar a conta.',
+          title: 'Cadastro realizado!',
+          description: code === 'email_mismatch'
+            ? 'Esse email não consta no cadastro do colaborador. Confirme sua conta pelo email recebido ou peça ao administrador para cadastrar seu email pessoal.'
+            : 'Verifique seu email para confirmar a conta.',
         });
-        // Fire-and-forget Slack notification
-        supabase.functions.invoke('slack-notification', {
-          body: { type: 'USER_SIGNUP', email: signupData.email, personName: selectedPerson?.nome },
-        }).catch(err => console.warn('Slack notification failed:', err));
+        notifySignup();
       }
     } catch (error) {
       toast({
