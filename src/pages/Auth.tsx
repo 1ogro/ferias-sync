@@ -196,25 +196,36 @@ export default function Auth() {
         },
       });
 
-      const result = selfSignup as { success?: boolean; code?: string; message?: string } | null;
+      const result = selfSignup as {
+        success?: boolean;
+        code?: string;
+        message?: string;
+        slack_delivered?: boolean;
+      } | null;
 
       if (result?.success) {
         notifySignup();
+        const slackWarning = result.slack_delivered === false
+          ? ' Não localizamos seu usuário no Slack — procure o administrador para vincular seu email pessoal.'
+          : '';
         const { error: signInError } = await signIn(signupData.email.trim().toLowerCase(), signupData.password);
         if (signInError) {
           toast({
             title: 'Cadastro realizado com sucesso!',
-            description: 'Faça login com seu email e senha para continuar.',
+            description: 'Faça login com seu email e senha para continuar.' + slackWarning,
+            variant: result.slack_delivered === false ? 'destructive' : undefined,
           });
         } else {
           toast({
             title: 'Cadastro realizado com sucesso!',
-            description: 'Redirecionando...',
+            description: (slackWarning ? 'Confirmação enviada por email.' + slackWarning : 'Redirecionando...'),
+            variant: result.slack_delivered === false ? 'destructive' : undefined,
           });
           navigate(nextPath);
         }
         return;
       }
+
 
       const code = result?.code;
       const blockingCodes = ['person_already_linked', 'email_taken', 'invalid_input', 'person_not_found'];
