@@ -24,7 +24,7 @@ export default function Auth() {
   const [searchParams] = useSearchParams();
   const rawNext = searchParams.get('next');
   const nextPath = rawNext && rawNext.startsWith('/') && !rawNext.startsWith('//') ? rawNext : '/';
-  const { signIn, signUp, signInWithFigma, user } = useAuth();
+  const { signIn, signInWithFigma, user } = useAuth();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [people, setPeople] = useState<PersonOption[]>([]);

@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { generateAppMagicLink } from "../_shared/notify-helpers.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -608,8 +609,8 @@ Deno.serve(async (req) => {
 
       // --- SLACK-ONLY: use generateLink instead of inviteUserByEmail ---
       const inviteRedirect =
-        Deno.env.get("PUBLIC_APP_URL")?.replace(/\/reset-password$/, "/setup-profile") ??
-        "https://ferias-sync.lovable.app/setup-profile";
+        Deno.env.get("PUBLIC_APP_URL")?.replace(/\/reset-password$/, "/auth/magic") ??
+        "https://ferias-sync.lovable.app/auth/magic";
 
       if (effectiveMethod === "slack") {
         // Generate a signup/invite link without sending email
@@ -650,15 +651,10 @@ Deno.serve(async (req) => {
 
           // For 'both', we need to generate a separate link for the DM
           // For 'slack', we already generated the link above
-          const { data: dmLinkData, error: dmLinkError } =
-            await adminClient.auth.admin.generateLink({
-              type: "invite",
-              email: targetPerson.email,
-              options: { redirectTo: inviteRedirect },
-            });
-
-          if (!dmLinkError && dmLinkData?.properties?.action_link) {
-            inviteLink = dmLinkData.properties.action_link;
+          try {
+            inviteLink = await generateAppMagicLink(adminClient, targetPerson.email, "/complete-profile");
+          } catch (error) {
+            console.error("Admin invite magic link failed:", error instanceof Error ? error.message : "unknown");
           }
 
           const blocks = [
@@ -674,7 +670,7 @@ Deno.serve(async (req) => {
               text: {
                 type: "mrkdwn",
                 text: inviteLink
-                  ? `Clique no link abaixo para configurar sua senha e acessar o sistema:\n\n<${inviteLink}|🔗 Criar minha conta>`
+                  ? `Clique no link abaixo para entrar e completar seu perfil:\n\n<${inviteLink}|🔗 Acessar minha conta>`
                   : "Verifique seu email para o link de criação de conta.",
               },
             },

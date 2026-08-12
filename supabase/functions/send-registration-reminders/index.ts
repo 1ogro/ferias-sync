@@ -19,6 +19,7 @@ import {
   selectPendings,
   type SlackLinkState,
 } from "./lib.ts";
+import { generateAppMagicLink } from "../_shared/notify-helpers.ts";
 
 const APP_BASE_URL = Deno.env.get("APP_BASE_URL") || "https://ferias-sync.lovable.app";
 
@@ -277,6 +278,29 @@ Deno.serve(async (req) => {
       reasons,
       { mode, appBaseUrl: APP_BASE_URL },
     );
+
+    try {
+      const { data: linkedProfile } = await admin
+        .from("profiles")
+        .select("user_id")
+        .eq("person_id", p.id)
+        .maybeSingle();
+      if (linkedProfile?.user_id) {
+        const { data: authUser } = await admin.auth.admin.getUserById(linkedProfile.user_id);
+        if (authUser?.user?.email) {
+          const magicLink = await generateAppMagicLink(admin, authUser.user.email, "/complete-profile");
+          selfPayload.text = selfPayload.text.replace(`${APP_BASE_URL.replace(/\/$/, "")}/complete-profile`, magicLink);
+          for (const block of selfPayload.blocks) {
+            if (block.type !== "actions" || !block.elements) continue;
+            for (const element of block.elements) {
+              if (element.action_id === "open_profile_settings") element.url = magicLink;
+            }
+          }
+        }
+      }
+    } catch (error) {
+      results.errors.push(`magic_link ${p.id}: ${error instanceof Error ? error.message : "unknown"}`);
+    }
 
     // to person themself
     let slackId = wantsSlack ? (p.slack_user_id || (p.email ? await slackLookupByEmail(p.email) : null)) : null;

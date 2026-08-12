@@ -2,6 +2,7 @@
 // com link de acesso ao app. Idempotente por person_id (consulta audit_logs).
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { generateAppMagicLink } from "../_shared/notify-helpers.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -113,13 +114,32 @@ serve(async (req) => {
 
     const results: Record<string, any> = {};
 
+    let authEmail = person.email;
+    let actionLink: string | undefined;
+    if (authEmail) {
+      try {
+        const { data: linkedProfile } = await admin
+          .from("profiles")
+          .select("user_id")
+          .eq("person_id", person.id)
+          .maybeSingle();
+        if (linkedProfile?.user_id) {
+          const { data: linkedAuth } = await admin.auth.admin.getUserById(linkedProfile.user_id);
+          authEmail = linkedAuth?.user?.email || authEmail;
+        }
+        actionLink = await generateAppMagicLink(admin, authEmail, "/complete-profile");
+      } catch (error) {
+        console.error("[notify-approved] magic link generation failed:", error instanceof Error ? error.message : "unknown");
+      }
+    }
+
     // ---------- Slack DM ----------
     let slackId: string | null = person.slack_user_id || null;
     if (!slackId && person.email) {
       slackId = await lookupSlackByEmail(person.email);
     }
     if (slackId) {
-      const completeUrl = `${APP_URL}/complete-profile`;
+      const completeUrl = actionLink || `${APP_URL}/complete-profile`;
       const blocks = [
         {
           type: "section",
@@ -154,7 +174,6 @@ serve(async (req) => {
     if (person.email) {
       try {
         // Tenta convite. Se já existe, gera magic link.
-        let actionLink: string | undefined;
         const redirectTo = `${APP_URL}/complete-profile`;
 
         const inviteRes = await admin.auth.admin.inviteUserByEmail(person.email, { redirectTo });
@@ -165,20 +184,10 @@ serve(async (req) => {
             { onConflict: "user_id" }
           );
           // O inviteUserByEmail já manda email pelo Supabase; ainda assim mandamos email custom abaixo.
-          const link = await admin.auth.admin.generateLink({
-            type: "magiclink",
-            email: person.email,
-            options: { redirectTo },
-          });
-          actionLink = link.data?.properties?.action_link;
+          actionLink = await generateAppMagicLink(admin, person.email, "/complete-profile");
         } else {
           // Já existe — gera magic link
-          const link = await admin.auth.admin.generateLink({
-            type: "magiclink",
-            email: person.email,
-            options: { redirectTo },
-          });
-          if (!link.error) actionLink = link.data?.properties?.action_link;
+          actionLink = await generateAppMagicLink(admin, person.email, "/complete-profile");
         }
 
         const url = actionLink || `${APP_URL}/auth`;
