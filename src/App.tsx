@@ -35,6 +35,7 @@ const Engagement = lazy(() => import("./pages/Engagement"));
 const FigmaCallback = lazy(() => import("./pages/FigmaCallback"));
 const FigmaDiagnostic = lazy(() => import("./pages/FigmaDiagnostic"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
+const MagicLinkCallback = lazy(() => import("./pages/MagicLinkCallback"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const Onboarding = lazy(() => import("./pages/Onboarding"));
 const OAuthConsent = lazy(() => import("./pages/OAuthConsent"));
@@ -99,6 +100,11 @@ const App = () => (
             <Route path="/reset-password" element={
               <Suspense fallback={<PageLoader />}>
                 <ResetPassword />
+              </Suspense>
+            } />
+            <Route path="/auth/magic" element={
+              <Suspense fallback={<PageLoader />}>
+                <MagicLinkCallback />
               </Suspense>
             } />
             <Route path="/setup-profile" element={<SetupProfile />} />
