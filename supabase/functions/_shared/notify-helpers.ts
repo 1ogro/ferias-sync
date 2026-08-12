@@ -12,6 +12,43 @@ export interface NotifyRecipient {
 
 export type PrefChannel = "slack" | "email";
 
+const DEFAULT_APP_URL = "https://ferias-sync.lovable.app";
+
+function safeNextPath(nextPath: string): string {
+  return nextPath.startsWith("/") && !nextPath.startsWith("//") ? nextPath : "/";
+}
+
+/**
+ * Generates an app-domain, one-time login URL. The raw action_link is never
+ * returned or logged, which prevents Slack link previews from consuming it.
+ */
+export async function generateAppMagicLink(
+  admin: any,
+  email: string,
+  nextPath = "/",
+): Promise<string> {
+  const appUrl = (Deno.env.get("PUBLIC_APP_URL") || Deno.env.get("APP_BASE_URL") || DEFAULT_APP_URL)
+    .replace(/\/$/, "")
+    .replace(/\/reset-password$/, "");
+  const callbackUrl = `${appUrl}/auth/magic`;
+  const { data, error } = await admin.auth.admin.generateLink({
+    type: "magiclink",
+    email,
+    options: { redirectTo: callbackUrl },
+  });
+  if (error) throw error;
+
+  const tokenHash = data?.properties?.hashed_token;
+  if (!tokenHash) throw new Error("magic_link_token_missing");
+
+  const params = new URLSearchParams({
+    token_hash: tokenHash,
+    type: "magiclink",
+    next: safeNextPath(nextPath),
+  });
+  return `${callbackUrl}?${params.toString()}`;
+}
+
 export async function getPrefs(admin: any, personId: string) {
   const { data } = await admin
     .from("notification_preferences")

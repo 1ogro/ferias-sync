@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { lookupSlackUserByEmail, sendSlackDM, sendEmail } from "../_shared/notify-helpers.ts";
+import { generateAppMagicLink, lookupSlackUserByEmail, sendSlackDM, sendEmail } from "../_shared/notify-helpers.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -35,6 +35,14 @@ async function sendSignupConfirmation(
   pendingConfirmation = false,
 ): Promise<{ slack_delivered: boolean; email_delivered: boolean }> {
   const firstName = (person.nome || "").split(" ")[0] || "Olá";
+  let magicLink: string | null = null;
+  if (!pendingConfirmation) {
+    try {
+      magicLink = await generateAppMagicLink(admin, authEmail, "/complete-profile");
+    } catch (error) {
+      console.error("magic link generation failed:", error instanceof Error ? error.message : "unknown");
+    }
+  }
 
   const slackText = pendingConfirmation
     ? `:hourglass_flowing_sand: *Cadastro recebido — falta confirmar o e-mail*\n\n` +
@@ -44,7 +52,7 @@ async function sendSignupConfirmation(
     : `:white_check_mark: *Cadastro confirmado!*\n\n` +
       `Oi, ${firstName}! Sua conta no Sistema de Férias foi criada e já está ativa.\n` +
       `E-mail de acesso: \`${authEmail}\`\n\n` +
-      `Acesse: ${APP_URL}`;
+      (magicLink ? `<${magicLink}|Entrar e completar meu perfil>` : `Acesse: ${APP_URL}`);
 
   const emailHtml = pendingConfirmation
     ? `
@@ -59,7 +67,7 @@ async function sendSignupConfirmation(
       <h2 style="margin:0 0 12px;">Cadastro confirmado</h2>
       <p>Oi, ${firstName}! Sua conta no <strong>Sistema de Férias</strong> foi criada e já está ativa.</p>
       <p>E-mail de acesso: <strong>${authEmail}</strong></p>
-      <p><a href="${APP_URL}" style="background:#2563eb;color:#fff;padding:10px 16px;border-radius:6px;text-decoration:none;">Acessar o sistema</a></p>
+      <p><a href="${magicLink || APP_URL}" style="background:#2563eb;color:#fff;padding:10px 16px;border-radius:6px;text-decoration:none;">Acessar o sistema</a></p>
       <p style="color:#6b7280;font-size:13px;">Se você não fez este cadastro, avise o administrador.</p>
     </div>`;
 
@@ -120,6 +128,43 @@ async function sendSignupConfirmation(
   });
 
   return { slack_delivered, email_delivered };
+}
+
+async function findAuthUserByEmail(admin: any, email: string) {
+  for (let page = 1; page <= 10; page++) {
+    const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 1000 });
+    if (error) throw error;
+    const match = data.users.find((user: any) => (user.email || "").toLowerCase() === email);
+    if (match) return match;
+    if (data.users.length < 1000) break;
+  }
+  return null;
+}
+
+async function linkAuthUserToPerson(admin: any, userId: string, personId: string) {
+  const { data: userProfile } = await admin
+    .from("profiles")
+    .select("person_id")
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (userProfile && userProfile.person_id !== personId) {
+    throw new Error("auth_user_linked_to_another_person");
+  }
+
+  const { data: personProfile } = await admin
+    .from("profiles")
+    .select("user_id")
+    .eq("person_id", personId)
+    .maybeSingle();
+  if (personProfile && personProfile.user_id !== userId) {
+    throw new Error("person_linked_to_another_auth_user");
+  }
+
+  const { error } = await admin.from("profiles").upsert(
+    { user_id: userId, person_id: personId },
+    { onConflict: "person_id" },
+  );
+  if (error) throw error;
 }
 
 Deno.serve(async (req) => {
@@ -206,7 +251,7 @@ Deno.serve(async (req) => {
     // Person already linked to an account?
     const { data: existingProfile } = await admin
       .from("profiles")
-      .select("id")
+      .select("id, user_id")
       .eq("person_id", personId)
       .maybeSingle();
 
@@ -215,6 +260,31 @@ Deno.serve(async (req) => {
         { success: false, code: "person_already_linked", message: "Esse colaborador já possui uma conta. Faça login ou use 'Esqueci minha senha'." },
         200,
       );
+    }
+
+    const existingAuthUser = await findAuthUserByEmail(admin, email);
+    if (existingAuthUser) {
+      try {
+        await linkAuthUserToPerson(admin, existingAuthUser.id, personId);
+        await admin.from("audit_logs").insert({
+          entidade: "people",
+          entidade_id: personId,
+          acao: "ORPHAN_AUTH_PROFILE_REPAIRED",
+          actor_id: personId,
+          payload: { auth_email: email, user_id: existingAuthUser.id, match_method: matchMethod },
+        });
+        const delivery = await sendSignupConfirmation(admin, person as PersonRow, email);
+        return json({
+          success: true,
+          repaired: true,
+          message: "Conta existente vinculada ao perfil. Use o acesso enviado pelo Slack.",
+          match_method: matchMethod,
+          ...delivery,
+        });
+      } catch (error) {
+        console.error("Existing auth repair failed:", error instanceof Error ? error.message : "unknown");
+        return json({ success: false, code: "link_conflict", message: "A conta existente possui um vínculo conflitante. Procure o administrador." }, 200);
+      }
     }
 
     const { data: created, error: createError } = await admin.auth.admin.createUser({
@@ -238,11 +308,9 @@ Deno.serve(async (req) => {
 
     const userId = created.user.id;
 
-    const { error: profileError } = await admin
-      .from("profiles")
-      .upsert({ user_id: userId, person_id: personId }, { onConflict: "user_id" });
-
-    if (profileError) {
+    try {
+      await linkAuthUserToPerson(admin, userId, personId);
+    } catch (profileError) {
       console.error("Profile link failed, rolling back user:", profileError);
       await admin.auth.admin.deleteUser(userId).catch((e) => console.error("rollback failed:", e));
       return json({ success: false, code: "link_failed", message: "Conta criada, mas não foi possível vincular ao perfil. Tente novamente." }, 200);
