@@ -32,16 +32,29 @@ async function sendSignupConfirmation(
   admin: any,
   person: PersonRow,
   authEmail: string,
+  pendingConfirmation = false,
 ): Promise<{ slack_delivered: boolean; email_delivered: boolean }> {
   const firstName = (person.nome || "").split(" ")[0] || "Olá";
 
-  const slackText =
-    `:white_check_mark: *Cadastro confirmado!*\n\n` +
-    `Oi, ${firstName}! Sua conta no Sistema de Férias foi criada e já está ativa.\n` +
-    `E-mail de acesso: \`${authEmail}\`\n\n` +
-    `Acesse: ${APP_URL}`;
+  const slackText = pendingConfirmation
+    ? `:hourglass_flowing_sand: *Cadastro recebido — falta confirmar o e-mail*\n\n` +
+      `Oi, ${firstName}! Sua conta no Sistema de Férias foi criada, mas ainda *não está ativa*.\n` +
+      `Abra o e-mail de confirmação enviado para \`${authEmail}\` e clique no link para ativar o acesso.\n\n` +
+      `Se o e-mail não chegar, procure o administrador.`
+    : `:white_check_mark: *Cadastro confirmado!*\n\n` +
+      `Oi, ${firstName}! Sua conta no Sistema de Férias foi criada e já está ativa.\n` +
+      `E-mail de acesso: \`${authEmail}\`\n\n` +
+      `Acesse: ${APP_URL}`;
 
-  const emailHtml = `
+  const emailHtml = pendingConfirmation
+    ? `
+    <div style="font-family: Arial, Helvetica, sans-serif; font-size: 15px; color: #1f2937;">
+      <h2 style="margin:0 0 12px;">Cadastro recebido — falta confirmar o e-mail</h2>
+      <p>Oi, ${firstName}! Sua conta no <strong>Sistema de Férias</strong> foi criada, mas ainda <strong>não está ativa</strong>.</p>
+      <p>Abra o e-mail de confirmação enviado para <strong>${authEmail}</strong> e clique no link para ativar o acesso.</p>
+      <p style="color:#6b7280;font-size:13px;">Se o e-mail de confirmação não chegar, procure o administrador.</p>
+    </div>`
+    : `
     <div style="font-family: Arial, Helvetica, sans-serif; font-size: 15px; color: #1f2937;">
       <h2 style="margin:0 0 12px;">Cadastro confirmado</h2>
       <p>Oi, ${firstName}! Sua conta no <strong>Sistema de Férias</strong> foi criada e já está ativa.</p>
