@@ -115,6 +115,7 @@ async function sendSignupConfirmation(
       email_delivered,
       slack_user_id: slackId,
       slack_found_by_email: foundByEmail,
+      pending_confirmation: pendingConfirmation,
     },
   });
 
