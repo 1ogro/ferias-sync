@@ -126,6 +126,15 @@ serve(async (req) => {
         if (linkedProfile?.user_id) {
           const { data: linkedAuth } = await admin.auth.admin.getUserById(linkedProfile.user_id);
           authEmail = linkedAuth?.user?.email || authEmail;
+        } else {
+          const { data: invited, error: inviteError } = await admin.auth.admin.inviteUserByEmail(authEmail, {
+            redirectTo: `${APP_URL}/complete-profile`,
+          });
+          if (inviteError || !invited?.user) throw inviteError || new Error("invite_user_missing");
+          await admin.from("profiles").upsert(
+            { user_id: invited.user.id, person_id: person.id },
+            { onConflict: "person_id" },
+          );
         }
         actionLink = await generateAppMagicLink(admin, authEmail, "/complete-profile");
       } catch (error) {
@@ -138,8 +147,8 @@ serve(async (req) => {
     if (!slackId && person.email) {
       slackId = await lookupSlackByEmail(person.email);
     }
-    if (slackId) {
-      const completeUrl = actionLink || `${APP_URL}/complete-profile`;
+    if (slackId && actionLink) {
+      const completeUrl = actionLink;
       const blocks = [
         {
           type: "section",
@@ -167,29 +176,12 @@ serve(async (req) => {
       );
       results.slack = r;
     } else {
-      results.slack = { ok: false, error: "no_slack_id" };
+      results.slack = { ok: false, error: slackId ? "magic_link_unavailable" : "no_slack_id" };
     }
 
     // ---------- Email (magic/invite link) ----------
     if (person.email) {
       try {
-        // Tenta convite. Se já existe, gera magic link.
-        const redirectTo = `${APP_URL}/complete-profile`;
-
-        const inviteRes = await admin.auth.admin.inviteUserByEmail(person.email, { redirectTo });
-        if (!inviteRes.error && inviteRes.data?.user) {
-          // garantir profile link
-          await admin.from("profiles").upsert(
-            { user_id: inviteRes.data.user.id, person_id: person.id },
-            { onConflict: "user_id" }
-          );
-          // O inviteUserByEmail já manda email pelo Supabase; ainda assim mandamos email custom abaixo.
-          actionLink = await generateAppMagicLink(admin, person.email, "/complete-profile");
-        } else {
-          // Já existe — gera magic link
-          actionLink = await generateAppMagicLink(admin, person.email, "/complete-profile");
-        }
-
         const url = actionLink || `${APP_URL}/auth`;
         const slackWarning = !slackId
           ? `<div style="margin-top:16px;padding:12px 16px;background:#fef3c7;border-left:4px solid #f59e0b;border-radius:6px;color:#78350f;font-size:13px;">

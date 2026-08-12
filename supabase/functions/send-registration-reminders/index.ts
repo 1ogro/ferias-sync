@@ -260,6 +260,13 @@ Deno.serve(async (req) => {
     peopleIncompleteReasons(p, slackLinkByPerson.get(p.id));
   const incomplete = ((peopleAll || []) as any[]).filter((p) => incompleteReasons(p).length > 0);
 
+  const { data: authUsersPage } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+  const authByEmail = new Map(
+    (authUsersPage?.users || [])
+      .filter((user: any) => user.email)
+      .map((user: any) => [String(user.email).toLowerCase(), user]),
+  );
+
 
   for (const p of incomplete) {
     if (recentTargets.has(p.id)) { results.skipped_dedup++; continue; }
@@ -279,21 +286,53 @@ Deno.serve(async (req) => {
       { mode, appBaseUrl: APP_BASE_URL },
     );
 
+    let selfMagicLink: string | null = null;
     try {
-      const { data: linkedProfile } = await admin
+      let { data: linkedProfile } = await admin
         .from("profiles")
         .select("user_id")
         .eq("person_id", p.id)
         .maybeSingle();
+      if (!linkedProfile?.user_id) {
+        const matchingUsers = [p.email, p.email_pessoal]
+          .filter(Boolean)
+          .map((email: string) => authByEmail.get(email.toLowerCase()))
+          .filter(Boolean);
+        const uniqueUsers = Array.from(new Map(matchingUsers.map((user: any) => [user.id, user])).values());
+        if (uniqueUsers.length === 1) {
+          const candidate = uniqueUsers[0] as any;
+          const { data: userConflict } = await admin
+            .from("profiles")
+            .select("person_id")
+            .eq("user_id", candidate.id)
+            .maybeSingle();
+          if (!userConflict) {
+            const { error: repairError } = await admin.from("profiles").insert({
+              user_id: candidate.id,
+              person_id: p.id,
+            });
+            if (!repairError) {
+              linkedProfile = { user_id: candidate.id };
+              await admin.from("audit_logs").insert({
+                entidade: "people",
+                entidade_id: p.id,
+                acao: "ORPHAN_AUTH_PROFILE_REPAIRED",
+                actor_id: null,
+                payload: { source: "send-registration-reminders", user_id: candidate.id },
+              });
+            }
+          }
+        }
+      }
       if (linkedProfile?.user_id) {
         const { data: authUser } = await admin.auth.admin.getUserById(linkedProfile.user_id);
         if (authUser?.user?.email) {
-          const magicLink = await generateAppMagicLink(admin, authUser.user.email, "/complete-profile");
-          selfPayload.text = selfPayload.text.replace(`${APP_BASE_URL.replace(/\/$/, "")}/complete-profile`, magicLink);
+          selfMagicLink = await generateAppMagicLink(admin, authUser.user.email, "/complete-profile");
+          selfPayload.text = selfPayload.text.replace(`${APP_BASE_URL.replace(/\/$/, "")}/complete-profile`, selfMagicLink);
           for (const block of selfPayload.blocks) {
             if (block.type !== "actions" || !block.elements) continue;
             for (const element of block.elements) {
-              if (element.action_id === "open_profile_settings") element.url = magicLink;
+              if (element.action_id === "open_profile_settings") element.url = selfMagicLink;
             }
           }
         }
@@ -304,7 +343,7 @@ Deno.serve(async (req) => {
 
     // to person themself
     let slackId = wantsSlack ? (p.slack_user_id || (p.email ? await slackLookupByEmail(p.email) : null)) : null;
-    if (slackId) {
+    if (slackId && selfMagicLink) {
       if (!dryRun && !linkOnly) {
         const sent = await sendSlackDM(slackId, selfPayload.text, selfPayload.blocks);
         if (sent) {
@@ -327,6 +366,7 @@ Deno.serve(async (req) => {
       }
     } else if (wantsSlack) {
       results.slack_missing++;
+      if (!selfMagicLink) results.errors.push(`magic_link_unavailable ${p.id}`);
     }
 
     // to manager (only month_end, to avoid spam)
