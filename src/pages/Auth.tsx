@@ -264,7 +264,13 @@ export default function Auth() {
         notifySignup();
         // Redundância: dispara também a confirmação por Slack DM + email.
         supabase.functions.invoke('self-signup', {
-          body: { mode: 'notify', person_id: signupData.personId, email: signupData.email.trim().toLowerCase() },
+          body: {
+            mode: 'notify',
+            person_id: signupData.personId,
+            email: signupData.email.trim().toLowerCase(),
+            // A conta ainda depende do clique no link de confirmação.
+            pending_confirmation: true,
+          },
         }).then(({ data }) => {
           if ((data as { slack_delivered?: boolean } | null)?.slack_delivered === false) {
             toast({
