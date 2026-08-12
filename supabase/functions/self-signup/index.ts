@@ -157,7 +157,10 @@ Deno.serve(async (req) => {
         return json({ success: false, code: "person_not_found", message: "Colaborador não encontrado." }, 200);
       }
 
-      const delivery = await sendSignupConfirmation(admin, person as PersonRow, email);
+      // The notify-only mode is used by the standard signup fallback, where the
+      // account still requires the email confirmation click. Default to pending.
+      const pending = body.pending_confirmation !== false;
+      const delivery = await sendSignupConfirmation(admin, person as PersonRow, email, pending);
       return json({ success: true, ...delivery });
     }
 
