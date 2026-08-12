@@ -81,7 +81,13 @@ async function sendSignupConfirmation(
 
   const results = await Promise.allSettled([
     slackId ? sendSlackDM(slackId, slackText) : Promise.reject(new Error("slack_user_not_found")),
-    sendEmail(authEmail, "Cadastro confirmado — Sistema de Férias", emailHtml),
+    sendEmail(
+      authEmail,
+      pendingConfirmation
+        ? "Confirme seu cadastro — Sistema de Férias"
+        : "Cadastro confirmado — Sistema de Férias",
+      emailHtml,
+    ),
   ]);
 
   const slack_delivered = results[0].status === "fulfilled" && !!slackId;
