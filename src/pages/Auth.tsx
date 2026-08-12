@@ -227,61 +227,12 @@ export default function Auth() {
       }
 
 
-      const code = result?.code;
-      const blockingCodes = ['person_already_linked', 'email_taken', 'invalid_input', 'person_not_found'];
-      if (code && blockingCodes.includes(code)) {
-        toast({
-          title: 'Erro no cadastro',
-          description: result?.message || 'Não foi possível criar a conta.',
-          variant: 'destructive',
-        });
-        return;
-      }
-
-      if (code && code !== 'email_mismatch') {
-        console.warn('self-signup failed, falling back to standard signup:', result);
-      }
-      if (fnError) {
-        console.warn('self-signup invoke error, falling back to standard signup:', fnError);
-      }
-
-      // 2) Fallback: standard signup with email confirmation.
-      const { error } = await signUp(signupData.email, signupData.password, signupData.personId);
-
-      if (error) {
-        toast({
-          title: 'Erro no cadastro',
-          description: error.message,
-          variant: 'destructive',
-        });
-      } else {
-        toast({
-          title: 'Cadastro realizado!',
-          description: code === 'email_mismatch'
-            ? 'Esse email não consta no cadastro do colaborador. Confirme sua conta pelo email recebido ou peça ao administrador para cadastrar seu email pessoal.'
-            : 'Verifique seu email para confirmar a conta.',
-        });
-        notifySignup();
-        // Redundância: dispara também a confirmação por Slack DM + email.
-        supabase.functions.invoke('self-signup', {
-          body: {
-            mode: 'notify',
-            person_id: signupData.personId,
-            email: signupData.email.trim().toLowerCase(),
-            // A conta ainda depende do clique no link de confirmação.
-            pending_confirmation: true,
-          },
-        }).then(({ data }) => {
-          if ((data as { slack_delivered?: boolean } | null)?.slack_delivered === false) {
-            toast({
-              title: 'Slack não vinculado',
-              description: 'Não localizamos seu usuário no Slack. Procure o administrador para cadastrar seu email pessoal.',
-              variant: 'destructive',
-            });
-          }
-        }).catch(err => console.warn('signup confirmation notify failed:', err));
-
-      }
+      console.warn('Atomic signup failed:', fnError || result);
+      toast({
+        title: 'Não foi possível concluir o cadastro',
+        description: result?.message || 'O cadastro não foi criado para evitar uma conta sem vínculo. Tente novamente ou procure o administrador.',
+        variant: 'destructive',
+      });
     } catch (error) {
       toast({
         title: 'Erro no cadastro',
