@@ -7,6 +7,29 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+/**
+ * Management level = Gerente, Diretor or admin.
+ * Grants org-wide visibility and full vacation management, but NOT admin panel
+ * access and NOT approval authority (that stays with Gestor/Diretor).
+ */
+export function isManagementLevel(person?: Pick<Person, 'papel' | 'is_admin'> | null): boolean {
+  if (!person) return false;
+  return person.papel === 'DIRETOR' || person.papel === 'GERENTE' || !!person.is_admin;
+}
+
+/** Diretor/admin only — approvals, admin panel and pending registrations. */
+export function isDirectorOrAdmin(person?: Pick<Person, 'papel' | 'is_admin'> | null): boolean {
+  if (!person) return false;
+  return person.papel === 'DIRETOR' || !!person.is_admin;
+}
+
+/** Anyone with a leadership scope (Gestor, Gerente, Diretor, admin). */
+export function isLeadership(person?: Pick<Person, 'papel' | 'is_admin'> | null): boolean {
+  if (!person) return false;
+  return person.papel === 'GESTOR' || isManagementLevel(person);
+}
+
+
 // Day-off utility functions
 export function hasUsedDayOffThisYear(requests: Request[], currentYear: number = new Date().getFullYear()): boolean {
   return requests.some(request => 

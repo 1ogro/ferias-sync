@@ -298,6 +298,7 @@ export function NewCollaboratorForm({ isDirector = false, onSuccess, onCancel }:
             <SelectContent>
               <SelectItem value={Papel.COLABORADOR}>Colaborador</SelectItem>
               <SelectItem value={Papel.GESTOR}>Gestor</SelectItem>
+              <SelectItem value={Papel.GERENTE}>Gerente</SelectItem>
               <SelectItem value={Papel.DIRETOR}>Diretor</SelectItem>
             </SelectContent>
           </Select>

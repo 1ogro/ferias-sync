@@ -6,6 +6,7 @@ import { AlertTriangle, Users, Calendar, TrendingDown, Activity, Clock, Briefcas
 import { supabase } from "@/integrations/supabase/client";
 import { getTeamCapacityAlerts, getSpecialApprovals } from "@/lib/medicalLeaveUtils";
 import { TeamCapacityAlert, SpecialApproval, Person } from "@/lib/types";
+import { isManagementLevel, isLeadership, isDirectorOrAdmin as isDirectorOrAdminFn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
@@ -145,7 +146,7 @@ export const TeamCapacityDashboard = () => {
   const canEditAbsence = (requesterId: string) => {
     if (!currentUserPerson) return false;
     
-    const isDirectorOrAdmin = currentUserPerson.papel === 'DIRETOR' || currentUserPerson.is_admin;
+    const isDirectorOrAdmin = isManagementLevel(currentUserPerson);
     if (isDirectorOrAdmin) return true;
     
     // Verificar se é gestor do solicitante
@@ -213,7 +214,7 @@ export const TeamCapacityDashboard = () => {
   const canDeleteAbsence = (absence: PlannedAbsence) => {
     if (!currentUserPerson) return false;
     
-    const isDirectorOrAdmin = currentUserPerson.papel === 'DIRETOR' || currentUserPerson.is_admin;
+    const isDirectorOrAdmin = isManagementLevel(currentUserPerson);
     if (isDirectorOrAdmin) return true;
     
     const isManager = allPeople?.find(p => p.id === absence.requester_id)?.gestorId === currentUserPerson.id;

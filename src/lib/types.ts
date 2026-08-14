@@ -7,9 +7,17 @@ export enum OrganizationalRole {
 // Papéis organizacionais para fluxo de aprovação
 export enum Papel {
   COLABORADOR = "COLABORADOR",
-  GESTOR = "GESTOR", 
+  GESTOR = "GESTOR",
+  GERENTE = "GERENTE",
   DIRETOR = "DIRETOR"
 }
+
+export const PAPEL_LABELS: Record<Papel, string> = {
+  [Papel.COLABORADOR]: "Colaborador",
+  [Papel.GESTOR]: "Gestor",
+  [Papel.GERENTE]: "Gerente",
+  [Papel.DIRETOR]: "Diretor"
+};
 
 export enum ModeloContrato {
   PJ = "PJ",

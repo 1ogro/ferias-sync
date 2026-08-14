@@ -13,7 +13,7 @@ interface RequestCardProps {
   onView?: (request: Request) => void;
   onDelete?: (request: Request) => void;
   showActions?: boolean;
-  currentUserRole?: 'COLABORADOR' | 'GESTOR' | 'DIRETOR' | 'ADMIN';
+  currentUserRole?: 'COLABORADOR' | 'GESTOR' | 'GERENTE' | 'DIRETOR' | 'ADMIN';
   isUserManager?: boolean;
   currentUserId?: string;
 }

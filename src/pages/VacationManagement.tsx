@@ -5,6 +5,7 @@ import { getAllVacationBalances, saveManualVacationBalance, deleteManualVacation
 import { supabase } from "@/integrations/supabase/client";
 import { Navigate, useSearchParams } from "react-router-dom";
 import { Person, ModeloContrato, MODELO_CONTRATO_LABELS } from "@/lib/types";
+import { isManagementLevel, isLeadership, isDirectorOrAdmin as isDirectorOrAdminFn } from "@/lib/utils";
 import { parseDateSafely } from "@/lib/dateUtils";
 import { Header } from "@/components/Header";
 import { MedicalLeaveForm } from "@/components/MedicalLeaveForm";
@@ -176,7 +177,7 @@ const VacationManagement = () => {
 
   // Determine role-based access
   const isManager = person?.papel === 'GESTOR';
-  const isDirectorOrAdmin = person?.papel === 'DIRETOR' || person?.is_admin;
+  const isDirectorOrAdmin = isManagementLevel(person);
   
   // Manager-specific tabs
   const managerTabs = ['active', 'dashboard', 'medical', 'pulses'];
@@ -294,7 +295,7 @@ const VacationManagement = () => {
   }
 
   // Check if user is authorized (DIRETOR, ADMIN, or GESTOR)
-  if (!person || (person.papel !== 'DIRETOR' && person.papel !== 'GESTOR' && !person.is_admin)) {
+  if (!person || (person.papel !== 'DIRETOR' && person.papel !== 'GERENTE' && person.papel !== 'GESTOR' && !person.is_admin)) {
     return <Navigate to="/" replace />;
   }
 

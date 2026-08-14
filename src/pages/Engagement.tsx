@@ -21,6 +21,7 @@ import { useKudosFeed, useLeaderboard, useMyPoints, useSendKudo, useActivePeople
 import { EngagementSummaryCard } from "@/components/EngagementSummaryCard";
 import { useToast } from "@/hooks/use-toast";
 import { Papel } from "@/lib/types";
+import { isManagementLevel, isLeadership, isDirectorOrAdmin as isDirectorOrAdminFn } from "@/lib/utils";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -138,12 +139,12 @@ function GiveKudosDialog({ personId, fromName, papel }: { personId?: string; fro
   const { toast } = useToast();
 
   const peopleOptions = useMemo(() => people.filter((p) => p.id !== personId), [people, personId]);
-  const canMulti = (papel === Papel.GESTOR || papel === Papel.DIRETOR) && category === "delivery";
+  const canMulti = (papel === Papel.GESTOR || papel === Papel.GERENTE || papel === Papel.DIRETOR) && category === "delivery";
 
   // Ao trocar categoria/permissão, mantém apenas o 1º destinatário
   const handleCategoryChange = (v: KudosCategory) => {
     setCategory(v);
-    const newCanMulti = (papel === Papel.GESTOR || papel === Papel.DIRETOR) && v === "delivery";
+    const newCanMulti = (papel === Papel.GESTOR || papel === Papel.GERENTE || papel === Papel.DIRETOR) && v === "delivery";
     if (!newCanMulti && toIds.length > 1) setToIds(toIds.slice(0, 1));
   };
 
@@ -225,7 +226,7 @@ function GiveKudosDialog({ personId, fromName, papel }: { personId?: string; fro
                 ))}
               </SelectContent>
             </Select>
-            {(papel === Papel.GESTOR || papel === Papel.DIRETOR) && (
+            {(papel === Papel.GESTOR || papel === Papel.GERENTE || papel === Papel.DIRETOR) && (
               <p className="text-xs text-muted-foreground mt-1">
                 Na categoria <span className="font-medium">Entrega</span> você pode reconhecer até {MAX_MULTI_RECIPIENTS} colegas de uma vez.
               </p>
@@ -471,7 +472,7 @@ export default function Engagement() {
           <GiveKudosDialog personId={person?.id} fromName={person?.nome} papel={person?.papel} />
         </div>
 
-        {(person?.papel === 'GESTOR' || person?.papel === 'DIRETOR' || person?.is_admin) && (
+        {(person?.papel === 'GESTOR' || isManagementLevel(person)) && (
           <Card className="bg-muted/50 border-dashed">
             <CardContent className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 py-5">
               <div className="flex items-center gap-3">
@@ -493,7 +494,7 @@ export default function Engagement() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="space-y-6 lg:col-span-1">
             <MyPointsCard personId={person?.id} />
-            {(person?.papel === 'GESTOR' || person?.papel === 'DIRETOR' || person?.is_admin) && (
+            {(person?.papel === 'GESTOR' || isManagementLevel(person)) && (
               <EngagementSummaryCard />
             )}
             <PrefsCard personId={person?.id} />
@@ -501,7 +502,7 @@ export default function Engagement() {
           </div>
           <div className="space-y-6 lg:col-span-1">
             <LeaderboardCard />
-            {person?.papel === "DIRETOR" && (
+            {(person?.papel === "DIRETOR" || person?.papel === "GERENTE") && (
               <>
                 <LeaderboardCard
                   period="quarter"

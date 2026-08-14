@@ -1007,7 +1007,7 @@ serve(async (req) => {
         if (category !== "delivery") {
           errors["kudo_cat_block"] = "Enviar para vários colegas só é permitido na categoria Entrega 🚀.";
         }
-        if (senderPapel !== "GESTOR" && senderPapel !== "DIRETOR") {
+        if (!["GESTOR", "GERENTE", "DIRETOR"].includes(senderPapel ?? "")) {
           errors["kudo_to_multi_block"] = "Apenas gestores e diretores podem enviar para vários colegas.";
         }
         if (toRawAll.length > 10) {
