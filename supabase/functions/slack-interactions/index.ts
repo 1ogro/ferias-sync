@@ -1748,13 +1748,38 @@ serve(async (req) => {
     let level = '';
 
     if (actionId === 'approve_request') {
+      // O gerente do time do solicitante é a última instância de aprovação daquele time
+      let approverIsTeamFinal = false;
+      try {
+        const { data: requesterPerson } = await supabase
+          .from('people')
+          .select('id, sub_time')
+          .eq('id', request.requester_id)
+          .maybeSingle();
+
+        if (requesterPerson?.sub_time) {
+          const { data: approverPerson } = await supabase
+            .from('people')
+            .select('id, papel, sub_time')
+            .eq('id', approver.id)
+            .maybeSingle();
+
+          approverIsTeamFinal =
+            approverPerson?.papel === 'GERENTE' &&
+            approverPerson?.sub_time === requesterPerson.sub_time &&
+            approverPerson?.id !== requesterPerson.id;
+        }
+      } catch (e) {
+        console.error('final approver resolution error', e);
+      }
+
       // Determine approval level
-      if (request.status === 'AGUARDANDO_GESTOR' || request.status === 'PENDENTE') {
-        newStatus = 'AGUARDANDO_DIRETOR';
-        level = 'GESTOR';
-      } else if (request.status === 'AGUARDANDO_DIRETOR') {
+      if (request.status === 'EM_ANALISE_DIRETOR' || approverIsTeamFinal) {
         newStatus = 'APROVADO_FINAL';
-        level = 'DIRETOR';
+        level = approverIsTeamFinal ? 'GERENTE_2' : 'DIRETOR_2';
+      } else if (request.status === 'PENDENTE' || request.status === 'EM_ANALISE_GESTOR') {
+        newStatus = 'EM_ANALISE_DIRETOR';
+        level = 'GESTOR_1';
       }
 
       // Update request status
