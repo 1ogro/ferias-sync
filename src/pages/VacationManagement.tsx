@@ -295,7 +295,7 @@ const VacationManagement = () => {
   }
 
   // Check if user is authorized (DIRETOR, ADMIN, or GESTOR)
-  if (!person || (person.papel !== 'DIRETOR' && person.papel !== 'GESTOR' && !person.is_admin)) {
+  if (!person || (person.papel !== 'DIRETOR' && person.papel !== 'GERENTE' && person.papel !== 'GESTOR' && !person.is_admin)) {
     return <Navigate to="/" replace />;
   }
 

@@ -139,12 +139,12 @@ function GiveKudosDialog({ personId, fromName, papel }: { personId?: string; fro
   const { toast } = useToast();
 
   const peopleOptions = useMemo(() => people.filter((p) => p.id !== personId), [people, personId]);
-  const canMulti = (papel === Papel.GESTOR || papel === Papel.DIRETOR) && category === "delivery";
+  const canMulti = (papel === Papel.GESTOR || papel === Papel.GERENTE || papel === Papel.DIRETOR) && category === "delivery";
 
   // Ao trocar categoria/permissão, mantém apenas o 1º destinatário
   const handleCategoryChange = (v: KudosCategory) => {
     setCategory(v);
-    const newCanMulti = (papel === Papel.GESTOR || papel === Papel.DIRETOR) && v === "delivery";
+    const newCanMulti = (papel === Papel.GESTOR || papel === Papel.GERENTE || papel === Papel.DIRETOR) && v === "delivery";
     if (!newCanMulti && toIds.length > 1) setToIds(toIds.slice(0, 1));
   };
 
@@ -226,7 +226,7 @@ function GiveKudosDialog({ personId, fromName, papel }: { personId?: string; fro
                 ))}
               </SelectContent>
             </Select>
-            {(papel === Papel.GESTOR || papel === Papel.DIRETOR) && (
+            {(papel === Papel.GESTOR || papel === Papel.GERENTE || papel === Papel.DIRETOR) && (
               <p className="text-xs text-muted-foreground mt-1">
                 Na categoria <span className="font-medium">Entrega</span> você pode reconhecer até {MAX_MULTI_RECIPIENTS} colegas de uma vez.
               </p>
@@ -502,7 +502,7 @@ export default function Engagement() {
           </div>
           <div className="space-y-6 lg:col-span-1">
             <LeaderboardCard />
-            {person?.papel === "DIRETOR" && (
+            {(person?.papel === "DIRETOR" || person?.papel === "GERENTE") && (
               <>
                 <LeaderboardCard
                   period="quarter"
