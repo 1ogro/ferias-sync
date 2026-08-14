@@ -16,6 +16,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Header } from "@/components/Header";
 import { validateVacationRequest, VacationConflict } from "@/lib/vacationUtils";
+import { resolveFinalApprover } from "@/lib/approvalRouting";
 
 interface FormData {
   tipo: TipoAusencia | "";
@@ -326,7 +327,11 @@ const EditRequest = () => {
       if (originalStatus === Status.RASCUNHO) {
         newStatus = 'PENDENTE';
       } else if (isOwnEdit && !isDirector) {
-        newStatus = managerData?.papel === 'DIRETOR' ? Status.EM_ANALISE_DIRETOR : Status.EM_ANALISE_GESTOR;
+        const teamGerente = await resolveFinalApprover(person!.id);
+        const managerIsFinal = !!teamGerente && teamGerente.id === (managerData as any)?.id;
+        newStatus = (managerData?.papel === 'DIRETOR' || managerIsFinal)
+          ? Status.EM_ANALISE_DIRETOR
+          : Status.EM_ANALISE_GESTOR;
       }
 
       const { error } = await supabase
