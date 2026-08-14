@@ -558,9 +558,11 @@ const Inbox = () => {
         // Don't block the flow if Slack fails
       }
 
-      // If escalated to director level, DM all active directors
+      // If escalated to final level, DM the team gerente (owner) and the directors (informative copy)
       if (action === 'approve' && newStatus === Status.EM_ANALISE_DIRETOR) {
         try {
+          const teamGerente = await resolveFinalApprover(request.requesterId);
+
           const { data: directors } = await supabase
             .from('people')
             .select('id, email, nome')
@@ -570,8 +572,16 @@ const Inbox = () => {
           const startStr = request.inicio instanceof Date ? request.inicio.toLocaleDateString('pt-BR') : request.inicio ? parseDateSafely(request.inicio).toLocaleDateString('pt-BR') : '';
           const endStr = request.fim instanceof Date ? request.fim.toLocaleDateString('pt-BR') : request.fim ? parseDateSafely(request.fim).toLocaleDateString('pt-BR') : '';
 
+          const targets: Array<{ id: string; email: string | null; nome: string; informational: boolean }> = [];
+          if (teamGerente) {
+            targets.push({ id: teamGerente.id, email: teamGerente.email, nome: teamGerente.nome, informational: false });
+          }
+          for (const d of directors || []) {
+            targets.push({ id: d.id, email: d.email, nome: d.nome, informational: !!teamGerente });
+          }
+
           await Promise.all(
-            (directors || []).map((d) =>
+            targets.map((t) =>
               supabase.functions.invoke('slack-notification', {
                 body: {
                   type: 'NEW_REQUEST',
@@ -580,17 +590,19 @@ const Inbox = () => {
                   requestType: request.tipo,
                   startDate: startStr,
                   endDate: endStr,
-                  approverEmail: d.email,
-                  approverName: d.nome,
-                  targetPersonId: d.id,
+                  approverEmail: t.email,
+                  approverName: t.nome,
+                  targetPersonId: t.id,
+                  informationalCopy: t.informational,
                 },
-              }).catch((e) => console.error(`Failed to notify director ${d.email}:`, e))
+              }).catch((e) => console.error(`Failed to notify approver ${t.email}:`, e))
             )
           );
         } catch (directorNotifyError) {
-          console.error('Error notifying directors:', directorNotifyError);
+          console.error('Error notifying final approvers:', directorNotifyError);
         }
       }
+
 
       toast({
         title: "Sucesso",
