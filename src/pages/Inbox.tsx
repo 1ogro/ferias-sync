@@ -10,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Request, Status, TipoAusencia, PendingPerson, Papel, ModeloContrato } from "@/lib/types";
 import { isManagementLevel, isLeadership, isDirectorOrAdmin as isDirectorOrAdminFn } from "@/lib/utils";
+import { isFinalApproverOf, resolveFinalApprover } from "@/lib/approvalRouting";
 import { parseDateSafely } from "@/lib/dateUtils";
 import { Inbox as InboxIcon, CheckCircle, XCircle, MessageCircle, Trash2, UserPlus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -59,7 +60,7 @@ const Inbox = () => {
         .from('requests')
         .select(`
           *,
-          requester:people!inner(id, nome, email, papel, gestor_id)
+          requester:people!inner(id, nome, email, papel, gestor_id, sub_time)
         `);
 
       let { data, error } = await baseQuery.order('created_at', { ascending: false });
@@ -119,6 +120,7 @@ const Inbox = () => {
           requester: {
             ...item.requester,
             papel: item.requester.papel as any,
+            sub_time: item.requester.sub_time,
             is_admin: false,
             ativo: true
           }
@@ -394,8 +396,14 @@ const Inbox = () => {
       });
 
       // Validate permissions
+      const isTeamFinalApprover = isFinalApproverOf(
+        { id: person.id, papel: person.papel, subTime: person.subTime },
+        { id: request.requesterId, sub_time: (request.requester as any)?.sub_time }
+      );
+
       const canApprove = (
         isDirectorOrAdminFn(person) ||
+        isTeamFinalApprover ||
         (person.papel === 'GESTOR' && request.requester && 'gestor_id' in request.requester && (request.requester as any).gestor_id === person.id)
       );
 
@@ -414,7 +422,7 @@ const Inbox = () => {
 
       if (action === 'approve') {
         // If current user is director or request is already at director level, approve final
-        if (isDirectorOrAdminFn(person) || request.status === Status.EM_ANALISE_DIRETOR) {
+        if (isDirectorOrAdminFn(person) || isTeamFinalApprover || request.status === Status.EM_ANALISE_DIRETOR) {
           newStatus = Status.APROVADO_FINAL;
           approvalAction = 'APROVAR';
         } else {
@@ -452,7 +460,7 @@ const Inbox = () => {
           request_id: requestId,
           approver_id: person.id,
           acao: approvalAction,
-          level: isDirectorOrAdminFn(person) ? 'DIRETOR_2' : 'GESTOR_1',
+          level: isTeamFinalApprover ? 'GERENTE_2' : (isDirectorOrAdminFn(person) ? 'DIRETOR_2' : 'GESTOR_1'),
           comentario: null
         });
 
@@ -550,9 +558,11 @@ const Inbox = () => {
         // Don't block the flow if Slack fails
       }
 
-      // If escalated to director level, DM all active directors
+      // If escalated to final level, DM the team gerente (owner) and the directors (informative copy)
       if (action === 'approve' && newStatus === Status.EM_ANALISE_DIRETOR) {
         try {
+          const teamGerente = await resolveFinalApprover(request.requesterId);
+
           const { data: directors } = await supabase
             .from('people')
             .select('id, email, nome')
@@ -562,8 +572,16 @@ const Inbox = () => {
           const startStr = request.inicio instanceof Date ? request.inicio.toLocaleDateString('pt-BR') : request.inicio ? parseDateSafely(request.inicio).toLocaleDateString('pt-BR') : '';
           const endStr = request.fim instanceof Date ? request.fim.toLocaleDateString('pt-BR') : request.fim ? parseDateSafely(request.fim).toLocaleDateString('pt-BR') : '';
 
+          const targets: Array<{ id: string; email: string | null; nome: string; informational: boolean }> = [];
+          if (teamGerente) {
+            targets.push({ id: teamGerente.id, email: teamGerente.email, nome: teamGerente.nome, informational: false });
+          }
+          for (const d of directors || []) {
+            targets.push({ id: d.id, email: d.email, nome: d.nome, informational: !!teamGerente });
+          }
+
           await Promise.all(
-            (directors || []).map((d) =>
+            targets.map((t) =>
               supabase.functions.invoke('slack-notification', {
                 body: {
                   type: 'NEW_REQUEST',
@@ -572,17 +590,19 @@ const Inbox = () => {
                   requestType: request.tipo,
                   startDate: startStr,
                   endDate: endStr,
-                  approverEmail: d.email,
-                  approverName: d.nome,
-                  targetPersonId: d.id,
+                  approverEmail: t.email,
+                  approverName: t.nome,
+                  targetPersonId: t.id,
+                  informationalCopy: t.informational,
                 },
-              }).catch((e) => console.error(`Failed to notify director ${d.email}:`, e))
+              }).catch((e) => console.error(`Failed to notify approver ${t.email}:`, e))
             )
           );
         } catch (directorNotifyError) {
-          console.error('Error notifying directors:', directorNotifyError);
+          console.error('Error notifying final approvers:', directorNotifyError);
         }
       }
+
 
       toast({
         title: "Sucesso",

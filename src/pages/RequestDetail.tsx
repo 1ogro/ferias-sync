@@ -14,6 +14,7 @@ import { parseDateSafely } from "@/lib/dateUtils";
 import { useToast } from "@/hooks/use-toast";
 import { DeletionDialog } from "@/components/DeletionDialog";
 import { CancellationDialog } from "@/components/CancellationDialog";
+import { isFinalApproverOf, resolveFinalApprover, FinalApprover } from "@/lib/approvalRouting";
 
 const RequestDetail = () => {
   const { id } = useParams();
@@ -37,6 +38,7 @@ const RequestDetail = () => {
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
   const [deletionDialogOpen, setDeletionDialogOpen] = useState(false);
   const [requireJustification, setRequireJustification] = useState(false);
+  const [teamFinalApprover, setTeamFinalApprover] = useState<FinalApprover | null>(null);
   
   // Fetch current user's person data
   useEffect(() => {
@@ -57,6 +59,16 @@ const RequestDetail = () => {
     
     fetchCurrentUser();
   }, []);
+
+  // Resolve o gerente do time do solicitante (última instância de aprovação)
+  useEffect(() => {
+    const load = async () => {
+      const requesterId = (request as any)?.requesterId;
+      if (!requesterId) { setTeamFinalApprover(null); return; }
+      setTeamFinalApprover(await resolveFinalApprover(requesterId));
+    };
+    load();
+  }, [(request as any)?.requesterId]);
   
   // Fetch request data from Supabase
   useEffect(() => {
@@ -254,6 +266,16 @@ const RequestDetail = () => {
   const isOwnRequest = currentUserPerson?.id === request.requesterId;
   const isManager = currentUserPerson?.id === request.requester.gestorId;
   const isDirectorOrAdmin = currentUserPerson?.papel === Papel.DIRETOR || currentUserPerson?.is_admin;
+  // Gerente do time do solicitante = última instância de aprovação daquele time
+  const isTeamFinalApprover = isFinalApproverOf(
+    {
+      id: currentUserPerson?.id || '',
+      papel: currentUserPerson?.papel,
+      subTime: currentUserPerson?.subTime ?? (currentUserPerson as any)?.sub_time,
+    },
+    { id: request.requester.id, subTime: request.requester.subTime }
+  );
+  const hasFinalAuthority = isDirectorOrAdmin || isTeamFinalApprover;
 
   // Status em que o solicitante ainda pode mexer na própria solicitação
   const OWN_OPEN_STATUSES: Status[] = [
@@ -267,20 +289,20 @@ const RequestDetail = () => {
   // Permissões de edição
   const canEdit = isOwnRequest
     ? OWN_OPEN_STATUSES.includes(request.status) // Antes da aprovação o próprio usuário pode editar
-    : (isManager || isDirectorOrAdmin) && request.status !== Status.RASCUNHO;
+    : (isManager || hasFinalAuthority) && request.status !== Status.RASCUNHO;
 
   // Permissões de exclusão
   const canDelete = isOwnRequest
     ? request.status === Status.RASCUNHO // Próprio usuário só exclui rascunhos
-    : (isManager || isDirectorOrAdmin) && request.status !== Status.RASCUNHO;
+    : (isManager || hasFinalAuthority) && request.status !== Status.RASCUNHO;
 
   // Permissões de cancelamento
   const canCancel = isOwnRequest
     ? OWN_OPEN_STATUSES.includes(request.status) && request.status !== Status.RASCUNHO
-    : (isManager || isDirectorOrAdmin) && request.status !== Status.RASCUNHO;
+    : (isManager || hasFinalAuthority) && request.status !== Status.RASCUNHO;
 
   // Somente aprovadores (gestor do solicitante, diretor ou admin) e nunca o próprio solicitante
-  const isApprover = !isOwnRequest && (isManager || isDirectorOrAdmin);
+  const isApprover = !isOwnRequest && (isManager || hasFinalAuthority);
   const isPendingDecision = [Status.EM_ANALISE_GESTOR, Status.EM_ANALISE_DIRETOR, Status.PENDENTE].includes(request.status);
 
   const reloadRequest = async () => {
@@ -296,7 +318,7 @@ const RequestDetail = () => {
       let approvalAction: string;
 
       if (action === 'approve') {
-        if (isDirectorOrAdmin || request.status === Status.EM_ANALISE_DIRETOR) {
+        if (hasFinalAuthority || request.status === Status.EM_ANALISE_DIRETOR) {
           newStatus = Status.APROVADO_FINAL;
         } else {
           newStatus = Status.EM_ANALISE_DIRETOR;
@@ -322,7 +344,7 @@ const RequestDetail = () => {
           request_id: request.id,
           approver_id: currentUserPerson.id,
           acao: approvalAction,
-          level: isDirectorOrAdmin ? 'DIRETOR_2' : 'GESTOR_1',
+          level: isTeamFinalApprover ? 'GERENTE_2' : (isDirectorOrAdmin ? 'DIRETOR_2' : 'GESTOR_1'),
           comentario: comment.trim() || null,
         });
       if (approvalError) throw approvalError;
@@ -369,6 +391,43 @@ const RequestDetail = () => {
           targetPersonId: request.requesterId,
         },
       }).catch((e) => console.error('slack error', e));
+
+      // Escalou para a instância final: avisa o gerente do time (responsável) e diretores (cópia)
+      if (action === 'approve' && newStatus === Status.EM_ANALISE_DIRETOR) {
+        try {
+          const gerente = teamFinalApprover ?? (await resolveFinalApprover(request.requesterId));
+          const { data: directors } = await supabase
+            .from('people')
+            .select('id, nome, email')
+            .eq('papel', 'DIRETOR')
+            .eq('ativo', true);
+
+          const targets: Array<{ id: string; nome: string; email: string | null; informational: boolean }> = [];
+          if (gerente) targets.push({ id: gerente.id, nome: gerente.nome, email: gerente.email, informational: false });
+          for (const d of directors || []) {
+            targets.push({ id: d.id, nome: d.nome, email: d.email, informational: !!gerente });
+          }
+
+          for (const t of targets) {
+            supabase.functions.invoke('slack-notification', {
+              body: {
+                type: 'NEW_REQUEST',
+                requestId: request.id,
+                requesterName: request.requester.nome,
+                requestType: request.tipo,
+                startDate: startStr,
+                endDate: endStr,
+                approverEmail: t.email,
+                approverName: t.nome,
+                targetPersonId: t.id,
+                informationalCopy: t.informational,
+              },
+            }).catch((e) => console.error('slack escalation error', e));
+          }
+        } catch (e) {
+          console.error('escalation notify error', e);
+        }
+      }
 
       toast({
         title: 'Sucesso',
@@ -617,7 +676,7 @@ const RequestDetail = () => {
                       {TIPO_LABELS[request.tipo]} - {request.requester.nome}
                     </CardTitle>
                     <div className="flex items-center gap-2">
-                      <StatusBadge status={request.status} />
+                      <StatusBadge status={request.status} finalApproverIsGerente={!!teamFinalApprover} />
                       {request.conflitoFlag && (
                         <Badge variant="outline" className="bg-status-rejected/10 text-status-rejected">
                           <AlertTriangle className="w-3 h-3 mr-1" />
@@ -774,7 +833,9 @@ const RequestDetail = () => {
                   <CardTitle>Acompanhamento</CardTitle>
                   <p className="text-sm text-muted-foreground">
                     {request.status === Status.EM_ANALISE_DIRETOR
-                      ? 'Aguardando aprovação da diretoria.'
+                      ? (teamFinalApprover?.nome
+                          ? `Aguardando aprovação de ${teamFinalApprover?.nome} (gerente do time).`
+                          : 'Aguardando aprovação da diretoria.')
                       : isPendingDecision
                         ? 'Aguardando aprovação do seu gestor.'
                         : 'Esta solicitação já foi avaliada. Você pode registrar observações abaixo.'}

@@ -5,9 +5,11 @@ import { cn } from "@/lib/utils";
 interface StatusBadgeProps {
   status: Status;
   className?: string;
+  /** Quando a instância final é o gerente do time, exibe rótulo específico */
+  finalApproverIsGerente?: boolean;
 }
 
-export const StatusBadge = ({ status, className }: StatusBadgeProps) => {
+export const StatusBadge = ({ status, className, finalApproverIsGerente }: StatusBadgeProps) => {
   const getStatusStyle = (status: Status) => {
     switch (status) {
       case Status.PENDENTE:
@@ -34,7 +36,9 @@ export const StatusBadge = ({ status, className }: StatusBadgeProps) => {
       variant="outline" 
       className={cn(getStatusStyle(status), className)}
     >
-      {STATUS_LABELS[status]}
+      {status === Status.EM_ANALISE_DIRETOR && finalApproverIsGerente
+        ? 'Em Análise - Gerente'
+        : STATUS_LABELS[status]}
     </Badge>
   );
 };

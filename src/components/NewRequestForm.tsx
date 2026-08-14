@@ -9,6 +9,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { TipoAusencia, ModeloContrato, Status, MaternityLeaveValidation } from "@/lib/types";
+import { resolveFinalApprover } from "@/lib/approvalRouting";
 import { parseDateSafely, validateDayOffEligibility, getDayOffEligibilityPeriod } from "@/lib/dateUtils";
 import { Calendar, AlertTriangle, CheckCircle, DollarSign, Baby, HelpCircle, Building } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -345,8 +346,10 @@ export const NewRequestForm = () => {
           .eq('id', gestorIdResolved)
           .maybeSingle();
         
-        // If manager is a director, go straight to director analysis
-        if (managerData?.papel === 'DIRETOR') {
+        // If the direct manager is the team GERENTE (final instance) or a director,
+        // the request already goes to the final analysis stage
+        const teamGerente = await resolveFinalApprover(person.id);
+        if (managerData?.papel === 'DIRETOR' || (teamGerente && teamGerente.id === gestorIdResolved)) {
           initialStatus = Status.EM_ANALISE_DIRETOR;
         } else {
           // Otherwise, go to manager analysis first
