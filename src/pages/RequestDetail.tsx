@@ -254,6 +254,12 @@ const RequestDetail = () => {
   const isOwnRequest = currentUserPerson?.id === request.requesterId;
   const isManager = currentUserPerson?.id === request.requester.gestorId;
   const isDirectorOrAdmin = currentUserPerson?.papel === Papel.DIRETOR || currentUserPerson?.is_admin;
+  // Gerente do time do solicitante = última instância de aprovação daquele time
+  const isTeamFinalApprover = isFinalApproverOf(
+    { id: currentUserPerson?.id || '', papel: currentUserPerson?.papel, subTime: currentUserPerson?.subTime },
+    { id: request.requester.id, subTime: request.requester.subTime }
+  );
+  const hasFinalAuthority = isDirectorOrAdmin || isTeamFinalApprover;
 
   // Status em que o solicitante ainda pode mexer na própria solicitação
   const OWN_OPEN_STATUSES: Status[] = [
@@ -267,20 +273,20 @@ const RequestDetail = () => {
   // Permissões de edição
   const canEdit = isOwnRequest
     ? OWN_OPEN_STATUSES.includes(request.status) // Antes da aprovação o próprio usuário pode editar
-    : (isManager || isDirectorOrAdmin) && request.status !== Status.RASCUNHO;
+    : (isManager || hasFinalAuthority) && request.status !== Status.RASCUNHO;
 
   // Permissões de exclusão
   const canDelete = isOwnRequest
     ? request.status === Status.RASCUNHO // Próprio usuário só exclui rascunhos
-    : (isManager || isDirectorOrAdmin) && request.status !== Status.RASCUNHO;
+    : (isManager || hasFinalAuthority) && request.status !== Status.RASCUNHO;
 
   // Permissões de cancelamento
   const canCancel = isOwnRequest
     ? OWN_OPEN_STATUSES.includes(request.status) && request.status !== Status.RASCUNHO
-    : (isManager || isDirectorOrAdmin) && request.status !== Status.RASCUNHO;
+    : (isManager || hasFinalAuthority) && request.status !== Status.RASCUNHO;
 
   // Somente aprovadores (gestor do solicitante, diretor ou admin) e nunca o próprio solicitante
-  const isApprover = !isOwnRequest && (isManager || isDirectorOrAdmin);
+  const isApprover = !isOwnRequest && (isManager || hasFinalAuthority);
   const isPendingDecision = [Status.EM_ANALISE_GESTOR, Status.EM_ANALISE_DIRETOR, Status.PENDENTE].includes(request.status);
 
   const reloadRequest = async () => {
@@ -296,7 +302,7 @@ const RequestDetail = () => {
       let approvalAction: string;
 
       if (action === 'approve') {
-        if (isDirectorOrAdmin || request.status === Status.EM_ANALISE_DIRETOR) {
+        if (hasFinalAuthority || request.status === Status.EM_ANALISE_DIRETOR) {
           newStatus = Status.APROVADO_FINAL;
         } else {
           newStatus = Status.EM_ANALISE_DIRETOR;
@@ -322,7 +328,7 @@ const RequestDetail = () => {
           request_id: request.id,
           approver_id: currentUserPerson.id,
           acao: approvalAction,
-          level: isDirectorOrAdmin ? 'DIRETOR_2' : 'GESTOR_1',
+          level: isTeamFinalApprover ? 'GERENTE_2' : (isDirectorOrAdmin ? 'DIRETOR_2' : 'GESTOR_1'),
           comentario: comment.trim() || null,
         });
       if (approvalError) throw approvalError;
@@ -774,7 +780,9 @@ const RequestDetail = () => {
                   <CardTitle>Acompanhamento</CardTitle>
                   <p className="text-sm text-muted-foreground">
                     {request.status === Status.EM_ANALISE_DIRETOR
-                      ? 'Aguardando aprovação da diretoria.'
+                      ? (finalApproverName
+                          ? `Aguardando aprovação de ${finalApproverName} (gerente do time).`
+                          : 'Aguardando aprovação da diretoria.')
                       : isPendingDecision
                         ? 'Aguardando aprovação do seu gestor.'
                         : 'Esta solicitação já foi avaliada. Você pode registrar observações abaixo.'}
