@@ -121,8 +121,8 @@ export const Header = ({ showNavigation = true }: HeaderProps) => {
   const navigation = [
     { name: "Dashboard", href: "/", icon: Calendar },
     { name: "Nova Solicitação", href: "/new-request", icon: Menu },
-    { name: "Caixa de Entrada", href: "/inbox", icon: Bell, roles: ['GESTOR', 'DIRETOR'], showInboxBadge: true },
-    { name: "Gestão do Time", href: "/vacation-management", icon: Users, roles: ['GESTOR', 'DIRETOR'], showBadge: true },
+    { name: "Caixa de Entrada", href: "/inbox", icon: Bell, roles: ['GESTOR', 'GERENTE', 'DIRETOR'], showInboxBadge: true },
+    { name: "Gestão do Time", href: "/vacation-management", icon: Users, roles: ['GESTOR', 'GERENTE', 'DIRETOR'], showBadge: true },
     { name: "Engajamento", href: "/engagement", icon: Sparkles },
     { name: "Administração", href: "/admin", icon: Shield, isAdmin: true },
   ];
@@ -138,18 +138,21 @@ export const Header = ({ showNavigation = true }: HeaderProps) => {
     }
     return navigation.filter(item => {
       if (item.isAdmin) return person?.is_admin;
-      return !item.roles || item.roles.includes(person?.papel || '');
+      if (!item.roles) return true;
+      return item.roles.includes(person?.papel || '') || !!person?.is_admin;
     });
   }, [isProfileReady, person?.papel, person?.is_admin]);
 
   const getPapelColor = (papel: string) => {
     switch (papel) {
       case 'DIRETOR': return 'bg-purple-100 text-purple-800';
+      case 'GERENTE': return 'bg-indigo-100 text-indigo-800';
       case 'GESTOR': return 'bg-blue-100 text-blue-800';
       case 'COLABORADOR': return 'bg-green-100 text-green-800';
       default: return 'bg-gray-100 text-gray-800';
     }
   };
+
 
   const handleSignOut = async () => {
     await signOut();
