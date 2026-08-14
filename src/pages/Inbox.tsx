@@ -85,7 +85,7 @@ const Inbox = () => {
         Status.INFORMACOES_ADICIONAIS,
       ];
 
-      if (person.papel === 'DIRETOR' || person.is_admin) {
+      if (isManagementLevel(person)) {
         // Directors see everything still open
         filteredData = filteredData.filter(item =>
           OPEN_STATUSES.includes(item.status as Status)
@@ -315,7 +315,7 @@ const Inbox = () => {
     if (person) {
       console.log('Person available, fetching pending requests');
       fetchPendingRequests();
-      if (person.papel === 'DIRETOR' || person.is_admin) {
+      if (isManagementLevel(person)) {
         fetchPendingPeople();
         fetchPaymentDayRequests();
 
@@ -394,7 +394,7 @@ const Inbox = () => {
 
       // Validate permissions
       const canApprove = (
-        (person.papel === 'DIRETOR' || person.is_admin) ||
+        (isManagementLevel(person)) ||
         (person.papel === 'GESTOR' && request.requester && 'gestor_id' in request.requester && (request.requester as any).gestor_id === person.id)
       );
 
@@ -413,7 +413,7 @@ const Inbox = () => {
 
       if (action === 'approve') {
         // If current user is director or request is already at director level, approve final
-        if (person.papel === 'DIRETOR' || person.is_admin || request.status === Status.EM_ANALISE_DIRETOR) {
+        if (isManagementLevel(person) || request.status === Status.EM_ANALISE_DIRETOR) {
           newStatus = Status.APROVADO_FINAL;
           approvalAction = 'APROVAR';
         } else {
@@ -451,7 +451,7 @@ const Inbox = () => {
           request_id: requestId,
           approver_id: person.id,
           acao: approvalAction,
-          level: person.papel === 'DIRETOR' || person.is_admin ? 'DIRETOR_2' : 'GESTOR_1',
+          level: isManagementLevel(person) ? 'DIRETOR_2' : 'GESTOR_1',
           comentario: null
         });
 
@@ -610,7 +610,7 @@ const Inbox = () => {
     }
   };
 
-  const isDirectorOrAdmin = person?.papel === 'DIRETOR' || person?.is_admin;
+  const isDirectorOrAdmin = isManagementLevel(person);
   const showTabs = isDirectorOrAdmin && (pendingPeople.length > 0 || paymentDayRequests.length > 0);
 
 

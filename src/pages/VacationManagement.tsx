@@ -176,7 +176,7 @@ const VacationManagement = () => {
 
   // Determine role-based access
   const isManager = person?.papel === 'GESTOR';
-  const isDirectorOrAdmin = person?.papel === 'DIRETOR' || person?.is_admin;
+  const isDirectorOrAdmin = isManagementLevel(person);
   
   // Manager-specific tabs
   const managerTabs = ['active', 'dashboard', 'medical', 'pulses'];

@@ -47,10 +47,10 @@ export const Dashboard = () => {
     if (person) {
       fetchUserRequests();
       fetchActiveAbsences();
-      if (person.papel === 'GESTOR' || person.papel === 'DIRETOR' || person.is_admin) {
+      if (person.papel === 'GESTOR' || isManagementLevel(person)) {
         fetchPendingApprovals();
       }
-      if (person.papel === 'DIRETOR' || person.is_admin) {
+      if (isManagementLevel(person)) {
         fetchPendingRegistrations();
       }
     }
@@ -62,7 +62,7 @@ export const Dashboard = () => {
       console.log('Request status updated, refreshing dashboard data');
       if (person) {
         fetchUserRequests();
-        if (person.papel === 'GESTOR' || person.papel === 'DIRETOR' || person.is_admin) {
+        if (person.papel === 'GESTOR' || isManagementLevel(person)) {
           fetchPendingApprovals();
         }
       }
@@ -178,7 +178,7 @@ export const Dashboard = () => {
       // Filter based on role
       let filteredData = requestsData || [];
 
-      if (person.papel === 'DIRETOR' || person.is_admin) {
+      if (isManagementLevel(person)) {
         // Directors see all requests needing approval (including PENDENTE)
         filteredData = filteredData.filter(item => 
           [Status.PENDENTE, Status.EM_ANALISE_DIRETOR, Status.EM_ANALISE_GESTOR].includes(item.status as Status)
@@ -317,7 +317,7 @@ export const Dashboard = () => {
     }
   };
 
-  const isManagerOrDirector = person?.papel === 'GESTOR' || person?.papel === 'DIRETOR' || person?.is_admin;
+  const isManagerOrDirector = person?.papel === 'GESTOR' || isManagementLevel(person);
 
   const stats = [
     {
@@ -415,7 +415,7 @@ export const Dashboard = () => {
       </div>
 
       {/* Pending Registrations Alert - Directors/Admins only */}
-      {(person?.papel === 'DIRETOR' || person?.is_admin) && pendingRegistrations > 0 && (
+      {(isManagementLevel(person)) && pendingRegistrations > 0 && (
         <Card className="border-yellow-500/50 bg-yellow-500/5">
           <CardContent className="flex items-center justify-between py-4">
             <div className="flex items-center gap-3">
@@ -502,7 +502,7 @@ export const Dashboard = () => {
         )}
         
         {/* Vacation Management Card - Only for Directors and Admins, or placeholder */}
-        {(person?.papel === 'DIRETOR' || person?.is_admin) ? (
+        {(isManagementLevel(person)) ? (
           <VacationSummaryCard />
         ) : (
           <Card>
@@ -539,7 +539,7 @@ export const Dashboard = () => {
       {/* Content */}
       {selectedTab === "overview" && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {(person?.papel === 'GESTOR' || person?.papel === 'DIRETOR' || person?.is_admin) && (
+          {(person?.papel === 'GESTOR' || isManagementLevel(person)) && (
             <EngagementSummaryCard />
           )}
           {/* Recent Activity */}

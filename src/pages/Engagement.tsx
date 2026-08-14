@@ -471,7 +471,7 @@ export default function Engagement() {
           <GiveKudosDialog personId={person?.id} fromName={person?.nome} papel={person?.papel} />
         </div>
 
-        {(person?.papel === 'GESTOR' || person?.papel === 'DIRETOR' || person?.is_admin) && (
+        {(person?.papel === 'GESTOR' || isManagementLevel(person)) && (
           <Card className="bg-muted/50 border-dashed">
             <CardContent className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 py-5">
               <div className="flex items-center gap-3">
@@ -493,7 +493,7 @@ export default function Engagement() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="space-y-6 lg:col-span-1">
             <MyPointsCard personId={person?.id} />
-            {(person?.papel === 'GESTOR' || person?.papel === 'DIRETOR' || person?.is_admin) && (
+            {(person?.papel === 'GESTOR' || isManagementLevel(person)) && (
               <EngagementSummaryCard />
             )}
             <PrefsCard personId={person?.id} />
