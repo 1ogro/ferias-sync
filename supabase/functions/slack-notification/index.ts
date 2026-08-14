@@ -14,6 +14,7 @@ interface SlackNotificationRequest {
   approved?: boolean;
   notes?: string | null;
   requestId?: string;
+  informationalCopy?: boolean;
   requesterName?: string;
   requestType?: string;
   startDate?: string;
@@ -188,7 +189,14 @@ serve(async (req) => {
     let blocks: any[] = [];
     let text = '';
 
-    if (payload!.type === 'NEW_REQUEST') {
+    if (payload!.type === 'NEW_REQUEST' && (payload as any).informationalCopy) {
+      // Cópia informativa (ex.: diretoria quando o gerente do time é a instância final)
+      text = `Solicitação em análise: ${payload!.requestType}`;
+      blocks = [
+        { type: "section", text: { type: "mrkdwn", text: `*${emoji} Solicitação em análise: ${payload!.requestType}*\n👤 *${payload!.requesterName}*\n📅 ${payload!.startDate} até ${payload!.endDate}` } },
+        { type: "context", elements: [{ type: "mrkdwn", text: "ℹ️ Cópia informativa — a decisão final é do gerente do time." }] },
+      ];
+    } else if (payload!.type === 'NEW_REQUEST') {
       text = `Nova Solicitação de ${payload!.requestType}`;
       blocks = [
         { type: "section", text: { type: "mrkdwn", text: `*${emoji} Nova Solicitação: ${payload!.requestType}*\n👤 *${payload!.requesterName}*\n📅 ${payload!.startDate} até ${payload!.endDate}` } },
