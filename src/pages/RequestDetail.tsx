@@ -676,7 +676,7 @@ const RequestDetail = () => {
                       {TIPO_LABELS[request.tipo]} - {request.requester.nome}
                     </CardTitle>
                     <div className="flex items-center gap-2">
-                      <StatusBadge status={request.status} />
+                      <StatusBadge status={request.status} finalApproverIsGerente={!!teamFinalApprover} />
                       {request.conflitoFlag && (
                         <Badge variant="outline" className="bg-status-rejected/10 text-status-rejected">
                           <AlertTriangle className="w-3 h-3 mr-1" />
