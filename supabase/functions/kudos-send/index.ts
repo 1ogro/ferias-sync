@@ -84,13 +84,13 @@ serve(async (req) => {
 
     const { data: from } = await admin.from("people").select("nome, papel").eq("id", fromPersonId).maybeSingle();
 
-    // Múltiplos destinatários: só GESTOR/DIRETOR e apenas categoria delivery
+    // Múltiplos destinatários: só GESTOR/GERENTE/DIRETOR e apenas categoria delivery
     if (recipients.length > 1) {
       if (category !== "delivery") {
         return new Response(JSON.stringify({ error: "multi-recipient allowed only for category 'delivery'" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
-      if (!from || (from.papel !== "GESTOR" && from.papel !== "DIRETOR")) {
-        return new Response(JSON.stringify({ error: "multi-recipient allowed only for GESTOR/DIRETOR" }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      if (!from || !["GESTOR", "GERENTE", "DIRETOR"].includes(from.papel ?? "")) {
+        return new Response(JSON.stringify({ error: "multi-recipient allowed only for GESTOR/GERENTE/DIRETOR" }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
     }
 
