@@ -9,6 +9,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { TipoAusencia, ModeloContrato, Status, MaternityLeaveValidation } from "@/lib/types";
+import { resolveFinalApprover } from "@/lib/approvalRouting";
 import { parseDateSafely, validateDayOffEligibility, getDayOffEligibilityPeriod } from "@/lib/dateUtils";
 import { Calendar, AlertTriangle, CheckCircle, DollarSign, Baby, HelpCircle, Building } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
