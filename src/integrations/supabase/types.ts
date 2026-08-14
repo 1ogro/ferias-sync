@@ -1576,8 +1576,13 @@ export type Database = {
       }
       is_admin_or_director: { Args: never; Returns: boolean }
       is_current_user_admin: { Args: never; Returns: boolean }
+      is_final_approver_for: { Args: { _request_id: string }; Returns: boolean }
       is_gerente_only: { Args: never; Returns: boolean }
       is_manager_level: { Args: never; Returns: boolean }
+      is_team_final_approver_of_person: {
+        Args: { _person_id: string }
+        Returns: boolean
+      }
       link_profile_personal_email: {
         Args: { p_person_id: string }
         Returns: Json
