@@ -7,6 +7,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Download, FileSpreadsheet } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { PeerReviewPairsSection } from "./PeerReviewPairsSection";
+import { useAuth } from "@/hooks/useAuth";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { EyeOff } from "lucide-react";
 
 interface Props {
   survey: PulseSurvey;
@@ -14,6 +17,9 @@ interface Props {
 
 export function PulseResultsPanel({ survey }: Props) {
   const { toast } = useToast();
+  const { person } = useAuth();
+  const isPartialView =
+    person?.papel === "GERENTE" && !person?.is_admin && survey.created_by !== person?.id;
   const { data: questions = [] } = usePulseQuestions(survey.id);
   const { data: runs = [] } = usePulseRuns(survey.id);
   const { data: responses = [] } = usePulseResponses(survey.id);
@@ -97,6 +103,14 @@ export function PulseResultsPanel({ survey }: Props) {
         </div>
       </CardHeader>
       <CardContent className="space-y-6">
+        {isPartialView && (
+          <Alert>
+            <EyeOff className="h-4 w-4" />
+            <AlertDescription>
+              Visão parcial: respostas de gerentes e diretores ficam ocultas e as demais são exibidas sem identificação individual.
+            </AlertDescription>
+          </Alert>
+        )}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <Stat label="Disparos" value={runs.length} />
           <Stat label="Destinatários" value={stats.totalRecipients} />
