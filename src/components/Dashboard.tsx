@@ -415,7 +415,7 @@ export const Dashboard = () => {
       </div>
 
       {/* Pending Registrations Alert - Directors/Admins only */}
-      {(isManagementLevel(person)) && pendingRegistrations > 0 && (
+      {isDirectorOrAdminFn(person) && pendingRegistrations > 0 && (
         <Card className="border-yellow-500/50 bg-yellow-500/5">
           <CardContent className="flex items-center justify-between py-4">
             <div className="flex items-center gap-3">

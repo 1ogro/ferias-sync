@@ -394,7 +394,7 @@ const Inbox = () => {
 
       // Validate permissions
       const canApprove = (
-        (isManagementLevel(person)) ||
+        isDirectorOrAdminFn(person) ||
         (person.papel === 'GESTOR' && request.requester && 'gestor_id' in request.requester && (request.requester as any).gestor_id === person.id)
       );
 
@@ -413,7 +413,7 @@ const Inbox = () => {
 
       if (action === 'approve') {
         // If current user is director or request is already at director level, approve final
-        if (isManagementLevel(person) || request.status === Status.EM_ANALISE_DIRETOR) {
+        if (isDirectorOrAdminFn(person) || request.status === Status.EM_ANALISE_DIRETOR) {
           newStatus = Status.APROVADO_FINAL;
           approvalAction = 'APROVAR';
         } else {
@@ -451,7 +451,7 @@ const Inbox = () => {
           request_id: requestId,
           approver_id: person.id,
           acao: approvalAction,
-          level: isManagementLevel(person) ? 'DIRETOR_2' : 'GESTOR_1',
+          level: isDirectorOrAdminFn(person) ? 'DIRETOR_2' : 'GESTOR_1',
           comentario: null
         });
 
