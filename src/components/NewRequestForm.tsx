@@ -345,8 +345,10 @@ export const NewRequestForm = () => {
           .eq('id', gestorIdResolved)
           .maybeSingle();
         
-        // If manager is a director, go straight to director analysis
-        if (managerData?.papel === 'DIRETOR') {
+        // If the direct manager is the team GERENTE (final instance) or a director,
+        // the request already goes to the final analysis stage
+        const teamGerente = await resolveFinalApprover(person.id);
+        if (managerData?.papel === 'DIRETOR' || (teamGerente && teamGerente.id === gestorIdResolved)) {
           initialStatus = Status.EM_ANALISE_DIRETOR;
         } else {
           // Otherwise, go to manager analysis first
