@@ -10,6 +10,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { parseDateSafely } from "@/lib/dateUtils";
 import { Status, TipoAusencia, Request } from "@/lib/types";
+import { isManagementLevel, isLeadership, isDirectorOrAdmin as isDirectorOrAdminFn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { 

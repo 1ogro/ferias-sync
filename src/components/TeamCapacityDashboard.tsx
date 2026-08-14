@@ -6,6 +6,7 @@ import { AlertTriangle, Users, Calendar, TrendingDown, Activity, Clock, Briefcas
 import { supabase } from "@/integrations/supabase/client";
 import { getTeamCapacityAlerts, getSpecialApprovals } from "@/lib/medicalLeaveUtils";
 import { TeamCapacityAlert, SpecialApproval, Person } from "@/lib/types";
+import { isManagementLevel, isLeadership, isDirectorOrAdmin as isDirectorOrAdminFn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";

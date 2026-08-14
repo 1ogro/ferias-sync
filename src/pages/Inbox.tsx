@@ -9,6 +9,7 @@ import { ApprovePendingCollaboratorDialog } from "@/components/ApprovePendingCol
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Request, Status, TipoAusencia, PendingPerson, Papel, ModeloContrato } from "@/lib/types";
+import { isManagementLevel, isLeadership, isDirectorOrAdmin as isDirectorOrAdminFn } from "@/lib/utils";
 import { parseDateSafely } from "@/lib/dateUtils";
 import { Inbox as InboxIcon, CheckCircle, XCircle, MessageCircle, Trash2, UserPlus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
