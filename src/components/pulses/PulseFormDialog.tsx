@@ -81,7 +81,7 @@ export function PulseFormDialog({ open, onOpenChange, survey, initialValues }: P
   const [teams, setTeams] = useState<string[]>([]);
   const [people, setPeople] = useState<{ id: string; nome: string; sub_time: string | null }[]>([]);
 
-  const isDirectorOrAdmin = person?.papel === "DIRETOR" || person?.is_admin;
+  const isDirectorOrAdmin = person?.papel === "DIRETOR" || person?.papel === "GERENTE" || person?.is_admin;
 
   useEffect(() => {
     if (!open) return;

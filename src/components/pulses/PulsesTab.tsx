@@ -32,7 +32,7 @@ export function PulsesTab() {
   };
 
 
-  const canCreate = person && (person.is_admin || ["DIRETOR", "ADMIN", "GESTOR"].includes(person.papel || ""));
+  const canCreate = person && (person.is_admin || ["DIRETOR", "ADMIN", "GERENTE", "GESTOR"].includes(person.papel || ""));
 
   const handleDispatch = async (id: string) => {
     try {
