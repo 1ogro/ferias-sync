@@ -74,8 +74,8 @@ export const OverlappingRequestsDialog = ({
                       <Badge variant="outline">{STATUS_LABEL[r.status] || r.status}</Badge>
                     </div>
                     <p className="mt-1 text-muted-foreground">
-                      {r.inicio ? formatDateSafe(r.inicio) : "—"}
-                      {r.fim && r.fim !== r.inicio ? ` a ${formatDateSafe(r.fim)}` : ""}
+                      {r.inicio ? formatDateSafe(r.inicio, "dd/MM/yyyy") : "—"}
+                      {r.fim && r.fim !== r.inicio ? ` a ${formatDateSafe(r.fim, "dd/MM/yyyy")}` : ""}
                     </p>
                     <Button
                       type="button"
