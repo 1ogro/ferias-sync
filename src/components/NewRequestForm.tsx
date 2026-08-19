@@ -424,6 +424,12 @@ export const NewRequestForm = () => {
           actor_id: person.id
         });
 
+      // Cancel the requests this one replaces
+      if (supersedeIds.length > 0) {
+        await supersedeRequests(supersedeIds, person.id, newRequest?.id);
+      }
+
+
       // Send email notification to manager (if not auto-approved)
       const managerIdForNotify = person.gestorId ?? (person as any).gestor_id ?? null;
       if (!isDirector && managerIdForNotify) {
