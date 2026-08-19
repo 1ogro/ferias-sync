@@ -300,7 +300,20 @@ const EditRequest = () => {
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!person) return;
-    
+
+    const overlaps = await findOverlappingOwnRequests(person.id, formData.inicio, formData.fim, id);
+    if (overlaps.length > 0) {
+      setOwnOverlaps(overlaps);
+      setOverlapDialogOpen(true);
+      return;
+    }
+
+    await saveUpdate([]);
+  };
+
+  const saveUpdate = async (supersedeIds: string[]) => {
+    if (!person) return;
+
     setIsSubmitting(true);
 
     try {
