@@ -675,12 +675,24 @@ const RequestDetail = () => {
                       <Calendar className="w-5 h-5 text-primary" />
                       {TIPO_LABELS[request.tipo]} - {request.requester.nome}
                     </CardTitle>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <StatusBadge status={request.status} finalApproverIsGerente={!!teamFinalApprover} />
                       {request.conflitoFlag && (
                         <Badge variant="outline" className="bg-status-rejected/10 text-status-rejected">
                           <AlertTriangle className="w-3 h-3 mr-1" />
                           Conflito
+                        </Badge>
+                      )}
+                      {request.status === Status.INFORMACOES_ADICIONAIS && (
+                        <Badge variant="outline" className="bg-status-pending/10 text-status-pending">
+                          Aguardando colaborador há {daysSince(request.updatedAt)} dia
+                          {daysSince(request.updatedAt) === 1 ? "" : "s"}
+                        </Badge>
+                      )}
+                      {overlappingRequests.length > 0 && (
+                        <Badge variant="outline" className="bg-amber-500/10 text-amber-700 dark:text-amber-400">
+                          <AlertTriangle className="w-3 h-3 mr-1" />
+                          Período sobreposto a outro pedido
                         </Badge>
                       )}
                     </div>
