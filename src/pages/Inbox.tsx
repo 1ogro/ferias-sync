@@ -695,7 +695,17 @@ const Inbox = () => {
               <div className="space-y-4">
                 {pendingRequests.map((request) => {
                   const isUserManagerOfRequester = person?.id === request.requester.gestorId;
-                  
+                  const staleDays = daysSince(request.updatedAt);
+                  const isAbandoned =
+                    request.status === Status.INFORMACOES_ADICIONAIS && staleDays >= 15;
+                  const overlapsOther = pendingRequests.some(
+                    (other) =>
+                      other.id !== request.id &&
+                      other.requesterId === request.requesterId &&
+                      other.inicio && other.fim && request.inicio && request.fim &&
+                      other.inicio <= request.fim && request.inicio <= other.fim,
+                  );
+
                   return (
                     <Card key={request.id} className="hover:shadow-md transition-shadow">
                       <CardHeader className="pb-4">
@@ -711,11 +721,21 @@ const Inbox = () => {
                         </div>
                       </CardHeader>
                     <CardContent className="pt-0">
-                      {request.status === Status.INFORMACOES_ADICIONAIS && (
-                        <Badge variant="outline" className="mb-3 bg-status-pending/10 text-status-pending">
-                          Aguardando colaborador
-                        </Badge>
-                      )}
+                      <div className="flex flex-wrap gap-2 mb-3">
+                        {request.status === Status.INFORMACOES_ADICIONAIS && (
+                          <Badge variant="outline" className="bg-status-pending/10 text-status-pending">
+                            Aguardando colaborador há {staleDays} dia{staleDays === 1 ? "" : "s"}
+                          </Badge>
+                        )}
+                        {isAbandoned && (
+                          <Badge variant="destructive">Possivelmente abandonada</Badge>
+                        )}
+                        {overlapsOther && (
+                          <Badge variant="outline" className="bg-amber-500/10 text-amber-700 dark:text-amber-400">
+                            Período sobreposto a outro pedido
+                          </Badge>
+                        )}
+                      </div>
                       <div className="mb-3">
                         <p className="text-sm text-muted-foreground">
                           <span className="font-medium">Solicitante:</span> {request.requester?.nome}
