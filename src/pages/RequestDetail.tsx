@@ -15,6 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 import { DeletionDialog } from "@/components/DeletionDialog";
 import { CancellationDialog } from "@/components/CancellationDialog";
 import { isFinalApproverOf, resolveFinalApprover, FinalApprover } from "@/lib/approvalRouting";
+import { findOverlappingOwnRequests, daysSince, OverlappingRequest } from "@/lib/requestOverlap";
 
 const RequestDetail = () => {
   const { id } = useParams();
