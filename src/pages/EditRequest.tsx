@@ -48,6 +48,7 @@ const EditRequest = () => {
   const [vacationConflicts, setVacationConflicts] = useState<VacationConflict[]>([]);
   const [ownOverlaps, setOwnOverlaps] = useState<OverlappingRequest[]>([]);
   const [overlapDialogOpen, setOverlapDialogOpen] = useState(false);
+  const [requesterId, setRequesterId] = useState<string | null>(null);
   const [vacationValidation, setVacationValidation] = useState<{
     valid: boolean;
     message: string;
