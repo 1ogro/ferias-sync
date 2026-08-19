@@ -17,6 +17,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { Header } from "@/components/Header";
 import { validateVacationRequest, VacationConflict } from "@/lib/vacationUtils";
 import { resolveFinalApprover } from "@/lib/approvalRouting";
+import { findOverlappingOwnRequests, supersedeRequests, OverlappingRequest } from "@/lib/requestOverlap";
+import { OverlappingRequestsDialog } from "@/components/OverlappingRequestsDialog";
 
 interface FormData {
   tipo: TipoAusencia | "";
