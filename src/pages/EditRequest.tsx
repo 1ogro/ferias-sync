@@ -46,6 +46,8 @@ const EditRequest = () => {
   const [isDirector, setIsDirector] = useState(false);
   const [dayOffAlreadyUsed, setDayOffAlreadyUsed] = useState(false);
   const [vacationConflicts, setVacationConflicts] = useState<VacationConflict[]>([]);
+  const [ownOverlaps, setOwnOverlaps] = useState<OverlappingRequest[]>([]);
+  const [overlapDialogOpen, setOverlapDialogOpen] = useState(false);
   const [vacationValidation, setVacationValidation] = useState<{
     valid: boolean;
     message: string;
