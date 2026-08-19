@@ -19,6 +19,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import { validateVacationRequest, VacationConflict } from "@/lib/vacationUtils";
+import { findOverlappingOwnRequests, supersedeRequests, OverlappingRequest } from "@/lib/requestOverlap";
+import { OverlappingRequestsDialog } from "@/components/OverlappingRequestsDialog";
 
 interface FormData {
   tipo: TipoAusencia | "";
