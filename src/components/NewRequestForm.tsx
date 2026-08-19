@@ -331,7 +331,21 @@ export const NewRequestForm = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!person) return;
-    
+
+    // Warn before creating a request overlapping another one of their own
+    const overlaps = await findOverlappingOwnRequests(person.id, formData.inicio, formData.fim);
+    if (overlaps.length > 0) {
+      setOwnOverlaps(overlaps);
+      setOverlapDialogOpen(true);
+      return;
+    }
+
+    await submitRequest([]);
+  };
+
+  const submitRequest = async (supersedeIds: string[]) => {
+    if (!person) return;
+
     setIsSubmitting(true);
 
     try {
