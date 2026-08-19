@@ -118,6 +118,7 @@ const EditRequest = () => {
         });
         setOriginalStatus(requestData.status as Status);
         setIsDirector(isDirectorOrAdmin);
+        setRequesterId(requestData.requester_id);
       } catch (error) {
         console.error('Error fetching request:', error);
         toast({
