@@ -40,6 +40,23 @@ const RequestDetail = () => {
   const [deletionDialogOpen, setDeletionDialogOpen] = useState(false);
   const [requireJustification, setRequireJustification] = useState(false);
   const [teamFinalApprover, setTeamFinalApprover] = useState<FinalApprover | null>(null);
+  const [overlappingRequests, setOverlappingRequests] = useState<OverlappingRequest[]>([]);
+
+  // Detecta outros pedidos abertos do mesmo solicitante com período sobreposto
+  useEffect(() => {
+    const load = async () => {
+      const requesterId = (request as any)?.requesterId;
+      if (!requesterId || !request?.inicio || !request?.fim) {
+        setOverlappingRequests([]);
+        return;
+      }
+      const toIso = (d: Date) => d.toISOString().slice(0, 10);
+      setOverlappingRequests(
+        await findOverlappingOwnRequests(requesterId, toIso(request.inicio), toIso(request.fim), request.id),
+      );
+    };
+    load();
+  }, [(request as any)?.requesterId, request?.inicio, request?.fim, request?.id]);
   
   // Fetch current user's person data
   useEffect(() => {
