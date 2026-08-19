@@ -66,6 +66,18 @@ export const NOTIFICATIONS_CATALOG: NotificationCatalogEntry[] = [
     ativo: true,
   },
   {
+    id: "vacation-stale-info-reminder",
+    nome: "Lembrete de pedido aguardando informações",
+    descricao:
+      "Cobra o colaborador quando o pedido fica parado em 'Informações Adicionais' por mais de 3 dias. A partir de 15 dias, avisa também o aprovador que pediu as informações.",
+    categoria: "Férias",
+    gatilho: { tipo: "cron", detalhe: "Todos os dias às 09:30", cronExpr: "30 9 * * *" },
+    publico: ["Colaborador", "Gestor direto", "Diretor"],
+    canais: ["slack_dm", "email"],
+    edgeFunction: "send-stale-request-reminders",
+    ativo: true,
+  },
+  {
     id: "vacation-daily-pending-reminder",
     nome: "Lembrete diário de pedidos pendentes",
     descricao: "Cutuca gestores com pedidos aguardando aprovação há mais de 3 dias.",

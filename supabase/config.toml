@@ -65,3 +65,6 @@ verify_jwt = false
 
 [functions.self-signup]
 verify_jwt = false
+
+[functions.send-stale-request-reminders]
+verify_jwt = false

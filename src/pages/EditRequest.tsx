@@ -17,6 +17,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { Header } from "@/components/Header";
 import { validateVacationRequest, VacationConflict } from "@/lib/vacationUtils";
 import { resolveFinalApprover } from "@/lib/approvalRouting";
+import { findOverlappingOwnRequests, supersedeRequests, OverlappingRequest } from "@/lib/requestOverlap";
+import { OverlappingRequestsDialog } from "@/components/OverlappingRequestsDialog";
 
 interface FormData {
   tipo: TipoAusencia | "";
@@ -44,6 +46,9 @@ const EditRequest = () => {
   const [isDirector, setIsDirector] = useState(false);
   const [dayOffAlreadyUsed, setDayOffAlreadyUsed] = useState(false);
   const [vacationConflicts, setVacationConflicts] = useState<VacationConflict[]>([]);
+  const [ownOverlaps, setOwnOverlaps] = useState<OverlappingRequest[]>([]);
+  const [overlapDialogOpen, setOverlapDialogOpen] = useState(false);
+  const [requesterId, setRequesterId] = useState<string | null>(null);
   const [vacationValidation, setVacationValidation] = useState<{
     valid: boolean;
     message: string;
@@ -114,6 +119,7 @@ const EditRequest = () => {
         });
         setOriginalStatus(requestData.status as Status);
         setIsDirector(isDirectorOrAdmin);
+        setRequesterId(requestData.requester_id);
       } catch (error) {
         console.error('Error fetching request:', error);
         toast({
@@ -296,7 +302,25 @@ const EditRequest = () => {
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!person) return;
-    
+
+    const overlaps = await findOverlappingOwnRequests(
+      requesterId || person.id,
+      formData.inicio,
+      formData.fim,
+      id,
+    );
+    if (overlaps.length > 0) {
+      setOwnOverlaps(overlaps);
+      setOverlapDialogOpen(true);
+      return;
+    }
+
+    await saveUpdate([]);
+  };
+
+  const saveUpdate = async (supersedeIds: string[]) => {
+    if (!person) return;
+
     setIsSubmitting(true);
 
     try {
@@ -369,6 +393,11 @@ const EditRequest = () => {
           },
           actor_id: person.id
         });
+
+      if (supersedeIds.length > 0) {
+        await supersedeRequests(supersedeIds, person.id, id);
+      }
+
 
       // Avisar a liderança quando o próprio solicitante altera algo já enviado
       if (isOwnEdit && originalStatus !== Status.RASCUNHO) {
@@ -764,6 +793,22 @@ const EditRequest = () => {
             </CardContent>
           </Card>
         </div>
+
+        <OverlappingRequestsDialog
+          open={overlapDialogOpen}
+          overlaps={ownOverlaps}
+          onOpenChange={setOverlapDialogOpen}
+          submitting={isSubmitting}
+          onEditExisting={(requestId) => {
+            setOverlapDialogOpen(false);
+            navigate(`/requests/${requestId}/edit`);
+          }}
+          onReplace={async () => {
+            const ids = ownOverlaps.map((o) => o.id);
+            setOverlapDialogOpen(false);
+            await saveUpdate(ids);
+          }}
+        />
       </main>
     </div>
   );

@@ -15,6 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 import { DeletionDialog } from "@/components/DeletionDialog";
 import { CancellationDialog } from "@/components/CancellationDialog";
 import { isFinalApproverOf, resolveFinalApprover, FinalApprover } from "@/lib/approvalRouting";
+import { findOverlappingOwnRequests, daysSince, OverlappingRequest } from "@/lib/requestOverlap";
 
 const RequestDetail = () => {
   const { id } = useParams();
@@ -39,6 +40,23 @@ const RequestDetail = () => {
   const [deletionDialogOpen, setDeletionDialogOpen] = useState(false);
   const [requireJustification, setRequireJustification] = useState(false);
   const [teamFinalApprover, setTeamFinalApprover] = useState<FinalApprover | null>(null);
+  const [overlappingRequests, setOverlappingRequests] = useState<OverlappingRequest[]>([]);
+
+  // Detecta outros pedidos abertos do mesmo solicitante com período sobreposto
+  useEffect(() => {
+    const load = async () => {
+      const requesterId = (request as any)?.requesterId;
+      if (!requesterId || !request?.inicio || !request?.fim) {
+        setOverlappingRequests([]);
+        return;
+      }
+      const toIso = (d: Date) => d.toISOString().slice(0, 10);
+      setOverlappingRequests(
+        await findOverlappingOwnRequests(requesterId, toIso(request.inicio), toIso(request.fim), request.id),
+      );
+    };
+    load();
+  }, [(request as any)?.requesterId, request?.inicio, request?.fim, request?.id]);
   
   // Fetch current user's person data
   useEffect(() => {
@@ -675,12 +693,24 @@ const RequestDetail = () => {
                       <Calendar className="w-5 h-5 text-primary" />
                       {TIPO_LABELS[request.tipo]} - {request.requester.nome}
                     </CardTitle>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <StatusBadge status={request.status} finalApproverIsGerente={!!teamFinalApprover} />
                       {request.conflitoFlag && (
                         <Badge variant="outline" className="bg-status-rejected/10 text-status-rejected">
                           <AlertTriangle className="w-3 h-3 mr-1" />
                           Conflito
+                        </Badge>
+                      )}
+                      {request.status === Status.INFORMACOES_ADICIONAIS && (
+                        <Badge variant="outline" className="bg-status-pending/10 text-status-pending">
+                          Aguardando colaborador há {daysSince(request.updatedAt)} dia
+                          {daysSince(request.updatedAt) === 1 ? "" : "s"}
+                        </Badge>
+                      )}
+                      {overlappingRequests.length > 0 && (
+                        <Badge variant="outline" className="bg-amber-500/10 text-amber-700 dark:text-amber-400">
+                          <AlertTriangle className="w-3 h-3 mr-1" />
+                          Período sobreposto a outro pedido
                         </Badge>
                       )}
                     </div>

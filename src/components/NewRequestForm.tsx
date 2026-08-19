@@ -19,6 +19,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import { validateVacationRequest, VacationConflict } from "@/lib/vacationUtils";
+import { findOverlappingOwnRequests, supersedeRequests, OverlappingRequest } from "@/lib/requestOverlap";
+import { OverlappingRequestsDialog } from "@/components/OverlappingRequestsDialog";
 
 interface FormData {
   tipo: TipoAusencia | "";
@@ -67,6 +69,8 @@ export const NewRequestForm = () => {
     availableBalance?: number;
   }>({ valid: true, message: "" });
   const [maternityValidation, setMaternityValidation] = useState<MaternityLeaveValidation | null>(null);
+  const [ownOverlaps, setOwnOverlaps] = useState<OverlappingRequest[]>([]);
+  const [overlapDialogOpen, setOverlapDialogOpen] = useState(false);
 
   // Helper function to check if user is CLT
   const isCLT = () => {
@@ -327,7 +331,21 @@ export const NewRequestForm = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!person) return;
-    
+
+    // Warn before creating a request overlapping another one of their own
+    const overlaps = await findOverlappingOwnRequests(person.id, formData.inicio, formData.fim);
+    if (overlaps.length > 0) {
+      setOwnOverlaps(overlaps);
+      setOverlapDialogOpen(true);
+      return;
+    }
+
+    await submitRequest([]);
+  };
+
+  const submitRequest = async (supersedeIds: string[]) => {
+    if (!person) return;
+
     setIsSubmitting(true);
 
     try {
@@ -405,6 +423,12 @@ export const NewRequestForm = () => {
           payload: { tipo: formData.tipo, inicio: formData.inicio, fim: formData.fim, auto_approved: isDirector },
           actor_id: person.id
         });
+
+      // Cancel the requests this one replaces
+      if (supersedeIds.length > 0) {
+        await supersedeRequests(supersedeIds, person.id, newRequest?.id);
+      }
+
 
       // Send email notification to manager (if not auto-approved)
       const managerIdForNotify = person.gestorId ?? (person as any).gestor_id ?? null;
@@ -1050,6 +1074,22 @@ export const NewRequestForm = () => {
           </form>
         </CardContent>
       </Card>
+
+      <OverlappingRequestsDialog
+        open={overlapDialogOpen}
+        overlaps={ownOverlaps}
+        onOpenChange={setOverlapDialogOpen}
+        submitting={isSubmitting}
+        onEditExisting={(requestId) => {
+          setOverlapDialogOpen(false);
+          navigate(`/requests/${requestId}/edit`);
+        }}
+        onReplace={async () => {
+          const ids = ownOverlaps.map((o) => o.id);
+          setOverlapDialogOpen(false);
+          await submitRequest(ids);
+        }}
+      />
     </div>
   );
 };
