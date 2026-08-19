@@ -200,6 +200,7 @@ export default function Auth() {
         success?: boolean;
         code?: string;
         message?: string;
+        repaired?: boolean;
         slack_delivered?: boolean;
       } | null;
 
@@ -208,12 +209,24 @@ export default function Auth() {
         const slackWarning = result.slack_delivered === false
           ? ' Não localizamos seu usuário no Slack — procure o administrador para vincular seu email pessoal.'
           : '';
+        // On the "repaired" path the account already existed with another password,
+        // so the typed password will not work: access is only via the magic link.
+        if (result.repaired) {
+          toast({
+            title: 'Já existia uma conta com esse email',
+            description: (result.slack_delivered
+              ? 'Vinculamos ao seu perfil. Use o link de acesso enviado no Slack e no seu email — a senha digitada agora não é válida para essa conta.'
+              : 'Vinculamos ao seu perfil. Use o link de acesso enviado no seu email — a senha digitada agora não é válida para essa conta.') + slackWarning,
+            variant: result.slack_delivered === false ? 'destructive' : undefined,
+          });
+          return;
+        }
         const { error: signInError } = await signIn(signupData.email.trim().toLowerCase(), signupData.password);
         if (signInError) {
           toast({
-            title: 'Cadastro realizado com sucesso!',
-            description: 'Faça login com seu email e senha para continuar.' + slackWarning,
-            variant: result.slack_delivered === false ? 'destructive' : undefined,
+            title: 'Cadastro criado, mas o login automático falhou',
+            description: 'Use o link de acesso enviado por email/Slack ou tente entrar manualmente.' + slackWarning,
+            variant: 'destructive',
           });
         } else {
           toast({
@@ -225,6 +238,7 @@ export default function Auth() {
         }
         return;
       }
+
 
 
       console.warn('Atomic signup failed:', fnError || result);

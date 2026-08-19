@@ -130,12 +130,32 @@ serve(async (req) => {
           const { data: invited, error: inviteError } = await admin.auth.admin.inviteUserByEmail(authEmail, {
             redirectTo: `${APP_URL}/complete-profile`,
           });
-          if (inviteError || !invited?.user) throw inviteError || new Error("invite_user_missing");
-          await admin.from("profiles").upsert(
-            { user_id: invited.user.id, person_id: person.id },
-            { onConflict: "person_id" },
-          );
+          if (inviteError || !invited?.user) {
+            // Email may already exist in auth (orphan account). Fall back to linking
+            // the existing auth user so the magic link below still works.
+            console.warn("[notify-approved] invite failed, trying existing auth user:", inviteError?.message);
+            let existing: any = null;
+            for (let page = 1; page <= 10 && !existing; page++) {
+              const { data: list } = await admin.auth.admin.listUsers({ page, perPage: 1000 });
+              existing = list?.users?.find(
+                (u: any) => (u.email || "").toLowerCase() === authEmail!.toLowerCase(),
+              ) || null;
+              if (!list?.users?.length || list.users.length < 1000) break;
+            }
+            if (existing) {
+              await admin.from("profiles").upsert(
+                { user_id: existing.id, person_id: person.id },
+                { onConflict: "person_id" },
+              );
+            }
+          } else {
+            await admin.from("profiles").upsert(
+              { user_id: invited.user.id, person_id: person.id },
+              { onConflict: "person_id" },
+            );
+          }
         }
+
         actionLink = await generateAppMagicLink(admin, authEmail, "/complete-profile");
       } catch (error) {
         console.error("[notify-approved] magic link generation failed:", error instanceof Error ? error.message : "unknown");
