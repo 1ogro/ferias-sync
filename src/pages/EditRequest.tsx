@@ -303,7 +303,12 @@ const EditRequest = () => {
     e.preventDefault();
     if (!person) return;
 
-    const overlaps = await findOverlappingOwnRequests(person.id, formData.inicio, formData.fim, id);
+    const overlaps = await findOverlappingOwnRequests(
+      requesterId || person.id,
+      formData.inicio,
+      formData.fim,
+      id,
+    );
     if (overlaps.length > 0) {
       setOwnOverlaps(overlaps);
       setOverlapDialogOpen(true);
