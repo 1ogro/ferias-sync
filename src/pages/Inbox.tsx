@@ -12,6 +12,7 @@ import { Request, Status, TipoAusencia, PendingPerson, Papel, ModeloContrato } f
 import { isManagementLevel, isLeadership, isDirectorOrAdmin as isDirectorOrAdminFn } from "@/lib/utils";
 import { isFinalApproverOf, resolveFinalApprover } from "@/lib/approvalRouting";
 import { parseDateSafely } from "@/lib/dateUtils";
+import { daysSince } from "@/lib/requestOverlap";
 import { Inbox as InboxIcon, CheckCircle, XCircle, MessageCircle, Trash2, UserPlus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
