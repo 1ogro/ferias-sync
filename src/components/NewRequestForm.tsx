@@ -69,6 +69,8 @@ export const NewRequestForm = () => {
     availableBalance?: number;
   }>({ valid: true, message: "" });
   const [maternityValidation, setMaternityValidation] = useState<MaternityLeaveValidation | null>(null);
+  const [ownOverlaps, setOwnOverlaps] = useState<OverlappingRequest[]>([]);
+  const [overlapDialogOpen, setOverlapDialogOpen] = useState(false);
 
   // Helper function to check if user is CLT
   const isCLT = () => {
