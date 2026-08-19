@@ -793,6 +793,22 @@ const EditRequest = () => {
             </CardContent>
           </Card>
         </div>
+
+        <OverlappingRequestsDialog
+          open={overlapDialogOpen}
+          overlaps={ownOverlaps}
+          onOpenChange={setOverlapDialogOpen}
+          submitting={isSubmitting}
+          onEditExisting={(requestId) => {
+            setOverlapDialogOpen(false);
+            navigate(`/requests/${requestId}/edit`);
+          }}
+          onReplace={async () => {
+            const ids = ownOverlaps.map((o) => o.id);
+            setOverlapDialogOpen(false);
+            await saveUpdate(ids);
+          }}
+        />
       </main>
     </div>
   );
