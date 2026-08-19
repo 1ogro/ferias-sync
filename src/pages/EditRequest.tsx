@@ -394,6 +394,11 @@ const EditRequest = () => {
           actor_id: person.id
         });
 
+      if (supersedeIds.length > 0) {
+        await supersedeRequests(supersedeIds, person.id, id);
+      }
+
+
       // Avisar a liderança quando o próprio solicitante altera algo já enviado
       if (isOwnEdit && originalStatus !== Status.RASCUNHO) {
         const recipients: Array<{ id?: string; nome: string; email: string }> = [];
