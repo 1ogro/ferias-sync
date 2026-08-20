@@ -712,28 +712,63 @@ export const Dashboard = () => {
               <div className="space-y-3">
                 {loading ? (
                   <p>Carregando...</p>
-                ) : futureApprovedRequests.length > 0 ? (
-                  futureApprovedRequests.slice(0, 5).map((request) => (
-                    <div key={request.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                      <div className="flex items-center gap-3">
-                        <div className={`w-2 h-8 rounded-full ${
-                          request.tipo === TipoAusencia.FERIAS ? "bg-primary" : "bg-status-in-review"
-                        }`} />
-                        <div>
-                          <p className="font-medium">{request.tipo === TipoAusencia.FERIAS ? "Férias" : "Day Off"}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {request.inicio ? request.inicio.toLocaleDateString("pt-BR") : "Data não definida"}
-                            {request.inicio && request.fim && request.inicio.getTime() !== request.fim.getTime() && 
-                              ` - ${request.fim.toLocaleDateString("pt-BR")}`
-                            }
-                          </p>
+                ) : futureApprovedRequests.length > 0 || teamUpcoming.length > 0 ? (
+                  <>
+                    {futureApprovedRequests.slice(0, 5).map((request) => (
+                      <div key={request.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-2 h-8 rounded-full ${
+                            request.tipo === TipoAusencia.FERIAS ? "bg-primary" : "bg-status-in-review"
+                          }`} />
+                          <div>
+                            <p className="font-medium">{request.tipo === TipoAusencia.FERIAS ? "Férias" : "Day Off"}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {request.inicio ? request.inicio.toLocaleDateString("pt-BR") : "Data não definida"}
+                              {request.inicio && request.fim && request.inicio.getTime() !== request.fim.getTime() && 
+                                ` - ${request.fim.toLocaleDateString("pt-BR")}`
+                              }
+                            </p>
+                          </div>
                         </div>
+                        <Badge variant="outline" className="bg-status-approved/10 text-status-approved">
+                          Aprovado
+                        </Badge>
                       </div>
-                      <Badge variant="outline" className="bg-status-approved/10 text-status-approved">
-                        Aprovado
-                      </Badge>
-                    </div>
-                  ))
+                    ))}
+
+                    {teamUpcoming.length > 0 && (
+                      <>
+                        <p className="pt-2 text-xs font-medium uppercase text-muted-foreground">
+                          Time
+                        </p>
+                        {teamUpcoming.slice(0, 8).map((absence) => (
+                          <div
+                            key={absence.id}
+                            onClick={() => navigate(`/requests/${absence.id}`)}
+                            className="flex cursor-pointer items-center justify-between p-3 bg-muted/50 rounded-lg"
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className={`w-2 h-8 rounded-full ${
+                                absence.tipo === 'FERIAS' ? "bg-primary" : "bg-status-in-review"
+                              }`} />
+                              <div>
+                                <p className="font-medium">{absence.nome}</p>
+                                <p className="text-sm text-muted-foreground">
+                                  {ABSENCE_LABELS[absence.tipo] || absence.tipo} •{" "}
+                                  {parseDateSafely(absence.inicio).toLocaleDateString("pt-BR")}
+                                  {absence.fim && absence.fim !== absence.inicio &&
+                                    ` - ${parseDateSafely(absence.fim).toLocaleDateString("pt-BR")}`}
+                                </p>
+                              </div>
+                            </div>
+                            <Badge variant="outline" className="bg-status-approved/10 text-status-approved">
+                              Aprovado
+                            </Badge>
+                          </div>
+                        ))}
+                      </>
+                    )}
+                  </>
                 ) : (
                   <p className="text-muted-foreground text-center py-4">
                     Nenhuma ausência futura aprovada encontrada.
