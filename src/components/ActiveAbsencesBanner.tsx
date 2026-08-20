@@ -18,7 +18,8 @@ interface ActiveAbsence {
 }
 
 interface Props {
-  teamIds?: string[]; // if provided, filter to these requester ids (gestor view)
+  /** undefined = sem filtro | null = escopo do time carregando | string[] = ids do time */
+  teamIds?: string[] | null;
   onSeeDetails?: () => void;
 }
 
