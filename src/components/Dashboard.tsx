@@ -40,6 +40,9 @@ export const Dashboard = () => {
   const [requestToDelete, setRequestToDelete] = useState<Request | null>(null);
   const [activeAbsences, setActiveAbsences] = useState<Request[]>([]);
   const [pendingRegistrations, setPendingRegistrations] = useState(0);
+  const [teamUpcoming, setTeamUpcoming] = useState<
+    { id: string; nome: string; tipo: string; inicio: string; fim: string }[]
+  >([]);
   
   // Initialize birthday notifications for managers
   useBirthdayNotifications();
@@ -50,12 +53,60 @@ export const Dashboard = () => {
       fetchActiveAbsences();
       if (person.papel === 'GESTOR' || isManagementLevel(person)) {
         fetchPendingApprovals();
+        fetchTeamUpcomingAbsences();
       }
       if (isManagementLevel(person)) {
         fetchPendingRegistrations();
       }
     }
   }, [person]);
+
+  const fetchTeamUpcomingAbsences = async () => {
+    if (!person) return;
+    try {
+      const today = new Date().toISOString().split('T')[0];
+
+      let teamIds: string[] | null = null;
+      if (!isManagementLevel(person)) {
+        const { data: reports } = await supabase
+          .from('people')
+          .select('id')
+          .eq('gestor_id', person.id)
+          .eq('ativo', true);
+        teamIds = (reports || []).map(r => r.id);
+        if (teamIds.length === 0) {
+          setTeamUpcoming([]);
+          return;
+        }
+      }
+
+      let query = supabase
+        .from('requests')
+        .select('id, tipo, inicio, fim, requester_id, people!requests_requester_id_fkey(nome)')
+        .in('status', ['APROVADO_FINAL', 'REALIZADO'])
+        .in('tipo', ['FERIAS', 'LICENCA_MATERNIDADE', 'LICENCA_MEDICA', 'DAYOFF'])
+        .gte('inicio', today)
+        .order('inicio', { ascending: true })
+        .limit(20);
+
+      if (teamIds) query = query.in('requester_id', teamIds);
+
+      const { data, error } = await query;
+      if (error) throw error;
+
+      setTeamUpcoming(
+        (data || []).map((r: any) => ({
+          id: r.id,
+          nome: r.people?.nome || 'Colaborador',
+          tipo: r.tipo,
+          inicio: r.inicio,
+          fim: r.fim,
+        }))
+      );
+    } catch (err) {
+      console.error('Erro ao carregar ausências futuras do time:', err);
+    }
+  };
 
   // Listen for request status updates from other components (like Inbox)
   useEffect(() => {
