@@ -234,26 +234,37 @@ const VacationManagement = () => {
 
   // Fetch team member IDs for manager view
   const [teamMemberIds, setTeamMemberIds] = useState<string[]>([]);
+  const [teamScopeReady, setTeamScopeReady] = useState(false);
   
   useEffect(() => {
-    if (isManager && !isDirectorOrAdmin && person) {
+    if (managerScope && person) {
       const fetchTeamMembers = async () => {
         const { data } = await supabase
           .from('people')
           .select('id')
           .eq('gestor_id', person.id)
           .eq('ativo', true);
-        setTeamMemberIds(data?.map(p => p.id) || []);
+        setTeamMemberIds([...(data?.map(p => p.id) || []), person.id]);
+        setTeamScopeReady(true);
       };
       fetchTeamMembers();
     }
-  }, [person]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [person, managerScope]);
+
+  // undefined = sem filtro (diretoria) | null = escopo do time ainda carregando
+  const scopedTeamIds: string[] | null | undefined = managerScope
+    ? (teamScopeReady ? teamMemberIds : null)
+    : undefined;
 
   useEffect(() => {
     if (isDirectorOrAdmin) {
       fetchVacationData();
+    } else if (managerScope && teamScopeReady) {
+      fetchVacationData(teamMemberIds);
     }
-  }, [selectedYear]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedYear, isDirectorOrAdmin, managerScope, teamScopeReady, teamMemberIds.join(',')]);
 
   // Sincronizar aba com o query param ?tab= ou hash #tab= quando a URL mudar
   useEffect(() => {
