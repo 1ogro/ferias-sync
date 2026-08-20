@@ -1290,7 +1290,7 @@ const VacationManagement = () => {
       case 'active':
         return (
           <div className="space-y-6 mt-6">
-            <ActiveAbsencesDashboard teamIds={isManager && !isDirectorOrAdmin ? teamMemberIds : undefined} />
+            <ActiveAbsencesDashboard teamIds={scopedTeamIds} />
           </div>
         );
       
@@ -1308,7 +1308,7 @@ const VacationManagement = () => {
               </TabsContent>
               
               <TabsContent value="vacations" className="mt-6">
-                <ApprovedVacationsExecutiveView teamIds={isManager && !isDirectorOrAdmin ? teamMemberIds : undefined} />
+                <ApprovedVacationsExecutiveView teamIds={scopedTeamIds} />
               </TabsContent>
             </Tabs>
           </div>
@@ -1370,7 +1370,7 @@ const VacationManagement = () => {
         </div>
 
         <ActiveAbsencesBanner
-          teamIds={isManager && !isDirectorOrAdmin ? teamMemberIds : undefined}
+          teamIds={scopedTeamIds}
           onSeeDetails={() => setActiveTab("active")}
         />
 
