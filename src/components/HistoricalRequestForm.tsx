@@ -16,6 +16,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { validateMaternityLeave, calculateMaternityEndDate, calculateExpectedDeliveryDate } from "@/lib/maternityLeaveUtils";
 import { MaternityLeaveValidation } from "@/lib/types";
 import { parseDateSafely } from "@/lib/dateUtils";
+import { findOverlappingOwnRequests, supersedeRequests, type OverlappingRequest } from "@/lib/requestOverlap";
+import { OverlappingRequestsDialog } from "@/components/OverlappingRequestsDialog";
+
 
 interface FormData {
   requesterId: string;
@@ -86,6 +89,9 @@ export const HistoricalRequestForm = ({ onSuccess }: HistoricalRequestFormProps)
   const [originalDate, setOriginalDate] = useState<Date>();
   const [maternityValidation, setMaternityValidation] = useState<MaternityLeaveValidation | null>(null);
   const [expectedDeliveryDate, setExpectedDeliveryDate] = useState<Date>();
+  const [overlaps, setOverlaps] = useState<OverlappingRequest[]>([]);
+  const [overlapDialogOpen, setOverlapDialogOpen] = useState(false);
+
 
   useEffect(() => {
     fetchPeople();
@@ -172,10 +178,33 @@ export const HistoricalRequestForm = ({ onSuccess }: HistoricalRequestFormProps)
       });
       return;
     }
-    
+
+    // Bloqueia recadastro retroativo sobreposto a um pedido já existente
+    if (formData.requesterId && formData.inicio && formData.fim) {
+      const found = await findOverlappingOwnRequests(
+        formData.requesterId,
+        formData.inicio,
+        formData.fim,
+      );
+      if (found.length > 0) {
+        setOverlaps(found);
+        setOverlapDialogOpen(true);
+        return;
+      }
+    }
+
+    await submitRequest([]);
+  };
+
+  const submitRequest = async (supersedeIds: string[]) => {
+    if (!person) return;
     setIsSubmitting(true);
 
     try {
+      if (supersedeIds.length > 0) {
+        await supersedeRequests(supersedeIds, person.id);
+      }
+
       // Create the historical request with new columns
       const { data: newRequest, error } = await supabase
         .from('requests')
@@ -278,7 +307,27 @@ export const HistoricalRequestForm = ({ onSuccess }: HistoricalRequestFormProps)
   };
 
   return (
+    <>
+    <OverlappingRequestsDialog
+      open={overlapDialogOpen}
+      overlaps={overlaps}
+      onOpenChange={setOverlapDialogOpen}
+      submitting={isSubmitting}
+      onEditExisting={() => {
+        setOverlapDialogOpen(false);
+        toast({
+          title: "Já existe registro para o período",
+          description: "Edite a solicitação existente em vez de cadastrar um novo registro histórico.",
+        });
+      }}
+      onReplace={async () => {
+        const ids = overlaps.map((o) => o.id);
+        setOverlapDialogOpen(false);
+        await submitRequest(ids);
+      }}
+    />
     <Card className="w-full max-w-4xl mx-auto">
+
       <CardHeader>
         <CardTitle>Regularização de Solicitação Histórica</CardTitle>
       </CardHeader>
@@ -607,5 +656,8 @@ export const HistoricalRequestForm = ({ onSuccess }: HistoricalRequestFormProps)
         </form>
       </CardContent>
     </Card>
+    </>
   );
+
+
 };
