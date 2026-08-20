@@ -12,7 +12,9 @@ export const BLOCKING_STATUSES = [
   "EM_ANALISE_DIRETOR",
   "INFORMACOES_ADICIONAIS",
   "APROVADO_FINAL",
+  "REALIZADO",
 ] as const;
+
 
 /** Statuses that are still open (awaiting someone's action). */
 export const OPEN_STATUSES = [
