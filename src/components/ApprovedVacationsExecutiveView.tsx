@@ -56,7 +56,8 @@ interface FilterOptions {
 }
 
 interface ApprovedVacationsExecutiveViewProps {
-  teamIds?: string[];
+  /** undefined = sem filtro (diretoria) | null = escopo do time ainda carregando | string[] = ids do time */
+  teamIds?: string[] | null;
 }
 
 export function ApprovedVacationsExecutiveView({ teamIds }: ApprovedVacationsExecutiveViewProps) {
