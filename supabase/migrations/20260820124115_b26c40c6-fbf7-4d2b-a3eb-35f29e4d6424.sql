@@ -1,0 +1,2 @@
+ALTER TABLE public.people DROP CONSTRAINT IF EXISTS people_papel_check;
+ALTER TABLE public.people ADD CONSTRAINT people_papel_check CHECK (papel IS NULL OR papel = ANY (ARRAY['COLABORADOR'::text,'GESTOR'::text,'GERENTE'::text,'DIRETOR'::text,'ADMIN'::text]));
