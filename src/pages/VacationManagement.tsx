@@ -178,11 +178,13 @@ const VacationManagement = () => {
   // Determine role-based access
   const isManager = person?.papel === 'GESTOR';
   const isDirectorOrAdmin = isManagementLevel(person);
+  const managerScope = isManager && !isDirectorOrAdmin;
   
   // Manager-specific tabs
-  const managerTabs = ['active', 'dashboard', 'medical', 'pulses'];
+  const managerTabs = ['active', 'vacation', 'medical', 'summary', 'dashboard', 'pulses'];
   const allTabs = ['active', 'vacation', 'medical', 'summary', 'dashboard', 'pulses', 'historical'];
-  const availableTabs = isManager && !isDirectorOrAdmin ? managerTabs : allTabs;
+  const availableTabs = managerScope ? managerTabs : allTabs;
+
 
   const initialTab = searchParams.get('tab') || getTabFromHash() || (isManager && !isDirectorOrAdmin ? 'active' : 'vacation');
 
