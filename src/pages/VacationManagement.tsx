@@ -312,7 +312,9 @@ const VacationManagement = () => {
     return <Navigate to="/" replace />;
   }
 
-  const fetchVacationData = async (restrictToIds?: string[]) => {
+  const fetchVacationData = async (
+    restrictToIds: string[] | undefined = managerScope ? teamMemberIds : undefined
+  ) => {
     setLoading(true);
     try {
       const [vacationBalances, peopleData] = await Promise.all([
