@@ -307,7 +307,27 @@ export const HistoricalRequestForm = ({ onSuccess }: HistoricalRequestFormProps)
   };
 
   return (
+    <>
+    <OverlappingRequestsDialog
+      open={overlapDialogOpen}
+      overlaps={overlaps}
+      onOpenChange={setOverlapDialogOpen}
+      submitting={isSubmitting}
+      onEditExisting={() => {
+        setOverlapDialogOpen(false);
+        toast({
+          title: "Já existe registro para o período",
+          description: "Edite a solicitação existente em vez de cadastrar um novo registro histórico.",
+        });
+      }}
+      onReplace={async () => {
+        const ids = overlaps.map((o) => o.id);
+        setOverlapDialogOpen(false);
+        await submitRequest(ids);
+      }}
+    />
     <Card className="w-full max-w-4xl mx-auto">
+
       <CardHeader>
         <CardTitle>Regularização de Solicitação Histórica</CardTitle>
       </CardHeader>
