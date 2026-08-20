@@ -172,10 +172,33 @@ export const HistoricalRequestForm = ({ onSuccess }: HistoricalRequestFormProps)
       });
       return;
     }
-    
+
+    // Bloqueia recadastro retroativo sobreposto a um pedido já existente
+    if (formData.requesterId && formData.inicio && formData.fim) {
+      const found = await findOverlappingOwnRequests(
+        formData.requesterId,
+        formData.inicio,
+        formData.fim,
+      );
+      if (found.length > 0) {
+        setOverlaps(found);
+        setOverlapDialogOpen(true);
+        return;
+      }
+    }
+
+    await submitRequest([]);
+  };
+
+  const submitRequest = async (supersedeIds: string[]) => {
+    if (!person) return;
     setIsSubmitting(true);
 
     try {
+      if (supersedeIds.length > 0) {
+        await supersedeRequests(supersedeIds, person.id);
+      }
+
       // Create the historical request with new columns
       const { data: newRequest, error } = await supabase
         .from('requests')
