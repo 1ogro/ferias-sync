@@ -312,7 +312,7 @@ const VacationManagement = () => {
     return <Navigate to="/" replace />;
   }
 
-  const fetchVacationData = async () => {
+  const fetchVacationData = async (restrictToIds?: string[]) => {
     setLoading(true);
     try {
       const [vacationBalances, peopleData] = await Promise.all([
@@ -320,7 +320,12 @@ const VacationManagement = () => {
         supabase.from('people').select('*').eq('ativo', true).order('nome')
       ]);
       
-      setVacationData(vacationBalances);
+      setVacationData(
+        restrictToIds
+          ? vacationBalances.filter(b => restrictToIds.includes(b.person_id))
+          : vacationBalances
+      );
+      
       
       if (peopleData.data) {
         const mappedPeople: Person[] = peopleData.data.map(p => ({
