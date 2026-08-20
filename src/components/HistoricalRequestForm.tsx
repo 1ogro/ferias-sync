@@ -89,6 +89,9 @@ export const HistoricalRequestForm = ({ onSuccess }: HistoricalRequestFormProps)
   const [originalDate, setOriginalDate] = useState<Date>();
   const [maternityValidation, setMaternityValidation] = useState<MaternityLeaveValidation | null>(null);
   const [expectedDeliveryDate, setExpectedDeliveryDate] = useState<Date>();
+  const [overlaps, setOverlaps] = useState<OverlappingRequest[]>([]);
+  const [overlapDialogOpen, setOverlapDialogOpen] = useState(false);
+
 
   useEffect(() => {
     fetchPeople();
