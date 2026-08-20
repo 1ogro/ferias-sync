@@ -91,7 +91,10 @@ export function CollaboratorSummaryTable({ highlightId, teamIds }: CollaboratorS
       .order("nome");
 
     if (!error && people) {
-      setData(people as CollaboratorSummary[]);
+      const scoped = teamIds
+        ? (people as CollaboratorSummary[]).filter(p => teamIds.includes(p.id))
+        : (people as CollaboratorSummary[]);
+      setData(scoped);
     }
     setLoading(false);
   };
