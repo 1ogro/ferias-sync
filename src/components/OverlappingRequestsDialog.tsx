@@ -29,6 +29,8 @@ const STATUS_LABEL: Record<string, string> = {
   EM_ANALISE_DIRETOR: "Em análise final",
   INFORMACOES_ADICIONAIS: "Aguardando suas informações",
   APROVADO_FINAL: "Aprovada",
+  REALIZADO: "Já realizada",
+
 };
 
 interface Props {
