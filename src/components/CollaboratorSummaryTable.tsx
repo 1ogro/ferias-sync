@@ -57,9 +57,11 @@ const CONTRACT_LABELS: Record<string, string> = {
 interface CollaboratorSummaryTableProps {
   /** Person id coming from a deep link (?person=...) — pre-filters and highlights the row. */
   highlightId?: string | null;
+  /** undefined = sem filtro | null = escopo do time carregando | string[] = ids do time */
+  teamIds?: string[] | null;
 }
 
-export function CollaboratorSummaryTable({ highlightId }: CollaboratorSummaryTableProps = {}) {
+export function CollaboratorSummaryTable({ highlightId, teamIds }: CollaboratorSummaryTableProps = {}) {
   const [data, setData] = useState<CollaboratorSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState(highlightId || "");
@@ -75,8 +77,10 @@ export function CollaboratorSummaryTable({ highlightId }: CollaboratorSummaryTab
 
 
   useEffect(() => {
+    if (teamIds === null) return;
     fetchData();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [teamIds === null ? "loading" : (teamIds || []).join(",")]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -87,7 +91,10 @@ export function CollaboratorSummaryTable({ highlightId }: CollaboratorSummaryTab
       .order("nome");
 
     if (!error && people) {
-      setData(people as CollaboratorSummary[]);
+      const scoped = teamIds
+        ? (people as CollaboratorSummary[]).filter(p => teamIds.includes(p.id))
+        : (people as CollaboratorSummary[]);
+      setData(scoped);
     }
     setLoading(false);
   };

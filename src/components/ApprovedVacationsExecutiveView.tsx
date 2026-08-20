@@ -56,7 +56,8 @@ interface FilterOptions {
 }
 
 interface ApprovedVacationsExecutiveViewProps {
-  teamIds?: string[];
+  /** undefined = sem filtro (diretoria) | null = escopo do time ainda carregando | string[] = ids do time */
+  teamIds?: string[] | null;
 }
 
 export function ApprovedVacationsExecutiveView({ teamIds }: ApprovedVacationsExecutiveViewProps) {
@@ -179,10 +180,11 @@ export function ApprovedVacationsExecutiveView({ teamIds }: ApprovedVacationsExe
   };
 
   useEffect(() => {
-    if (user) {
+    if (user && teamIds !== null) {
       loadApprovedVacations();
     }
-  }, [user]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, teamIds === null ? "loading" : (teamIds || []).join(",")]);
 
   useEffect(() => {
     const fetchCurrentUserAndPeople = async () => {

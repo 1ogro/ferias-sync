@@ -18,7 +18,8 @@ interface ActiveAbsence {
 }
 
 interface Props {
-  teamIds?: string[]; // if provided, filter to these requester ids (gestor view)
+  /** undefined = sem filtro | null = escopo do time carregando | string[] = ids do time */
+  teamIds?: string[] | null;
   onSeeDetails?: () => void;
 }
 
@@ -40,6 +41,7 @@ export function ActiveAbsencesBanner({ teamIds, onSeeDetails }: Props) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (teamIds === null) return; // escopo do time ainda carregando
     const load = async () => {
       try {
         setLoading(true);
@@ -74,7 +76,8 @@ export function ActiveAbsencesBanner({ teamIds, onSeeDetails }: Props) {
       }
     };
     load();
-  }, [teamIds?.join(",")]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [teamIds === null ? "loading" : (teamIds || []).join(",")]);
 
   if (loading || absences.length === 0) return null;
 

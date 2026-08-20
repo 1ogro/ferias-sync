@@ -178,11 +178,13 @@ const VacationManagement = () => {
   // Determine role-based access
   const isManager = person?.papel === 'GESTOR';
   const isDirectorOrAdmin = isManagementLevel(person);
+  const managerScope = isManager && !isDirectorOrAdmin;
   
   // Manager-specific tabs
-  const managerTabs = ['active', 'dashboard', 'medical', 'pulses'];
+  const managerTabs = ['active', 'vacation', 'medical', 'summary', 'dashboard', 'pulses'];
   const allTabs = ['active', 'vacation', 'medical', 'summary', 'dashboard', 'pulses', 'historical'];
-  const availableTabs = isManager && !isDirectorOrAdmin ? managerTabs : allTabs;
+  const availableTabs = managerScope ? managerTabs : allTabs;
+
 
   const initialTab = searchParams.get('tab') || getTabFromHash() || (isManager && !isDirectorOrAdmin ? 'active' : 'vacation');
 
@@ -232,26 +234,37 @@ const VacationManagement = () => {
 
   // Fetch team member IDs for manager view
   const [teamMemberIds, setTeamMemberIds] = useState<string[]>([]);
+  const [teamScopeReady, setTeamScopeReady] = useState(false);
   
   useEffect(() => {
-    if (isManager && !isDirectorOrAdmin && person) {
+    if (managerScope && person) {
       const fetchTeamMembers = async () => {
         const { data } = await supabase
           .from('people')
           .select('id')
           .eq('gestor_id', person.id)
           .eq('ativo', true);
-        setTeamMemberIds(data?.map(p => p.id) || []);
+        setTeamMemberIds([...(data?.map(p => p.id) || []), person.id]);
+        setTeamScopeReady(true);
       };
       fetchTeamMembers();
     }
-  }, [person]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [person, managerScope]);
+
+  // undefined = sem filtro (diretoria) | null = escopo do time ainda carregando
+  const scopedTeamIds: string[] | null | undefined = managerScope
+    ? (teamScopeReady ? teamMemberIds : null)
+    : undefined;
 
   useEffect(() => {
     if (isDirectorOrAdmin) {
       fetchVacationData();
+    } else if (managerScope && teamScopeReady) {
+      fetchVacationData(teamMemberIds);
     }
-  }, [selectedYear]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedYear, isDirectorOrAdmin, managerScope, teamScopeReady, teamMemberIds.join(',')]);
 
   // Sincronizar aba com o query param ?tab= ou hash #tab= quando a URL mudar
   useEffect(() => {
@@ -299,7 +312,9 @@ const VacationManagement = () => {
     return <Navigate to="/" replace />;
   }
 
-  const fetchVacationData = async () => {
+  const fetchVacationData = async (
+    restrictToIds: string[] | undefined = managerScope ? teamMemberIds : undefined
+  ) => {
     setLoading(true);
     try {
       const [vacationBalances, peopleData] = await Promise.all([
@@ -307,7 +322,12 @@ const VacationManagement = () => {
         supabase.from('people').select('*').eq('ativo', true).order('nome')
       ]);
       
-      setVacationData(vacationBalances);
+      setVacationData(
+        restrictToIds
+          ? vacationBalances.filter(b => restrictToIds.includes(b.person_id))
+          : vacationBalances
+      );
+      
       
       if (peopleData.data) {
         const mappedPeople: Person[] = peopleData.data.map(p => ({
@@ -1270,7 +1290,7 @@ const VacationManagement = () => {
       case 'active':
         return (
           <div className="space-y-6 mt-6">
-            <ActiveAbsencesDashboard teamIds={isManager && !isDirectorOrAdmin ? teamMemberIds : undefined} />
+            <ActiveAbsencesDashboard teamIds={scopedTeamIds} />
           </div>
         );
       
@@ -1288,7 +1308,7 @@ const VacationManagement = () => {
               </TabsContent>
               
               <TabsContent value="vacations" className="mt-6">
-                <ApprovedVacationsExecutiveView teamIds={isManager && !isDirectorOrAdmin ? teamMemberIds : undefined} />
+                <ApprovedVacationsExecutiveView teamIds={scopedTeamIds} />
               </TabsContent>
             </Tabs>
           </div>
@@ -1312,7 +1332,7 @@ const VacationManagement = () => {
       case 'summary':
         return (
           <div className="space-y-6 mt-6">
-            <CollaboratorSummaryTable highlightId={searchParams.get('person')} />
+            <CollaboratorSummaryTable highlightId={searchParams.get('person')} teamIds={scopedTeamIds} />
           </div>
         );
 
@@ -1350,7 +1370,7 @@ const VacationManagement = () => {
         </div>
 
         <ActiveAbsencesBanner
-          teamIds={isManager && !isDirectorOrAdmin ? teamMemberIds : undefined}
+          teamIds={scopedTeamIds}
           onSeeDetails={() => setActiveTab("active")}
         />
 
@@ -1879,7 +1899,7 @@ const VacationManagement = () => {
 
           {/* Collaborator Summary Tab */}
           <TabsContent value="summary" className="space-y-6 hidden lg:block">
-            <CollaboratorSummaryTable highlightId={searchParams.get('person')} />
+            <CollaboratorSummaryTable highlightId={searchParams.get('person')} teamIds={scopedTeamIds} />
           </TabsContent>
 
 

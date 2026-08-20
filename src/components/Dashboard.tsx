@@ -27,6 +27,13 @@ import React from "react";
 import { useBirthdayNotifications } from "@/hooks/useBirthdayNotifications";
 import { EngagementSummaryCard } from "./EngagementSummaryCard";
 
+const ABSENCE_LABELS: Record<string, string> = {
+  FERIAS: "Férias",
+  DAYOFF: "Day Off",
+  LICENCA_MEDICA: "Lic. Médica",
+  LICENCA_MATERNIDADE: "Lic. Maternidade",
+};
+
 export const Dashboard = () => {
   const navigate = useNavigate();
   const { person } = useAuth();
@@ -40,6 +47,9 @@ export const Dashboard = () => {
   const [requestToDelete, setRequestToDelete] = useState<Request | null>(null);
   const [activeAbsences, setActiveAbsences] = useState<Request[]>([]);
   const [pendingRegistrations, setPendingRegistrations] = useState(0);
+  const [teamUpcoming, setTeamUpcoming] = useState<
+    { id: string; nome: string; tipo: string; inicio: string; fim: string }[]
+  >([]);
   
   // Initialize birthday notifications for managers
   useBirthdayNotifications();
@@ -50,12 +60,60 @@ export const Dashboard = () => {
       fetchActiveAbsences();
       if (person.papel === 'GESTOR' || isManagementLevel(person)) {
         fetchPendingApprovals();
+        fetchTeamUpcomingAbsences();
       }
       if (isManagementLevel(person)) {
         fetchPendingRegistrations();
       }
     }
   }, [person]);
+
+  const fetchTeamUpcomingAbsences = async () => {
+    if (!person) return;
+    try {
+      const today = new Date().toISOString().split('T')[0];
+
+      let teamIds: string[] | null = null;
+      if (!isManagementLevel(person)) {
+        const { data: reports } = await supabase
+          .from('people')
+          .select('id')
+          .eq('gestor_id', person.id)
+          .eq('ativo', true);
+        teamIds = (reports || []).map(r => r.id);
+        if (teamIds.length === 0) {
+          setTeamUpcoming([]);
+          return;
+        }
+      }
+
+      let query = supabase
+        .from('requests')
+        .select('id, tipo, inicio, fim, requester_id, people!requests_requester_id_fkey(nome)')
+        .in('status', ['APROVADO_FINAL', 'REALIZADO'])
+        .in('tipo', ['FERIAS', 'LICENCA_MATERNIDADE', 'LICENCA_MEDICA', 'DAYOFF'])
+        .gte('inicio', today)
+        .order('inicio', { ascending: true })
+        .limit(20);
+
+      if (teamIds) query = query.in('requester_id', teamIds);
+
+      const { data, error } = await query;
+      if (error) throw error;
+
+      setTeamUpcoming(
+        (data || []).map((r: any) => ({
+          id: r.id,
+          nome: r.people?.nome || 'Colaborador',
+          tipo: r.tipo,
+          inicio: r.inicio,
+          fim: r.fim,
+        }))
+      );
+    } catch (err) {
+      console.error('Erro ao carregar ausências futuras do time:', err);
+    }
+  };
 
   // Listen for request status updates from other components (like Inbox)
   useEffect(() => {
@@ -661,28 +719,63 @@ export const Dashboard = () => {
               <div className="space-y-3">
                 {loading ? (
                   <p>Carregando...</p>
-                ) : futureApprovedRequests.length > 0 ? (
-                  futureApprovedRequests.slice(0, 5).map((request) => (
-                    <div key={request.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                      <div className="flex items-center gap-3">
-                        <div className={`w-2 h-8 rounded-full ${
-                          request.tipo === TipoAusencia.FERIAS ? "bg-primary" : "bg-status-in-review"
-                        }`} />
-                        <div>
-                          <p className="font-medium">{request.tipo === TipoAusencia.FERIAS ? "Férias" : "Day Off"}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {request.inicio ? request.inicio.toLocaleDateString("pt-BR") : "Data não definida"}
-                            {request.inicio && request.fim && request.inicio.getTime() !== request.fim.getTime() && 
-                              ` - ${request.fim.toLocaleDateString("pt-BR")}`
-                            }
-                          </p>
+                ) : futureApprovedRequests.length > 0 || teamUpcoming.length > 0 ? (
+                  <>
+                    {futureApprovedRequests.slice(0, 5).map((request) => (
+                      <div key={request.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-2 h-8 rounded-full ${
+                            request.tipo === TipoAusencia.FERIAS ? "bg-primary" : "bg-status-in-review"
+                          }`} />
+                          <div>
+                            <p className="font-medium">{request.tipo === TipoAusencia.FERIAS ? "Férias" : "Day Off"}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {request.inicio ? request.inicio.toLocaleDateString("pt-BR") : "Data não definida"}
+                              {request.inicio && request.fim && request.inicio.getTime() !== request.fim.getTime() && 
+                                ` - ${request.fim.toLocaleDateString("pt-BR")}`
+                              }
+                            </p>
+                          </div>
                         </div>
+                        <Badge variant="outline" className="bg-status-approved/10 text-status-approved">
+                          Aprovado
+                        </Badge>
                       </div>
-                      <Badge variant="outline" className="bg-status-approved/10 text-status-approved">
-                        Aprovado
-                      </Badge>
-                    </div>
-                  ))
+                    ))}
+
+                    {teamUpcoming.length > 0 && (
+                      <>
+                        <p className="pt-2 text-xs font-medium uppercase text-muted-foreground">
+                          Time
+                        </p>
+                        {teamUpcoming.slice(0, 8).map((absence) => (
+                          <div
+                            key={absence.id}
+                            onClick={() => navigate(`/requests/${absence.id}`)}
+                            className="flex cursor-pointer items-center justify-between p-3 bg-muted/50 rounded-lg"
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className={`w-2 h-8 rounded-full ${
+                                absence.tipo === 'FERIAS' ? "bg-primary" : "bg-status-in-review"
+                              }`} />
+                              <div>
+                                <p className="font-medium">{absence.nome}</p>
+                                <p className="text-sm text-muted-foreground">
+                                  {ABSENCE_LABELS[absence.tipo] || absence.tipo} •{" "}
+                                  {parseDateSafely(absence.inicio).toLocaleDateString("pt-BR")}
+                                  {absence.fim && absence.fim !== absence.inicio &&
+                                    ` - ${parseDateSafely(absence.fim).toLocaleDateString("pt-BR")}`}
+                                </p>
+                              </div>
+                            </div>
+                            <Badge variant="outline" className="bg-status-approved/10 text-status-approved">
+                              Aprovado
+                            </Badge>
+                          </div>
+                        ))}
+                      </>
+                    )}
+                  </>
                 ) : (
                   <p className="text-muted-foreground text-center py-4">
                     Nenhuma ausência futura aprovada encontrada.
