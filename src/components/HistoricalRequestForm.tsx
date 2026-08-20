@@ -16,6 +16,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { validateMaternityLeave, calculateMaternityEndDate, calculateExpectedDeliveryDate } from "@/lib/maternityLeaveUtils";
 import { MaternityLeaveValidation } from "@/lib/types";
 import { parseDateSafely } from "@/lib/dateUtils";
+import { findOverlappingOwnRequests, supersedeRequests, type OverlappingRequest } from "@/lib/requestOverlap";
+import { OverlappingRequestsDialog } from "@/components/OverlappingRequestsDialog";
+
 
 interface FormData {
   requesterId: string;
