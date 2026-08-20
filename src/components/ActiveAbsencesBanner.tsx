@@ -76,7 +76,8 @@ export function ActiveAbsencesBanner({ teamIds, onSeeDetails }: Props) {
       }
     };
     load();
-  }, [teamIds?.join(",")]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [teamIds === null ? "loading" : (teamIds || []).join(",")]);
 
   if (loading || absences.length === 0) return null;
 
