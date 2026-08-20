@@ -656,5 +656,6 @@ export const HistoricalRequestForm = ({ onSuccess }: HistoricalRequestFormProps)
         </form>
       </CardContent>
     </Card>
-  );
+    </>
+
 };
