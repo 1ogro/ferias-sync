@@ -179,10 +179,11 @@ export function ApprovedVacationsExecutiveView({ teamIds }: ApprovedVacationsExe
   };
 
   useEffect(() => {
-    if (user) {
+    if (user && teamIds !== null) {
       loadApprovedVacations();
     }
-  }, [user]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, teamIds === null ? "loading" : (teamIds || []).join(",")]);
 
   useEffect(() => {
     const fetchCurrentUserAndPeople = async () => {
