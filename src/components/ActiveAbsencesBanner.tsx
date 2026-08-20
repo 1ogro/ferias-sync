@@ -41,6 +41,7 @@ export function ActiveAbsencesBanner({ teamIds, onSeeDetails }: Props) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (teamIds === null) return; // escopo do time ainda carregando
     const load = async () => {
       try {
         setLoading(true);
