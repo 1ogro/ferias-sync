@@ -37,7 +37,8 @@ interface ActiveAbsence {
 }
 
 interface ActiveAbsencesDashboardProps {
-  teamIds?: string[];
+  /** undefined = sem filtro (diretoria) | null = escopo do time ainda carregando | string[] = ids do time */
+  teamIds?: string[] | null;
 }
 
 export function ActiveAbsencesDashboard({ teamIds }: ActiveAbsencesDashboardProps) {
@@ -48,10 +49,11 @@ export function ActiveAbsencesDashboard({ teamIds }: ActiveAbsencesDashboardProp
   const [selectedType, setSelectedType] = useState<string>("all");
 
   useEffect(() => {
-    if (user) {
+    if (user && teamIds !== null) {
       loadActiveAbsences();
     }
-  }, [user]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, teamIds === null ? "loading" : (teamIds || []).join(",")]);
 
   const loadActiveAbsences = async () => {
     try {
