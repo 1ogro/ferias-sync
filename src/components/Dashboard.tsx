@@ -27,6 +27,13 @@ import React from "react";
 import { useBirthdayNotifications } from "@/hooks/useBirthdayNotifications";
 import { EngagementSummaryCard } from "./EngagementSummaryCard";
 
+const ABSENCE_LABELS: Record<string, string> = {
+  FERIAS: "Férias",
+  DAYOFF: "Day Off",
+  LICENCA_MEDICA: "Lic. Médica",
+  LICENCA_MATERNIDADE: "Lic. Maternidade",
+};
+
 export const Dashboard = () => {
   const navigate = useNavigate();
   const { person } = useAuth();
