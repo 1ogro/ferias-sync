@@ -310,7 +310,7 @@ export type Database = {
         Row: {
           affects_team_capacity: boolean
           created_at: string
-          created_by: string
+          created_by: string | null
           end_date: string
           id: string
           justification: string | null
@@ -322,7 +322,7 @@ export type Database = {
         Insert: {
           affects_team_capacity?: boolean
           created_at?: string
-          created_by: string
+          created_by?: string | null
           end_date: string
           id?: string
           justification?: string | null
@@ -334,7 +334,7 @@ export type Database = {
         Update: {
           affects_team_capacity?: boolean
           created_at?: string
-          created_by?: string
+          created_by?: string | null
           end_date?: string
           id?: string
           justification?: string | null
@@ -1455,6 +1455,22 @@ export type Database = {
             Returns: Json
           }
       current_person_id: { Args: never; Returns: string }
+      deactivate_person: {
+        Args: {
+          p_justification?: string
+          p_new_manager_id?: string
+          p_person_id: string
+        }
+        Returns: Json
+      }
+      delete_person_permanently: {
+        Args: {
+          p_justification?: string
+          p_new_manager_id?: string
+          p_person_id: string
+        }
+        Returns: Json
+      }
       get_active_people_for_kudos: {
         Args: never
         Returns: {
