@@ -61,6 +61,7 @@ import {
   Search, 
   Edit, 
   Trash2, 
+  UserMinus,
   Filter, 
   X, 
   Download,
@@ -1601,8 +1602,59 @@ const Admin = () => {
             (p.papel === Papel.GESTOR || p.papel === Papel.DIRETOR) &&
             p.id !== reassignTarget?.id
         )}
-        onConfirm={handleReassignAndDelete}
+        onConfirm={handleReassignAndRemove}
       />
+
+      <AlertDialog
+        open={!!hardDeleteTarget}
+        onOpenChange={(o) => {
+          if (!o) {
+            setHardDeleteTarget(null);
+            setHardDeleteImpact(null);
+            setHardDeleteJustification('');
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir definitivamente</AlertDialogTitle>
+            <AlertDialogDescription className="whitespace-pre-line">
+              {hardDeleteTarget?.nome} será removido permanentemente e esta ação não pode ser desfeita.
+              {describeCascade(hardDeleteImpact)}
+              {'\n\nPrefira inativar para preservar o histórico.'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="hard-delete-justification">Justificativa (obrigatória)</Label>
+            <Textarea
+              id="hard-delete-justification"
+              value={hardDeleteJustification}
+              onChange={(e) => setHardDeleteJustification(e.target.value)}
+              placeholder="Descreva o motivo da exclusão definitiva"
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={hardDeleteJustification.trim().length < 5}
+              onClick={async () => {
+                if (!hardDeleteTarget) return;
+                try {
+                  await runRemoval(hardDeleteTarget.id, 'hard', hardDeleteJustification.trim());
+                } catch (error: any) {
+                  toast({ title: 'Erro', description: friendlyError(error), variant: 'destructive' });
+                }
+                setHardDeleteTarget(null);
+                setHardDeleteImpact(null);
+                setHardDeleteJustification('');
+              }}
+            >
+              Excluir definitivamente
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       </div>
     </div>
   );
