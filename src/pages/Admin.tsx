@@ -130,6 +130,9 @@ const Admin = () => {
   const [originalEditData, setOriginalEditData] = useState<{ papel: string; ativo: boolean; nome: string; email: string } | null>(null);
   const [reassignTarget, setReassignTarget] = useState<Person | null>(null);
   const [reassignImpact, setReassignImpact] = useState<DeletionImpact | null>(null);
+  const [removalMode, setRemovalMode] = useState<'deactivate' | 'hard'>('deactivate');
+  const [hardDeleteTarget, setHardDeleteTarget] = useState<Person | null>(null);
+  const [hardDeleteImpact, setHardDeleteImpact] = useState<DeletionImpact | null>(null);
   
    const [formData, setFormData] = useState<FormData>({
      id: '',
