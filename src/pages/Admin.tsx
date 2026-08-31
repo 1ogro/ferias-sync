@@ -134,6 +134,7 @@ const Admin = () => {
   const [removalMode, setRemovalMode] = useState<'deactivate' | 'hard'>('deactivate');
   const [hardDeleteTarget, setHardDeleteTarget] = useState<Person | null>(null);
   const [hardDeleteImpact, setHardDeleteImpact] = useState<DeletionImpact | null>(null);
+  const [hardDeleteJustification, setHardDeleteJustification] = useState('');
   
    const [formData, setFormData] = useState<FormData>({
      id: '',
