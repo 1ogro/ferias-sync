@@ -421,12 +421,72 @@ const Admin = () => {
     setIsDialogOpen(true);
   };
 
-  const handleDelete = async (id: string) => {
+  const describeCascade = (impact: DeletionImpact | null) => {
+    const c = (impact as any)?.cascade_counts;
+    if (!c) return '';
+    const parts: string[] = [];
+    if (c.requests) parts.push(`${c.requests} solicitação(ões)`);
+    if (c.pulse_responses) parts.push(`${c.pulse_responses} resposta(s) de pulse`);
+    if (c.pulse_surveys) parts.push(`${c.pulse_surveys} pesquisa(s) criada(s)`);
+    if (c.medical_leaves) parts.push(`${c.medical_leaves} licença(s) médica(s)`);
+    if (c.special_approvals) parts.push(`${c.special_approvals} aprovação(ões) especial(is)`);
+    if (c.kudos) parts.push(`${c.kudos} kudo(s)`);
+    if (c.engagement_points) parts.push(`${c.engagement_points} ponto(s) de engajamento`);
+    return parts.length ? `\n\nSerão removidos junto: ${parts.join(', ')}.` : '';
+  };
+
+  const friendlyError = (error: any) => {
+    if (error?.code === '23503') {
+      return 'Ainda existem registros vinculados a este colaborador. Use a inativação para preservar o histórico.';
+    }
+    return error?.message || 'Erro ao processar a solicitação';
+  };
+
+  const runRemoval = async (
+    id: string,
+    mode: 'deactivate' | 'hard',
+    justification?: string,
+    newManagerId?: string
+  ) => {
+    const targetPerson = people.find((p) => p.id === id);
+    const rpcName = mode === 'hard' ? 'delete_person_permanently' : 'deactivate_person';
+    const { data, error } = await (supabase as any).rpc(rpcName, {
+      p_person_id: id,
+      p_justification: justification || null,
+      p_new_manager_id: newManagerId || null,
+    });
+    if (error) throw error;
+    const result = data as any;
+    if (!result?.success) throw new Error(result?.message || 'Não foi possível concluir a ação');
+
+    sendAdminNotification({
+      change_type: mode === 'hard' ? 'deletion' : 'update',
+      person_id: id,
+      target_name: targetPerson?.nome || id,
+      target_email: targetPerson?.email || '',
+      details: {
+        action: mode === 'hard' ? 'hard_delete' : 'deactivate',
+        justification,
+        reassigned_to: newManagerId,
+      },
+    });
+
+    toast({
+      title: 'Sucesso',
+      description:
+        mode === 'hard'
+          ? 'Colaborador excluído definitivamente.'
+          : 'Colaborador inativado. O histórico foi preservado.',
+    });
+
+    fetchPeople();
+  };
+
+  const handleRemovePerson = async (id: string, mode: 'deactivate' | 'hard') => {
     const targetPerson = people.find(p => p.id === id);
     if (!targetPerson) return;
 
     try {
-      // Check deletion impact first
       const { data: impactData, error: impactError } = await supabase
         .rpc('get_manager_deletion_impact', { p_person_id: id });
 
@@ -436,93 +496,51 @@ const Admin = () => {
       const total = impact.counts.subordinates + impact.counts.pending_requests + impact.counts.pending_people;
 
       if (total > 0) {
-        // Open reassignment flow
+        // Precisa reatribuir time/pendências antes
+        setRemovalMode(mode);
         setReassignImpact(impact);
         setReassignTarget(targetPerson);
         setDeleteId(null);
         return;
       }
 
-      // No pendencies: proceed with direct deletion
-      const { error } = await supabase
-        .from('people')
-        .delete()
-        .eq('id', id);
+      if (mode === 'hard') {
+        setHardDeleteTarget(targetPerson);
+        setHardDeleteImpact(impact);
+        return;
+      }
 
-      if (error) throw error;
-
-      sendAdminNotification({
-        change_type: 'deletion',
-        person_id: id,
-        target_name: targetPerson.nome,
-        target_email: targetPerson.email,
-      });
-
-      toast({
-        title: "Sucesso",
-        description: "Pessoa excluída com sucesso!",
-      });
-
-      fetchPeople();
+      await runRemoval(id, 'deactivate');
     } catch (error: any) {
-      console.error('Erro ao excluir:', error);
+      console.error('Erro ao remover pessoa:', error);
       toast({
-        title: "Erro",
-        description: error.message || "Erro ao excluir pessoa",
-        variant: "destructive",
+        title: 'Erro',
+        description: friendlyError(error),
+        variant: 'destructive',
       });
     }
     setDeleteId(null);
   };
 
-  const handleReassignAndDelete = async (newManagerId: string, justification: string) => {
+  const handleReassignAndRemove = async (newManagerId: string, justification: string) => {
     if (!reassignTarget) return;
     try {
-      const { data, error } = await supabase.rpc('reassign_and_delete_person', {
-        p_person_id: reassignTarget.id,
-        p_new_manager_id: newManagerId,
-        p_justification: justification || null,
-      });
-
-      if (error) throw error;
-      const result = data as any;
-      if (!result?.success) {
-        throw new Error(result?.message || 'Erro ao reatribuir e excluir');
+      if (removalMode === 'hard' && (!justification || justification.trim().length < 5)) {
+        throw new Error('Justificativa obrigatória para exclusão definitiva');
       }
-
-      const newManager = people.find(p => p.id === newManagerId);
-      const counts = result.counts || {};
-
-      sendAdminNotification({
-        change_type: 'deletion',
-        person_id: reassignTarget.id,
-        target_name: reassignTarget.nome,
-        target_email: reassignTarget.email,
-        details: {
-          reassigned_to: newManager?.nome,
-          subordinates: counts.subordinates,
-          pending_requests: counts.pending_requests,
-          pending_people: counts.pending_people,
-        },
-      });
-
-      toast({
-        title: 'Equipe reatribuída',
-        description: `${counts.subordinates || 0} subordinado(s), ${counts.pending_requests || 0} solicitação(ões) e ${counts.pending_people || 0} cadastro(s) pendente(s) reatribuídos a ${newManager?.nome || 'novo gestor'}.`,
-      });
-
+      await runRemoval(reassignTarget.id, removalMode, justification, newManagerId);
       setReassignTarget(null);
       setReassignImpact(null);
-      fetchPeople();
     } catch (error: any) {
-      console.error('Erro ao reatribuir e excluir:', error);
+      console.error('Erro ao reatribuir e remover:', error);
       toast({
         title: 'Erro',
-        description: error.message || 'Erro ao reatribuir e excluir',
+        description: friendlyError(error),
         variant: 'destructive',
       });
     }
   };
+
 
 
 
