@@ -1029,7 +1029,7 @@ const Admin = () => {
                            </Tooltip>
                          </TooltipProvider>
                          
-                         <AlertDialog>
+                          <AlertDialog>
                            <TooltipProvider>
                              <Tooltip>
                                <TooltipTrigger asChild>
@@ -1037,34 +1037,60 @@ const Admin = () => {
                                    <Button 
                                      variant="outline" 
                                      size="sm"
-                                     disabled={!canEditUser(person, targetPerson)}
+                                     disabled={!canEditUser(person, targetPerson) || !targetPerson.ativo}
                                    >
-                                     <Trash2 className="h-4 w-4" />
+                                     <UserMinus className="h-4 w-4" />
                                    </Button>
                                  </AlertDialogTrigger>
                                </TooltipTrigger>
-                               {!canEditUser(person, targetPerson) && (
-                                 <TooltipContent>
-                                   <p>Apenas DIRETOREs podem excluir outros DIRETOREs</p>
-                                 </TooltipContent>
-                               )}
+                               <TooltipContent>
+                                 <p>
+                                   {!canEditUser(person, targetPerson)
+                                     ? 'Apenas DIRETOREs podem remover outros DIRETOREs'
+                                     : !targetPerson.ativo
+                                       ? 'Colaborador já está inativo'
+                                       : 'Inativar colaborador (preserva histórico)'}
+                                 </p>
+                               </TooltipContent>
                              </Tooltip>
                            </TooltipProvider>
                            <AlertDialogContent>
                              <AlertDialogHeader>
-                               <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
+                               <AlertDialogTitle>Inativar colaborador</AlertDialogTitle>
                                <AlertDialogDescription>
-                                 Tem certeza que deseja excluir {targetPerson.nome}? Esta ação não pode ser desfeita.
+                                 {targetPerson.nome} deixará de aparecer nas listas ativas, mas todo o histórico será preservado. É possível reativar depois pela edição.
                                </AlertDialogDescription>
                              </AlertDialogHeader>
                              <AlertDialogFooter>
                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                               <AlertDialogAction onClick={() => handleDelete(targetPerson.id)}>
-                                 Excluir
+                               <AlertDialogAction onClick={() => handleRemovePerson(targetPerson.id, 'deactivate')}>
+                                 Inativar
                                </AlertDialogAction>
                              </AlertDialogFooter>
                            </AlertDialogContent>
                           </AlertDialog>
+
+                          {person?.is_admin && (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="text-destructive hover:text-destructive"
+                                    disabled={!canEditUser(person, targetPerson)}
+                                    onClick={() => handleRemovePerson(targetPerson.id, 'hard')}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>Excluir definitivamente (apenas admin)</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
+
 
                           {isDirector && (
                             <>
