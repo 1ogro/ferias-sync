@@ -199,6 +199,104 @@ export type Database = {
           },
         ]
       }
+      external_feedback_attachments: {
+        Row: {
+          created_at: string
+          feedback_id: string
+          file_name: string
+          id: string
+          mime_type: string | null
+          size_bytes: number | null
+          storage_path: string
+        }
+        Insert: {
+          created_at?: string
+          feedback_id: string
+          file_name: string
+          id?: string
+          mime_type?: string | null
+          size_bytes?: number | null
+          storage_path: string
+        }
+        Update: {
+          created_at?: string
+          feedback_id?: string
+          file_name?: string
+          id?: string
+          mime_type?: string | null
+          size_bytes?: number | null
+          storage_path?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "external_feedback_attachments_feedback_id_fkey"
+            columns: ["feedback_id"]
+            isOneToOne: false
+            referencedRelation: "external_feedbacks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      external_feedbacks: {
+        Row: {
+          author_id: string | null
+          channel: string
+          content: string
+          created_at: string
+          feedback_date: string
+          id: string
+          person_id: string
+          stakeholder_name: string
+          stakeholder_org: string | null
+          tone: string
+          updated_at: string
+          visible_to_subject: boolean
+        }
+        Insert: {
+          author_id?: string | null
+          channel?: string
+          content: string
+          created_at?: string
+          feedback_date?: string
+          id?: string
+          person_id: string
+          stakeholder_name: string
+          stakeholder_org?: string | null
+          tone?: string
+          updated_at?: string
+          visible_to_subject?: boolean
+        }
+        Update: {
+          author_id?: string | null
+          channel?: string
+          content?: string
+          created_at?: string
+          feedback_date?: string
+          id?: string
+          person_id?: string
+          stakeholder_name?: string
+          stakeholder_org?: string | null
+          tone?: string
+          updated_at?: string
+          visible_to_subject?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "external_feedbacks_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "external_feedbacks_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       integration_settings: {
         Row: {
           configured_at: string | null
@@ -1476,6 +1574,10 @@ export type Database = {
         Args: { _person_id: string }
         Returns: boolean
       }
+      can_manage_person_feedback: {
+        Args: { _person_id: string }
+        Returns: boolean
+      }
       can_review_data_change: { Args: { _person_id: string }; Returns: boolean }
       cancel_data_change: { Args: { p_request_id: string }; Returns: Json }
       cancel_payment_day_change: {
@@ -1603,6 +1705,29 @@ export type Database = {
       get_manager_deletion_impact: {
         Args: { p_person_id: string }
         Returns: Json
+      }
+      get_people_in_my_feedback_scope: {
+        Args: never
+        Returns: {
+          cargo: string
+          id: string
+          nome: string
+          sub_time: string
+        }[]
+      }
+      get_person_feedback_timeline: {
+        Args: { p_person_id: string; p_since?: string }
+        Returns: {
+          attachments: Json
+          author_label: string
+          content: string
+          id: string
+          kind: string
+          occurred_at: string
+          tag: string
+          title: string
+          visible_to_subject: boolean
+        }[]
       }
       get_pulse_checkin_averages: {
         Args: never
