@@ -147,8 +147,8 @@ export const HistoricalRequestForm = ({ onSuccess }: HistoricalRequestFormProps)
         .eq('ativo', true);
 
       // Gerente (não diretor/admin) só enxerga o próprio sub-time
-      if (person && !isDirectorOrAdmin(person) && person.papel === 'GERENTE' && person.sub_time) {
-        query = query.eq('sub_time', person.sub_time);
+      if (person && !isDirectorOrAdmin(person) && person.papel === 'GERENTE' && person.subTime) {
+        query = query.eq('sub_time', person.subTime);
       }
 
       const { data, error } = await query.order('nome');
