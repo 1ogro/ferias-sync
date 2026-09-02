@@ -33,6 +33,9 @@ export function ExternalFeedbackDialog({
   const [content, setContent] = useState("");
   const [visible, setVisible] = useState(false);
   const [files, setFiles] = useState<File[]>([]);
+  const [links, setLinks] = useState<FeedbackLinkInput[]>([]);
+  const [linkUrl, setLinkUrl] = useState("");
+  const [linkLabel, setLinkLabel] = useState("");
 
   const reset = () => {
     setPersonId(defaultPersonId ?? "");
