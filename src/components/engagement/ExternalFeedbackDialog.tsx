@@ -189,6 +189,40 @@ export function ExternalFeedbackDialog({
                 ))}
               </ul>
             )}
+            <p className="mt-1 text-xs text-muted-foreground">Arquivos maiores? Suba no Drive/SharePoint/Dropbox e cole o link abaixo.</p>
+          </div>
+
+          <div>
+            <Label className="flex items-center gap-2"><Link2 className="h-4 w-4" /> Links (Drive, SharePoint, Dropbox...)</Label>
+            <div className="grid grid-cols-[1fr_auto] gap-2 mt-1">
+              <Input
+                value={linkUrl}
+                onChange={(e) => setLinkUrl(e.target.value)}
+                placeholder="https://drive.google.com/..."
+                maxLength={1000}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addLink(); } }}
+              />
+              <Button type="button" variant="outline" onClick={addLink}>Adicionar</Button>
+            </div>
+            <Input
+              className="mt-2"
+              value={linkLabel}
+              onChange={(e) => setLinkLabel(e.target.value)}
+              placeholder="Rótulo do link (opcional)"
+              maxLength={120}
+            />
+            {links.length > 0 && (
+              <ul className="mt-2 space-y-1">
+                {links.map((l, i) => (
+                  <li key={`${l.url}-${i}`} className="flex items-center justify-between text-xs bg-muted/50 rounded px-2 py-1">
+                    <span className="truncate">{l.label || l.url}</span>
+                    <button type="button" onClick={() => setLinks(links.filter((_, idx) => idx !== i))} aria-label={`Remover ${l.url}`}>
+                      <X className="h-3 w-3" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
 
           <div className="flex items-center justify-between rounded-lg border p-3">
