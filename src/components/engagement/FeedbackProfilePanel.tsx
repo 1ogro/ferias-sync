@@ -199,9 +199,13 @@ export function FeedbackProfilePanel({ authorId }: { authorId?: string }) {
 
                       {it.attachments.length > 0 && (
                         <div className="flex flex-wrap gap-2 pt-1">
-                          {it.attachments.map((a) => (
-                            <AttachmentLink key={a.id} path={a.storage_path} name={a.file_name} />
-                          ))}
+                          {it.attachments.map((a) =>
+                            a.kind === "link" || (!a.storage_path && a.external_url) ? (
+                              <ExternalUrlLink key={a.id} url={a.external_url!} name={a.file_name} />
+                            ) : (
+                              <AttachmentLink key={a.id} path={a.storage_path!} name={a.file_name} />
+                            )
+                          )}
                         </div>
                       )}
 
