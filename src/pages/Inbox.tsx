@@ -384,6 +384,7 @@ const Inbox = () => {
     if (person) {
       console.log('Person available, fetching pending requests');
       fetchPendingRequests();
+      fetchDataChangeRequests();
       if (isManagementLevel(person)) {
         fetchPendingPeople();
         fetchPaymentDayRequests();
@@ -391,6 +392,7 @@ const Inbox = () => {
       } else {
         setPendingPeopleLoading(false);
       }
+
     } else {
       console.log('No person found, setting loading to false');
       setLoading(false);
