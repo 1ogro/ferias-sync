@@ -413,6 +413,101 @@ export const ProfileModal = ({ open, onOpenChange }: ProfileModalProps) => {
 
           <Separator />
 
+          {/* Contract data change request */}
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Dados contratuais</Label>
+            <div className="flex items-center gap-2 flex-wrap">
+              <Badge variant="secondary" className="text-sm">
+                {person?.data_contrato
+                  ? `Contrato: ${formatDateToBRString(parseDateSafely(person.data_contrato))}`
+                  : 'Contrato: não definido'}
+              </Badge>
+              <Badge variant="secondary" className="text-sm">
+                {person?.modelo_contrato || 'Modelo não definido'}
+              </Badge>
+            </div>
+            {pendingDataChange ? (
+              <div className="flex items-center gap-2 flex-wrap">
+                <Badge variant="outline" className="text-xs">Solicitação de alteração pendente</Badge>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="text-xs"
+                  disabled={cancellingDataChange}
+                  onClick={handleCancelDataChange}
+                >
+                  {cancellingDataChange ? "Cancelando..." : "Cancelar solicitação"}
+                </Button>
+              </div>
+            ) : !showDataChange ? (
+              <Button type="button" variant="ghost" size="sm" className="text-xs" onClick={() => setShowDataChange(true)}>
+                Solicitar alteração
+              </Button>
+            ) : (
+              <div className="space-y-2 p-3 rounded-md border bg-muted/50">
+                <div className="space-y-1">
+                  <Label className="text-xs">Nova data de contrato</Label>
+                  <Input
+                    placeholder="DD/MM/AAAA"
+                    value={requestContractDate}
+                    onChange={(e) => setRequestContractDate(applyDateMask(e.target.value))}
+                    maxLength={10}
+                    className="h-8"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Modelo de contrato</Label>
+                  <Select value={requestContractModel} onValueChange={setRequestContractModel}>
+                    <SelectTrigger className="h-8">
+                      <SelectValue placeholder="Manter atual" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="CLT">CLT</SelectItem>
+                      <SelectItem value="PJ">PJ</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Justificativa (opcional)</Label>
+                  <Input
+                    value={dataChangeJustification}
+                    onChange={(e) => setDataChangeJustification(e.target.value)}
+                    placeholder="Motivo da alteração"
+                    className="h-8"
+                  />
+                </div>
+                <div className="flex gap-2 justify-end">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-8"
+                    onClick={() => { setShowDataChange(false); setRequestContractDate(""); setRequestContractModel(""); setDataChangeJustification(""); }}
+                  >
+                    Cancelar
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="h-8"
+                    disabled={requestingDataChange || (!requestContractDate && !requestContractModel)}
+                    onClick={handleRequestDataChange}
+                  >
+                    <Send className="h-3 w-3 mr-1" />
+                    {requestingDataChange ? "Enviando..." : "Enviar solicitação"}
+                  </Button>
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  A alteração só será aplicada após aprovação do gerente ou diretor.
+                </p>
+              </div>
+            )}
+          </div>
+
+          <Separator />
+
+
           {/* Auth Methods Section */}
           <div className="space-y-3">
             <Label className="text-sm font-medium">Métodos de Login</Label>
