@@ -156,8 +156,18 @@ export function FeedbackProfilePanel({ authorId }: { authorId?: string }) {
             <ScrollArea className="h-[28rem] pr-3">
               {isLoading ? (
                 <p className="text-sm text-muted-foreground">Carregando feedbacks...</p>
+              ) : isError ? (
+                <div className="space-y-2">
+                  <p className="text-sm text-destructive">
+                    Não foi possível carregar os feedbacks: {(error as any)?.message ?? "erro desconhecido"}
+                  </p>
+                  <Button size="sm" variant="outline" onClick={() => refetch()} disabled={isFetching}>
+                    {isFetching ? "Tentando..." : "Tentar novamente"}
+                  </Button>
+                </div>
               ) : filtered.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Nenhum feedback no recorte selecionado.</p>
+
               ) : (
                 <ul className="space-y-3">
                   {filtered.map((it) => (
