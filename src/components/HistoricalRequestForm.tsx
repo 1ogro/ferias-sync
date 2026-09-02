@@ -18,6 +18,8 @@ import { MaternityLeaveValidation } from "@/lib/types";
 import { parseDateSafely } from "@/lib/dateUtils";
 import { findOverlappingOwnRequests, supersedeRequests, type OverlappingRequest } from "@/lib/requestOverlap";
 import { OverlappingRequestsDialog } from "@/components/OverlappingRequestsDialog";
+import { isManagementLevel, isDirectorOrAdmin } from "@/lib/utils";
+
 
 
 interface FormData {
@@ -139,14 +141,21 @@ export const HistoricalRequestForm = ({ onSuccess }: HistoricalRequestFormProps)
 
   const fetchPeople = async () => {
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('people')
         .select('id, nome, email, cargo, sub_time')
-        .eq('ativo', true)
-        .order('nome');
+        .eq('ativo', true);
+
+      // Gerente (não diretor/admin) só enxerga o próprio sub-time
+      if (person && !isDirectorOrAdmin(person) && person.papel === 'GERENTE' && person.sub_time) {
+        query = query.eq('sub_time', person.sub_time);
+      }
+
+      const { data, error } = await query.order('nome');
 
       if (error) throw error;
       setPeople(data || []);
+
     } catch (error) {
       console.error('Error fetching people:', error);
       toast({
@@ -170,14 +179,15 @@ export const HistoricalRequestForm = ({ onSuccess }: HistoricalRequestFormProps)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!person || person.papel !== 'DIRETOR') {
+    if (!isManagementLevel(person)) {
       toast({
         variant: 'destructive',
         title: 'Erro de autorização',
-        description: 'Apenas diretores podem cadastrar solicitações históricas.',
+        description: 'Apenas diretores e gerentes podem cadastrar solicitações históricas.',
       });
       return;
     }
+
 
     // Bloqueia recadastro retroativo sobreposto a um pedido já existente
     if (formData.requesterId && formData.inicio && formData.fim) {
