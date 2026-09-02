@@ -77,8 +77,11 @@ export function ReassignManagerDialog({
 
   if (!target || !impact) return null;
 
+  const isHard = mode === "hard";
+  const justificationValid = !isHard || justification.trim().length >= 5;
+
   const handleConfirm = async () => {
-    if (!newManagerId) return;
+    if (!newManagerId || !justificationValid) return;
     setSubmitting(true);
     try {
       await onConfirm(newManagerId, justification.trim());
