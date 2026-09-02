@@ -92,7 +92,24 @@ export function FeedbackProfilePanel({ authorId }: { authorId?: string }) {
     [items, kind]
   );
 
+  const contributors = useMemo(() => {
+    const map = new Map<string, { name: string; count: number; last: string }>();
+    items
+      .filter((i) => i.kind === "external" && i.author_label)
+      .forEach((i) => {
+        const name = i.author_label as string;
+        const prev = map.get(name);
+        if (!prev) map.set(name, { name, count: 1, last: i.occurred_at });
+        else {
+          prev.count += 1;
+          if (new Date(i.occurred_at) > new Date(prev.last)) prev.last = i.occurred_at;
+        }
+      });
+    return Array.from(map.values()).sort((a, b) => +new Date(b.last) - +new Date(a.last));
+  }, [items]);
+
   const selectedPerson = people.find((p) => p.id === personId);
+
 
   return (
     <div className="space-y-4">
