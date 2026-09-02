@@ -97,7 +97,8 @@ export const HistoricalRequestForm = ({ onSuccess }: HistoricalRequestFormProps)
 
   useEffect(() => {
     fetchPeople();
-  }, []);
+  }, [person?.id]);
+
 
   // Validar licença maternidade quando tipo, início ou data prevista mudam
   useEffect(() => {
