@@ -144,7 +144,23 @@ export const ProfileModal = ({ open, onOpenChange }: ProfileModalProps) => {
           .maybeSingle();
         setPendingPaymentRequest(data || null);
       })();
+      setShowDataChange(false);
+      setRequestContractDate("");
+      setRequestContractModel("");
+      setDataChangeJustification("");
+      (async () => {
+        const { data } = await (supabase as any)
+          .from('data_change_requests')
+          .select('id')
+          .eq('person_id', person.id)
+          .eq('status', 'PENDENTE')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        setPendingDataChange(data || null);
+      })();
     }
+
   }, [person, open]);
 
 
