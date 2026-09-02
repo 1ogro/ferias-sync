@@ -27,7 +27,7 @@ const Inbox = () => {
   const [pendingPeopleLoading, setPendingPeopleLoading] = useState(true);
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [currentUserPerson, setCurrentUserPerson] = useState<any>(null);
-  const [selectedTab, setSelectedTab] = useState<"requests" | "registrations" | "payment_days">("requests");
+  const [selectedTab, setSelectedTab] = useState<"requests" | "registrations" | "payment_days" | "data_changes">("requests");
   const [selectedPending, setSelectedPending] = useState<PendingPerson | null>(null);
   const [approveDialogOpen, setApproveDialogOpen] = useState(false);
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
@@ -44,6 +44,71 @@ const Inbox = () => {
   }>>([]);
   const [paymentReviewNotes, setPaymentReviewNotes] = useState<Record<string, string>>({});
   const [processingPaymentId, setProcessingPaymentId] = useState<string | null>(null);
+  const [dataChangeRequests, setDataChangeRequests] = useState<Array<{
+    id: string;
+    person_id: string;
+    person_nome: string;
+    requested_by_nome: string;
+    kind: string;
+    changes: Record<string, any>;
+    justification: string | null;
+    created_at: string;
+  }>>([]);
+  const [dataChangeNotes, setDataChangeNotes] = useState<Record<string, string>>({});
+  const [processingDataChangeId, setProcessingDataChangeId] = useState<string | null>(null);
+
+  const fetchDataChangeRequests = async () => {
+    const { data, error } = await (supabase as any)
+      .from('data_change_requests')
+      .select('id, person_id, requested_by, kind, changes, justification, created_at, person:people!data_change_requests_person_id_fkey(nome), requester:people!data_change_requests_requested_by_fkey(nome)')
+      .eq('status', 'PENDENTE')
+      .order('created_at', { ascending: false });
+    if (error) {
+      console.error('Error fetching data change requests:', error);
+      return;
+    }
+    setDataChangeRequests((data || []).map((r: any) => ({
+      id: r.id,
+      person_id: r.person_id,
+      person_nome: r.person?.nome || r.person_id,
+      requested_by_nome: r.requester?.nome || r.requested_by,
+      kind: r.kind,
+      changes: r.changes || {},
+      justification: r.justification,
+      created_at: r.created_at,
+    })));
+  };
+
+  const handleReviewDataChange = async (id: string, approve: boolean) => {
+    setProcessingDataChangeId(id);
+    try {
+      const { data, error } = await (supabase as any).rpc('review_data_change', {
+        p_request_id: id,
+        p_approve: approve,
+        p_notes: dataChangeNotes[id] || null,
+      });
+      if (error) throw error;
+      const result = data as { success: boolean; message?: string };
+      if (!result?.success) throw new Error(result?.message || 'Falha ao revisar');
+      toast({ title: approve ? 'Alteração aprovada' : 'Alteração rejeitada' });
+      fetchDataChangeRequests();
+    } catch (error: any) {
+      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+    } finally {
+      setProcessingDataChangeId(null);
+    }
+  };
+
+  const DATA_CHANGE_LABELS: Record<string, string> = {
+    data_contrato: 'Data de contrato',
+    modelo_contrato: 'Modelo de contrato',
+    data_nascimento: 'Data de nascimento',
+    cargo: 'Cargo',
+    sub_time: 'Sub-time',
+    local: 'Local',
+    dia_pagamento: 'Dia de pagamento',
+  };
+
 
 
   const fetchPendingRequests = async () => {
@@ -319,6 +384,7 @@ const Inbox = () => {
     if (person) {
       console.log('Person available, fetching pending requests');
       fetchPendingRequests();
+      fetchDataChangeRequests();
       if (isManagementLevel(person)) {
         fetchPendingPeople();
         fetchPaymentDayRequests();
@@ -326,6 +392,7 @@ const Inbox = () => {
       } else {
         setPendingPeopleLoading(false);
       }
+
     } else {
       console.log('No person found, setting loading to false');
       setLoading(false);
@@ -633,7 +700,10 @@ const Inbox = () => {
   };
 
   const isDirectorOrAdmin = isManagementLevel(person);
-  const showTabs = isDirectorOrAdmin && (pendingPeople.length > 0 || paymentDayRequests.length > 0);
+  const showTabs =
+    (isDirectorOrAdmin && (pendingPeople.length > 0 || paymentDayRequests.length > 0)) ||
+    dataChangeRequests.length > 0;
+
 
 
   return (
@@ -663,25 +733,40 @@ const Inbox = () => {
                 <Badge variant="secondary" className="ml-2">{pendingRequests.length}</Badge>
               )}
             </Button>
-            <Button
-              variant={selectedTab === "registrations" ? "default" : "ghost"}
-              onClick={() => setSelectedTab("registrations")}
-              className="flex-1"
-            >
-              <UserPlus className="w-4 h-4 mr-2" />
-              Cadastros Pendentes
-              <Badge variant="secondary" className="ml-2">{pendingPeople.length}</Badge>
-            </Button>
-            <Button
-              variant={selectedTab === "payment_days" ? "default" : "ghost"}
-              onClick={() => setSelectedTab("payment_days")}
-              className="flex-1"
-            >
-              Dia de Pagamento
-              <Badge variant="secondary" className="ml-2">{paymentDayRequests.length}</Badge>
-            </Button>
+            {isDirectorOrAdmin && (
+              <Button
+                variant={selectedTab === "registrations" ? "default" : "ghost"}
+                onClick={() => setSelectedTab("registrations")}
+                className="flex-1"
+              >
+                <UserPlus className="w-4 h-4 mr-2" />
+                Cadastros Pendentes
+                <Badge variant="secondary" className="ml-2">{pendingPeople.length}</Badge>
+              </Button>
+            )}
+            {isDirectorOrAdmin && (
+              <Button
+                variant={selectedTab === "payment_days" ? "default" : "ghost"}
+                onClick={() => setSelectedTab("payment_days")}
+                className="flex-1"
+              >
+                Dia de Pagamento
+                <Badge variant="secondary" className="ml-2">{paymentDayRequests.length}</Badge>
+              </Button>
+            )}
+            {dataChangeRequests.length > 0 && (
+              <Button
+                variant={selectedTab === "data_changes" ? "default" : "ghost"}
+                onClick={() => setSelectedTab("data_changes")}
+                className="flex-1"
+              >
+                Alterações de Dados
+                <Badge variant="secondary" className="ml-2">{dataChangeRequests.length}</Badge>
+              </Button>
+            )}
           </div>
         )}
+
 
 
         {/* Requests tab */}
@@ -897,6 +982,82 @@ const Inbox = () => {
             )}
           </>
         )}
+
+        {/* Data change requests tab */}
+        {selectedTab === "data_changes" && (
+          <>
+            {dataChangeRequests.length > 0 ? (
+              <div className="space-y-4">
+                {dataChangeRequests.map((req) => (
+                  <Card key={req.id}>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base">
+                        {req.person_nome}{" "}
+                        <span className="text-muted-foreground font-normal text-sm">
+                          — alteração de dados solicitada por {req.requested_by_nome}
+                        </span>
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <div className="text-sm space-y-1">
+                        {Object.entries(req.changes).map(([key, value]) => (
+                          <div key={key}>
+                            <span className="font-medium">{DATA_CHANGE_LABELS[key] || key}:</span>{" "}
+                            {value === null || value === "" ? "—" : String(value)}
+                          </div>
+                        ))}
+                      </div>
+                      {req.justification && (
+                        <p className="text-sm">
+                          <span className="font-medium">Justificativa:</span> {req.justification}
+                        </p>
+                      )}
+                      <p className="text-xs text-muted-foreground">
+                        Solicitado em {new Date(req.created_at).toLocaleString('pt-BR')}
+                      </p>
+                      <Textarea
+                        placeholder="Observações (opcional)"
+                        value={dataChangeNotes[req.id] || ""}
+                        onChange={(e) => setDataChangeNotes(prev => ({ ...prev, [req.id]: e.target.value }))}
+                        className="min-h-[60px]"
+                      />
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          disabled={processingDataChangeId !== null}
+                          onClick={() => handleReviewDataChange(req.id, true)}
+                          className="bg-status-approved hover:bg-status-approved/90 text-white"
+                        >
+                          <CheckCircle className="w-4 h-4 mr-1" />
+                          {processingDataChangeId === req.id ? 'Aprovando...' : 'Aprovar'}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={processingDataChangeId !== null}
+                          onClick={() => handleReviewDataChange(req.id, false)}
+                          className="border-status-rejected text-status-rejected hover:bg-status-rejected/10"
+                        >
+                          <XCircle className="w-4 h-4 mr-1" />
+                          Rejeitar
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : (
+              <Card className="p-8 text-center">
+                <InboxIcon className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-medium mb-2">Nenhuma solicitação pendente</h3>
+                <p className="text-muted-foreground">
+                  Não há solicitações de alteração de dados no momento.
+                </p>
+              </Card>
+            )}
+          </>
+        )}
+
 
       </main>
 

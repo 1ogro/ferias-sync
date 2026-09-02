@@ -4,14 +4,17 @@ import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { Navigate } from "react-router-dom";
+import { isManagementLevel } from "@/lib/utils";
+
 
 const HistoricalRequests = () => {
   const { person } = useAuth();
 
-  // Only allow directors to access this page
-  if (!person || person.papel !== 'DIRETOR') {
+  // Directors, admins and sub-team managers (Gerente) can access this page
+  if (!isManagementLevel(person)) {
     return <Navigate to="/" replace />;
   }
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/30">

@@ -47,6 +47,69 @@ export const ProfileModal = ({ open, onOpenChange }: ProfileModalProps) => {
   const [confirmNewPassword, setConfirmNewPassword] = useState("");
   const [settingPassword, setSettingPassword] = useState(false);
   const [unlinkingIdentity, setUnlinkingIdentity] = useState<string | null>(null);
+  const [showDataChange, setShowDataChange] = useState(false);
+  const [requestContractDate, setRequestContractDate] = useState("");
+  const [requestContractModel, setRequestContractModel] = useState("");
+  const [dataChangeJustification, setDataChangeJustification] = useState("");
+  const [requestingDataChange, setRequestingDataChange] = useState(false);
+  const [cancellingDataChange, setCancellingDataChange] = useState(false);
+  const [pendingDataChange, setPendingDataChange] = useState<{ id: string } | null>(null);
+
+  const handleRequestDataChange = async () => {
+    if (!person) return;
+    const changes: Record<string, any> = {};
+    if (requestContractDate) {
+      const parsed = parseBRStringToDate(requestContractDate);
+      if (!parsed) {
+        toast({ title: "Data inválida", description: "Use o formato DD/MM/AAAA.", variant: "destructive" });
+        return;
+      }
+      changes.data_contrato = formatDateToYYYYMMDD(parsed);
+    }
+    if (requestContractModel) changes.modelo_contrato = requestContractModel;
+    setRequestingDataChange(true);
+    try {
+      const { data, error } = await (supabase as any).rpc('request_data_change', {
+        p_person_id: person.id,
+        p_changes: changes,
+        p_justification: dataChangeJustification.trim() || null,
+        p_kind: 'PROFILE_DATA',
+      });
+      if (error) throw error;
+      const result = data as { success: boolean; message?: string; request_id?: string };
+      if (!result?.success) throw new Error(result?.message || 'Falha ao criar solicitação');
+      setPendingDataChange({ id: result.request_id! });
+      setShowDataChange(false);
+      setRequestContractDate("");
+      setRequestContractModel("");
+      setDataChangeJustification("");
+      toast({ title: "Solicitação enviada!", description: "Aguarde a aprovação do gerente ou diretor." });
+    } catch (error: any) {
+      toast({ title: "Erro", description: error.message, variant: "destructive" });
+    } finally {
+      setRequestingDataChange(false);
+    }
+  };
+
+  const handleCancelDataChange = async () => {
+    if (!pendingDataChange) return;
+    setCancellingDataChange(true);
+    try {
+      const { data, error } = await (supabase as any).rpc('cancel_data_change', {
+        p_request_id: pendingDataChange.id,
+      });
+      if (error) throw error;
+      const result = data as { success: boolean; message?: string };
+      if (!result?.success) throw new Error(result?.message || 'Falha ao cancelar');
+      setPendingDataChange(null);
+      toast({ title: "Solicitação cancelada" });
+    } catch (error: any) {
+      toast({ title: "Erro", description: error.message, variant: "destructive" });
+    } finally {
+      setCancellingDataChange(false);
+    }
+  };
+
 
 
   const isFigmaEnabled = integrationSettings?.figma_enabled === true &&
@@ -81,7 +144,23 @@ export const ProfileModal = ({ open, onOpenChange }: ProfileModalProps) => {
           .maybeSingle();
         setPendingPaymentRequest(data || null);
       })();
+      setShowDataChange(false);
+      setRequestContractDate("");
+      setRequestContractModel("");
+      setDataChangeJustification("");
+      (async () => {
+        const { data } = await (supabase as any)
+          .from('data_change_requests')
+          .select('id')
+          .eq('person_id', person.id)
+          .eq('status', 'PENDENTE')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        setPendingDataChange(data || null);
+      })();
     }
+
   }, [person, open]);
 
 
@@ -412,6 +491,101 @@ export const ProfileModal = ({ open, onOpenChange }: ProfileModalProps) => {
 
 
           <Separator />
+
+          {/* Contract data change request */}
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Dados contratuais</Label>
+            <div className="flex items-center gap-2 flex-wrap">
+              <Badge variant="secondary" className="text-sm">
+                {person?.data_contrato
+                  ? `Contrato: ${formatDateToBRString(parseDateSafely(person.data_contrato))}`
+                  : 'Contrato: não definido'}
+              </Badge>
+              <Badge variant="secondary" className="text-sm">
+                {person?.modelo_contrato || 'Modelo não definido'}
+              </Badge>
+            </div>
+            {pendingDataChange ? (
+              <div className="flex items-center gap-2 flex-wrap">
+                <Badge variant="outline" className="text-xs">Solicitação de alteração pendente</Badge>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="text-xs"
+                  disabled={cancellingDataChange}
+                  onClick={handleCancelDataChange}
+                >
+                  {cancellingDataChange ? "Cancelando..." : "Cancelar solicitação"}
+                </Button>
+              </div>
+            ) : !showDataChange ? (
+              <Button type="button" variant="ghost" size="sm" className="text-xs" onClick={() => setShowDataChange(true)}>
+                Solicitar alteração
+              </Button>
+            ) : (
+              <div className="space-y-2 p-3 rounded-md border bg-muted/50">
+                <div className="space-y-1">
+                  <Label className="text-xs">Nova data de contrato</Label>
+                  <Input
+                    placeholder="DD/MM/AAAA"
+                    value={requestContractDate}
+                    onChange={(e) => setRequestContractDate(applyDateMask(e.target.value))}
+                    maxLength={10}
+                    className="h-8"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Modelo de contrato</Label>
+                  <Select value={requestContractModel} onValueChange={setRequestContractModel}>
+                    <SelectTrigger className="h-8">
+                      <SelectValue placeholder="Manter atual" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="CLT">CLT</SelectItem>
+                      <SelectItem value="PJ">PJ</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Justificativa (opcional)</Label>
+                  <Input
+                    value={dataChangeJustification}
+                    onChange={(e) => setDataChangeJustification(e.target.value)}
+                    placeholder="Motivo da alteração"
+                    className="h-8"
+                  />
+                </div>
+                <div className="flex gap-2 justify-end">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-8"
+                    onClick={() => { setShowDataChange(false); setRequestContractDate(""); setRequestContractModel(""); setDataChangeJustification(""); }}
+                  >
+                    Cancelar
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="h-8"
+                    disabled={requestingDataChange || (!requestContractDate && !requestContractModel)}
+                    onClick={handleRequestDataChange}
+                  >
+                    <Send className="h-3 w-3 mr-1" />
+                    {requestingDataChange ? "Enviando..." : "Enviar solicitação"}
+                  </Button>
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  A alteração só será aplicada após aprovação do gerente ou diretor.
+                </p>
+              </div>
+            )}
+          </div>
+
+          <Separator />
+
 
           {/* Auth Methods Section */}
           <div className="space-y-3">
