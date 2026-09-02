@@ -92,6 +92,7 @@ export function ExternalFeedbackDialog({
         content: content.trim(),
         visible_to_subject: visible,
         files,
+        links,
       });
       toast({ title: "Feedback registrado", description: "O registro já aparece na linha do tempo da pessoa." });
       setOpen(false);
