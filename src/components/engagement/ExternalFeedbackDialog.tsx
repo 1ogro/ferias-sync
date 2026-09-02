@@ -47,6 +47,9 @@ export function ExternalFeedbackDialog({
     setContent("");
     setVisible(false);
     setFiles([]);
+    setLinks([]);
+    setLinkUrl("");
+    setLinkLabel("");
   };
 
   const addFiles = (list: FileList | null) => {
@@ -54,10 +57,21 @@ export function ExternalFeedbackDialog({
     const picked = Array.from(list);
     const tooBig = picked.find((f) => f.size > MAX_FILE_BYTES);
     if (tooBig) {
-      toast({ title: "Arquivo muito grande", description: `${tooBig.name} passa de 10 MB.`, variant: "destructive" });
+      toast({ title: "Arquivo muito grande", description: `${tooBig.name} passa de 1 MB. Use um link do Drive/SharePoint/Dropbox.`, variant: "destructive" });
       return;
     }
     setFiles((prev) => [...prev, ...picked].slice(0, 5));
+  };
+
+  const addLink = () => {
+    const url = linkUrl.trim();
+    if (!/^https?:\/\/\S+$/i.test(url)) {
+      toast({ title: "Link inválido", description: "Informe uma URL começando com http:// ou https://.", variant: "destructive" });
+      return;
+    }
+    setLinks((prev) => [...prev, { url, label: linkLabel.trim() || undefined }].slice(0, 5));
+    setLinkUrl("");
+    setLinkLabel("");
   };
 
   const submit = async () => {
