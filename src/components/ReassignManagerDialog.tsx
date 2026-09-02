@@ -99,11 +99,11 @@ export function ReassignManagerDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-destructive">
             <AlertTriangle className="h-5 w-5" />
-            Reatribuir equipe antes de excluir
+            {isHard ? "Reatribuir equipe antes de excluir" : "Reatribuir equipe antes de inativar"}
           </DialogTitle>
           <DialogDescription>
             <strong>{target.nome}</strong> possui {total} item(ns) vinculado(s) que precisam ser
-            reatribuídos a outro gestor antes da exclusão.
+            reatribuídos a outro gestor antes {isHard ? "da exclusão" : "da inativação"}.
           </DialogDescription>
         </DialogHeader>
 
