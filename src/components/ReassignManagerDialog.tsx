@@ -50,6 +50,7 @@ interface ReassignManagerDialogProps {
   target: Person | null;
   impact: DeletionImpact | null;
   candidates: Person[];
+  mode?: "deactivate" | "hard";
   onConfirm: (newManagerId: string, justification: string) => Promise<void>;
 }
 
@@ -59,6 +60,7 @@ export function ReassignManagerDialog({
   target,
   impact,
   candidates,
+  mode = "hard",
   onConfirm,
 }: ReassignManagerDialogProps) {
   const [newManagerId, setNewManagerId] = useState<string>("");
