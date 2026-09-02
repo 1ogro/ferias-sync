@@ -67,7 +67,13 @@ export function FeedbackProfilePanel({ authorId }: { authorId?: string }) {
   const [period, setPeriod] = useState("90");
   const [kind, setKind] = useState<"all" | FeedbackTimelineItem["kind"]>("all");
 
-  const { data: items = [], isLoading } = useFeedbackTimeline(personId || undefined, sinceIso(period));
+  const since = useMemo(() => sinceIso(period), [period]);
+  const { data: items = [], isLoading, isError, error, refetch, isFetching } = useFeedbackTimeline(
+    personId || undefined,
+    period,
+    since
+  );
+
   const deleteMut = useDeleteExternalFeedback();
   const visibilityMut = useToggleFeedbackVisibility();
 
