@@ -47,6 +47,69 @@ export const ProfileModal = ({ open, onOpenChange }: ProfileModalProps) => {
   const [confirmNewPassword, setConfirmNewPassword] = useState("");
   const [settingPassword, setSettingPassword] = useState(false);
   const [unlinkingIdentity, setUnlinkingIdentity] = useState<string | null>(null);
+  const [showDataChange, setShowDataChange] = useState(false);
+  const [requestContractDate, setRequestContractDate] = useState("");
+  const [requestContractModel, setRequestContractModel] = useState("");
+  const [dataChangeJustification, setDataChangeJustification] = useState("");
+  const [requestingDataChange, setRequestingDataChange] = useState(false);
+  const [cancellingDataChange, setCancellingDataChange] = useState(false);
+  const [pendingDataChange, setPendingDataChange] = useState<{ id: string } | null>(null);
+
+  const handleRequestDataChange = async () => {
+    if (!person) return;
+    const changes: Record<string, any> = {};
+    if (requestContractDate) {
+      const parsed = parseBRStringToDate(requestContractDate);
+      if (!parsed) {
+        toast({ title: "Data inválida", description: "Use o formato DD/MM/AAAA.", variant: "destructive" });
+        return;
+      }
+      changes.data_contrato = formatDateToYYYYMMDD(parsed);
+    }
+    if (requestContractModel) changes.modelo_contrato = requestContractModel;
+    setRequestingDataChange(true);
+    try {
+      const { data, error } = await (supabase as any).rpc('request_data_change', {
+        p_person_id: person.id,
+        p_changes: changes,
+        p_justification: dataChangeJustification.trim() || null,
+        p_kind: 'PROFILE_DATA',
+      });
+      if (error) throw error;
+      const result = data as { success: boolean; message?: string; request_id?: string };
+      if (!result?.success) throw new Error(result?.message || 'Falha ao criar solicitação');
+      setPendingDataChange({ id: result.request_id! });
+      setShowDataChange(false);
+      setRequestContractDate("");
+      setRequestContractModel("");
+      setDataChangeJustification("");
+      toast({ title: "Solicitação enviada!", description: "Aguarde a aprovação do gerente ou diretor." });
+    } catch (error: any) {
+      toast({ title: "Erro", description: error.message, variant: "destructive" });
+    } finally {
+      setRequestingDataChange(false);
+    }
+  };
+
+  const handleCancelDataChange = async () => {
+    if (!pendingDataChange) return;
+    setCancellingDataChange(true);
+    try {
+      const { data, error } = await (supabase as any).rpc('cancel_data_change', {
+        p_request_id: pendingDataChange.id,
+      });
+      if (error) throw error;
+      const result = data as { success: boolean; message?: string };
+      if (!result?.success) throw new Error(result?.message || 'Falha ao cancelar');
+      setPendingDataChange(null);
+      toast({ title: "Solicitação cancelada" });
+    } catch (error: any) {
+      toast({ title: "Erro", description: error.message, variant: "destructive" });
+    } finally {
+      setCancellingDataChange(false);
+    }
+  };
+
 
 
   const isFigmaEnabled = integrationSettings?.figma_enabled === true &&
