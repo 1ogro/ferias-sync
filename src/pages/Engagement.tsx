@@ -19,6 +19,8 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Sparkles, Trophy, Heart, Send, Settings as SettingsIcon, Check, ChevronsUpDown, X, MessageSquareOff, CheckCircle2 } from "lucide-react";
 import { useKudosFeed, useLeaderboard, useMyPoints, useSendKudo, useActivePeople, useEngagementPrefs, useSaveEngagementPrefs, KudosCategory } from "@/hooks/useEngagement";
 import { FeedbackProfilePanel } from "@/components/engagement/FeedbackProfilePanel";
+import { MonthlyReportPanel } from "@/components/engagement/MonthlyReportPanel";
+
 import { EngagementSummaryCard } from "@/components/EngagementSummaryCard";
 import { useToast } from "@/hooks/use-toast";
 import { Papel } from "@/lib/types";
@@ -533,6 +535,7 @@ export default function Engagement() {
             <TabsList>
               <TabsTrigger value="overview">Visão geral</TabsTrigger>
               <TabsTrigger value="feedbacks">Feedbacks por perfil</TabsTrigger>
+              <TabsTrigger value="report">Relatório mensal</TabsTrigger>
             </TabsList>
             <TabsContent value="overview" className="space-y-6 mt-0">
               {overview}
@@ -540,7 +543,11 @@ export default function Engagement() {
             <TabsContent value="feedbacks" className="mt-0">
               <FeedbackProfilePanel authorId={person?.id} />
             </TabsContent>
+            <TabsContent value="report" className="mt-0">
+              <MonthlyReportPanel canSeeGlobal={isManagementLevel(person)} />
+            </TabsContent>
           </Tabs>
+
         ) : (
           overview
         )}
