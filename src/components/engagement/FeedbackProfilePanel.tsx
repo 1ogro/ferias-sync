@@ -60,6 +60,16 @@ function AttachmentLink({ path, name }: { path: string; name: string }) {
   );
 }
 
+function ExternalUrlLink({ url, name }: { url: string; name: string }) {
+  return (
+    <Button asChild variant="outline" size="sm" className="h-7 text-xs">
+      <a href={url} target="_blank" rel="noopener noreferrer">
+        <Link2 className="h-3 w-3 mr-1" /> {name}
+      </a>
+    </Button>
+  );
+}
+
 export function FeedbackProfilePanel({ authorId }: { authorId?: string }) {
   const { toast } = useToast();
   const { data: people = [], isLoading: loadingPeople } = useFeedbackScope();
