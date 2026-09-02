@@ -700,7 +700,10 @@ const Inbox = () => {
   };
 
   const isDirectorOrAdmin = isManagementLevel(person);
-  const showTabs = isDirectorOrAdmin && (pendingPeople.length > 0 || paymentDayRequests.length > 0);
+  const showTabs =
+    (isDirectorOrAdmin && (pendingPeople.length > 0 || paymentDayRequests.length > 0)) ||
+    dataChangeRequests.length > 0;
+
 
 
   return (
