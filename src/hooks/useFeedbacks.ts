@@ -99,6 +99,7 @@ export function useCreateExternalFeedback() {
       const feedbackId = data.id as string;
 
       for (const file of files) {
+        if (file.size > MAX_FEEDBACK_FILE_BYTES) throw new Error(`${file.name} passa de 1 MB.`);
         const safeName = file.name.replace(/[^\w.\-]+/g, "_");
         const path = `${input.person_id}/${feedbackId}/${crypto.randomUUID()}-${safeName}`;
         const up = await supabase.storage.from(FEEDBACK_BUCKET).upload(path, file, {
