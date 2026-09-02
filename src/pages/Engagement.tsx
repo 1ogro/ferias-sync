@@ -19,6 +19,8 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Sparkles, Trophy, Heart, Send, Settings as SettingsIcon, Check, ChevronsUpDown, X, MessageSquareOff, CheckCircle2 } from "lucide-react";
 import { useKudosFeed, useLeaderboard, useMyPoints, useSendKudo, useActivePeople, useEngagementPrefs, useSaveEngagementPrefs, KudosCategory } from "@/hooks/useEngagement";
 import { FeedbackProfilePanel } from "@/components/engagement/FeedbackProfilePanel";
+import { MonthlyReportPanel } from "@/components/engagement/MonthlyReportPanel";
+
 import { EngagementSummaryCard } from "@/components/EngagementSummaryCard";
 import { useToast } from "@/hooks/use-toast";
 import { Papel } from "@/lib/types";
