@@ -157,6 +157,39 @@ export function FeedbackProfilePanel({ authorId }: { authorId?: string }) {
         </CardContent>
       </Card>
 
+      {personId && !isLoading && !isError && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Users className="h-4 w-4 text-primary" /> Gestores que já registraram feedback
+            </CardTitle>
+            <CardDescription>
+              Evite duplicar: veja quem já deixou registro para {selectedPerson?.nome ?? "este colaborador"} no período.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {contributors.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Nenhum gestor registrou feedback externo neste período.
+              </p>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {contributors.map((c) => (
+                  <Badge key={c.name} variant="secondary" className="gap-1 font-normal">
+                    {c.name}
+                    <span className="text-muted-foreground">
+                      · {c.count}x · {format(new Date(c.last), "dd/MM/yyyy", { locale: ptBR })}
+                    </span>
+                  </Badge>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+
+
       {!personId ? (
         <Card>
           <CardContent className="py-12 text-center text-muted-foreground flex flex-col items-center gap-2">
