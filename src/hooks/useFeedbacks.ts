@@ -82,6 +82,7 @@ export interface CreateExternalFeedbackInput {
   content: string;
   visible_to_subject: boolean;
   files: File[];
+  links?: FeedbackLinkInput[];
 }
 
 export function useCreateExternalFeedback() {
