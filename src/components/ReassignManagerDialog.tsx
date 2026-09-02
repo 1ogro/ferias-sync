@@ -202,14 +202,25 @@ export function ReassignManagerDialog({
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="justification">Justificativa (opcional)</Label>
+          <Label htmlFor="justification">
+            {isHard ? "Justificativa (obrigatória, mín. 5 caracteres) *" : "Justificativa (opcional)"}
+          </Label>
           <Textarea
             id="justification"
             value={justification}
             onChange={(e) => setJustification(e.target.value)}
-            placeholder="Motivo da exclusão e reatribuição..."
+            placeholder={
+              isHard
+                ? "Motivo da exclusão definitiva e reatribuição..."
+                : "Motivo da inativação e reatribuição..."
+            }
             rows={3}
           />
+          {isHard && !justificationValid && (
+            <p className="text-xs text-muted-foreground">
+              Informe ao menos 5 caracteres para confirmar a exclusão definitiva.
+            </p>
+          )}
         </div>
 
         <DialogFooter>
