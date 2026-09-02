@@ -533,6 +533,7 @@ export default function Engagement() {
             <TabsList>
               <TabsTrigger value="overview">Visão geral</TabsTrigger>
               <TabsTrigger value="feedbacks">Feedbacks por perfil</TabsTrigger>
+              <TabsTrigger value="report">Relatório mensal</TabsTrigger>
             </TabsList>
             <TabsContent value="overview" className="space-y-6 mt-0">
               {overview}
@@ -540,7 +541,11 @@ export default function Engagement() {
             <TabsContent value="feedbacks" className="mt-0">
               <FeedbackProfilePanel authorId={person?.id} />
             </TabsContent>
+            <TabsContent value="report" className="mt-0">
+              <MonthlyReportPanel canSeeGlobal={isManagementLevel(person)} />
+            </TabsContent>
           </Tabs>
+
         ) : (
           overview
         )}
