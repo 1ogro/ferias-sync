@@ -97,6 +97,73 @@ export type Database = {
           },
         ]
       }
+      data_change_requests: {
+        Row: {
+          changes: Json
+          created_at: string
+          id: string
+          justification: string | null
+          kind: string
+          person_id: string
+          requested_by: string
+          review_notes: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          changes?: Json
+          created_at?: string
+          id?: string
+          justification?: string | null
+          kind?: string
+          person_id: string
+          requested_by: string
+          review_notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          changes?: Json
+          created_at?: string
+          id?: string
+          justification?: string | null
+          kind?: string
+          person_id?: string
+          requested_by?: string
+          review_notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "data_change_requests_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "data_change_requests_requested_by_fkey"
+            columns: ["requested_by"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "data_change_requests_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       engagement_points: {
         Row: {
           created_at: string
@@ -1409,6 +1476,8 @@ export type Database = {
         Args: { _person_id: string }
         Returns: boolean
       }
+      can_review_data_change: { Args: { _person_id: string }; Returns: boolean }
+      cancel_data_change: { Args: { p_request_id: string }; Returns: Json }
       cancel_payment_day_change: {
         Args: { p_request_id: string }
         Returns: Json
@@ -1639,8 +1708,21 @@ export type Database = {
         }
         Returns: Json
       }
+      request_data_change: {
+        Args: {
+          p_changes: Json
+          p_justification?: string
+          p_kind?: string
+          p_person_id: string
+        }
+        Returns: Json
+      }
       request_payment_day_change: {
         Args: { p_justification?: string; p_requested_day: number }
+        Returns: Json
+      }
+      review_data_change: {
+        Args: { p_approve: boolean; p_notes?: string; p_request_id: string }
         Returns: Json
       }
       review_payment_day_change: {
@@ -1661,6 +1743,10 @@ export type Database = {
           p_modelo_contrato?: string
           p_person_id: string
         }
+        Returns: Json
+      }
+      update_own_birthdate: {
+        Args: { p_data_nascimento: string }
         Returns: Json
       }
       update_profile_for_current_user:
