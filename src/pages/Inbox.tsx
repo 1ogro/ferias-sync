@@ -733,25 +733,40 @@ const Inbox = () => {
                 <Badge variant="secondary" className="ml-2">{pendingRequests.length}</Badge>
               )}
             </Button>
-            <Button
-              variant={selectedTab === "registrations" ? "default" : "ghost"}
-              onClick={() => setSelectedTab("registrations")}
-              className="flex-1"
-            >
-              <UserPlus className="w-4 h-4 mr-2" />
-              Cadastros Pendentes
-              <Badge variant="secondary" className="ml-2">{pendingPeople.length}</Badge>
-            </Button>
-            <Button
-              variant={selectedTab === "payment_days" ? "default" : "ghost"}
-              onClick={() => setSelectedTab("payment_days")}
-              className="flex-1"
-            >
-              Dia de Pagamento
-              <Badge variant="secondary" className="ml-2">{paymentDayRequests.length}</Badge>
-            </Button>
+            {isDirectorOrAdmin && (
+              <Button
+                variant={selectedTab === "registrations" ? "default" : "ghost"}
+                onClick={() => setSelectedTab("registrations")}
+                className="flex-1"
+              >
+                <UserPlus className="w-4 h-4 mr-2" />
+                Cadastros Pendentes
+                <Badge variant="secondary" className="ml-2">{pendingPeople.length}</Badge>
+              </Button>
+            )}
+            {isDirectorOrAdmin && (
+              <Button
+                variant={selectedTab === "payment_days" ? "default" : "ghost"}
+                onClick={() => setSelectedTab("payment_days")}
+                className="flex-1"
+              >
+                Dia de Pagamento
+                <Badge variant="secondary" className="ml-2">{paymentDayRequests.length}</Badge>
+              </Button>
+            )}
+            {dataChangeRequests.length > 0 && (
+              <Button
+                variant={selectedTab === "data_changes" ? "default" : "ghost"}
+                onClick={() => setSelectedTab("data_changes")}
+                className="flex-1"
+              >
+                Alterações de Dados
+                <Badge variant="secondary" className="ml-2">{dataChangeRequests.length}</Badge>
+              </Button>
+            )}
           </div>
         )}
+
 
 
         {/* Requests tab */}
