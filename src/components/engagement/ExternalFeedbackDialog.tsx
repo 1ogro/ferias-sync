@@ -175,7 +175,7 @@ export function ExternalFeedbackDialog({
           </div>
 
           <div>
-            <Label className="flex items-center gap-2"><Paperclip className="h-4 w-4" /> Prints (até 5, 10 MB cada)</Label>
+            <Label className="flex items-center gap-2"><Paperclip className="h-4 w-4" /> Prints (até 5, 1 MB cada)</Label>
             <Input type="file" multiple accept="image/*,application/pdf" onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }} />
             {files.length > 0 && (
               <ul className="mt-2 space-y-1">
