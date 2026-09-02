@@ -13,10 +13,19 @@ export interface ScopePerson {
 
 export interface FeedbackAttachment {
   id: string;
-  storage_path: string;
+  storage_path: string | null;
   file_name: string;
   mime_type: string | null;
+  kind?: "file" | "link";
+  external_url?: string | null;
 }
+
+export interface FeedbackLinkInput {
+  url: string;
+  label?: string;
+}
+
+export const MAX_FEEDBACK_FILE_BYTES = 1024 * 1024;
 
 export interface FeedbackTimelineItem {
   id: string;
