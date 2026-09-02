@@ -50,6 +50,7 @@ interface ReassignManagerDialogProps {
   target: Person | null;
   impact: DeletionImpact | null;
   candidates: Person[];
+  mode?: "deactivate" | "hard";
   onConfirm: (newManagerId: string, justification: string) => Promise<void>;
 }
 
@@ -59,6 +60,7 @@ export function ReassignManagerDialog({
   target,
   impact,
   candidates,
+  mode = "hard",
   onConfirm,
 }: ReassignManagerDialogProps) {
   const [newManagerId, setNewManagerId] = useState<string>("");
@@ -75,8 +77,11 @@ export function ReassignManagerDialog({
 
   if (!target || !impact) return null;
 
+  const isHard = mode === "hard";
+  const justificationValid = !isHard || justification.trim().length >= 5;
+
   const handleConfirm = async () => {
-    if (!newManagerId) return;
+    if (!newManagerId || !justificationValid) return;
     setSubmitting(true);
     try {
       await onConfirm(newManagerId, justification.trim());
@@ -94,11 +99,11 @@ export function ReassignManagerDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-destructive">
             <AlertTriangle className="h-5 w-5" />
-            Reatribuir equipe antes de excluir
+            {isHard ? "Reatribuir equipe antes de excluir" : "Reatribuir equipe antes de inativar"}
           </DialogTitle>
           <DialogDescription>
             <strong>{target.nome}</strong> possui {total} item(ns) vinculado(s) que precisam ser
-            reatribuídos a outro gestor antes da exclusão.
+            reatribuídos a outro gestor antes {isHard ? "da exclusão" : "da inativação"}.
           </DialogDescription>
         </DialogHeader>
 
@@ -197,14 +202,25 @@ export function ReassignManagerDialog({
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="justification">Justificativa (opcional)</Label>
+          <Label htmlFor="justification">
+            {isHard ? "Justificativa (obrigatória, mín. 5 caracteres) *" : "Justificativa (opcional)"}
+          </Label>
           <Textarea
             id="justification"
             value={justification}
             onChange={(e) => setJustification(e.target.value)}
-            placeholder="Motivo da exclusão e reatribuição..."
+            placeholder={
+              isHard
+                ? "Motivo da exclusão definitiva e reatribuição..."
+                : "Motivo da inativação e reatribuição..."
+            }
             rows={3}
           />
+          {isHard && !justificationValid && (
+            <p className="text-xs text-muted-foreground">
+              Informe ao menos 5 caracteres para confirmar a exclusão definitiva.
+            </p>
+          )}
         </div>
 
         <DialogFooter>
@@ -214,7 +230,7 @@ export function ReassignManagerDialog({
           <Button
             variant="destructive"
             onClick={handleConfirm}
-            disabled={!newManagerId || submitting}
+            disabled={!newManagerId || submitting || !justificationValid}
           >
             {submitting ? (
               <>
@@ -222,7 +238,7 @@ export function ReassignManagerDialog({
                 Processando...
               </>
             ) : (
-              "Reatribuir e excluir"
+              isHard ? "Reatribuir e excluir" : "Reatribuir e inativar"
             )}
           </Button>
         </DialogFooter>

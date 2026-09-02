@@ -1604,6 +1604,7 @@ const Admin = () => {
             (p.papel === Papel.GESTOR || p.papel === Papel.DIRETOR) &&
             p.id !== reassignTarget?.id
         )}
+        mode={removalMode}
         onConfirm={handleReassignAndRemove}
       />
 
