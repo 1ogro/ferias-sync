@@ -1679,6 +1679,29 @@ export type Database = {
           total_points: number
         }[]
       }
+      get_engagement_monthly_contributors: {
+        Args: { p_month: string; p_scope?: string }
+        Returns: {
+          author_id: string
+          author_name: string
+          feedbacks: number
+          last_at: string
+        }[]
+      }
+      get_engagement_monthly_report: {
+        Args: { p_month: string; p_scope?: string }
+        Returns: {
+          external_feedbacks: number
+          kudos_given: number
+          kudos_received: number
+          last_activity_at: string
+          nome: string
+          peer_feedbacks: number
+          person_id: string
+          sub_time: string
+          total: number
+        }[]
+      }
       get_figma_login_status: {
         Args: never
         Returns: {
