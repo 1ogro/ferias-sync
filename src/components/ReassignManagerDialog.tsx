@@ -230,7 +230,7 @@ export function ReassignManagerDialog({
           <Button
             variant="destructive"
             onClick={handleConfirm}
-            disabled={!newManagerId || submitting}
+            disabled={!newManagerId || submitting || !justificationValid}
           >
             {submitting ? (
               <>
