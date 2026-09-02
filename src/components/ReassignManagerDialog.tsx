@@ -238,7 +238,7 @@ export function ReassignManagerDialog({
                 Processando...
               </>
             ) : (
-              "Reatribuir e excluir"
+              isHard ? "Reatribuir e excluir" : "Reatribuir e inativar"
             )}
           </Button>
         </DialogFooter>
