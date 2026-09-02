@@ -112,8 +112,21 @@ export function useCreateExternalFeedback() {
           file_name: file.name,
           mime_type: file.type || null,
           size_bytes: file.size,
+          kind: "file",
         });
         if (attErr) throw attErr;
+      }
+
+      for (const link of links) {
+        const url = link.url.trim();
+        if (!/^https?:\/\//i.test(url)) throw new Error(`Link inválido: ${url}`);
+        const { error: linkErr } = await (supabase as any).from("external_feedback_attachments").insert({
+          feedback_id: feedbackId,
+          kind: "link",
+          external_url: url,
+          file_name: link.label?.trim() || url,
+        });
+        if (linkErr) throw linkErr;
       }
       return feedbackId;
     },
