@@ -89,7 +89,7 @@ export function useCreateExternalFeedback() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: CreateExternalFeedbackInput) => {
-      const { files, ...row } = input;
+      const { files, links = [], ...row } = input;
       const { data, error } = await (supabase as any)
         .from("external_feedbacks")
         .insert(row)
