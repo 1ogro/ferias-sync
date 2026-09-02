@@ -38,8 +38,10 @@ function sinceIso(period: string) {
   if (period === "all") return null;
   const d = new Date();
   d.setDate(d.getDate() - Number(period));
+  d.setHours(0, 0, 0, 0);
   return d.toISOString();
 }
+
 
 function AttachmentLink({ path, name }: { path: string; name: string }) {
   const { toast } = useToast();
@@ -65,7 +67,13 @@ export function FeedbackProfilePanel({ authorId }: { authorId?: string }) {
   const [period, setPeriod] = useState("90");
   const [kind, setKind] = useState<"all" | FeedbackTimelineItem["kind"]>("all");
 
-  const { data: items = [], isLoading } = useFeedbackTimeline(personId || undefined, sinceIso(period));
+  const since = useMemo(() => sinceIso(period), [period]);
+  const { data: items = [], isLoading, isError, error, refetch, isFetching } = useFeedbackTimeline(
+    personId || undefined,
+    period,
+    since
+  );
+
   const deleteMut = useDeleteExternalFeedback();
   const visibilityMut = useToggleFeedbackVisibility();
 
@@ -148,8 +156,18 @@ export function FeedbackProfilePanel({ authorId }: { authorId?: string }) {
             <ScrollArea className="h-[28rem] pr-3">
               {isLoading ? (
                 <p className="text-sm text-muted-foreground">Carregando feedbacks...</p>
+              ) : isError ? (
+                <div className="space-y-2">
+                  <p className="text-sm text-destructive">
+                    Não foi possível carregar os feedbacks: {(error as any)?.message ?? "erro desconhecido"}
+                  </p>
+                  <Button size="sm" variant="outline" onClick={() => refetch()} disabled={isFetching}>
+                    {isFetching ? "Tentando..." : "Tentar novamente"}
+                  </Button>
+                </div>
               ) : filtered.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Nenhum feedback no recorte selecionado.</p>
+
               ) : (
                 <ul className="space-y-3">
                   {filtered.map((it) => (

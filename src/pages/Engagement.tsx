@@ -461,6 +461,59 @@ function PrefsCard({ personId }: { personId?: string }) {
 
 export default function Engagement() {
   const { person } = useAuth();
+  const canSeeFeedbacks = person?.papel === "GESTOR" || isManagementLevel(person);
+
+  const overview = (
+    <>
+      {canSeeFeedbacks && (
+        <Card className="bg-muted/50 border-dashed">
+          <CardContent className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 py-5">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-md bg-primary/10">
+                <SettingsIcon className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <h3 className="font-semibold">Pulses de Performance</h3>
+                <p className="text-sm text-muted-foreground">Crie, edite e dispare enquetes de engajamento do time.</p>
+              </div>
+            </div>
+            <Button asChild variant="outline">
+              <Link to="/vacation-management?tab=pulses" aria-label="Ir para gerenciamento de pulses">Gerenciar pulses</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="space-y-6 lg:col-span-1">
+          <MyPointsCard personId={person?.id} />
+          {canSeeFeedbacks && <EngagementSummaryCard />}
+          <PrefsCard personId={person?.id} />
+        </div>
+        <div className="space-y-6 lg:col-span-1">
+          <LeaderboardCard />
+          {(person?.papel === "DIRETOR" || person?.papel === "GERENTE") && (
+            <>
+              <LeaderboardCard
+                period="quarter"
+                title="Ranking do trimestre"
+                description="Acumulado no trimestre corrente"
+              />
+              <LeaderboardCard
+                period="year"
+                title="Ranking do ano"
+                description="Acumulado no ano corrente"
+              />
+            </>
+          )}
+        </div>
+        <div className="space-y-6 lg:col-span-1">
+          <KudosFeed />
+        </div>
+      </div>
+    </>
+  );
+
   return (
     <div className="min-h-screen bg-background">
       <Header />
@@ -473,62 +526,26 @@ export default function Engagement() {
           <GiveKudosDialog personId={person?.id} fromName={person?.nome} papel={person?.papel} />
         </div>
 
-        {(person?.papel === 'GESTOR' || isManagementLevel(person)) && (
-          <Card className="bg-muted/50 border-dashed">
-            <CardContent className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 py-5">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-md bg-primary/10">
-                  <SettingsIcon className="h-5 w-5 text-primary" />
-                </div>
-                <div>
-                  <h3 className="font-semibold">Pulses de Performance</h3>
-                  <p className="text-sm text-muted-foreground">Crie, edite e dispare enquetes de engajamento do time.</p>
-                </div>
-              </div>
-              <Button asChild variant="outline">
-                <Link to="/vacation-management?tab=pulses" aria-label="Ir para gerenciamento de pulses">Gerenciar pulses</Link>
-              </Button>
-            </CardContent>
-          </Card>
+
+
+        {canSeeFeedbacks ? (
+          <Tabs defaultValue="overview" className="space-y-6">
+            <TabsList>
+              <TabsTrigger value="overview">Visão geral</TabsTrigger>
+              <TabsTrigger value="feedbacks">Feedbacks por perfil</TabsTrigger>
+            </TabsList>
+            <TabsContent value="overview" className="space-y-6 mt-0">
+              {overview}
+            </TabsContent>
+            <TabsContent value="feedbacks" className="mt-0">
+              <FeedbackProfilePanel authorId={person?.id} />
+            </TabsContent>
+          </Tabs>
+        ) : (
+          overview
         )}
-
-        {(person?.papel === 'GESTOR' || isManagementLevel(person)) && (
-          <FeedbackProfilePanel authorId={person?.id} />
-        )}
-
-
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="space-y-6 lg:col-span-1">
-            <MyPointsCard personId={person?.id} />
-            {(person?.papel === 'GESTOR' || isManagementLevel(person)) && (
-              <EngagementSummaryCard />
-            )}
-            <PrefsCard personId={person?.id} />
-
-          </div>
-          <div className="space-y-6 lg:col-span-1">
-            <LeaderboardCard />
-            {(person?.papel === "DIRETOR" || person?.papel === "GERENTE") && (
-              <>
-                <LeaderboardCard
-                  period="quarter"
-                  title="Ranking do trimestre"
-                  description="Acumulado no trimestre corrente"
-                />
-                <LeaderboardCard
-                  period="year"
-                  title="Ranking do ano"
-                  description="Acumulado no ano corrente"
-                />
-              </>
-            )}
-          </div>
-          <div className="space-y-6 lg:col-span-1">
-            <KudosFeed />
-          </div>
-        </div>
       </div>
+
     </div>
   );
 }

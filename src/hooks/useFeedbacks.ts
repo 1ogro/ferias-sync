@@ -43,9 +43,9 @@ export function useFeedbackScope() {
   });
 }
 
-export function useFeedbackTimeline(personId?: string, since?: string | null) {
+export function useFeedbackTimeline(personId?: string, period = "all", since?: string | null) {
   return useQuery({
-    queryKey: ["feedback_timeline", personId, since ?? "all"],
+    queryKey: ["feedback_timeline", personId, period],
     enabled: !!personId,
     queryFn: async () => {
       const { data, error } = await (supabase as any).rpc("get_person_feedback_timeline", {
@@ -60,6 +60,7 @@ export function useFeedbackTimeline(personId?: string, since?: string | null) {
     },
   });
 }
+
 
 export interface CreateExternalFeedbackInput {
   person_id: string;
