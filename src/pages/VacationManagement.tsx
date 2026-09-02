@@ -604,7 +604,31 @@ const VacationManagement = () => {
       const { data, error } = await supabase.rpc('update_collaborator_onboarding_data', rpcArgs as any);
       if (error) throw error;
       const result = data as any;
-      if (result && !result.success) throw new Error(result.message);
+      if (result && !result.success) {
+        // Sem permissão de edição direta: abre uma solicitação de alteração para aprovação
+        if (typeof result.message === 'string' && result.message.includes('Sem permissão')) {
+          const changes: Record<string, any> = {};
+          if (updateData.data_contrato !== undefined) changes.data_contrato = updateData.data_contrato;
+          if (updateData.modelo_contrato !== undefined) changes.modelo_contrato = updateData.modelo_contrato;
+          const { data: reqData, error: reqError } = await (supabase as any).rpc('request_data_change', {
+            p_person_id: selectedPerson.person_id,
+            p_changes: changes,
+            p_justification: null,
+            p_kind: 'PROFILE_DATA',
+          });
+          if (reqError) throw reqError;
+          const reqResult = reqData as any;
+          if (reqResult && !reqResult.success) throw new Error(reqResult.message);
+          toast({
+            title: "Solicitação enviada",
+            description: "Você não pode alterar diretamente. A alteração foi enviada para aprovação.",
+          });
+          setEditDialogOpen(false);
+          return;
+        }
+        throw new Error(result.message);
+      }
+
 
       // Maternity extension is admin-only and not in the onboarding RPC
       if (updateData.maternity_extension_days !== undefined) {
