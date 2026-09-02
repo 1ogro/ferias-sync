@@ -27,7 +27,7 @@ const Inbox = () => {
   const [pendingPeopleLoading, setPendingPeopleLoading] = useState(true);
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [currentUserPerson, setCurrentUserPerson] = useState<any>(null);
-  const [selectedTab, setSelectedTab] = useState<"requests" | "registrations" | "payment_days">("requests");
+  const [selectedTab, setSelectedTab] = useState<"requests" | "registrations" | "payment_days" | "data_changes">("requests");
   const [selectedPending, setSelectedPending] = useState<PendingPerson | null>(null);
   const [approveDialogOpen, setApproveDialogOpen] = useState(false);
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
@@ -44,6 +44,71 @@ const Inbox = () => {
   }>>([]);
   const [paymentReviewNotes, setPaymentReviewNotes] = useState<Record<string, string>>({});
   const [processingPaymentId, setProcessingPaymentId] = useState<string | null>(null);
+  const [dataChangeRequests, setDataChangeRequests] = useState<Array<{
+    id: string;
+    person_id: string;
+    person_nome: string;
+    requested_by_nome: string;
+    kind: string;
+    changes: Record<string, any>;
+    justification: string | null;
+    created_at: string;
+  }>>([]);
+  const [dataChangeNotes, setDataChangeNotes] = useState<Record<string, string>>({});
+  const [processingDataChangeId, setProcessingDataChangeId] = useState<string | null>(null);
+
+  const fetchDataChangeRequests = async () => {
+    const { data, error } = await (supabase as any)
+      .from('data_change_requests')
+      .select('id, person_id, requested_by, kind, changes, justification, created_at, person:people!data_change_requests_person_id_fkey(nome), requester:people!data_change_requests_requested_by_fkey(nome)')
+      .eq('status', 'PENDENTE')
+      .order('created_at', { ascending: false });
+    if (error) {
+      console.error('Error fetching data change requests:', error);
+      return;
+    }
+    setDataChangeRequests((data || []).map((r: any) => ({
+      id: r.id,
+      person_id: r.person_id,
+      person_nome: r.person?.nome || r.person_id,
+      requested_by_nome: r.requester?.nome || r.requested_by,
+      kind: r.kind,
+      changes: r.changes || {},
+      justification: r.justification,
+      created_at: r.created_at,
+    })));
+  };
+
+  const handleReviewDataChange = async (id: string, approve: boolean) => {
+    setProcessingDataChangeId(id);
+    try {
+      const { data, error } = await (supabase as any).rpc('review_data_change', {
+        p_request_id: id,
+        p_approve: approve,
+        p_notes: dataChangeNotes[id] || null,
+      });
+      if (error) throw error;
+      const result = data as { success: boolean; message?: string };
+      if (!result?.success) throw new Error(result?.message || 'Falha ao revisar');
+      toast({ title: approve ? 'Alteração aprovada' : 'Alteração rejeitada' });
+      fetchDataChangeRequests();
+    } catch (error: any) {
+      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+    } finally {
+      setProcessingDataChangeId(null);
+    }
+  };
+
+  const DATA_CHANGE_LABELS: Record<string, string> = {
+    data_contrato: 'Data de contrato',
+    modelo_contrato: 'Modelo de contrato',
+    data_nascimento: 'Data de nascimento',
+    cargo: 'Cargo',
+    sub_time: 'Sub-time',
+    local: 'Local',
+    dia_pagamento: 'Dia de pagamento',
+  };
+
 
 
   const fetchPendingRequests = async () => {
