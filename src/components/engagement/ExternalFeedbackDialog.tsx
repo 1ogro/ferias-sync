@@ -6,11 +6,11 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, X, Paperclip } from "lucide-react";
+import { Plus, X, Paperclip, Link2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { useCreateExternalFeedback, useFeedbackScope, FeedbackChannel, FeedbackTone } from "@/hooks/useFeedbacks";
+import { useCreateExternalFeedback, useFeedbackScope, FeedbackChannel, FeedbackTone, FeedbackLinkInput, MAX_FEEDBACK_FILE_BYTES } from "@/hooks/useFeedbacks";
 
-const MAX_FILE_BYTES = 10 * 1024 * 1024;
+const MAX_FILE_BYTES = MAX_FEEDBACK_FILE_BYTES;
 
 export function ExternalFeedbackDialog({
   authorId,
