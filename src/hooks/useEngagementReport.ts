@@ -60,3 +60,30 @@ export function useMonthlyContributors(month: string, scope: ReportScope) {
     },
   });
 }
+
+export interface TeamSummaryRow {
+  sub_time: string;
+  people_count: number;
+  kudos: number;
+  peer_feedbacks: number;
+  external_feedbacks: number;
+  total: number;
+  avg_per_person: number | null;
+}
+
+export function useTeamSummary(month: string, scope: ReportScope) {
+  return useQuery({
+    queryKey: ["engagement_team_summary", month, scope],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).rpc("get_engagement_team_summary", {
+        p_month: monthToDate(month),
+        p_scope: scope,
+      });
+      if (error) throw error;
+      return ((data || []) as any[]).map((r) => ({
+        ...r,
+        avg_per_person: r.avg_per_person === null ? null : Number(r.avg_per_person),
+      })) as TeamSummaryRow[];
+    },
+  });
+}

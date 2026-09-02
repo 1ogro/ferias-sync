@@ -17,6 +17,7 @@ import {
   useFeedbackTimeline,
   useDeleteExternalFeedback,
   useToggleFeedbackVisibility,
+  useFeedbackCoverage,
   getSignedAttachmentUrl,
   FeedbackTimelineItem,
 } from "@/hooks/useFeedbacks";
@@ -110,6 +111,26 @@ export function FeedbackProfilePanel({ authorId }: { authorId?: string }) {
 
   const selectedPerson = people.find((p) => p.id === personId);
 
+  const { data: coverage = [] } = useFeedbackCoverage(period, since);
+
+  const coverageByAuthor = useMemo(() => {
+    const map = new Map<string, { label: string; isMe: boolean; people: { name: string; last: string | null }[] }>();
+    coverage.forEach((c) => {
+      const key = c.author_id ?? c.author_label;
+      const isMe = !!authorId && c.author_id === authorId;
+      const entry = map.get(key) ?? { label: isMe ? `${c.author_label} (você)` : c.author_label, isMe, people: [] };
+      entry.people.push({ name: c.person_name, last: c.last_at });
+      map.set(key, entry);
+    });
+    return Array.from(map.values()).sort((a, b) => (a.isMe === b.isMe ? a.label.localeCompare(b.label) : a.isMe ? -1 : 1));
+  }, [coverage, authorId]);
+
+  const myPending = useMemo(() => {
+    if (!authorId) return [];
+    const done = new Set(coverage.filter((c) => c.author_id === authorId).map((c) => c.person_id));
+    return people.filter((p) => !done.has(p.id));
+  }, [coverage, people, authorId]);
+
 
   return (
     <div className="space-y-4">
@@ -189,6 +210,63 @@ export function FeedbackProfilePanel({ authorId }: { authorId?: string }) {
       )}
 
 
+
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <Users className="h-4 w-4 text-primary" /> Cobertura por gestor
+          </CardTitle>
+          <CardDescription>
+            Quem cada gestor já avaliou no período selecionado, para o time não repetir.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {authorId && (
+            <div className="rounded-lg border p-3 space-y-2">
+              <p className="text-sm font-medium">Você ainda não avaliou</p>
+              {myPending.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  Você já registrou feedback para todos os colaboradores do seu escopo neste período.
+                </p>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {myPending.map((p) => (
+                    <Badge key={p.id} variant="outline" className="font-normal">{p.nome}</Badge>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {coverageByAuthor.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Nenhum feedback externo registrado no período selecionado.
+            </p>
+          ) : (
+            <ul className="space-y-3">
+              {coverageByAuthor.map((a) => (
+                <li key={a.label} className="rounded-lg border p-3 space-y-2">
+                  <p className="text-sm font-medium">
+                    {a.label} <span className="text-muted-foreground font-normal">· {a.people.length} colaborador(es)</span>
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {a.people.map((pp) => (
+                      <Badge key={pp.name} variant="secondary" className="gap-1 font-normal">
+                        {pp.name}
+                        {pp.last && (
+                          <span className="text-muted-foreground">
+                            · {format(new Date(pp.last), "dd/MM/yyyy", { locale: ptBR })}
+                          </span>
+                        )}
+                      </Badge>
+                    ))}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
 
       {!personId ? (
         <Card>

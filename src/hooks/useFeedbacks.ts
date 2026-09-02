@@ -70,6 +70,30 @@ export function useFeedbackTimeline(personId?: string, period = "all", since?: s
   });
 }
 
+export interface FeedbackCoverageRow {
+  author_id: string | null;
+  author_label: string;
+  person_id: string;
+  person_name: string;
+  feedbacks: number;
+  last_at: string | null;
+}
+
+/** Quais colaboradores cada gestor já avaliou (feedbacks externos) no período. */
+export function useFeedbackCoverage(period = "all", since?: string | null) {
+  return useQuery({
+    queryKey: ["feedback_coverage", period],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).rpc("get_feedback_coverage_by_author", {
+        p_since: since ?? null,
+      });
+      if (error) throw error;
+      return (data || []) as FeedbackCoverageRow[];
+    },
+  });
+}
+
+
 
 export interface CreateExternalFeedbackInput {
   person_id: string;

@@ -20,6 +20,7 @@ import { Sparkles, Trophy, Heart, Send, Settings as SettingsIcon, Check, Chevron
 import { useKudosFeed, useLeaderboard, useMyPoints, useSendKudo, useActivePeople, useEngagementPrefs, useSaveEngagementPrefs, KudosCategory } from "@/hooks/useEngagement";
 import { FeedbackProfilePanel } from "@/components/engagement/FeedbackProfilePanel";
 import { MonthlyReportPanel } from "@/components/engagement/MonthlyReportPanel";
+import { TeamSummaryCard } from "@/components/engagement/TeamSummaryCard";
 
 import { EngagementSummaryCard } from "@/components/EngagementSummaryCard";
 import { useToast } from "@/hooks/use-toast";
@@ -485,6 +486,8 @@ export default function Engagement() {
           </CardContent>
         </Card>
       )}
+
+      {canSeeFeedbacks && <TeamSummaryCard canSeeGlobal={isManagementLevel(person)} />}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="space-y-6 lg:col-span-1">
