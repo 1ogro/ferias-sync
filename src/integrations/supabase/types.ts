@@ -202,30 +202,36 @@ export type Database = {
       external_feedback_attachments: {
         Row: {
           created_at: string
+          external_url: string | null
           feedback_id: string
           file_name: string
           id: string
+          kind: string
           mime_type: string | null
           size_bytes: number | null
-          storage_path: string
+          storage_path: string | null
         }
         Insert: {
           created_at?: string
+          external_url?: string | null
           feedback_id: string
           file_name: string
           id?: string
+          kind?: string
           mime_type?: string | null
           size_bytes?: number | null
-          storage_path: string
+          storage_path?: string | null
         }
         Update: {
           created_at?: string
+          external_url?: string | null
           feedback_id?: string
           file_name?: string
           id?: string
+          kind?: string
           mime_type?: string | null
           size_bytes?: number | null
-          storage_path?: string
+          storage_path?: string | null
         }
         Relationships: [
           {

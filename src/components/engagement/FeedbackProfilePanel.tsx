@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Switch } from "@/components/ui/switch";
-import { MessagesSquare, Trash2, Paperclip, Users } from "lucide-react";
+import { MessagesSquare, Trash2, Paperclip, Users, Link2 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useToast } from "@/hooks/use-toast";
@@ -56,6 +56,16 @@ function AttachmentLink({ path, name }: { path: string; name: string }) {
   return (
     <Button variant="outline" size="sm" className="h-7 text-xs" onClick={open}>
       <Paperclip className="h-3 w-3 mr-1" /> {name}
+    </Button>
+  );
+}
+
+function ExternalUrlLink({ url, name }: { url: string; name: string }) {
+  return (
+    <Button asChild variant="outline" size="sm" className="h-7 text-xs">
+      <a href={url} target="_blank" rel="noopener noreferrer">
+        <Link2 className="h-3 w-3 mr-1" /> {name}
+      </a>
     </Button>
   );
 }
@@ -189,9 +199,13 @@ export function FeedbackProfilePanel({ authorId }: { authorId?: string }) {
 
                       {it.attachments.length > 0 && (
                         <div className="flex flex-wrap gap-2 pt-1">
-                          {it.attachments.map((a) => (
-                            <AttachmentLink key={a.id} path={a.storage_path} name={a.file_name} />
-                          ))}
+                          {it.attachments.map((a) =>
+                            a.kind === "link" || (!a.storage_path && a.external_url) ? (
+                              <ExternalUrlLink key={a.id} url={a.external_url!} name={a.file_name} />
+                            ) : (
+                              <AttachmentLink key={a.id} path={a.storage_path!} name={a.file_name} />
+                            )
+                          )}
                         </div>
                       )}
 

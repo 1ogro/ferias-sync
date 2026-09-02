@@ -6,11 +6,11 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, X, Paperclip } from "lucide-react";
+import { Plus, X, Paperclip, Link2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { useCreateExternalFeedback, useFeedbackScope, FeedbackChannel, FeedbackTone } from "@/hooks/useFeedbacks";
+import { useCreateExternalFeedback, useFeedbackScope, FeedbackChannel, FeedbackTone, FeedbackLinkInput, MAX_FEEDBACK_FILE_BYTES } from "@/hooks/useFeedbacks";
 
-const MAX_FILE_BYTES = 10 * 1024 * 1024;
+const MAX_FILE_BYTES = MAX_FEEDBACK_FILE_BYTES;
 
 export function ExternalFeedbackDialog({
   authorId,
@@ -33,6 +33,9 @@ export function ExternalFeedbackDialog({
   const [content, setContent] = useState("");
   const [visible, setVisible] = useState(false);
   const [files, setFiles] = useState<File[]>([]);
+  const [links, setLinks] = useState<FeedbackLinkInput[]>([]);
+  const [linkUrl, setLinkUrl] = useState("");
+  const [linkLabel, setLinkLabel] = useState("");
 
   const reset = () => {
     setPersonId(defaultPersonId ?? "");
@@ -44,6 +47,9 @@ export function ExternalFeedbackDialog({
     setContent("");
     setVisible(false);
     setFiles([]);
+    setLinks([]);
+    setLinkUrl("");
+    setLinkLabel("");
   };
 
   const addFiles = (list: FileList | null) => {
@@ -51,10 +57,21 @@ export function ExternalFeedbackDialog({
     const picked = Array.from(list);
     const tooBig = picked.find((f) => f.size > MAX_FILE_BYTES);
     if (tooBig) {
-      toast({ title: "Arquivo muito grande", description: `${tooBig.name} passa de 10 MB.`, variant: "destructive" });
+      toast({ title: "Arquivo muito grande", description: `${tooBig.name} passa de 1 MB. Use um link do Drive/SharePoint/Dropbox.`, variant: "destructive" });
       return;
     }
     setFiles((prev) => [...prev, ...picked].slice(0, 5));
+  };
+
+  const addLink = () => {
+    const url = linkUrl.trim();
+    if (!/^https?:\/\/\S+$/i.test(url)) {
+      toast({ title: "Link inválido", description: "Informe uma URL começando com http:// ou https://.", variant: "destructive" });
+      return;
+    }
+    setLinks((prev) => [...prev, { url, label: linkLabel.trim() || undefined }].slice(0, 5));
+    setLinkUrl("");
+    setLinkLabel("");
   };
 
   const submit = async () => {
@@ -75,6 +92,7 @@ export function ExternalFeedbackDialog({
         content: content.trim(),
         visible_to_subject: visible,
         files,
+        links,
       });
       toast({ title: "Feedback registrado", description: "O registro já aparece na linha do tempo da pessoa." });
       setOpen(false);
@@ -157,7 +175,7 @@ export function ExternalFeedbackDialog({
           </div>
 
           <div>
-            <Label className="flex items-center gap-2"><Paperclip className="h-4 w-4" /> Prints (até 5, 10 MB cada)</Label>
+            <Label className="flex items-center gap-2"><Paperclip className="h-4 w-4" /> Prints (até 5, 1 MB cada)</Label>
             <Input type="file" multiple accept="image/*,application/pdf" onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }} />
             {files.length > 0 && (
               <ul className="mt-2 space-y-1">
@@ -165,6 +183,40 @@ export function ExternalFeedbackDialog({
                   <li key={`${f.name}-${i}`} className="flex items-center justify-between text-xs bg-muted/50 rounded px-2 py-1">
                     <span className="truncate">{f.name}</span>
                     <button type="button" onClick={() => setFiles(files.filter((_, idx) => idx !== i))} aria-label={`Remover ${f.name}`}>
+                      <X className="h-3 w-3" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <p className="mt-1 text-xs text-muted-foreground">Arquivos maiores? Suba no Drive/SharePoint/Dropbox e cole o link abaixo.</p>
+          </div>
+
+          <div>
+            <Label className="flex items-center gap-2"><Link2 className="h-4 w-4" /> Links (Drive, SharePoint, Dropbox...)</Label>
+            <div className="grid grid-cols-[1fr_auto] gap-2 mt-1">
+              <Input
+                value={linkUrl}
+                onChange={(e) => setLinkUrl(e.target.value)}
+                placeholder="https://drive.google.com/..."
+                maxLength={1000}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addLink(); } }}
+              />
+              <Button type="button" variant="outline" onClick={addLink}>Adicionar</Button>
+            </div>
+            <Input
+              className="mt-2"
+              value={linkLabel}
+              onChange={(e) => setLinkLabel(e.target.value)}
+              placeholder="Rótulo do link (opcional)"
+              maxLength={120}
+            />
+            {links.length > 0 && (
+              <ul className="mt-2 space-y-1">
+                {links.map((l, i) => (
+                  <li key={`${l.url}-${i}`} className="flex items-center justify-between text-xs bg-muted/50 rounded px-2 py-1">
+                    <span className="truncate">{l.label || l.url}</span>
+                    <button type="button" onClick={() => setLinks(links.filter((_, idx) => idx !== i))} aria-label={`Remover ${l.url}`}>
                       <X className="h-3 w-3" />
                     </button>
                   </li>

@@ -13,10 +13,19 @@ export interface ScopePerson {
 
 export interface FeedbackAttachment {
   id: string;
-  storage_path: string;
+  storage_path: string | null;
   file_name: string;
   mime_type: string | null;
+  kind?: "file" | "link";
+  external_url?: string | null;
 }
+
+export interface FeedbackLinkInput {
+  url: string;
+  label?: string;
+}
+
+export const MAX_FEEDBACK_FILE_BYTES = 1024 * 1024;
 
 export interface FeedbackTimelineItem {
   id: string;
@@ -73,13 +82,14 @@ export interface CreateExternalFeedbackInput {
   content: string;
   visible_to_subject: boolean;
   files: File[];
+  links?: FeedbackLinkInput[];
 }
 
 export function useCreateExternalFeedback() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: CreateExternalFeedbackInput) => {
-      const { files, ...row } = input;
+      const { files, links = [], ...row } = input;
       const { data, error } = await (supabase as any)
         .from("external_feedbacks")
         .insert(row)
@@ -89,6 +99,7 @@ export function useCreateExternalFeedback() {
       const feedbackId = data.id as string;
 
       for (const file of files) {
+        if (file.size > MAX_FEEDBACK_FILE_BYTES) throw new Error(`${file.name} passa de 1 MB.`);
         const safeName = file.name.replace(/[^\w.\-]+/g, "_");
         const path = `${input.person_id}/${feedbackId}/${crypto.randomUUID()}-${safeName}`;
         const up = await supabase.storage.from(FEEDBACK_BUCKET).upload(path, file, {
@@ -101,8 +112,21 @@ export function useCreateExternalFeedback() {
           file_name: file.name,
           mime_type: file.type || null,
           size_bytes: file.size,
+          kind: "file",
         });
         if (attErr) throw attErr;
+      }
+
+      for (const link of links) {
+        const url = link.url.trim();
+        if (!/^https?:\/\//i.test(url)) throw new Error(`Link inválido: ${url}`);
+        const { error: linkErr } = await (supabase as any).from("external_feedback_attachments").insert({
+          feedback_id: feedbackId,
+          kind: "link",
+          external_url: url,
+          file_name: link.label?.trim() || url,
+        });
+        if (linkErr) throw linkErr;
       }
       return feedbackId;
     },
