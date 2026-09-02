@@ -38,8 +38,10 @@ function sinceIso(period: string) {
   if (period === "all") return null;
   const d = new Date();
   d.setDate(d.getDate() - Number(period));
+  d.setHours(0, 0, 0, 0);
   return d.toISOString();
 }
+
 
 function AttachmentLink({ path, name }: { path: string; name: string }) {
   const { toast } = useToast();
