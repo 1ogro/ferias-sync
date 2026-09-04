@@ -267,8 +267,10 @@ export function PulseResultsPanel({ survey }: Props) {
         <div>
           <h4 className="font-medium mb-2">Média geral da pesquisa (escala 1-5)</h4>
           <div className="grid grid-cols-3 gap-3">
-
+            <AvgStat label="Semanal (7d)" data={stats.overall.w7} />
+            <AvgStat label="Mensal (30d)" data={stats.overall.w30} />
             <AvgStat label="Geral" data={stats.overall.all} />
+
           </div>
         </div>
 
