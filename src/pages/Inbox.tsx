@@ -107,7 +107,10 @@ const Inbox = () => {
     sub_time: 'Sub-time',
     local: 'Local',
     dia_pagamento: 'Dia de pagamento',
+    feedback_reminders_slack: 'Cobrança de feedback no Slack',
+    feedback_reminders_email: 'Cobrança de feedback por e-mail',
   };
+
 
 
 
