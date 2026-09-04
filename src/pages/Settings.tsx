@@ -307,22 +307,46 @@ const Settings = () => {
                         <div>
                           <Label>Cobrança de coleta de feedback</Label>
                           <p className="text-sm text-muted-foreground">Lembretes periódicos com os liderados que ainda estão sem feedback registrado</p>
+                          {hasDirectReports && (
+                            <div className="mt-2 flex flex-wrap items-center gap-2">
+                              {pendingOptOutId ? (
+                                <Badge variant="secondary">Pedido de desligamento em análise</Badge>
+                              ) : (
+                                <>
+                                  <Badge variant="outline">Requer aprovação</Badge>
+                                  <Button size="sm" variant="outline" onClick={() => setOptOutDialogOpen(true)}>
+                                    Solicitar desligamento
+                                  </Button>
+                                </>
+                              )}
+                            </div>
+                          )}
                         </div>
                         <div className="flex justify-center">
                           <Switch
                             checked={notifPrefs.feedback_reminders_email}
                             onCheckedChange={(v) => updatePreference('feedback_reminders_email', v)}
-                            disabled={notifSaving}
+                            disabled={notifSaving || hasDirectReports}
                           />
                         </div>
                         <div className="flex justify-center">
                           <Switch
                             checked={notifPrefs.feedback_reminders_slack}
                             onCheckedChange={(v) => updatePreference('feedback_reminders_slack', v)}
-                            disabled={notifSaving}
+                            disabled={notifSaving || hasDirectReports}
                           />
                         </div>
                       </div>
+
+                      {person?.id && (
+                        <FeedbackReminderOptOutDialog
+                          open={optOutDialogOpen}
+                          onOpenChange={setOptOutDialogOpen}
+                          personId={person.id}
+                          onRequested={refreshOptOutContext}
+                        />
+                      )}
+
 
 
 
