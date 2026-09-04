@@ -83,7 +83,9 @@ serve(async (req) => {
       const groupIds = groupKudos.map((k) => k.id).sort();
 
       const { data: toPeople } = await admin
-        .from("people").select("id, nome, gestor_id, ativo").in("id", toIds);
+        .from("people")
+        .select("id, nome, gestor_id, ativo, email, email_pessoal, slack_user_id")
+        .in("id", toIds);
       const activeTo = (toPeople || []).filter((p: any) => p.ativo);
       if (activeTo.length === 0) {
         summary.push({ group: groupIds, skipped: "no_active_recipients" });
@@ -91,6 +93,13 @@ serve(async (req) => {
       }
 
       const { data: from } = await admin.from("people").select("id, nome").eq("id", sender.from_person_id).maybeSingle();
+
+      // DM para quem recebeu o biscoito (idempotente por kudo + pessoa)
+      for (const k of groupKudos) {
+        const person = activeTo.find((p: any) => p.id === k.to_person_id);
+        if (!person) continue;
+        await sendRecipientDM(admin, k, person, from?.nome || "Alguém");
+      }
 
       // Build recipient set: managers of each recipient + all active directors
       const recipientIds = new Set<string>();
