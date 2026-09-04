@@ -328,7 +328,14 @@ const Settings = () => {
                   )}
                 </CardContent>
               </Card>
+
+              {isDirectorOrAdmin && (
+                <div className="mt-6">
+                  <FeedbackReminderSettings />
+                </div>
+              )}
             </TabsContent>
+
 
             <TabsContent value="display">
               <Card>
