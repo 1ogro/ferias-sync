@@ -1009,7 +1009,7 @@ const Inbox = () => {
                         {Object.entries(req.changes).map(([key, value]) => (
                           <div key={key}>
                             <span className="font-medium">{DATA_CHANGE_LABELS[key] || key}:</span>{" "}
-                            {value === null || value === "" ? "—" : String(value)}
+                            {value === null || value === "" ? "—" : typeof value === "boolean" ? (value ? "Ligar" : "Desligar") : String(value)}
                           </div>
                         ))}
                       </div>
