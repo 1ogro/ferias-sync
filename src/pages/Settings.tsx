@@ -16,6 +16,8 @@ import { useNotificationPreferences } from "@/hooks/useNotificationPreferences";
 import { IntegrationCard } from "@/components/integrations/IntegrationCard";
 import { IntegrationsWizard } from "@/components/integrations/IntegrationsWizard";
 import { FeedbackReminderSettings } from "@/components/admin/FeedbackReminderSettings";
+import { FeedbackReminderOptOutDialog } from "@/components/settings/FeedbackReminderOptOutDialog";
+
 import { Monitor, Bell, Table, RotateCcw, Save, Plug, Mail, Figma, Stethoscope, Settings as SettingsIcon, TestTube } from "lucide-react";
 import { MessageSquare, Sheet } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -24,8 +26,11 @@ import { useState } from "react";
 const Settings = () => {
   const { toast } = useToast();
   const { settings, updateSettings, resetSettings } = useSettings();
-  const { hasRole } = useAuth();
-  const { preferences: notifPrefs, isLoading: notifLoading, isSaving: notifSaving, updatePreference } = useNotificationPreferences();
+  const { hasRole, person } = useAuth();
+
+  const { preferences: notifPrefs, isLoading: notifLoading, isSaving: notifSaving, updatePreference, hasDirectReports, pendingOptOutId, refreshOptOutContext } = useNotificationPreferences();
+  const [optOutDialogOpen, setOptOutDialogOpen] = useState(false);
+
   const {
     settings: integrationSettings, 
     isLoading,
@@ -302,22 +307,46 @@ const Settings = () => {
                         <div>
                           <Label>Cobrança de coleta de feedback</Label>
                           <p className="text-sm text-muted-foreground">Lembretes periódicos com os liderados que ainda estão sem feedback registrado</p>
+                          {hasDirectReports && (
+                            <div className="mt-2 flex flex-wrap items-center gap-2">
+                              {pendingOptOutId ? (
+                                <Badge variant="secondary">Pedido de desligamento em análise</Badge>
+                              ) : (
+                                <>
+                                  <Badge variant="outline">Requer aprovação</Badge>
+                                  <Button size="sm" variant="outline" onClick={() => setOptOutDialogOpen(true)}>
+                                    Solicitar desligamento
+                                  </Button>
+                                </>
+                              )}
+                            </div>
+                          )}
                         </div>
                         <div className="flex justify-center">
                           <Switch
                             checked={notifPrefs.feedback_reminders_email}
                             onCheckedChange={(v) => updatePreference('feedback_reminders_email', v)}
-                            disabled={notifSaving}
+                            disabled={notifSaving || hasDirectReports}
                           />
                         </div>
                         <div className="flex justify-center">
                           <Switch
                             checked={notifPrefs.feedback_reminders_slack}
                             onCheckedChange={(v) => updatePreference('feedback_reminders_slack', v)}
-                            disabled={notifSaving}
+                            disabled={notifSaving || hasDirectReports}
                           />
                         </div>
                       </div>
+
+                      {person?.id && (
+                        <FeedbackReminderOptOutDialog
+                          open={optOutDialogOpen}
+                          onOpenChange={setOptOutDialogOpen}
+                          personId={person.id}
+                          onRequested={refreshOptOutContext}
+                        />
+                      )}
+
 
 
 

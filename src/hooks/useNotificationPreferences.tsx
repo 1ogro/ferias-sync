@@ -36,6 +36,9 @@ export function useNotificationPreferences() {
   const [preferences, setPreferences] = useState<NotificationPreferences>(defaultPreferences);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [hasDirectReports, setHasDirectReports] = useState(false);
+  const [pendingOptOutId, setPendingOptOutId] = useState<string | null>(null);
+
 
   const fetchPreferences = useCallback(async () => {
     if (!personId) return;
@@ -72,13 +75,36 @@ export function useNotificationPreferences() {
     }
   }, [personId]);
 
+  const fetchOptOutContext = useCallback(async () => {
+    if (!personId) return;
+    const [reports, pending] = await Promise.all([
+      (supabase as any).rpc("has_direct_reports", { _person_id: personId }),
+      (supabase as any)
+        .from("data_change_requests")
+        .select("id")
+        .eq("person_id", personId)
+        .eq("kind", "FEEDBACK_REMINDER_OPTOUT")
+        .eq("status", "PENDENTE")
+        .maybeSingle(),
+    ]);
+    setHasDirectReports(reports?.data === true);
+    setPendingOptOutId(pending?.data?.id ?? null);
+  }, [personId]);
+
   useEffect(() => {
     fetchPreferences();
-  }, [fetchPreferences]);
+    fetchOptOutContext();
+  }, [fetchPreferences, fetchOptOutContext]);
 
   const updatePreference = async (key: keyof NotificationPreferences, value: boolean) => {
     if (!personId) return;
-    
+
+    const lockedKeys: Array<keyof NotificationPreferences> = [
+      "feedback_reminders_slack",
+      "feedback_reminders_email",
+    ];
+    if (hasDirectReports && lockedKeys.includes(key) && value === false) return;
+
     const newPreferences = { ...preferences, [key]: value };
     setPreferences(newPreferences);
     setIsSaving(true);
@@ -105,5 +131,14 @@ export function useNotificationPreferences() {
     }
   };
 
-  return { preferences, isLoading, isSaving, updatePreference };
+  return {
+    preferences,
+    isLoading,
+    isSaving,
+    updatePreference,
+    hasDirectReports,
+    pendingOptOutId,
+    refreshOptOutContext: fetchOptOutContext,
+  };
+
 }

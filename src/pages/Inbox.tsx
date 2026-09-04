@@ -107,7 +107,10 @@ const Inbox = () => {
     sub_time: 'Sub-time',
     local: 'Local',
     dia_pagamento: 'Dia de pagamento',
+    feedback_reminders_slack: 'Cobrança de feedback no Slack',
+    feedback_reminders_email: 'Cobrança de feedback por e-mail',
   };
+
 
 
 
@@ -994,16 +997,19 @@ const Inbox = () => {
                       <CardTitle className="text-base">
                         {req.person_nome}{" "}
                         <span className="text-muted-foreground font-normal text-sm">
-                          — alteração de dados solicitada por {req.requested_by_nome}
+                          — {req.kind === 'FEEDBACK_REMINDER_OPTOUT'
+                            ? 'pedido para desligar a cobrança de coleta de feedback'
+                            : 'alteração de dados'} solicitada por {req.requested_by_nome}
                         </span>
                       </CardTitle>
+
                     </CardHeader>
                     <CardContent className="space-y-3">
                       <div className="text-sm space-y-1">
                         {Object.entries(req.changes).map(([key, value]) => (
                           <div key={key}>
                             <span className="font-medium">{DATA_CHANGE_LABELS[key] || key}:</span>{" "}
-                            {value === null || value === "" ? "—" : String(value)}
+                            {value === null || value === "" ? "—" : typeof value === "boolean" ? (value ? "Ligar" : "Desligar") : String(value)}
                           </div>
                         ))}
                       </div>
