@@ -161,7 +161,12 @@ export function PulseResultsPanel({ survey }: Props) {
               {survey.anonymous && <Badge variant="outline">🕶️ Anônima</Badge>}
             </div>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
+            {filtersActive && (
+              <Button variant="secondary" size="sm" onClick={handleExportFiltered}>
+                <Download className="w-4 h-4 mr-1" /> CSV filtrado
+              </Button>
+            )}
             <Button variant="outline" size="sm" onClick={() => handleExport("csv")}>
               <Download className="w-4 h-4 mr-1" /> CSV
             </Button>
@@ -169,6 +174,7 @@ export function PulseResultsPanel({ survey }: Props) {
               <FileSpreadsheet className="w-4 h-4 mr-1" /> Excel
             </Button>
           </div>
+
         </div>
       </CardHeader>
       <CardContent className="space-y-6">
