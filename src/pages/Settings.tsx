@@ -25,7 +25,9 @@ const Settings = () => {
   const { toast } = useToast();
   const { settings, updateSettings, resetSettings } = useSettings();
   const { hasRole } = useAuth();
-  const { preferences: notifPrefs, isLoading: notifLoading, isSaving: notifSaving, updatePreference } = useNotificationPreferences();
+  const { preferences: notifPrefs, isLoading: notifLoading, isSaving: notifSaving, updatePreference, hasDirectReports, pendingOptOutId, refreshOptOutContext } = useNotificationPreferences();
+  const [optOutDialogOpen, setOptOutDialogOpen] = useState(false);
+
   const {
     settings: integrationSettings, 
     isLoading,
