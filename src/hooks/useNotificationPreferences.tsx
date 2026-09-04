@@ -36,6 +36,9 @@ export function useNotificationPreferences() {
   const [preferences, setPreferences] = useState<NotificationPreferences>(defaultPreferences);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [hasDirectReports, setHasDirectReports] = useState(false);
+  const [pendingOptOutId, setPendingOptOutId] = useState<string | null>(null);
+
 
   const fetchPreferences = useCallback(async () => {
     if (!personId) return;
