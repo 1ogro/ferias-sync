@@ -35,6 +35,71 @@ async function sha1Short(input: string): Promise<string> {
     .join("");
 }
 
+const SLACK_BOT_TOKEN = Deno.env.get("SLACK_BOT_TOKEN") || "";
+
+async function resolveSlackId(admin: any, person: any): Promise<{ id: string | null; tried: string[]; err: string | null }> {
+  if (person.slack_user_id) return { id: person.slack_user_id, tried: [], err: null };
+  const emails = [person.email, person.email_pessoal]
+    .map((e: any) => (e || "").trim())
+    .filter((e: string, i: number, a: string[]) => e && a.indexOf(e) === i);
+  const tried: string[] = [];
+  let err: string | null = null;
+  for (const email of emails) {
+    tried.push(email);
+    const r = await fetch(`https://slack.com/api/users.lookupByEmail?email=${encodeURIComponent(email)}`, {
+      headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}` },
+    });
+    const d = await r.json();
+    if (d.ok && d.user?.id) {
+      await admin.from("people").update({ slack_user_id: d.user.id }).eq("id", person.id);
+      return { id: d.user.id, tried, err: null };
+    }
+    err = d.error || "users_not_found";
+  }
+  return { id: null, tried, err };
+}
+
+async function sendRecipientDM(admin: any, kudo: any, person: any, fromName: string) {
+  const auditId = `${kudo.id}:${person.id}`;
+  const { data: already } = await admin
+    .from("audit_logs").select("id, payload")
+    .eq("entidade", "kudos").eq("entidade_id", auditId).eq("acao", "KUDOS_RECIPIENT_DM")
+    .limit(5);
+  if ((already || []).some((a: any) => a.payload?.status === "sent")) return;
+
+  const { id: slackId, tried, err } = await resolveSlackId(admin, person);
+  const logFail = (payload: any) =>
+    admin.from("audit_logs").insert({
+      entidade: "kudos", entidade_id: auditId, acao: "KUDOS_RECIPIENT_DM",
+      payload: { kudo_id: kudo.id, recipient_id: person.id, emails_tried: tried, ...payload },
+    });
+
+  if (!slackId) return void (await logFail({ status: "no_slack_id", error: err }));
+
+  const catLabel = CATEGORY_LABEL[kudo.category] || "🍪";
+  const text = `🍪 *Você ganhou um biscoito!*\n${catLabel}\nDe: *${fromName}*\n> ${kudo.message}\n\nVeja seu feed em /engagement`;
+
+  const open = await (await fetch("https://slack.com/api/conversations.open", {
+    method: "POST", headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ users: slackId }),
+  })).json();
+  if (!open.ok || !open.channel?.id) {
+    return void (await logFail({ status: "failed", stage: "conversations.open", error: open.error }));
+  }
+  const post = await (await fetch("https://slack.com/api/chat.postMessage", {
+    method: "POST", headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ channel: open.channel.id, text }),
+  })).json();
+  if (!post.ok) {
+    return void (await logFail({ status: "failed", stage: "chat.postMessage", error: post.error }));
+  }
+  await admin.from("audit_logs").insert({
+    entidade: "kudos", entidade_id: auditId, acao: "KUDOS_RECIPIENT_DM",
+    payload: { kudo_id: kudo.id, recipient_id: person.id, status: "sent", slack_user_id: slackId, channel: open.channel.id, ts: post.ts, emails_tried: tried },
+  });
+}
+
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
