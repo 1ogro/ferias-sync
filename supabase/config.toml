@@ -68,3 +68,6 @@ verify_jwt = false
 
 [functions.send-stale-request-reminders]
 verify_jwt = false
+
+[functions.feedback-collection-reminders]
+verify_jwt = false
