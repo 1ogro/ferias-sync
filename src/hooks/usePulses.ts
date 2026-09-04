@@ -141,6 +141,59 @@ export function usePulseResponses(surveyId?: string) {
   });
 }
 
+export interface PulseWeeklyTrendRow {
+  week_start: string;
+  avg_value: number | null;
+  response_count: number;
+  respondent_count: number;
+}
+
+export function usePulseWeeklyTrend(
+  surveyId?: string,
+  opts?: { weeks?: number; subTime?: string | null; questionId?: string | null }
+) {
+  const weeks = opts?.weeks ?? 12;
+  const subTime = opts?.subTime ?? null;
+  const questionId = opts?.questionId ?? null;
+  return useQuery({
+    queryKey: ["pulse_weekly_trend", surveyId, weeks, subTime, questionId],
+    enabled: !!surveyId,
+    queryFn: async (): Promise<PulseWeeklyTrendRow[]> => {
+      const { data, error } = await (supabase as any).rpc("get_pulse_weekly_trend", {
+        p_survey_id: surveyId!,
+        p_weeks: weeks,
+        p_sub_time: subTime,
+        p_question_id: questionId,
+      });
+      if (error) throw error;
+      return ((data || []) as any[]).map((r) => ({
+        week_start: r.week_start,
+        avg_value: r.avg_value != null ? Number(r.avg_value) : null,
+        response_count: Number(r.response_count ?? 0),
+        respondent_count: Number(r.respondent_count ?? 0),
+      }));
+    },
+  });
+}
+
+export function usePulseSurveyTeams(surveyId?: string) {
+  return useQuery({
+    queryKey: ["pulse_survey_teams", surveyId],
+    enabled: !!surveyId,
+    queryFn: async (): Promise<{ sub_time: string; response_count: number }[]> => {
+      const { data, error } = await (supabase as any).rpc("get_pulse_survey_teams", {
+        p_survey_id: surveyId!,
+      });
+      if (error) throw error;
+      return ((data || []) as any[]).map((r) => ({
+        sub_time: r.sub_time,
+        response_count: Number(r.response_count ?? 0),
+      }));
+    },
+  });
+}
+
+
 export interface PeerReviewPairRow {
   id: string;
   run_id: string;
