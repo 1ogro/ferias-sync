@@ -119,6 +119,31 @@ export function PulseResultsPanel({ survey }: Props) {
     }
   };
 
+  const handleExportFiltered = () => {
+    const esc = (v: any) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const header = ["Data", "Respondente", "Pergunta", "Nota", "Comentário"];
+    const lines = [header.join(",")];
+    for (const r of responses as any[]) {
+      const q = (questions as any[]).find((qq) => qq.id === r.question_id);
+      lines.push(
+        [
+          esc(new Date(r.submitted_at).toLocaleString("pt-BR")),
+          esc(survey.anonymous ? r.anonymous_label || "—" : r.respondent_name || r.respondent_id || "—"),
+          esc(q?.question_text || "—"),
+          esc(r.scale_value ?? ""),
+          esc(r.text_value ?? ""),
+        ].join(",")
+      );
+    }
+    const blob = new Blob(["\uFEFF" + lines.join("\n")], { type: "text/csv;charset=utf-8" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `pulse_${survey.id}_filtrado.csv`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+  };
+
+
   const fmt = (a: { avg: number | null; count: number }) =>
     a.avg != null ? `${a.avg.toFixed(2)} (${a.count})` : `— (0)`;
 
