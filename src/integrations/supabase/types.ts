@@ -1968,6 +1968,7 @@ export type Database = {
           without_contract: number
         }[]
       }
+      has_direct_reports: { Args: { _person_id: string }; Returns: boolean }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
