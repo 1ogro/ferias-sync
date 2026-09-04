@@ -1,5 +1,13 @@
-import { useMemo } from "react";
-import { usePulseQuestions, usePulseResponses, usePulseRuns, downloadPulseExport, PulseSurvey } from "@/hooks/usePulses";
+import { useMemo, useState } from "react";
+import {
+  usePulseQuestions,
+  usePulseResponses,
+  usePulseRuns,
+  usePulseWeeklyTrend,
+  usePulseSurveyTeams,
+  downloadPulseExport,
+  PulseSurvey,
+} from "@/hooks/usePulses";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -7,9 +15,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Download, FileSpreadsheet } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { PeerReviewPairsSection } from "./PeerReviewPairsSection";
+import { PulseTrendPanel } from "./PulseTrendPanel";
 import { useAuth } from "@/hooks/useAuth";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { EyeOff } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 
 interface Props {
   survey: PulseSurvey;
@@ -22,7 +34,39 @@ export function PulseResultsPanel({ survey }: Props) {
     person?.papel === "GERENTE" && !person?.is_admin && survey.created_by !== person?.id;
   const { data: questions = [] } = usePulseQuestions(survey.id);
   const { data: runs = [] } = usePulseRuns(survey.id);
-  const { data: responses = [] } = usePulseResponses(survey.id);
+  const { data: allResponses = [] } = usePulseResponses(survey.id);
+
+  const scaleQuestions = useMemo(
+    () => (questions as any[]).filter((q) => q.question_type === "scale_1_5"),
+    [questions]
+  );
+
+  const [weeks, setWeeks] = useState(12);
+  const [subTime, setSubTime] = useState<string>("all");
+  const [questionId, setQuestionId] = useState<string>("all");
+  const [onlyComments, setOnlyComments] = useState(false);
+
+  const canFilterTeams = !!person?.is_admin || person?.papel === "DIRETOR" || person?.papel === "GERENTE";
+  const { data: teams = [] } = usePulseSurveyTeams(canFilterTeams ? survey.id : undefined);
+
+  const trend = usePulseWeeklyTrend(survey.id, {
+    weeks,
+    subTime: subTime === "all" ? null : subTime,
+    questionId: questionId === "all" ? null : questionId,
+  });
+
+  const responses = useMemo(() => {
+    const cutoff = Date.now() - weeks * 7 * 24 * 60 * 60 * 1000;
+    return (allResponses as any[]).filter((r) => {
+      if (questionId !== "all" && r.question_id !== questionId) return false;
+      if (onlyComments && !r.text_value) return false;
+      if (r.submitted_at && new Date(r.submitted_at).getTime() < cutoff) return false;
+      return true;
+    });
+  }, [allResponses, questionId, onlyComments, weeks]);
+
+  const filtersActive = questionId !== "all" || onlyComments || subTime !== "all" || weeks !== 12;
+
 
   const stats = useMemo(() => {
     const totalRecipients = runs.reduce((a, r: any) => a + (r.recipients_count || 0), 0);
@@ -75,6 +119,31 @@ export function PulseResultsPanel({ survey }: Props) {
     }
   };
 
+  const handleExportFiltered = () => {
+    const esc = (v: any) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const header = ["Data", "Respondente", "Pergunta", "Nota", "Comentário"];
+    const lines = [header.join(",")];
+    for (const r of responses as any[]) {
+      const q = (questions as any[]).find((qq) => qq.id === r.question_id);
+      lines.push(
+        [
+          esc(new Date(r.submitted_at).toLocaleString("pt-BR")),
+          esc(survey.anonymous ? r.anonymous_label || "—" : r.respondent_name || r.respondent_id || "—"),
+          esc(q?.question_text || "—"),
+          esc(r.scale_value ?? ""),
+          esc(r.text_value ?? ""),
+        ].join(",")
+      );
+    }
+    const blob = new Blob(["\uFEFF" + lines.join("\n")], { type: "text/csv;charset=utf-8" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `pulse_${survey.id}_filtrado.csv`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+  };
+
+
   const fmt = (a: { avg: number | null; count: number }) =>
     a.avg != null ? `${a.avg.toFixed(2)} (${a.count})` : `— (0)`;
 
@@ -92,7 +161,12 @@ export function PulseResultsPanel({ survey }: Props) {
               {survey.anonymous && <Badge variant="outline">🕶️ Anônima</Badge>}
             </div>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
+            {filtersActive && (
+              <Button variant="secondary" size="sm" onClick={handleExportFiltered}>
+                <Download className="w-4 h-4 mr-1" /> CSV filtrado
+              </Button>
+            )}
             <Button variant="outline" size="sm" onClick={() => handleExport("csv")}>
               <Download className="w-4 h-4 mr-1" /> CSV
             </Button>
@@ -100,6 +174,7 @@ export function PulseResultsPanel({ survey }: Props) {
               <FileSpreadsheet className="w-4 h-4 mr-1" /> Excel
             </Button>
           </div>
+
         </div>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -118,12 +193,84 @@ export function PulseResultsPanel({ survey }: Props) {
           <Stat label="Taxa de resposta" value={`${stats.responseRate.toFixed(0)}%`} />
         </div>
 
+        {scaleQuestions.length > 0 && (
+          <div className="space-y-3">
+            <div className="flex items-end gap-3 flex-wrap rounded border p-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Período</Label>
+                <Select value={String(weeks)} onValueChange={(v) => setWeeks(Number(v))}>
+                  <SelectTrigger className="w-[170px] h-9">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="4">Últimas 4 semanas</SelectItem>
+                    <SelectItem value="8">Últimas 8 semanas</SelectItem>
+                    <SelectItem value="12">Últimas 12 semanas</SelectItem>
+                    <SelectItem value="26">Últimas 26 semanas</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {canFilterTeams && teams.length > 1 && (
+                <div className="space-y-1">
+                  <Label className="text-xs">Time</Label>
+                  <Select value={subTime} onValueChange={setSubTime}>
+                    <SelectTrigger className="w-[180px] h-9">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos os times</SelectItem>
+                      {teams.map((t) => (
+                        <SelectItem key={t.sub_time} value={t.sub_time}>
+                          {t.sub_time}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {scaleQuestions.length > 1 && (
+                <div className="space-y-1">
+                  <Label className="text-xs">Pergunta</Label>
+                  <Select value={questionId} onValueChange={setQuestionId}>
+                    <SelectTrigger className="w-[260px] h-9">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todas as perguntas</SelectItem>
+                      {scaleQuestions.map((q: any) => (
+                        <SelectItem key={q.id} value={q.id}>
+                          {q.question_text}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              <div className="flex items-center gap-2 h-9">
+                <Switch id="only-comments" checked={onlyComments} onCheckedChange={setOnlyComments} />
+                <Label htmlFor="only-comments" className="text-xs">
+                  Somente com comentário
+                </Label>
+              </div>
+            </div>
+
+            <div>
+              <h4 className="font-medium mb-2">Evolução semanal (escala 1-5)</h4>
+              <PulseTrendPanel data={trend.data || []} isLoading={trend.isLoading} error={trend.error} />
+            </div>
+          </div>
+        )}
+
         <div>
           <h4 className="font-medium mb-2">Média geral da pesquisa (escala 1-5)</h4>
           <div className="grid grid-cols-3 gap-3">
             <AvgStat label="Semanal (7d)" data={stats.overall.w7} />
             <AvgStat label="Mensal (30d)" data={stats.overall.w30} />
             <AvgStat label="Geral" data={stats.overall.all} />
+
           </div>
         </div>
 

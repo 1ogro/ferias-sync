@@ -1820,6 +1820,27 @@ export type Database = {
           text_value: string
         }[]
       }
+      get_pulse_survey_teams: {
+        Args: { p_survey_id: string }
+        Returns: {
+          response_count: number
+          sub_time: string
+        }[]
+      }
+      get_pulse_weekly_trend: {
+        Args: {
+          p_question_id?: string
+          p_sub_time?: string
+          p_survey_id: string
+          p_weeks?: number
+        }
+        Returns: {
+          avg_value: number
+          respondent_count: number
+          response_count: number
+          week_start: string
+        }[]
+      }
       get_vacation_summary: {
         Args: { p_year?: number }
         Returns: {
