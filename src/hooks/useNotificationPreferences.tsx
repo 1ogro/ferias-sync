@@ -12,6 +12,8 @@ export interface NotificationPreferences {
   admin_actions_email: boolean;
   admin_actions_slack: boolean;
   registration_reminders_slack: boolean;
+  feedback_reminders_slack: boolean;
+  feedback_reminders_email: boolean;
 }
 
 const defaultPreferences: NotificationPreferences = {
@@ -24,6 +26,8 @@ const defaultPreferences: NotificationPreferences = {
   admin_actions_email: true,
   admin_actions_slack: true,
   registration_reminders_slack: true,
+  feedback_reminders_slack: true,
+  feedback_reminders_email: true,
 };
 
 export function useNotificationPreferences() {
@@ -59,6 +63,8 @@ export function useNotificationPreferences() {
           admin_actions_email: data.admin_actions_email,
           admin_actions_slack: data.admin_actions_slack,
           registration_reminders_slack: (data as any).registration_reminders_slack ?? true,
+          feedback_reminders_slack: (data as any).feedback_reminders_slack ?? true,
+          feedback_reminders_email: (data as any).feedback_reminders_email ?? true,
         });
       }
     } finally {

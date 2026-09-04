@@ -303,6 +303,106 @@ export type Database = {
           },
         ]
       }
+      feedback_reminder_cycles: {
+        Row: {
+          created_at: string
+          cycle_start: string
+          escalated_at: string | null
+          id: string
+          last_sent_at: string | null
+          manager_id: string
+          nudges_sent: number
+          pending_never: number
+          pending_overdue: number
+          resolved_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          cycle_start: string
+          escalated_at?: string | null
+          id?: string
+          last_sent_at?: string | null
+          manager_id: string
+          nudges_sent?: number
+          pending_never?: number
+          pending_overdue?: number
+          resolved_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          cycle_start?: string
+          escalated_at?: string | null
+          id?: string
+          last_sent_at?: string | null
+          manager_id?: string
+          nudges_sent?: number
+          pending_never?: number
+          pending_overdue?: number
+          resolved_at?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "feedback_reminder_cycles_manager_id_fkey"
+            columns: ["manager_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      feedback_reminder_settings: {
+        Row: {
+          created_at: string
+          cycle_days: number
+          enabled: boolean
+          id: string
+          max_nudges: number
+          nudge_after_days: number
+          overdue_days: number
+          send_hour: number
+          timezone: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          cycle_days?: number
+          enabled?: boolean
+          id?: string
+          max_nudges?: number
+          nudge_after_days?: number
+          overdue_days?: number
+          send_hour?: number
+          timezone?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          cycle_days?: number
+          enabled?: boolean
+          id?: string
+          max_nudges?: number
+          nudge_after_days?: number
+          overdue_days?: number
+          send_hour?: number
+          timezone?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "feedback_reminder_settings_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       integration_settings: {
         Row: {
           configured_at: string | null
@@ -538,6 +638,8 @@ export type Database = {
           birthday_email: boolean
           birthday_slack: boolean
           created_at: string
+          feedback_reminders_email: boolean
+          feedback_reminders_slack: boolean
           id: string
           person_id: string
           preferred_window_end: string
@@ -558,6 +660,8 @@ export type Database = {
           birthday_email?: boolean
           birthday_slack?: boolean
           created_at?: string
+          feedback_reminders_email?: boolean
+          feedback_reminders_slack?: boolean
           id?: string
           person_id: string
           preferred_window_end?: string
@@ -578,6 +682,8 @@ export type Database = {
           birthday_email?: boolean
           birthday_slack?: boolean
           created_at?: string
+          feedback_reminders_email?: boolean
+          feedback_reminders_slack?: boolean
           id?: string
           person_id?: string
           preferred_window_end?: string
@@ -1712,6 +1818,18 @@ export type Database = {
           people_count: number
           sub_time: string
           total: number
+        }[]
+      }
+      get_feedback_collection_pending: {
+        Args: { p_overdue_days?: number }
+        Returns: {
+          bucket: string
+          last_feedback_at: string
+          manager_email: string
+          manager_id: string
+          manager_name: string
+          person_id: string
+          person_name: string
         }[]
       }
       get_feedback_coverage_by_author: {

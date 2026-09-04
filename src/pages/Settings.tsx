@@ -15,6 +15,7 @@ import { useIntegrations } from "@/hooks/useIntegrations";
 import { useNotificationPreferences } from "@/hooks/useNotificationPreferences";
 import { IntegrationCard } from "@/components/integrations/IntegrationCard";
 import { IntegrationsWizard } from "@/components/integrations/IntegrationsWizard";
+import { FeedbackReminderSettings } from "@/components/admin/FeedbackReminderSettings";
 import { Monitor, Bell, Table, RotateCcw, Save, Plug, Mail, Figma, Stethoscope, Settings as SettingsIcon, TestTube } from "lucide-react";
 import { MessageSquare, Sheet } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -296,6 +297,30 @@ const Settings = () => {
                         </div>
                       </div>
 
+                      {/* Feedback collection reminders */}
+                      <div className="grid grid-cols-[1fr_80px_80px] gap-4 items-center py-3 border-t">
+                        <div>
+                          <Label>Cobrança de coleta de feedback</Label>
+                          <p className="text-sm text-muted-foreground">Lembretes periódicos com os liderados que ainda estão sem feedback registrado</p>
+                        </div>
+                        <div className="flex justify-center">
+                          <Switch
+                            checked={notifPrefs.feedback_reminders_email}
+                            onCheckedChange={(v) => updatePreference('feedback_reminders_email', v)}
+                            disabled={notifSaving}
+                          />
+                        </div>
+                        <div className="flex justify-center">
+                          <Switch
+                            checked={notifPrefs.feedback_reminders_slack}
+                            onCheckedChange={(v) => updatePreference('feedback_reminders_slack', v)}
+                            disabled={notifSaving}
+                          />
+                        </div>
+                      </div>
+
+
+
 
                       {notifSaving && (
                         <p className="text-xs text-muted-foreground pt-2">Salvando...</p>
@@ -304,7 +329,14 @@ const Settings = () => {
                   )}
                 </CardContent>
               </Card>
+
+              {isDirectorOrAdmin && (
+                <div className="mt-6">
+                  <FeedbackReminderSettings />
+                </div>
+              )}
             </TabsContent>
+
 
             <TabsContent value="display">
               <Card>
