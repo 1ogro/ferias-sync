@@ -193,11 +193,81 @@ export function PulseResultsPanel({ survey }: Props) {
           <Stat label="Taxa de resposta" value={`${stats.responseRate.toFixed(0)}%`} />
         </div>
 
+        {scaleQuestions.length > 0 && (
+          <div className="space-y-3">
+            <div className="flex items-end gap-3 flex-wrap rounded border p-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Período</Label>
+                <Select value={String(weeks)} onValueChange={(v) => setWeeks(Number(v))}>
+                  <SelectTrigger className="w-[170px] h-9">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="4">Últimas 4 semanas</SelectItem>
+                    <SelectItem value="8">Últimas 8 semanas</SelectItem>
+                    <SelectItem value="12">Últimas 12 semanas</SelectItem>
+                    <SelectItem value="26">Últimas 26 semanas</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {canFilterTeams && teams.length > 1 && (
+                <div className="space-y-1">
+                  <Label className="text-xs">Time</Label>
+                  <Select value={subTime} onValueChange={setSubTime}>
+                    <SelectTrigger className="w-[180px] h-9">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos os times</SelectItem>
+                      {teams.map((t) => (
+                        <SelectItem key={t.sub_time} value={t.sub_time}>
+                          {t.sub_time}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {scaleQuestions.length > 1 && (
+                <div className="space-y-1">
+                  <Label className="text-xs">Pergunta</Label>
+                  <Select value={questionId} onValueChange={setQuestionId}>
+                    <SelectTrigger className="w-[260px] h-9">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todas as perguntas</SelectItem>
+                      {scaleQuestions.map((q: any) => (
+                        <SelectItem key={q.id} value={q.id}>
+                          {q.question_text}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              <div className="flex items-center gap-2 h-9">
+                <Switch id="only-comments" checked={onlyComments} onCheckedChange={setOnlyComments} />
+                <Label htmlFor="only-comments" className="text-xs">
+                  Somente com comentário
+                </Label>
+              </div>
+            </div>
+
+            <div>
+              <h4 className="font-medium mb-2">Evolução semanal (escala 1-5)</h4>
+              <PulseTrendPanel data={trend.data || []} isLoading={trend.isLoading} error={trend.error} />
+            </div>
+          </div>
+        )}
+
         <div>
           <h4 className="font-medium mb-2">Média geral da pesquisa (escala 1-5)</h4>
           <div className="grid grid-cols-3 gap-3">
-            <AvgStat label="Semanal (7d)" data={stats.overall.w7} />
-            <AvgStat label="Mensal (30d)" data={stats.overall.w30} />
+
             <AvgStat label="Geral" data={stats.overall.all} />
           </div>
         </div>
