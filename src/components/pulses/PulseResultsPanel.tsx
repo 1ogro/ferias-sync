@@ -1,5 +1,13 @@
-import { useMemo } from "react";
-import { usePulseQuestions, usePulseResponses, usePulseRuns, downloadPulseExport, PulseSurvey } from "@/hooks/usePulses";
+import { useMemo, useState } from "react";
+import {
+  usePulseQuestions,
+  usePulseResponses,
+  usePulseRuns,
+  usePulseWeeklyTrend,
+  usePulseSurveyTeams,
+  downloadPulseExport,
+  PulseSurvey,
+} from "@/hooks/usePulses";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -7,9 +15,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Download, FileSpreadsheet } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { PeerReviewPairsSection } from "./PeerReviewPairsSection";
+import { PulseTrendPanel } from "./PulseTrendPanel";
 import { useAuth } from "@/hooks/useAuth";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { EyeOff } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 
 interface Props {
   survey: PulseSurvey;
@@ -22,7 +34,39 @@ export function PulseResultsPanel({ survey }: Props) {
     person?.papel === "GERENTE" && !person?.is_admin && survey.created_by !== person?.id;
   const { data: questions = [] } = usePulseQuestions(survey.id);
   const { data: runs = [] } = usePulseRuns(survey.id);
-  const { data: responses = [] } = usePulseResponses(survey.id);
+  const { data: allResponses = [] } = usePulseResponses(survey.id);
+
+  const scaleQuestions = useMemo(
+    () => (questions as any[]).filter((q) => q.question_type === "scale_1_5"),
+    [questions]
+  );
+
+  const [weeks, setWeeks] = useState(12);
+  const [subTime, setSubTime] = useState<string>("all");
+  const [questionId, setQuestionId] = useState<string>("all");
+  const [onlyComments, setOnlyComments] = useState(false);
+
+  const canFilterTeams = !!person?.is_admin || person?.papel === "DIRETOR" || person?.papel === "GERENTE";
+  const { data: teams = [] } = usePulseSurveyTeams(canFilterTeams ? survey.id : undefined);
+
+  const trend = usePulseWeeklyTrend(survey.id, {
+    weeks,
+    subTime: subTime === "all" ? null : subTime,
+    questionId: questionId === "all" ? null : questionId,
+  });
+
+  const responses = useMemo(() => {
+    const cutoff = Date.now() - weeks * 7 * 24 * 60 * 60 * 1000;
+    return (allResponses as any[]).filter((r) => {
+      if (questionId !== "all" && r.question_id !== questionId) return false;
+      if (onlyComments && !r.text_value) return false;
+      if (r.submitted_at && new Date(r.submitted_at).getTime() < cutoff) return false;
+      return true;
+    });
+  }, [allResponses, questionId, onlyComments, weeks]);
+
+  const filtersActive = questionId !== "all" || onlyComments || subTime !== "all" || weeks !== 12;
+
 
   const stats = useMemo(() => {
     const totalRecipients = runs.reduce((a, r: any) => a + (r.recipients_count || 0), 0);
