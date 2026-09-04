@@ -994,9 +994,12 @@ const Inbox = () => {
                       <CardTitle className="text-base">
                         {req.person_nome}{" "}
                         <span className="text-muted-foreground font-normal text-sm">
-                          — alteração de dados solicitada por {req.requested_by_nome}
+                          — {req.kind === 'FEEDBACK_REMINDER_OPTOUT'
+                            ? 'pedido para desligar a cobrança de coleta de feedback'
+                            : 'alteração de dados'} solicitada por {req.requested_by_nome}
                         </span>
                       </CardTitle>
+
                     </CardHeader>
                     <CardContent className="space-y-3">
                       <div className="text-sm space-y-1">
