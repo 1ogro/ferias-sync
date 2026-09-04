@@ -15,6 +15,7 @@ import { useIntegrations } from "@/hooks/useIntegrations";
 import { useNotificationPreferences } from "@/hooks/useNotificationPreferences";
 import { IntegrationCard } from "@/components/integrations/IntegrationCard";
 import { IntegrationsWizard } from "@/components/integrations/IntegrationsWizard";
+import { FeedbackReminderSettings } from "@/components/admin/FeedbackReminderSettings";
 import { Monitor, Bell, Table, RotateCcw, Save, Plug, Mail, Figma, Stethoscope, Settings as SettingsIcon, TestTube } from "lucide-react";
 import { MessageSquare, Sheet } from "lucide-react";
 import { Link } from "react-router-dom";
