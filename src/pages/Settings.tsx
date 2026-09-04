@@ -296,6 +296,30 @@ const Settings = () => {
                         </div>
                       </div>
 
+                      {/* Feedback collection reminders */}
+                      <div className="grid grid-cols-[1fr_80px_80px] gap-4 items-center py-3 border-t">
+                        <div>
+                          <Label>Cobrança de coleta de feedback</Label>
+                          <p className="text-sm text-muted-foreground">Lembretes periódicos com os liderados que ainda estão sem feedback registrado</p>
+                        </div>
+                        <div className="flex justify-center">
+                          <Switch
+                            checked={notifPrefs.feedback_reminders_email}
+                            onCheckedChange={(v) => updatePreference('feedback_reminders_email', v)}
+                            disabled={notifSaving}
+                          />
+                        </div>
+                        <div className="flex justify-center">
+                          <Switch
+                            checked={notifPrefs.feedback_reminders_slack}
+                            onCheckedChange={(v) => updatePreference('feedback_reminders_slack', v)}
+                            disabled={notifSaving}
+                          />
+                        </div>
+                      </div>
+
+
+
 
                       {notifSaving && (
                         <p className="text-xs text-muted-foreground pt-2">Salvando...</p>
