@@ -63,6 +63,8 @@ export function useNotificationPreferences() {
           admin_actions_email: data.admin_actions_email,
           admin_actions_slack: data.admin_actions_slack,
           registration_reminders_slack: (data as any).registration_reminders_slack ?? true,
+          feedback_reminders_slack: (data as any).feedback_reminders_slack ?? true,
+          feedback_reminders_email: (data as any).feedback_reminders_email ?? true,
         });
       }
     } finally {
