@@ -55,6 +55,7 @@ export function PulseResultsPanel({ survey }: Props) {
     questionId: questionId === "all" ? null : questionId,
   });
 
+  // Filtered list: used only by the response table and the "CSV filtrado" export.
   const responses = useMemo(() => {
     const cutoff = Date.now() - weeks * 7 * 24 * 60 * 60 * 1000;
     return (allResponses as any[]).filter((r) => {
@@ -68,21 +69,25 @@ export function PulseResultsPanel({ survey }: Props) {
   const filtersActive = questionId !== "all" || onlyComments || subTime !== "all" || weeks !== 12;
 
 
+  // Headline stats always use the full history so the response rate matches
+  // the recipients counted across every run.
   const stats = useMemo(() => {
+    const rowsAll = allResponses as any[];
     const totalRecipients = runs.reduce((a, r: any) => a + (r.recipients_count || 0), 0);
     const respondents = new Set(
-      responses
+      rowsAll
         .filter((r: any) => r.respondent_id || r.anonymous_label)
         .map((r: any) => r.respondent_id || r.anonymous_label)
     );
     const responseRate = totalRecipients > 0 ? (respondents.size / totalRecipients) * 100 : 0;
+
 
     const now = Date.now();
     const DAY = 24 * 60 * 60 * 1000;
     const inWindow = (iso: string, days: number | null) =>
       days == null ? true : now - new Date(iso).getTime() <= days * DAY;
 
-    const scaleResponses = responses.filter((r: any) => r.scale_value != null && r.submitted_at);
+    const scaleResponses = rowsAll.filter((r: any) => r.scale_value != null && r.submitted_at);
 
     const avgFor = (rows: any[], days: number | null) => {
       const vals = rows.filter((r) => inWindow(r.submitted_at, days)).map((r) => r.scale_value as number);
@@ -109,7 +114,7 @@ export function PulseResultsPanel({ survey }: Props) {
     };
 
     return { totalRecipients, respondents: respondents.size, responseRate, byQuestion, overall };
-  }, [responses, runs]);
+  }, [allResponses, runs]);
 
   const handleExport = async (format: "csv" | "xlsx") => {
     try {
@@ -255,7 +260,13 @@ export function PulseResultsPanel({ survey }: Props) {
                   Somente com comentário
                 </Label>
               </div>
+
+              <p className="w-full text-[11px] text-muted-foreground">
+                Os filtros valem para a evolução semanal e a lista de respostas. O filtro de time
+                afeta apenas o gráfico. Os números do topo e as médias consideram todo o histórico.
+              </p>
             </div>
+
 
             <div>
               <h4 className="font-medium mb-2">Evolução semanal (escala 1-5)</h4>
