@@ -164,17 +164,15 @@ export function PulseResultsPanel({ survey }: Props) {
 
   const handleExportFiltered = () => {
     const esc = (v: any) => `"${String(v ?? "").replace(/"/g, '""')}"`;
-    const header = ["Data", "Respondente", "Pergunta", "Nota", "Comentário"];
+    const header = ["Data", "Respondente", "Nota", "Depoimento"];
     const lines = [header.join(",")];
-    for (const r of responses as any[]) {
-      const q = (questions as any[]).find((qq) => qq.id === r.question_id);
+    for (const r of groupedResponses) {
       lines.push(
         [
-          esc(new Date(r.submitted_at).toLocaleString("pt-BR")),
-          esc(survey.anonymous ? r.anonymous_label || "—" : r.respondent_name || r.respondent_id || "—"),
-          esc(q?.question_text || "—"),
-          esc(r.scale_value ?? ""),
-          esc(r.text_value ?? ""),
+          esc(new Date(r.date).toLocaleString("pt-BR")),
+          esc(r.who),
+          esc(r.nota),
+          esc(r.depoimento),
         ].join(",")
       );
     }
