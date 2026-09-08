@@ -551,6 +551,9 @@ export default function Engagement() {
             <TabsContent value="report" className="mt-0">
               <MonthlyReportPanel canSeeGlobal={isManagementLevel(person)} />
             </TabsContent>
+            <TabsContent value="wellbeing" className="mt-0">
+              <WellbeingTeamPanel />
+            </TabsContent>
           </Tabs>
 
         ) : (
