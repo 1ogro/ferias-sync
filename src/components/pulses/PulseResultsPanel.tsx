@@ -359,27 +359,22 @@ export function PulseResultsPanel({ survey }: Props) {
                 <TableRow>
                   <TableHead>Data</TableHead>
                   <TableHead>Respondente</TableHead>
-                  <TableHead>Pergunta</TableHead>
-                  <TableHead>Valor</TableHead>
+                  <TableHead>Nota</TableHead>
+                  <TableHead>Depoimento</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {responses.slice(0, 50).map((r: any) => {
-                  const q = questions.find((qq: any) => qq.id === r.question_id);
-                  return (
-                    <TableRow key={r.id}>
-                      <TableCell className="text-xs">{new Date(r.submitted_at).toLocaleString("pt-BR")}</TableCell>
-                      <TableCell className="text-xs">
-                        {survey.anonymous ? r.anonymous_label || "—" : r.respondent_name || r.respondent_id || "—"}
-                      </TableCell>
-                      <TableCell className="text-xs">{q?.question_text || "—"}</TableCell>
-                      <TableCell className="text-xs">
-                        {r.scale_value != null ? `${r.scale_value}/5` : r.text_value || "—"}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-                {responses.length === 0 && (
+                {groupedResponses.slice(0, 50).map((r) => (
+                  <TableRow key={r.key}>
+                    <TableCell className="text-xs whitespace-nowrap">
+                      {new Date(r.date).toLocaleString("pt-BR")}
+                    </TableCell>
+                    <TableCell className="text-xs">{r.who}</TableCell>
+                    <TableCell className="text-xs whitespace-nowrap">{r.nota || "—"}</TableCell>
+                    <TableCell className="text-xs">{r.depoimento || "—"}</TableCell>
+                  </TableRow>
+                ))}
+                {groupedResponses.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={4} className="text-center text-muted-foreground py-6">
                       Nenhuma resposta ainda
