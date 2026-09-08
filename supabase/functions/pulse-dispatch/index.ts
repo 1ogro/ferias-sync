@@ -250,7 +250,11 @@ function buildKudosBlocks(survey: any) {
   ];
 }
 
-async function dispatchSurvey(supabase: any, survey: any): Promise<{ sent: number; total: number; deferred: number; diagnostics: any[] }> {
+async function dispatchSurvey(
+  supabase: any,
+  survey: any,
+  opts: { resendRunId?: string } = {},
+): Promise<{ sent: number; total: number; deferred: number; diagnostics: any[] }> {
   const diagnostics: any[] = [];
   const isKudos = survey.kind === "kudos";
   let questions: any[] = [];
