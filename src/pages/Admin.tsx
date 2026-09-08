@@ -827,6 +827,8 @@ const Admin = () => {
         </Card>
       </div>
 
+      {(isDirector || person?.papel === "GERENTE") && <TeamsManagerCard />}
+
       {/* Search and Filters */}
       <Card>
         <CardContent className="p-4">
