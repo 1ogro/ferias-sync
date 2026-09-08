@@ -360,7 +360,7 @@ async function dispatchSurvey(
   const peopleById = new Map(recipients.map((p) => [p.id, p]));
   let pairsCreated = 0;
 
-  if (survey.kind === "peer") {
+  if (survey.kind === "peer" && !opts.resendRunId) {
     const strategy: string = runPeerStrategy!;
     const K = runPeerK!;
     let pairs: { reviewer: string; subject: string }[] = [];
@@ -641,6 +641,7 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
     const body = req.method === "POST" ? await req.json().catch(() => ({})) : {};
     const surveyId = body?.surveyId;
+    const resendRunId = body?.resendRunId as string | undefined;
 
     const auth = await slackAuthTest();
 
@@ -655,7 +656,7 @@ serve(async (req) => {
 
     const results: any[] = [];
     for (const s of surveys || []) {
-      const r = await dispatchSurvey(supabase, s);
+      const r = await dispatchSurvey(supabase, s, { resendRunId });
       results.push({ survey_id: s.id, title: s.title, ...r });
     }
 
