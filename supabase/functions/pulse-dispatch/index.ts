@@ -321,18 +321,35 @@ async function dispatchSurvey(
     ? (survey.peer_pairing_strategy || "round_robin")
     : null;
 
-  const { data: run, error: runErr } = await supabase
-    .from("pulse_runs")
-    .insert({
-      survey_id: survey.id,
-      status: "pending",
-      recipients_count: recipients.length,
-      deadline_at: deadlineAt,
-      peer_reviews_per_reviewer: runPeerK,
-      peer_pairing_strategy: runPeerStrategy,
-    })
-    .select()
-    .single();
+  // Resend mode: reuse an existing run and only target people who never got the DM.
+  let run: any = null;
+  let runErr: any = null;
+  if (opts.resendRunId) {
+    const { data: existing, error } = await supabase
+      .from("pulse_runs").select("*").eq("id", opts.resendRunId).maybeSingle();
+    run = existing; runErr = error;
+    if (run) {
+      const { data: already } = await supabase
+        .from("pulse_run_recipients").select("person_id").eq("run_id", run.id);
+      const done = new Set((already || []).map((r: any) => r.person_id));
+      recipients = recipients.filter((p) => !done.has(p.id));
+      console.log(`[resend ${run.id}] pending recipients=${recipients.length}`);
+    }
+  } else {
+    const res = await supabase
+      .from("pulse_runs")
+      .insert({
+        survey_id: survey.id,
+        status: "pending",
+        recipients_count: recipients.length,
+        deadline_at: deadlineAt,
+        peer_reviews_per_reviewer: runPeerK,
+        peer_pairing_strategy: runPeerStrategy,
+      })
+      .select()
+      .single();
+    run = res.data; runErr = res.error;
+  }
 
   if (runErr || !run) {
     return { sent: 0, total: recipients.length, deferred: 0, diagnostics: [{ status: "run_create_failed", error: runErr?.message }] };
