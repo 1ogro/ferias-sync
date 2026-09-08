@@ -70,6 +70,11 @@ export function useFeedbackTimeline(personId?: string, period = "all", since?: s
   });
 }
 
+/** Histórico completo (sem corte de período) para as visões por ciclo. */
+export function useFeedbackHistory(personId?: string) {
+  return useFeedbackTimeline(personId, "all", null);
+}
+
 export interface FeedbackCoverageRow {
   author_id: string | null;
   author_label: string;
