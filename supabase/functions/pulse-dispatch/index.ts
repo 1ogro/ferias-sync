@@ -404,7 +404,7 @@ async function dispatchSurvey(supabase: any, survey: any): Promise<{ sent: numbe
 
   for (const p of recipients) {
     const diag: any = { person_id: p.id, nome: p.nome, email: p.email };
-    if (!p.email) { diag.status = "no_email"; diagnostics.push(diag); continue; }
+    if (!p.email && !p.email_pessoal && !p.slack_user_id) { diag.status = "no_email"; diagnostics.push(diag); continue; }
 
     const { data: pref } = await supabase
       .from("notification_preferences")
@@ -426,9 +426,10 @@ async function dispatchSurvey(supabase: any, survey: any): Promise<{ sent: numbe
       continue;
     }
 
-    const lookup = await lookupSlackUserByEmail(p.email);
-    if (!lookup.id) { diag.status = "lookup_failed"; diag.reason = lookup.error; diag.needed = lookup.needed; diagnostics.push(diag); continue; }
+    const lookup = await resolveSlackId(supabase, p);
+    if (!lookup.id) { diag.status = "lookup_failed"; diag.reason = lookup.err; diag.tried = lookup.tried; diagnostics.push(diag); continue; }
     diag.slack_user_id = lookup.id;
+    diag.resolved_via = lookup.via;
 
     const im = await openIm(lookup.id);
     if (!im.channel) { diag.status = "im_failed"; diag.reason = im.error; diag.needed = im.needed; diagnostics.push(diag); continue; }
