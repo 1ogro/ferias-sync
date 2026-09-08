@@ -86,6 +86,8 @@ export function FeedbackProfilePanel({ authorId }: { authorId?: string }) {
     period,
     since
   );
+  const history = useFeedbackHistory(personId || undefined);
+
 
   const deleteMut = useDeleteExternalFeedback();
   const visibilityMut = useToggleFeedbackVisibility();
@@ -210,6 +212,17 @@ export function FeedbackProfilePanel({ authorId }: { authorId?: string }) {
           </CardContent>
         </Card>
       )}
+
+      {personId && (
+        <FeedbackCyclesCard
+          items={history.data ?? []}
+          isLoading={history.isLoading}
+          isError={history.isError}
+          error={history.error}
+          onRetry={() => history.refetch()}
+        />
+      )}
+
 
 
 
