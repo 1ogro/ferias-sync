@@ -114,7 +114,7 @@ export function PulseResultsPanel({ survey }: Props) {
     };
 
     return { totalRecipients, respondents: respondents.size, responseRate, byQuestion, overall };
-  }, [responses, runs]);
+  }, [allResponses, runs]);
 
   const handleExport = async (format: "csv" | "xlsx") => {
     try {
