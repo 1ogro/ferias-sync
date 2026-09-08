@@ -87,7 +87,7 @@ export function PulseResultsPanel({ survey }: Props) {
     const inWindow = (iso: string, days: number | null) =>
       days == null ? true : now - new Date(iso).getTime() <= days * DAY;
 
-    const scaleResponses = responses.filter((r: any) => r.scale_value != null && r.submitted_at);
+    const scaleResponses = rowsAll.filter((r: any) => r.scale_value != null && r.submitted_at);
 
     const avgFor = (rows: any[], days: number | null) => {
       const vals = rows.filter((r) => inWindow(r.submitted_at, days)).map((r) => r.scale_value as number);
