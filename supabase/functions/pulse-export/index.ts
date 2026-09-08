@@ -86,17 +86,38 @@ serve(async (req) => {
     }
     const qMap = new Map((questions || []).map((q: any) => [q.id, q]));
 
-    const header = ["Data", "Respondente", "Pergunta", "Tipo", "Valor (1-5)", "Texto"];
-    const rows: string[][] = [header];
+    // Uma linha por pessoa por disparo: nota (sentimento) + depoimento agregados.
+    const allQuestions = (questions || []) as any[];
+    const multiScale = allQuestions.filter((q) => q.question_type === "scale_1_5").length > 1;
+    const multiText = allQuestions.filter((q) => q.question_type !== "scale_1_5").length > 1;
+
+    const groups = new Map<string, { date: string; who: string; scales: string[]; texts: string[] }>();
     for (const r of (responses || []) as any[]) {
       const q = qMap.get(r.question_id) as any;
+      const key = `${r.run_id || ""}|${r.respondent_id}`;
+      let g = groups.get(key);
+      if (!g) {
+        g = { date: r.submitted_at, who: respLabel(r.respondent_id), scales: [], texts: [] };
+        groups.set(key, g);
+      }
+      if (r.submitted_at && new Date(r.submitted_at) < new Date(g.date)) g.date = r.submitted_at;
+      if (r.scale_value != null) {
+        g.scales.push(multiScale ? `${q?.question_text || ""}: ${r.scale_value}` : String(r.scale_value));
+      } else if (r.text_value) {
+        g.texts.push(multiText ? `${q?.question_text || ""}: ${r.text_value}` : r.text_value);
+      }
+    }
+
+    const header = ["Data", "Respondente", "Nota (1-5)", "Depoimento"];
+    const rows: string[][] = [header];
+    for (const g of [...groups.values()].sort(
+      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+    )) {
       rows.push([
-        new Date(r.submitted_at).toISOString(),
-        respLabel(r.respondent_id),
-        q?.question_text || "",
-        q?.question_type || "",
-        r.scale_value != null ? String(r.scale_value) : "",
-        r.text_value || "",
+        new Date(g.date).toISOString(),
+        g.who,
+        g.scales.join(" | "),
+        g.texts.join(" | "),
       ]);
     }
 
