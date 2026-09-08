@@ -557,6 +557,15 @@ export const ProfileModal = ({ open, onOpenChange }: ProfileModalProps) => {
                   </Select>
                 </div>
                 <div className="space-y-1">
+                  <Label className="text-xs">Time</Label>
+                  <TeamSelect
+                    value={requestSubTime}
+                    onChange={setRequestSubTime}
+                    allowCreate={false}
+                    placeholder="Manter atual"
+                  />
+                </div>
+                <div className="space-y-1">
                   <Label className="text-xs">Justificativa (opcional)</Label>
                   <Input
                     value={dataChangeJustification}
