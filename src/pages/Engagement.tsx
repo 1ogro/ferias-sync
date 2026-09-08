@@ -540,6 +540,7 @@ export default function Engagement() {
               <TabsTrigger value="overview">Visão geral</TabsTrigger>
               <TabsTrigger value="feedbacks">Feedbacks por perfil</TabsTrigger>
               <TabsTrigger value="report">Relatório mensal</TabsTrigger>
+              <TabsTrigger value="wellbeing">Bem-estar</TabsTrigger>
             </TabsList>
             <TabsContent value="overview" className="space-y-6 mt-0">
               {overview}
