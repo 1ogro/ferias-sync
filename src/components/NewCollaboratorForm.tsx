@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { Papel, ModeloContrato, MODELO_CONTRATO_LABELS } from "@/lib/types";
 import { Loader2 } from "lucide-react";
+import { TeamSelect } from "@/components/TeamSelect";
 
 interface NewCollaboratorFormProps {
   isDirector?: boolean;

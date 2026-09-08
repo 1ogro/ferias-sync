@@ -11,6 +11,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { ModeloContrato, MODELO_CONTRATO_LABELS } from "@/lib/types";
+import { TeamSelect } from "@/components/TeamSelect";
 
 export default function CompleteProfile() {
   const { user, person, fetchPersonData, loading: authLoading, profileChecked } = useAuth();
