@@ -1968,6 +1968,18 @@ export type Database = {
           without_contract: number
         }[]
       }
+      get_wellbeing_team_weekly: {
+        Args: { p_sub_time?: string; p_weeks?: number }
+        Returns: {
+          avg_value: number
+          kind: string
+          recipients_count: number
+          respondent_count: number
+          response_count: number
+          sub_time: string
+          week_start: string
+        }[]
+      }
       has_direct_reports: { Args: { _person_id: string }; Returns: boolean }
       has_role: {
         Args: {
