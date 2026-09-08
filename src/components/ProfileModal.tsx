@@ -17,6 +17,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useIntegrations } from "@/hooks/useIntegrations";
 import { supabase } from "@/integrations/supabase/client";
 import { Person } from "@/lib/types";
+import { TeamSelect } from "@/components/TeamSelect";
 import { formatDateToBRString, parseBRStringToDate, applyDateMask, isValidDateString, formatDateToYYYYMMDD, parseDateSafely } from "@/lib/dateUtils";
 
 interface ProfileModalProps {
@@ -88,6 +89,7 @@ export const ProfileModal = ({ open, onOpenChange }: ProfileModalProps) => {
       setShowDataChange(false);
       setRequestContractDate("");
       setRequestContractModel("");
+      setRequestSubTime("");
       setDataChangeJustification("");
       toast({ title: "Solicitação enviada!", description: "Aguarde a aprovação do gerente ou diretor." });
     } catch (error: any) {
@@ -153,6 +155,7 @@ export const ProfileModal = ({ open, onOpenChange }: ProfileModalProps) => {
       setShowDataChange(false);
       setRequestContractDate("");
       setRequestContractModel("");
+      setRequestSubTime((person as any).subTime || (person as any).sub_time || "");
       setDataChangeJustification("");
       (async () => {
         const { data } = await (supabase as any)
