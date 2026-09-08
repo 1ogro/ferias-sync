@@ -513,6 +513,9 @@ export const ProfileModal = ({ open, onOpenChange }: ProfileModalProps) => {
               <Badge variant="secondary" className="text-sm">
                 {person?.modelo_contrato || 'Modelo não definido'}
               </Badge>
+              <Badge variant="secondary" className="text-sm">
+                {`Time: ${(person as any)?.subTime || (person as any)?.sub_time || 'não definido'}`}
+              </Badge>
             </div>
             {pendingDataChange ? (
               <div className="flex items-center gap-2 flex-wrap">
