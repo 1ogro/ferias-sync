@@ -588,26 +588,37 @@ async function dispatchSurvey(
     ? earliestDefer
     : (next ? next.toISOString() : null);
 
-  await supabase
-    .from("pulse_runs")
-    .update({
-      status: allDeferred ? "deferred" : (sent === recipients.length && sent > 0 ? "sent" : sent > 0 ? "partial" : "failed"),
-    })
-    .eq("id", run.id);
+  if (!opts.resendRunId) {
+    await supabase
+      .from("pulse_runs")
+      .update({
+        status: allDeferred ? "deferred" : (sent === recipients.length && sent > 0 ? "sent" : sent > 0 ? "partial" : "failed"),
+      })
+      .eq("id", run.id);
 
-  await supabase
-    .from("pulse_surveys")
-    .update({
-      last_run_at: allDeferred ? survey.last_run_at : now.toISOString(),
-      next_run_at: newNextRun,
-      active: allDeferred ? true : (next ? survey.active : false),
-    })
-    .eq("id", survey.id);
+    await supabase
+      .from("pulse_surveys")
+      .update({
+        last_run_at: allDeferred ? survey.last_run_at : now.toISOString(),
+        next_run_at: newNextRun,
+        active: allDeferred ? true : (next ? survey.active : false),
+      })
+      .eq("id", survey.id);
+  } else {
+    const { count } = await supabase
+      .from("pulse_run_recipients")
+      .select("person_id", { count: "exact", head: true })
+      .eq("run_id", run.id);
+    await supabase
+      .from("pulse_runs")
+      .update({ status: (count || 0) >= (run.recipients_count || 0) ? "sent" : "partial" })
+      .eq("id", run.id);
+  }
 
   await supabase.from("audit_logs").insert({
     entidade: "pulse_runs",
     entidade_id: run.id,
-    acao: "DISPATCH",
+    acao: opts.resendRunId ? "DISPATCH_RESEND" : "DISPATCH",
     actor_id: survey.created_by,
     payload: {
       survey_id: survey.id,
