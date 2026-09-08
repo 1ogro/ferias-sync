@@ -21,6 +21,7 @@ import { useKudosFeed, useLeaderboard, useMyPoints, useSendKudo, useActivePeople
 import { FeedbackProfilePanel } from "@/components/engagement/FeedbackProfilePanel";
 import { MonthlyReportPanel } from "@/components/engagement/MonthlyReportPanel";
 import { TeamSummaryCard } from "@/components/engagement/TeamSummaryCard";
+import { WellbeingTeamPanel } from "@/components/pulses/WellbeingTeamPanel";
 
 import { EngagementSummaryCard } from "@/components/EngagementSummaryCard";
 import { useToast } from "@/hooks/use-toast";
@@ -539,6 +540,7 @@ export default function Engagement() {
               <TabsTrigger value="overview">Visão geral</TabsTrigger>
               <TabsTrigger value="feedbacks">Feedbacks por perfil</TabsTrigger>
               <TabsTrigger value="report">Relatório mensal</TabsTrigger>
+              <TabsTrigger value="wellbeing">Bem-estar</TabsTrigger>
             </TabsList>
             <TabsContent value="overview" className="space-y-6 mt-0">
               {overview}
@@ -548,6 +550,9 @@ export default function Engagement() {
             </TabsContent>
             <TabsContent value="report" className="mt-0">
               <MonthlyReportPanel canSeeGlobal={isManagementLevel(person)} />
+            </TabsContent>
+            <TabsContent value="wellbeing" className="mt-0">
+              <WellbeingTeamPanel />
             </TabsContent>
           </Tabs>
 
