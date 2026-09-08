@@ -4,6 +4,7 @@
 // e gera pares quando kind=peer.
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { resolveSlackId } from "../_shared/notify-helpers.ts";
 
 const SLACK_BOT_TOKEN = Deno.env.get("SLACK_BOT_TOKEN")!;
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -249,7 +250,11 @@ function buildKudosBlocks(survey: any) {
   ];
 }
 
-async function dispatchSurvey(supabase: any, survey: any): Promise<{ sent: number; total: number; deferred: number; diagnostics: any[] }> {
+async function dispatchSurvey(
+  supabase: any,
+  survey: any,
+  opts: { resendRunId?: string } = {},
+): Promise<{ sent: number; total: number; deferred: number; diagnostics: any[] }> {
   const diagnostics: any[] = [];
   const isKudos = survey.kind === "kudos";
   let questions: any[] = [];
@@ -269,7 +274,7 @@ async function dispatchSurvey(supabase: any, survey: any): Promise<{ sent: numbe
   if (survey.target_scope === "all") {
     const { data } = await supabase
       .from("people")
-      .select("id, nome, email, sub_time")
+      .select("id, nome, email, email_pessoal, slack_user_id, sub_time")
       .eq("ativo", true);
     recipients = data || [];
   } else if (survey.target_scope === "teams") {
@@ -279,7 +284,7 @@ async function dispatchSurvey(supabase: any, survey: any): Promise<{ sent: numbe
     if (teamIds.length) {
       const { data } = await supabase
         .from("people")
-        .select("id, nome, email, sub_time")
+        .select("id, nome, email, email_pessoal, slack_user_id, sub_time")
         .in("sub_time", teamIds)
         .eq("ativo", true);
       recipients = data || [];
@@ -288,14 +293,14 @@ async function dispatchSurvey(supabase: any, survey: any): Promise<{ sent: numbe
     // legacy fallback
     const { data } = await supabase
       .from("people")
-      .select("id, nome, email, sub_time")
+      .select("id, nome, email, email_pessoal, slack_user_id, sub_time")
       .eq("sub_time", survey.target_team_id)
       .eq("ativo", true);
     recipients = data || [];
   } else if (survey.target_scope === "custom" && survey.target_person_ids?.length) {
     const { data } = await supabase
       .from("people")
-      .select("id, nome, email, sub_time")
+      .select("id, nome, email, email_pessoal, slack_user_id, sub_time")
       .in("id", survey.target_person_ids)
       .eq("ativo", true);
     recipients = data || [];
@@ -316,18 +321,35 @@ async function dispatchSurvey(supabase: any, survey: any): Promise<{ sent: numbe
     ? (survey.peer_pairing_strategy || "round_robin")
     : null;
 
-  const { data: run, error: runErr } = await supabase
-    .from("pulse_runs")
-    .insert({
-      survey_id: survey.id,
-      status: "pending",
-      recipients_count: recipients.length,
-      deadline_at: deadlineAt,
-      peer_reviews_per_reviewer: runPeerK,
-      peer_pairing_strategy: runPeerStrategy,
-    })
-    .select()
-    .single();
+  // Resend mode: reuse an existing run and only target people who never got the DM.
+  let run: any = null;
+  let runErr: any = null;
+  if (opts.resendRunId) {
+    const { data: existing, error } = await supabase
+      .from("pulse_runs").select("*").eq("id", opts.resendRunId).maybeSingle();
+    run = existing; runErr = error;
+    if (run) {
+      const { data: already } = await supabase
+        .from("pulse_run_recipients").select("person_id").eq("run_id", run.id);
+      const done = new Set((already || []).map((r: any) => r.person_id));
+      recipients = recipients.filter((p) => !done.has(p.id));
+      console.log(`[resend ${run.id}] pending recipients=${recipients.length}`);
+    }
+  } else {
+    const res = await supabase
+      .from("pulse_runs")
+      .insert({
+        survey_id: survey.id,
+        status: "pending",
+        recipients_count: recipients.length,
+        deadline_at: deadlineAt,
+        peer_reviews_per_reviewer: runPeerK,
+        peer_pairing_strategy: runPeerStrategy,
+      })
+      .select()
+      .single();
+    run = res.data; runErr = res.error;
+  }
 
   if (runErr || !run) {
     return { sent: 0, total: recipients.length, deferred: 0, diagnostics: [{ status: "run_create_failed", error: runErr?.message }] };
@@ -338,7 +360,7 @@ async function dispatchSurvey(supabase: any, survey: any): Promise<{ sent: numbe
   const peopleById = new Map(recipients.map((p) => [p.id, p]));
   let pairsCreated = 0;
 
-  if (survey.kind === "peer") {
+  if (survey.kind === "peer" && !opts.resendRunId) {
     const strategy: string = runPeerStrategy!;
     const K = runPeerK!;
     let pairs: { reviewer: string; subject: string }[] = [];
@@ -404,7 +426,7 @@ async function dispatchSurvey(supabase: any, survey: any): Promise<{ sent: numbe
 
   for (const p of recipients) {
     const diag: any = { person_id: p.id, nome: p.nome, email: p.email };
-    if (!p.email) { diag.status = "no_email"; diagnostics.push(diag); continue; }
+    if (!p.email && !p.email_pessoal && !p.slack_user_id) { diag.status = "no_email"; diagnostics.push(diag); continue; }
 
     const { data: pref } = await supabase
       .from("notification_preferences")
@@ -426,9 +448,10 @@ async function dispatchSurvey(supabase: any, survey: any): Promise<{ sent: numbe
       continue;
     }
 
-    const lookup = await lookupSlackUserByEmail(p.email);
-    if (!lookup.id) { diag.status = "lookup_failed"; diag.reason = lookup.error; diag.needed = lookup.needed; diagnostics.push(diag); continue; }
+    const lookup = await resolveSlackId(supabase, p);
+    if (!lookup.id) { diag.status = "lookup_failed"; diag.reason = lookup.err; diag.tried = lookup.tried; diagnostics.push(diag); continue; }
     diag.slack_user_id = lookup.id;
+    diag.resolved_via = lookup.via;
 
     const im = await openIm(lookup.id);
     if (!im.channel) { diag.status = "im_failed"; diag.reason = im.error; diag.needed = im.needed; diagnostics.push(diag); continue; }
@@ -565,26 +588,37 @@ async function dispatchSurvey(supabase: any, survey: any): Promise<{ sent: numbe
     ? earliestDefer
     : (next ? next.toISOString() : null);
 
-  await supabase
-    .from("pulse_runs")
-    .update({
-      status: allDeferred ? "deferred" : (sent === recipients.length && sent > 0 ? "sent" : sent > 0 ? "partial" : "failed"),
-    })
-    .eq("id", run.id);
+  if (!opts.resendRunId) {
+    await supabase
+      .from("pulse_runs")
+      .update({
+        status: allDeferred ? "deferred" : (sent === recipients.length && sent > 0 ? "sent" : sent > 0 ? "partial" : "failed"),
+      })
+      .eq("id", run.id);
 
-  await supabase
-    .from("pulse_surveys")
-    .update({
-      last_run_at: allDeferred ? survey.last_run_at : now.toISOString(),
-      next_run_at: newNextRun,
-      active: allDeferred ? true : (next ? survey.active : false),
-    })
-    .eq("id", survey.id);
+    await supabase
+      .from("pulse_surveys")
+      .update({
+        last_run_at: allDeferred ? survey.last_run_at : now.toISOString(),
+        next_run_at: newNextRun,
+        active: allDeferred ? true : (next ? survey.active : false),
+      })
+      .eq("id", survey.id);
+  } else {
+    const { count } = await supabase
+      .from("pulse_run_recipients")
+      .select("person_id", { count: "exact", head: true })
+      .eq("run_id", run.id);
+    await supabase
+      .from("pulse_runs")
+      .update({ status: (count || 0) >= (run.recipients_count || 0) ? "sent" : "partial" })
+      .eq("id", run.id);
+  }
 
   await supabase.from("audit_logs").insert({
     entidade: "pulse_runs",
     entidade_id: run.id,
-    acao: "DISPATCH",
+    acao: opts.resendRunId ? "DISPATCH_RESEND" : "DISPATCH",
     actor_id: survey.created_by,
     payload: {
       survey_id: survey.id,
@@ -607,6 +641,7 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
     const body = req.method === "POST" ? await req.json().catch(() => ({})) : {};
     const surveyId = body?.surveyId;
+    const resendRunId = body?.resendRunId as string | undefined;
 
     const auth = await slackAuthTest();
 
@@ -621,7 +656,7 @@ serve(async (req) => {
 
     const results: any[] = [];
     for (const s of surveys || []) {
-      const r = await dispatchSurvey(supabase, s);
+      const r = await dispatchSurvey(supabase, s, { resendRunId });
       results.push({ survey_id: s.id, title: s.title, ...r });
     }
 
