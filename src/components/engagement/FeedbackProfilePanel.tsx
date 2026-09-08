@@ -12,9 +12,11 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useToast } from "@/hooks/use-toast";
 import { ExternalFeedbackDialog } from "./ExternalFeedbackDialog";
+import { FeedbackCyclesCard } from "./FeedbackCyclesCard";
 import {
   useFeedbackScope,
   useFeedbackTimeline,
+  useFeedbackHistory,
   useDeleteExternalFeedback,
   useToggleFeedbackVisibility,
   useFeedbackCoverage,
