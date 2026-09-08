@@ -274,7 +274,7 @@ async function dispatchSurvey(
   if (survey.target_scope === "all") {
     const { data } = await supabase
       .from("people")
-      .select("id, nome, email, sub_time")
+      .select("id, nome, email, email_pessoal, slack_user_id, sub_time")
       .eq("ativo", true);
     recipients = data || [];
   } else if (survey.target_scope === "teams") {
@@ -284,7 +284,7 @@ async function dispatchSurvey(
     if (teamIds.length) {
       const { data } = await supabase
         .from("people")
-        .select("id, nome, email, sub_time")
+        .select("id, nome, email, email_pessoal, slack_user_id, sub_time")
         .in("sub_time", teamIds)
         .eq("ativo", true);
       recipients = data || [];
@@ -293,14 +293,14 @@ async function dispatchSurvey(
     // legacy fallback
     const { data } = await supabase
       .from("people")
-      .select("id, nome, email, sub_time")
+      .select("id, nome, email, email_pessoal, slack_user_id, sub_time")
       .eq("sub_time", survey.target_team_id)
       .eq("ativo", true);
     recipients = data || [];
   } else if (survey.target_scope === "custom" && survey.target_person_ids?.length) {
     const { data } = await supabase
       .from("people")
-      .select("id, nome, email, sub_time")
+      .select("id, nome, email, email_pessoal, slack_user_id, sub_time")
       .in("id", survey.target_person_ids)
       .eq("ativo", true);
     recipients = data || [];
