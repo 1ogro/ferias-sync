@@ -12,9 +12,11 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useToast } from "@/hooks/use-toast";
 import { ExternalFeedbackDialog } from "./ExternalFeedbackDialog";
+import { FeedbackCyclesCard } from "./FeedbackCyclesCard";
 import {
   useFeedbackScope,
   useFeedbackTimeline,
+  useFeedbackHistory,
   useDeleteExternalFeedback,
   useToggleFeedbackVisibility,
   useFeedbackCoverage,
@@ -84,6 +86,8 @@ export function FeedbackProfilePanel({ authorId }: { authorId?: string }) {
     period,
     since
   );
+  const history = useFeedbackHistory(personId || undefined);
+
 
   const deleteMut = useDeleteExternalFeedback();
   const visibilityMut = useToggleFeedbackVisibility();
@@ -208,6 +212,17 @@ export function FeedbackProfilePanel({ authorId }: { authorId?: string }) {
           </CardContent>
         </Card>
       )}
+
+      {personId && (
+        <FeedbackCyclesCard
+          items={history.data ?? []}
+          isLoading={history.isLoading}
+          isError={history.isError}
+          error={history.error}
+          onRetry={() => history.refetch()}
+        />
+      )}
+
 
 
 
