@@ -17,6 +17,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useIntegrations } from "@/hooks/useIntegrations";
 import { supabase } from "@/integrations/supabase/client";
 import { Person } from "@/lib/types";
+import { TeamSelect } from "@/components/TeamSelect";
 import { formatDateToBRString, parseBRStringToDate, applyDateMask, isValidDateString, formatDateToYYYYMMDD, parseDateSafely } from "@/lib/dateUtils";
 
 interface ProfileModalProps {
@@ -50,6 +51,7 @@ export const ProfileModal = ({ open, onOpenChange }: ProfileModalProps) => {
   const [showDataChange, setShowDataChange] = useState(false);
   const [requestContractDate, setRequestContractDate] = useState("");
   const [requestContractModel, setRequestContractModel] = useState("");
+  const [requestSubTime, setRequestSubTime] = useState("");
   const [dataChangeJustification, setDataChangeJustification] = useState("");
   const [requestingDataChange, setRequestingDataChange] = useState(false);
   const [cancellingDataChange, setCancellingDataChange] = useState(false);
@@ -67,6 +69,11 @@ export const ProfileModal = ({ open, onOpenChange }: ProfileModalProps) => {
       changes.data_contrato = formatDateToYYYYMMDD(parsed);
     }
     if (requestContractModel) changes.modelo_contrato = requestContractModel;
+    if (requestSubTime && requestSubTime !== (person as any).subTime) changes.sub_time = requestSubTime;
+    if (Object.keys(changes).length === 0) {
+      toast({ title: "Nada para solicitar", description: "Informe ao menos uma alteração.", variant: "destructive" });
+      return;
+    }
     setRequestingDataChange(true);
     try {
       const { data, error } = await (supabase as any).rpc('request_data_change', {
@@ -82,6 +89,7 @@ export const ProfileModal = ({ open, onOpenChange }: ProfileModalProps) => {
       setShowDataChange(false);
       setRequestContractDate("");
       setRequestContractModel("");
+      setRequestSubTime("");
       setDataChangeJustification("");
       toast({ title: "Solicitação enviada!", description: "Aguarde a aprovação do gerente ou diretor." });
     } catch (error: any) {
@@ -147,6 +155,7 @@ export const ProfileModal = ({ open, onOpenChange }: ProfileModalProps) => {
       setShowDataChange(false);
       setRequestContractDate("");
       setRequestContractModel("");
+      setRequestSubTime((person as any).subTime || (person as any).sub_time || "");
       setDataChangeJustification("");
       (async () => {
         const { data } = await (supabase as any)
@@ -504,6 +513,9 @@ export const ProfileModal = ({ open, onOpenChange }: ProfileModalProps) => {
               <Badge variant="secondary" className="text-sm">
                 {person?.modelo_contrato || 'Modelo não definido'}
               </Badge>
+              <Badge variant="secondary" className="text-sm">
+                {`Time: ${(person as any)?.subTime || (person as any)?.sub_time || 'não definido'}`}
+              </Badge>
             </div>
             {pendingDataChange ? (
               <div className="flex items-center gap-2 flex-wrap">
@@ -546,6 +558,15 @@ export const ProfileModal = ({ open, onOpenChange }: ProfileModalProps) => {
                       <SelectItem value="PJ">PJ</SelectItem>
                     </SelectContent>
                   </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Time</Label>
+                  <TeamSelect
+                    value={requestSubTime}
+                    onChange={setRequestSubTime}
+                    allowCreate={false}
+                    placeholder="Manter atual"
+                  />
                 </div>
                 <div className="space-y-1">
                   <Label className="text-xs">Justificativa (opcional)</Label>

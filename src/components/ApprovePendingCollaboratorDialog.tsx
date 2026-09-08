@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, FileText } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
+import { TeamSelect } from "@/components/TeamSelect";
 
 interface ApprovePendingCollaboratorDialogProps {
   pending: PendingPerson;
@@ -237,10 +238,10 @@ export function ApprovePendingCollaboratorDialog({
 
               <div className="space-y-2">
                 <Label htmlFor="sub_time">Time</Label>
-                <Input
+                <TeamSelect
                   id="sub_time"
                   value={formData.sub_time}
-                  onChange={(e) => setFormData({ ...formData, sub_time: e.target.value })}
+                  onChange={(v) => setFormData({ ...formData, sub_time: v })}
                   disabled={loading}
                 />
               </div>

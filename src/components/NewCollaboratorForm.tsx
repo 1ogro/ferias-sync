@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { Papel, ModeloContrato, MODELO_CONTRATO_LABELS } from "@/lib/types";
 import { Loader2 } from "lucide-react";
+import { TeamSelect } from "@/components/TeamSelect";
 
 interface NewCollaboratorFormProps {
   isDirector?: boolean;
@@ -274,11 +275,10 @@ export function NewCollaboratorForm({ isDirector = false, onSuccess, onCancel }:
 
       <div className="space-y-2">
         <Label htmlFor="sub_time">Time *</Label>
-        <Input
+        <TeamSelect
           id="sub_time"
           value={formData.sub_time}
-          onChange={(e) => setFormData({ ...formData, sub_time: e.target.value })}
-          placeholder="Pacientes"
+          onChange={(v) => setFormData({ ...formData, sub_time: v })}
           disabled={loading}
         />
         {errors.sub_time && <p className="text-sm text-destructive">{errors.sub_time}</p>}

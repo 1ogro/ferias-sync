@@ -11,6 +11,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { ModeloContrato, MODELO_CONTRATO_LABELS } from "@/lib/types";
+import { TeamSelect } from "@/components/TeamSelect";
 
 export default function CompleteProfile() {
   const { user, person, fetchPersonData, loading: authLoading, profileChecked } = useAuth();
@@ -212,7 +213,7 @@ export default function CompleteProfile() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="sub-time">Time *</Label>
-                <Input id="sub-time" value={subTime} onChange={(e) => setSubTime(e.target.value)} disabled={saving} placeholder="Pacientes" />
+                <TeamSelect id="sub-time" value={subTime} onChange={setSubTime} disabled={saving} />
               </div>
               <div className="space-y-2 sm:col-span-2">
                 <Label htmlFor="local">Local</Label>

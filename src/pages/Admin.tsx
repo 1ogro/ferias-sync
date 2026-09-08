@@ -9,6 +9,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { TeamSelect } from "@/components/TeamSelect";
+import { TeamsManagerCard } from "@/components/TeamsManagerCard";
 import { 
   Table, 
   TableBody, 
@@ -825,6 +827,8 @@ const Admin = () => {
         </Card>
       </div>
 
+      {(isDirector || person?.papel === "GERENTE") && <TeamsManagerCard />}
+
       {/* Search and Filters */}
       <Card>
         <CardContent className="p-4">
@@ -1259,10 +1263,10 @@ const Admin = () => {
 
               <div>
                 <Label htmlFor="subTime">Sub Time</Label>
-                <Input
+                <TeamSelect
                   id="subTime"
                   value={formData.subTime}
-                  onChange={(e) => setFormData({ ...formData, subTime: e.target.value })}
+                  onChange={(v) => setFormData({ ...formData, subTime: v })}
                 />
               </div>
 
