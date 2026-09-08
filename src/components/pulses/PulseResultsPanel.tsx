@@ -60,11 +60,49 @@ export function PulseResultsPanel({ survey }: Props) {
     const cutoff = Date.now() - weeks * 7 * 24 * 60 * 60 * 1000;
     return (allResponses as any[]).filter((r) => {
       if (questionId !== "all" && r.question_id !== questionId) return false;
-      if (onlyComments && !r.text_value) return false;
       if (r.submitted_at && new Date(r.submitted_at).getTime() < cutoff) return false;
       return true;
     });
-  }, [allResponses, questionId, onlyComments, weeks]);
+  }, [allResponses, questionId, weeks]);
+
+  // Uma linha por pessoa por disparo: nota (sentimento) + depoimento juntos.
+  const groupedResponses = useMemo(() => {
+    const qText = (id: string) =>
+      (questions as any[]).find((q) => q.id === id)?.question_text || "";
+    const multiScale = scaleQuestions.length > 1;
+    const textQuestions = (questions as any[]).filter((q) => q.question_type !== "scale_1_5");
+    const multiText = textQuestions.length > 1;
+
+    const map = new Map<string, any>();
+    for (const r of responses as any[]) {
+      const who = survey.anonymous
+        ? r.anonymous_label || r.respondent_id || "—"
+        : r.respondent_name || r.respondent_id || "—";
+      const key = `${r.run_id || ""}|${r.respondent_id || r.anonymous_label || who}`;
+      let g = map.get(key);
+      if (!g) {
+        g = { key, who, date: r.submitted_at, scales: [] as string[], texts: [] as string[] };
+        map.set(key, g);
+      }
+      if (r.submitted_at && new Date(r.submitted_at) < new Date(g.date)) g.date = r.submitted_at;
+      if (r.scale_value != null) {
+        g.scales.push(multiScale ? `${qText(r.question_id)}: ${r.scale_value}/5` : `${r.scale_value}/5`);
+      } else if (r.text_value) {
+        g.texts.push(multiText ? `${qText(r.question_id)}: ${r.text_value}` : r.text_value);
+      }
+    }
+
+    let rows = [...map.values()].map((g) => ({
+      key: g.key,
+      who: g.who,
+      date: g.date,
+      nota: g.scales.join(" · "),
+      depoimento: g.texts.join(" · "),
+    }));
+    if (onlyComments) rows = rows.filter((r) => !!r.depoimento);
+    rows.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    return rows;
+  }, [responses, questions, scaleQuestions, survey.anonymous, onlyComments]);
 
   const filtersActive = questionId !== "all" || onlyComments || subTime !== "all" || weeks !== 12;
 
