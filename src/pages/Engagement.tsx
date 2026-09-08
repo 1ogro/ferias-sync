@@ -21,6 +21,7 @@ import { useKudosFeed, useLeaderboard, useMyPoints, useSendKudo, useActivePeople
 import { FeedbackProfilePanel } from "@/components/engagement/FeedbackProfilePanel";
 import { MonthlyReportPanel } from "@/components/engagement/MonthlyReportPanel";
 import { TeamSummaryCard } from "@/components/engagement/TeamSummaryCard";
+import { WellbeingTeamPanel } from "@/components/pulses/WellbeingTeamPanel";
 
 import { EngagementSummaryCard } from "@/components/EngagementSummaryCard";
 import { useToast } from "@/hooks/use-toast";
