@@ -50,6 +50,7 @@ export const ProfileModal = ({ open, onOpenChange }: ProfileModalProps) => {
   const [showDataChange, setShowDataChange] = useState(false);
   const [requestContractDate, setRequestContractDate] = useState("");
   const [requestContractModel, setRequestContractModel] = useState("");
+  const [requestSubTime, setRequestSubTime] = useState("");
   const [dataChangeJustification, setDataChangeJustification] = useState("");
   const [requestingDataChange, setRequestingDataChange] = useState(false);
   const [cancellingDataChange, setCancellingDataChange] = useState(false);
@@ -67,6 +68,11 @@ export const ProfileModal = ({ open, onOpenChange }: ProfileModalProps) => {
       changes.data_contrato = formatDateToYYYYMMDD(parsed);
     }
     if (requestContractModel) changes.modelo_contrato = requestContractModel;
+    if (requestSubTime && requestSubTime !== (person as any).subTime) changes.sub_time = requestSubTime;
+    if (Object.keys(changes).length === 0) {
+      toast({ title: "Nada para solicitar", description: "Informe ao menos uma alteração.", variant: "destructive" });
+      return;
+    }
     setRequestingDataChange(true);
     try {
       const { data, error } = await (supabase as any).rpc('request_data_change', {
