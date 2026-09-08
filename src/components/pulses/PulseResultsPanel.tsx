@@ -260,7 +260,13 @@ export function PulseResultsPanel({ survey }: Props) {
                   Somente com comentário
                 </Label>
               </div>
+
+              <p className="w-full text-[11px] text-muted-foreground">
+                Os filtros valem para a evolução semanal e a lista de respostas. O filtro de time
+                afeta apenas o gráfico. Os números do topo e as médias consideram todo o histórico.
+              </p>
             </div>
+
 
             <div>
               <h4 className="font-medium mb-2">Evolução semanal (escala 1-5)</h4>
