@@ -55,6 +55,7 @@ export function PulseResultsPanel({ survey }: Props) {
     questionId: questionId === "all" ? null : questionId,
   });
 
+  // Filtered list: used only by the response table and the "CSV filtrado" export.
   const responses = useMemo(() => {
     const cutoff = Date.now() - weeks * 7 * 24 * 60 * 60 * 1000;
     return (allResponses as any[]).filter((r) => {
@@ -68,14 +69,18 @@ export function PulseResultsPanel({ survey }: Props) {
   const filtersActive = questionId !== "all" || onlyComments || subTime !== "all" || weeks !== 12;
 
 
+  // Headline stats always use the full history so the response rate matches
+  // the recipients counted across every run.
   const stats = useMemo(() => {
+    const rowsAll = allResponses as any[];
     const totalRecipients = runs.reduce((a, r: any) => a + (r.recipients_count || 0), 0);
     const respondents = new Set(
-      responses
+      rowsAll
         .filter((r: any) => r.respondent_id || r.anonymous_label)
         .map((r: any) => r.respondent_id || r.anonymous_label)
     );
     const responseRate = totalRecipients > 0 ? (respondents.size / totalRecipients) * 100 : 0;
+
 
     const now = Date.now();
     const DAY = 24 * 60 * 60 * 1000;
