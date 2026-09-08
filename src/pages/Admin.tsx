@@ -1259,10 +1259,10 @@ const Admin = () => {
 
               <div>
                 <Label htmlFor="subTime">Sub Time</Label>
-                <Input
+                <TeamSelect
                   id="subTime"
                   value={formData.subTime}
-                  onChange={(e) => setFormData({ ...formData, subTime: e.target.value })}
+                  onChange={(v) => setFormData({ ...formData, subTime: v })}
                 />
               </div>
 

@@ -274,11 +274,10 @@ export function NewCollaboratorForm({ isDirector = false, onSuccess, onCancel }:
 
       <div className="space-y-2">
         <Label htmlFor="sub_time">Time *</Label>
-        <Input
+        <TeamSelect
           id="sub_time"
           value={formData.sub_time}
-          onChange={(e) => setFormData({ ...formData, sub_time: e.target.value })}
-          placeholder="Pacientes"
+          onChange={(v) => setFormData({ ...formData, sub_time: v })}
           disabled={loading}
         />
         {errors.sub_time && <p className="text-sm text-destructive">{errors.sub_time}</p>}
