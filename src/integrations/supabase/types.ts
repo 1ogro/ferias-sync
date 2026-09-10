@@ -1087,6 +1087,8 @@ export type Database = {
       pulse_responses: {
         Row: {
           id: string
+          last_event_at: number | null
+          last_event_id: string | null
           question_id: string
           respondent_id: string
           run_id: string
@@ -1095,9 +1097,12 @@ export type Database = {
           subject_id: string | null
           submitted_at: string
           text_value: string | null
+          updated_at: string | null
         }
         Insert: {
           id?: string
+          last_event_at?: number | null
+          last_event_id?: string | null
           question_id: string
           respondent_id: string
           run_id: string
@@ -1106,9 +1111,12 @@ export type Database = {
           subject_id?: string | null
           submitted_at?: string
           text_value?: string | null
+          updated_at?: string | null
         }
         Update: {
           id?: string
+          last_event_at?: number | null
+          last_event_id?: string | null
           question_id?: string
           respondent_id?: string
           run_id?: string
@@ -1117,6 +1125,7 @@ export type Database = {
           subject_id?: string | null
           submitted_at?: string
           text_value?: string | null
+          updated_at?: string | null
         }
         Relationships: [
           {
@@ -1205,7 +1214,11 @@ export type Database = {
       }
       pulse_runs: {
         Row: {
+          canonical_run_id: string | null
+          canonical_week: string | null
           deadline_at: string | null
+          dispatch_lease_token: string | null
+          dispatch_lease_until: string | null
           dispatched_at: string
           error_message: string | null
           id: string
@@ -1218,7 +1231,11 @@ export type Database = {
           survey_id: string
         }
         Insert: {
+          canonical_run_id?: string | null
+          canonical_week?: string | null
           deadline_at?: string | null
+          dispatch_lease_token?: string | null
+          dispatch_lease_until?: string | null
           dispatched_at?: string
           error_message?: string | null
           id?: string
@@ -1231,7 +1248,11 @@ export type Database = {
           survey_id: string
         }
         Update: {
+          canonical_run_id?: string | null
+          canonical_week?: string | null
           deadline_at?: string | null
+          dispatch_lease_token?: string | null
+          dispatch_lease_until?: string | null
           dispatched_at?: string
           error_message?: string | null
           id?: string
@@ -1244,6 +1265,13 @@ export type Database = {
           survey_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "pulse_runs_canonical_run_id_fkey"
+            columns: ["canonical_run_id"]
+            isOneToOne: false
+            referencedRelation: "pulse_runs"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "pulse_runs_survey_id_fkey"
             columns: ["survey_id"]
@@ -1371,6 +1399,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      pulse_weekly_repair_audit: {
+        Row: {
+          batch: string
+          canonical_run_id: string
+          created_at: string
+          id: string
+          previous_row: Json
+          row_id: string
+          table_name: string
+        }
+        Insert: {
+          batch?: string
+          canonical_run_id: string
+          created_at?: string
+          id?: string
+          previous_row: Json
+          row_id: string
+          table_name: string
+        }
+        Update: {
+          batch?: string
+          canonical_run_id?: string
+          created_at?: string
+          id?: string
+          previous_row?: Json
+          row_id?: string
+          table_name?: string
+        }
+        Relationships: []
       }
       requests: {
         Row: {
@@ -1720,6 +1778,10 @@ export type Database = {
         Args: { p_request_id: string }
         Returns: Json
       }
+      claim_weekly_pulse_dispatch: {
+        Args: { p_run_id: string; p_token: string }
+        Returns: boolean
+      }
       cleanup_orphan_profiles: { Args: never; Returns: number }
       complete_own_profile:
         | {
@@ -1777,6 +1839,41 @@ export type Database = {
           p_person_id: string
         }
         Returns: Json
+      }
+      ensure_weekly_pulse_run: {
+        Args: {
+          p_at: string
+          p_deadline?: string
+          p_recipients?: number
+          p_survey_id: string
+        }
+        Returns: {
+          canonical_run_id: string | null
+          canonical_week: string | null
+          deadline_at: string | null
+          dispatch_lease_token: string | null
+          dispatch_lease_until: string | null
+          dispatched_at: string
+          error_message: string | null
+          id: string
+          peer_pairing_strategy: string | null
+          peer_reviews_per_reviewer: number | null
+          recipients_count: number
+          reminders_sent_at: string[]
+          responses_count: number
+          status: string
+          survey_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "pulse_runs"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      finish_weekly_pulse_dispatch: {
+        Args: { p_run_id: string; p_token: string }
+        Returns: undefined
       }
       get_active_people_for_kudos: {
         Args: never
@@ -2026,6 +2123,7 @@ export type Database = {
         Args: { _person_id: string }
         Returns: boolean
       }
+      is_weekly_wellbeing: { Args: { p_survey_id: string }; Returns: boolean }
       link_profile_personal_email: {
         Args: { p_person_id: string }
         Returns: Json
@@ -2079,6 +2177,10 @@ export type Database = {
         Args: { p_justification?: string; p_requested_day: number }
         Returns: Json
       }
+      resolve_pulse_response_target: {
+        Args: { p_event_at: string; p_question_id: string; p_run_id: string }
+        Returns: Json
+      }
       review_data_change: {
         Args: { p_approve: boolean; p_notes?: string; p_request_id: string }
         Returns: Json
@@ -2093,6 +2195,20 @@ export type Database = {
             Args: { p_date: string; p_dia_pagamento?: number; p_model: string }
             Returns: undefined
           }
+      submit_pulse_response: {
+        Args: {
+          p_event_at: number
+          p_event_id: string
+          p_message_ts?: string
+          p_question_id: string
+          p_respondent_id: string
+          p_run_id: string
+          p_scale?: number
+          p_subject_id?: string
+          p_text?: string
+        }
+        Returns: Json
+      }
       update_collaborator_onboarding_data: {
         Args: {
           p_data_contrato?: string
