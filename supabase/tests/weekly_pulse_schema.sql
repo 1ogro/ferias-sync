@@ -1,0 +1,14 @@
+CREATE ROLE anon; CREATE ROLE authenticated; CREATE ROLE service_role;
+CREATE TYPE engagement_reason AS ENUM ('pulse_response','peer_review');
+CREATE TABLE people(id text primary key);
+CREATE TABLE pulse_surveys(id uuid primary key default gen_random_uuid(),title text,kind text,frequency text);
+CREATE TABLE pulse_questions(id uuid primary key default gen_random_uuid(),survey_id uuid references pulse_surveys,position int,question_type text,question_text text,required boolean default true);
+CREATE TABLE pulse_runs(id uuid primary key default gen_random_uuid(),survey_id uuid references pulse_surveys,dispatched_at timestamptz not null default now(),status text not null default 'pending',recipients_count int not null default 0,responses_count int not null default 0,error_message text,deadline_at timestamptz,reminders_sent_at timestamptz[] not null default '{}',peer_reviews_per_reviewer int,peer_pairing_strategy text);
+CREATE TABLE pulse_responses(id uuid primary key default gen_random_uuid(),run_id uuid not null references pulse_runs,question_id uuid not null references pulse_questions,respondent_id text not null references people,scale_value int,text_value text,slack_message_ts text,submitted_at timestamptz not null default now(),subject_id text references people);
+CREATE UNIQUE INDEX pulse_responses_unique_response ON pulse_responses(run_id,question_id,respondent_id,subject_id) NULLS NOT DISTINCT;
+CREATE TABLE pulse_run_recipients(id uuid primary key default gen_random_uuid(),run_id uuid not null references pulse_runs,person_id text not null references people,slack_user_id text,slack_channel text,sent_at timestamptz not null default now(),responded_at timestamptz,reminders_sent_count int not null default 0,pairs_total int not null default 0,pairs_completed int not null default 0,unique(run_id,person_id));
+CREATE TABLE engagement_points(id uuid primary key default gen_random_uuid(),person_id text references people,points int not null,reason engagement_reason not null,source_id text,created_at timestamptz not null default now());
+CREATE UNIQUE INDEX idx_points_unique_source ON engagement_points(person_id,reason,source_id) WHERE source_id IS NOT NULL;
+CREATE TABLE peer_review_pairs(id uuid primary key default gen_random_uuid(),run_id uuid references pulse_runs,reviewer_id text,subject_id text,completed_at timestamptz);
+CREATE TABLE audit_logs(id uuid primary key default gen_random_uuid(),entidade text,entidade_id text,acao text,payload jsonb,actor_id text,created_at timestamptz default now());
+CREATE FUNCTION award_points(p_person_id text,p_points int,p_reason engagement_reason,p_source_id text default null) RETURNS uuid LANGUAGE plpgsql AS $$ DECLARE v uuid; BEGIN INSERT INTO engagement_points(person_id,points,reason,source_id) VALUES(p_person_id,p_points,p_reason,p_source_id) ON CONFLICT(person_id,reason,source_id) WHERE source_id IS NOT NULL DO NOTHING RETURNING id INTO v; RETURN v; END $$;

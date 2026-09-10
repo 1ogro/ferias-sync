@@ -1,4 +1,4 @@
--- Isolated fixture database only: seed /tmp/browser/pulse-dedupe/fixture.sql first.
+-- Isolated fixture database only: seed supabase/tests/weekly_pulse_fixture.sql first.
 BEGIN;
 SET test.uid='00000000-0000-0000-0000-000000000001'; SET test.manager='true';
 DO $$ DECLARE j jsonb; q uuid:='6a8e78a7-5fbf-4e2e-bff4-918109b05f5f'; r uuid:='00000000-0000-0000-0000-000000000011'; t numeric:=extract(epoch FROM '2026-09-10T10:00:00Z'::timestamptz); BEGIN
