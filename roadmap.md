@@ -1,9 +1,10 @@
 # Correção de Bem-estar
 
 ## Respostas repetidas nos pulses
-- [ ] Implementar ciclo semanal canônico e gravação transacional da última resposta, com testes isolados.
-- [ ] Integrar Slack e disparos, preservando comentários, pontos, notificações e avaliações de pares.
-- [ ] Consolidar histórico com auditoria após validar a prévia; conferir contadores e resultados.
+- [x] Implementar ciclo semanal canônico e última resposta transacional; testes SQL e 10 testes Deno passaram, incluindo comentários, pares e eventos fora de ordem.
+- [x] Integrar e implantar Slack, disparos e lembretes; concorrência validada com 16 resoluções, 16 respostas e 8 disputas de envio.
+- [x] Consolidar histórico com auditoria após testes isolados: 144 respostas auditadas, 10 duplicatas consolidadas, zero grupos duplicados; Douglas tem uma resposta no ciclo.
+- [x] Validar anonimato e interface simulada: nota/depoimento juntos, participação por ciclo e CSV; sem erros de execução. Validação autenticada real segue bloqueada conforme abaixo.
 
 ## Gráficos por time e anonimato
 - [x] Substituir bloqueio global por blocos semanais determinísticos; testes isolados de pessoas distintas, tipos, residual entre times, filtros e períodos sobrepostos passaram.
