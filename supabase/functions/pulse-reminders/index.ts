@@ -258,7 +258,8 @@ serve(async (req) => {
       .select("id, survey_id, deadline_at, reminders_sent_at, survey:pulse_surveys!inner(id, title, kind, created_by, reminder_enabled, reminder_offsets_hours, response_deadline_hours)")
       .not("deadline_at", "is", null)
       .gte("deadline_at", windowStart)
-      .neq("status", "failed");
+      .neq("status", "failed")
+      .neq("status", "superseded");
 
     if (error) throw error;
 

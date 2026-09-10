@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { resolveExpectedRunAndQuestion } from "./resolve-pulse.ts";
+import { pulseEvent, submitPulseResponse } from "./resolve-pulse.ts";
 // Inlined from ../kudos-send/lib.ts to keep the function self-contained
 // (cross-function relative imports don't bundle on deploy).
 const DEDUP_WINDOW_SECONDS = 60;
@@ -153,12 +153,6 @@ async function completePeerPair(
   return { pair_id: pair.id, subject_id: pair.subject_id };
 }
 
-
-async function bumpResponseCount(runId: string, supabase: any) {
-  const { count } = await supabase
-    .from("pulse_responses").select("*", { count: "exact", head: true }).eq("run_id", runId);
-  await supabase.from("pulse_runs").update({ responses_count: count || 0 }).eq("id", runId);
-}
 
 async function markRecipientResponded(supabase: any, runId: string, personId: string) {
   try {
@@ -1249,25 +1243,25 @@ serve(async (req) => {
           subjectId = pair?.subject_id ?? null;
         }
 
-        // Reroute to the survey matching today's classification (only for non-peer runs)
-        const eff = pairId
-          ? { runId, questionId }
-          : await resolveExpectedRunAndQuestion(supabase, runId, questionId);
-
-        const { data: upRow, error: upErr } = await supabase.from("pulse_responses").upsert(
-          { run_id: eff.runId, question_id: eff.questionId, respondent_id: respondent.id, text_value: text, subject_id: subjectId },
-          { onConflict: "run_id,question_id,respondent_id,subject_id" }
-        ).select("id").single();
-        if (upErr) console.error("[pulse view_submission] upsert error:", upErr);
-        else {
-          await bumpResponseCount(eff.runId, supabase);
-          await awardPoints(supabase, respondent.id, 5, "pulse_response", eff.runId);
-          await completePeerPair(supabase, runId, respondent.id, pairId);
-          await markRecipientResponded(supabase, runId, respondent.id);
-          if (upRow?.id) {
-            supabase.functions.invoke("pulse-response-notify", { body: { response_id: upRow.id } })
+        try {
+          if (pairId && !subjectId) throw new Error("Par de avaliação não encontrado");
+          const saved = await submitPulseResponse(supabase, {
+            p_run_id: runId, p_question_id: questionId, p_respondent_id: respondent.id,
+            p_text: text, p_subject_id: subjectId, ...pulseEvent(payload, timestamp, signature),
+          });
+          if (pairId) {
+            await completePeerPair(supabase, runId, respondent.id, pairId);
+            await markRecipientResponded(supabase, runId, respondent.id);
+          }
+          if (saved.notify) {
+            supabase.functions.invoke("pulse-response-notify", { body: { response_id: saved.id } })
               .catch((e: any) => console.error("[pulse_text] notify invoke failed", e?.message));
           }
+        } catch (error) {
+          console.error("[pulse view_submission] save error:", error);
+          return new Response(JSON.stringify({ response_action: "errors", errors: {
+            pulse_text_block: "Não foi possível salvar. Seu texto foi mantido; tente novamente.",
+          } }), { headers: { "Content-Type": "application/json" } });
         }
 
       }
@@ -1300,27 +1294,28 @@ serve(async (req) => {
             subjectId = pair?.subject_id ?? null;
           }
 
-          const eff = pairId
-            ? { runId, questionId }
-            : await resolveExpectedRunAndQuestion(supabase, runId, questionId);
-
-          const { data: upRow, error: upErr } = await supabase.from("pulse_responses").upsert(
-            { run_id: eff.runId, question_id: eff.questionId, respondent_id: respondent.id, scale_value: parseInt(value, 10), slack_message_ts: payload.message?.ts, subject_id: subjectId },
-            { onConflict: "run_id,question_id,respondent_id,subject_id" }
-          ).select("id").single();
-          if (upErr) {
-            console.error("[pulse_answer] upsert error:", upErr);
-          } else {
-            await bumpResponseCount(eff.runId, supabase);
-            await awardPoints(supabase, respondent.id, 5, "pulse_response", eff.runId);
-            await completePeerPair(supabase, runId, respondent.id, pairId);
-            await markRecipientResponded(supabase, runId, respondent.id);
-            await postEphemeralAck(payload, `✅ Resposta registrada: *${value}/5*`);
-            if (upRow?.id) {
-              supabase.functions.invoke("pulse-response-notify", { body: { response_id: upRow.id } })
+          try {
+            if (pairId && !subjectId) throw new Error("Par de avaliação não encontrado");
+            const saved = await submitPulseResponse(supabase, {
+              p_run_id: runId, p_question_id: questionId, p_respondent_id: respondent.id,
+              p_scale: parseInt(value, 10), p_subject_id: subjectId,
+              p_message_ts: payload.message?.ts ?? null, ...pulseEvent(payload, timestamp, signature),
+            });
+            if (pairId) {
+              await completePeerPair(supabase, runId, respondent.id, pairId);
+              await markRecipientResponded(supabase, runId, respondent.id);
+            }
+            const label = saved.action === "updated" ? "Resposta atualizada" : saved.action === "repeated" ? "Resposta já registrada" : "Resposta registrada";
+            await postEphemeralAck(payload, saved.action === "repeated"
+              ? "✅ Sua resposta já foi registrada; a versão mais recente foi mantida."
+              : `✅ ${label}: *${value}/5*`);
+            if (saved.notify) {
+              supabase.functions.invoke("pulse-response-notify", { body: { response_id: saved.id } })
                 .catch((e: any) => console.error("[pulse_answer] notify invoke failed", e?.message));
             }
-
+          } catch (error) {
+            console.error("[pulse_answer] save error:", error);
+            await postEphemeralAck(payload, "⚠️ Não foi possível salvar sua resposta. Tente novamente.");
           }
 
         } else {

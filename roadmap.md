@@ -1,5 +1,10 @@
 # Correção de Bem-estar
 
+## Respostas repetidas nos pulses
+- [ ] Implementar ciclo semanal canônico e gravação transacional da última resposta, com testes isolados.
+- [ ] Integrar Slack e disparos, preservando comentários, pontos, notificações e avaliações de pares.
+- [ ] Consolidar histórico com auditoria após validar a prévia; conferir contadores e resultados.
+
 ## Gráficos por time e anonimato
 - [x] Substituir bloqueio global por blocos semanais determinísticos; testes isolados de pessoas distintas, tipos, residual entre times, filtros e períodos sobrepostos passaram.
 - [x] Aplicar regra validada sem alterar respostas nem permissões; confirmado bloqueio anônimo e autorização interna. Dados reais: 5 semanas combinadas recuperáveis em Pacientes, 3 em Assistencial/Médico/Operadoras e 1 em Conversacional & UX Writing.

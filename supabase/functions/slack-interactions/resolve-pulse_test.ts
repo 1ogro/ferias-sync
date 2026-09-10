@@ -1,41 +1,35 @@
-import { resolveExpectedRunAndQuestion } from "./resolve-pulse.ts";
-
-const source = { survey_id: "in", position: 0, question_type: "scale_1_5", question_text: "Sentimento?", required: true };
-const friday = new Date("2026-09-04T15:00:00Z");
-function mock(results: unknown[]) {
-  let index = 0;
-  const client = { from: () => {
-    const query: any = {};
-    for (const method of ["select", "eq", "insert"]) query[method] = (value: unknown) => {
-      if (method === "select" && String(value).split(/,\s*/).includes("kind")) throw new Error("Invalid kind column");
-      if (method === "insert" && value && typeof value === "object" && "kind" in value) throw new Error("Invalid kind column");
-      return query;
-    };
-    query.maybeSingle = query.single = () => Promise.resolve(results[index++]);
-    return query;
-  }};
-  return client;
-}
-const run = { data: { survey_id: "in", survey: { title: "Check-in semanal de bem-estar" } } };
-const destination = { data: { id: "out" } };
-function equal(actual: unknown, expected: unknown) {
-  if (JSON.stringify(actual) !== JSON.stringify(expected)) throw new Error(JSON.stringify({ actual, expected }));
-}
-Deno.test("successful reroute maps both identifiers", async () => {
-  equal(await resolveExpectedRunAndQuestion(mock([run, destination, { data: source }, { data: { id: "q-out" } }, { data: { id: "r-out" } }]), "r-in", "q-in", friday), { runId: "r-out", questionId: "q-out" });
+import { pulseEvent, resolveExpectedRunAndQuestion, submitPulseResponse } from "./resolve-pulse.ts";
+function equal(a: unknown, b: unknown) { if (JSON.stringify(a) !== JSON.stringify(b)) throw new Error(JSON.stringify({ a, b })); }
+Deno.test("resolution delegates canonical mapping atomically", async () => {
+  const client = { rpc(name: string, args: any) {
+    equal(name, "resolve_pulse_response_target"); equal(args.p_run_id, "original");
+    return { data: { runId: "canonical", questionId: "mapped" } };
+  } };
+  equal(await resolveExpectedRunAndQuestion(client, "original", "question"), { runId: "canonical", questionId: "mapped" });
 });
-for (const [name, steps] of Object.entries({
-  "missing source": [{ data: null }],
-  "wrong source survey": [{ data: { ...source, survey_id: "wrong" } }],
-  "ambiguous target": [{ data: source }, { error: "multiple questions" }],
-  "question creation failure": [{ data: source }, { data: null }, { error: "insert failed" }],
-  "run creation failure": [{ data: source }, { data: { id: "q-out" } }, { data: null }, { error: "insert failed" }],
-  "empty creation result": [{ data: source }, { data: null }, { data: null }],
-})) {
-  Deno.test(`${name} preserves original pair`, async () => {
-    equal(await resolveExpectedRunAndQuestion(mock([run, destination, ...steps]), "r-in", "q-in", friday), { runId: "r-in", questionId: "q-in" });
+for (const result of [{ error: new Error("failed") }, { data: null }, { data: { runId: "partial" } }]) {
+  Deno.test(`resolution fails closed: ${JSON.stringify(result)}`, async () => {
+    let rejected = false;
+    try { await resolveExpectedRunAndQuestion({ rpc: () => result }, "r", "q"); } catch { rejected = true; }
+    equal(rejected, true);
   });
 }
-Deno.test("same classification leaves original pair unchanged", async () => {
-  equal(await resolveExpectedRunAndQuestion(mock([run]), "r-in", "q-in", new Date("2026-09-03T15:00:00Z")), { runId: "r-in", questionId: "q-in" });
+Deno.test("Slack click retains precise original timestamp", () => {
+  equal(pulseEvent({ actions: [{ action_ts: "1788958801.123456" }] }, "1788958802", "v0=sig"), { p_event_at: "1788958801.123456", p_event_id: "v0=sig" });
+});
+Deno.test("modal uses signed timestamp and signature for deduplication", () => {
+  equal(pulseEvent({}, "1788958802", "v0=modal"), { p_event_at: "1788958802", p_event_id: "v0=modal" });
+});
+for (const action of ["inserted", "updated", "repeated"]) {
+  Deno.test(`persistence preserves ${action} outcome`, async () => {
+    const result = { id: "response", runId: "canonical", action, notify: action === "inserted" };
+    equal(await submitPulseResponse({ rpc: (name: string, args: any) => {
+      equal(name, "submit_pulse_response"); equal(args.p_subject_id, "peer"); return { data: result };
+    } }, { p_subject_id: "peer" }), result);
+  });
+}
+Deno.test("persistence never confirms failed save", async () => {
+  let rejected = false;
+  try { await submitPulseResponse({ rpc: () => ({ error: new Error("database down") }) }, {}); } catch { rejected = true; }
+  equal(rejected, true);
 });
