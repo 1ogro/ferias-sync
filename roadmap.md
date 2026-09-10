@@ -1,8 +1,8 @@
 # Correção de Bem-estar
 
 ## Médias sem supressão no relatório de Bem-estar
-- [ ] Remover proteção de todas as médias do relatório, preservando escopo de acesso e contagem semanal única.
-- [ ] Atualizar apresentação e CSV; validar cálculos e recortes em ambiente isolado antes de aplicar.
+- [x] Remover proteção de todas as médias do relatório, preservando escopo de acesso e contagem semanal única. Banco confirmou ausência de supressão, autorização interna e execução anônima negada; 80 notas de check-in (3,80) e 49 de check-out (3,71).
+- [x] Atualizar apresentação e CSV; cálculos e recortes validados em PostgreSQL isolado antes de aplicar. Playwright com dados simulados confirmou médias, filtro de time com uma pessoa e CSV sem erros de execução; validação autenticada real permanece bloqueada conforme abaixo.
 
 ## Respostas repetidas nos pulses
 - [x] Implementar ciclo semanal canônico e última resposta transacional; testes SQL e 10 testes Deno passaram, incluindo comentários, pares e eventos fora de ordem.
