@@ -321,6 +321,8 @@ async function dispatchSurvey(
     ? (survey.peer_pairing_strategy || "round_robin")
     : null;
 
+  const weeklyWellbeing = survey.kind === "self" && survey.frequency === "weekly" &&
+    ["Check-in semanal de bem-estar", "Check-out semanal"].includes(survey.title);
   // Resend mode: reuse an existing run and only target people who never got the DM.
   let run: any = null;
   let runErr: any = null;
@@ -328,6 +330,10 @@ async function dispatchSurvey(
     const { data: existing, error } = await supabase
       .from("pulse_runs").select("*").eq("id", opts.resendRunId).maybeSingle();
     run = existing; runErr = error;
+    if (run?.canonical_run_id) {
+      const canonical = await supabase.from("pulse_runs").select("*").eq("id", run.canonical_run_id).single();
+      run = canonical.data; runErr = canonical.error;
+    }
     if (run) {
       const { data: already } = await supabase
         .from("pulse_run_recipients").select("person_id").eq("run_id", run.id);
@@ -335,6 +341,12 @@ async function dispatchSurvey(
       recipients = recipients.filter((p) => !done.has(p.id));
       console.log(`[resend ${run.id}] pending recipients=${recipients.length}`);
     }
+  } else if (weeklyWellbeing) {
+    const res = await supabase.rpc("ensure_weekly_pulse_run", {
+      p_survey_id: survey.id, p_at: new Date().toISOString(),
+      p_recipients: recipients.length, p_deadline: deadlineAt,
+    });
+    run = res.data; runErr = res.error;
   } else {
     const res = await supabase
       .from("pulse_runs")
@@ -353,6 +365,19 @@ async function dispatchSurvey(
 
   if (runErr || !run) {
     return { sent: 0, total: recipients.length, deferred: 0, diagnostics: [{ status: "run_create_failed", error: runErr?.message }] };
+  }
+
+  const leaseToken = crypto.randomUUID();
+  if (weeklyWellbeing) {
+    const { data: claimed, error } = await supabase.rpc("claim_weekly_pulse_dispatch", {
+      p_run_id: run.id, p_token: leaseToken,
+    });
+    if (error || !claimed) return { sent: 0, total: recipients.length, deferred: recipients.length, diagnostics: [{ status: "cycle_already_processing" }] };
+    const { data: already, error: readError } = await supabase.from("pulse_run_recipients")
+      .select("person_id").eq("run_id", run.id);
+    if (readError) throw readError;
+    const done = new Set((already || []).map((r: any) => r.person_id));
+    recipients = recipients.filter((p) => !done.has(p.id));
   }
 
   // Peer pairing (Map<reviewerId, {pairId, subject}[]>)
@@ -615,6 +640,10 @@ async function dispatchSurvey(
       .eq("id", run.id);
   }
 
+  if (weeklyWellbeing) {
+    const { error } = await supabase.rpc("finish_weekly_pulse_dispatch", { p_run_id: run.id, p_token: leaseToken });
+    if (error) throw error;
+  }
   await supabase.from("audit_logs").insert({
     entidade: "pulse_runs",
     entidade_id: run.id,

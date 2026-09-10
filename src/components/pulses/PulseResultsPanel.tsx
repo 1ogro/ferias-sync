@@ -117,7 +117,10 @@ export function PulseResultsPanel({ survey }: Props) {
         .filter((r: any) => r.respondent_id || r.anonymous_label)
         .map((r: any) => r.respondent_id || r.anonymous_label)
     );
-    const responseRate = totalRecipients > 0 ? (respondents.size / totalRecipients) * 100 : 0;
+    const participations = new Set(rowsAll
+      .filter((r: any) => r.respondent_id || r.anonymous_label)
+      .map((r: any) => `${r.run_id}|${r.respondent_id || r.anonymous_label}`));
+    const responseRate = totalRecipients > 0 ? (participations.size / totalRecipients) * 100 : 0;
 
 
     const now = Date.now();
@@ -228,7 +231,7 @@ export function PulseResultsPanel({ survey }: Props) {
           </Alert>
         )}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <Stat label="Disparos" value={runs.length} />
+          <Stat label="Disparos" value={runs.filter((r: any) => r.status !== "superseded").length} />
           <Stat label="Destinatários" value={stats.totalRecipients} />
           <Stat label="Respondentes" value={stats.respondents} />
           <Stat label="Taxa de resposta" value={`${stats.responseRate.toFixed(0)}%`} />
