@@ -1,9 +1,9 @@
 # Correção de Bem-estar
 
 ## Gráficos por time e anonimato
-- [ ] Substituir bloqueio global por proteção semanal determinística e testar diferenças entre filtros/períodos.
-- [ ] Aplicar regra validada sem alterar respostas nem permissões.
-- [ ] Explicar resultados protegidos no gráfico, tabela, cartões e CSV; testar interface.
+- [x] Substituir bloqueio global por blocos semanais determinísticos; testes isolados de pessoas distintas, tipos, residual entre times, filtros e períodos sobrepostos passaram.
+- [x] Aplicar regra validada sem alterar respostas nem permissões; confirmado bloqueio anônimo e autorização interna. Dados reais: 5 semanas combinadas recuperáveis em Pacientes, 3 em Assistencial/Médico/Operadoras e 1 em Conversacional & UX Writing.
+- [x] Explicar resultados protegidos no gráfico, tabela, cartões e CSV; Playwright com dados simulados validou séries por time, filtros, estados protegido/vazio/só geral e CSV, sem erros de execução.
 
 - [x] Implementar e testar agregações por período, semana e time com anonimato (PostgreSQL isolado, dados sintéticos).
 - [x] Corrigir o recebimento de respostas e testar falhas de mapeamento (8 testes Deno; função implantada).
