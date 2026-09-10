@@ -1,321 +1,89 @@
 import { useMemo, useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
-import { Download, HeartPulse, TrendingDown, TrendingUp } from "lucide-react";
-import { format, parseISO } from "date-fns";
-import { ptBR } from "date-fns/locale";
-import { useWellbeingTeamWeekly, WellbeingKind, WellbeingRow } from "@/hooks/useWellbeing";
+import { Download, HeartPulse } from "lucide-react";
+import { format } from "date-fns";
+import { parseDateSafely } from "@/lib/dateUtils";
+import { useWellbeingTeamWeekly, WellbeingRow, WellbeingSelection } from "@/hooks/useWellbeing";
 
-const COLORS = [
-  "hsl(var(--primary))",
-  "#0ea5e9",
-  "#f59e0b",
-  "#10b981",
-  "#ef4444",
-  "#8b5cf6",
-  "#ec4899",
-  "#14b8a6",
-];
-
-function weekLabel(iso: string) {
-  try {
-    return format(parseISO(iso), "dd/MM", { locale: ptBR });
-  } catch {
-    return iso;
-  }
-}
-
-function fmt(v: number | null | undefined, digits = 2) {
-  return v == null ? "—" : v.toFixed(digits);
-}
-
-function Delta({ current, previous }: { current: number | null; previous: number | null }) {
-  if (current == null || previous == null) return null;
-  const d = current - previous;
-  if (Math.abs(d) < 0.005) return <span className="text-xs text-muted-foreground">estável</span>;
-  const up = d > 0;
-  return (
-    <span className={`text-xs inline-flex items-center gap-1 ${up ? "text-emerald-600" : "text-destructive"}`}>
-      {up ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-      {up ? "+" : ""}{d.toFixed(2)}
-    </span>
-  );
-}
+const COLORS = ["hsl(var(--primary))", "hsl(var(--status-approved))", "hsl(var(--status-pending))", "hsl(var(--destructive))", "hsl(var(--muted-foreground))"];
+const labels = { checkin: "Check-in", checkout: "Check-out", both: "Check-in e check-out" };
+const statuses = { empty: "Sem notas", protected: "Média protegida", available: "Disponível" };
+const dateLabel = (iso: string) => format(parseDateSafely(iso), "dd/MM/yyyy");
+const average = (row?: WellbeingRow) => row?.avg_value == null
+  ? row?.status === "protected" ? "Protegida" : "—"
+  : row.avg_value.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const rate = (row?: WellbeingRow) => row?.recipients_count
+  ? `${(100 * row.responded_deliveries / row.recipients_count).toFixed(0)}%` : "—";
+const csvCell = (value: unknown) => `"${String(value ?? "").replace(/"/g, '""')}"`;
 
 export function WellbeingTeamPanel() {
   const [weeks, setWeeks] = useState(12);
-  const [team, setTeam] = useState<string>("all");
-  const [kind, setKind] = useState<"both" | WellbeingKind>("both");
-
-  const { data: rows = [], isLoading, isError, error, refetch, isFetching } = useWellbeingTeamWeekly({
-    weeks,
-    subTime: team === "all" ? null : team,
-  });
-
-  const teams = useMemo(
-    () => Array.from(new Set(rows.map((r) => r.sub_time))).sort(),
-    [rows]
-  );
-
-  const kinds: WellbeingKind[] = kind === "both" ? ["checkin", "checkout"] : [kind];
-  const filtered = useMemo(() => rows.filter((r) => kinds.includes(r.kind)), [rows, kind]);
-
-  const weekList = useMemo(
-    () => Array.from(new Set(filtered.map((r) => r.week_start))).sort(),
-    [filtered]
-  );
-  const lastWeek = weekList[weekList.length - 1];
-  const prevWeek = weekList[weekList.length - 2];
-
-  const summaryFor = (week: string | undefined, k: WellbeingKind) => {
-    const rs = filtered.filter((r) => r.week_start === week && r.kind === k);
-    const withAvg = rs.filter((r) => r.avg_value != null);
-    const responses = rs.reduce((a, r) => a + r.response_count, 0);
-    const respondents = rs.reduce((a, r) => a + r.respondent_count, 0);
-    const recipients = rs.reduce((a, r) => a + r.recipients_count, 0);
-    const weightedTotal = withAvg.reduce((a, r) => a + (r.avg_value as number) * r.response_count, 0);
-    const weightedCount = withAvg.reduce((a, r) => a + r.response_count, 0);
-    return {
-      avg: weightedCount ? weightedTotal / weightedCount : null,
-      responses,
-      respondents,
-      recipients,
-      rate: recipients ? (respondents / recipients) * 100 : null,
-    };
-  };
-
-  const curIn = summaryFor(lastWeek, "checkin");
-  const prevIn = summaryFor(prevWeek, "checkin");
-  const curOut = summaryFor(lastWeek, "checkout");
-  const prevOut = summaryFor(prevWeek, "checkout");
-
-  // Table: one row per team for the latest week
-  const tableRows = useMemo(() => {
-    const map = new Map<string, { team: string; in?: WellbeingRow; out?: WellbeingRow }>();
-    filtered
-      .filter((r) => r.week_start === lastWeek)
-      .forEach((r) => {
-        const e = map.get(r.sub_time) || { team: r.sub_time };
-        if (r.kind === "checkin") e.in = r; else e.out = r;
-        map.set(r.sub_time, e);
-      });
-    return Array.from(map.values()).sort((a, b) => a.team.localeCompare(b.team));
-  }, [filtered, lastWeek]);
-
-  // Chart: one line per team (average across selected kinds)
+  const [team, setTeam] = useState("all");
+  const [kind, setKind] = useState<WellbeingSelection>("both");
+  const { data, isLoading, isError, error, refetch, isFetching } = useWellbeingTeamWeekly({ weeks, subTime: team === "all" ? null : team });
+  const rows = data?.rows ?? [];
+  const teams = data?.teams ?? [];
+  const visibleTeams = team === "all" ? teams : [team];
+  const kinds = kind === "both" ? ["checkin", "checkout"] as const : [kind];
+  const summary = (type: WellbeingSelection) => rows.find(r => r.level === "period" && r.kind === type && (team === "all" ? r.scope === "total" : r.sub_time === team));
+  const total = summary(kind);
+  const weekly = rows.filter(r => r.level === "week" && r.kind === kind);
+  const series = [{ key: "overall", name: team === "all" ? "Geral" : team, scope: team === "all" ? "total" : "team", team: team === "all" ? null : team },
+    ...(team === "all" ? visibleTeams.map((t, i) => ({ key: `team${i}`, name: t, scope: "team", team: t })) : [])];
   const chartData = useMemo(() => {
-    return weekList.map((wk) => {
-      const point: Record<string, any> = { week: weekLabel(wk) };
-      teams.forEach((t) => {
-        const rs = filtered.filter((r) => r.week_start === wk && r.sub_time === t && r.avg_value != null);
-        const total = rs.reduce((a, r) => a + (r.avg_value as number) * r.response_count, 0);
-        const count = rs.reduce((a, r) => a + r.response_count, 0);
-        point[t] = count ? Number((total / count).toFixed(2)) : null;
+    const dates = Array.from(new Set(weekly.flatMap(r => r.week_start ? [r.week_start] : []))).sort();
+    return dates.map(date => {
+      const point: Record<string, string | number | null> = { week: dateLabel(date) };
+      series.forEach(s => {
+        const row = weekly.find(r => r.week_start === date && r.scope === s.scope && r.sub_time === s.team);
+        point[s.key] = row?.avg_value ?? null;
       });
       return point;
     });
-  }, [weekList, teams, filtered]);
-
+  }, [data, kind, team]);
   const exportCsv = () => {
-    const header = ["semana", "time", "tipo", "media", "respostas", "respondentes", "destinatarios", "participacao_%"];
-    const lines = filtered.map((r) => [
-      r.week_start,
-      r.sub_time,
-      r.kind === "checkin" ? "check-in" : "check-out",
-      r.avg_value ?? "",
-      r.response_count,
-      r.respondent_count,
-      r.recipients_count,
-      r.recipients_count ? ((r.respondent_count / r.recipients_count) * 100).toFixed(0) : "",
-    ]);
-    const csv = [header, ...lines].map((l) => l.join(";")).join("\n");
+    if (!data) return;
+    const exportRows = rows.filter(r => kind === "both" || r.kind === kind);
+    const header = ["nivel", "inicio_periodo", "fim_periodo", "semana", "escopo", "time", "tipo", "media", "notas", "pessoas_distintas", "envios", "envios_respondidos", "participacao_%", "situacao"];
+    const csv = [header, ...exportRows.map(r => [r.level === "period" ? "Resumo do período" : "Semanal", data.period_start, data.period_end, r.week_start, r.scope === "total" ? "Geral" : "Time", r.sub_time ?? "Todos os times", labels[r.kind], r.avg_value, r.response_count, r.respondent_count, r.recipients_count, r.responded_deliveries, r.recipients_count ? (100 * r.responded_deliveries / r.recipients_count).toFixed(2) : "", statuses[r.status]])].map(line => line.map(csvCell).join(";")).join("\n");
     const url = URL.createObjectURL(new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" }));
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `bem-estar-por-time-${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    const link = document.createElement("a");
+    link.href = url; link.download = `bem-estar-${data.period_start}-${data.period_end}.csv`; link.click(); URL.revokeObjectURL(url);
   };
 
-  return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader className="pb-3">
-          <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
-            <div>
-              <CardTitle className="text-base flex items-center gap-2">
-                <HeartPulse className="h-4 w-4 text-primary" /> Bem-estar por time
-              </CardTitle>
-              <CardDescription>
-                Médias de check-in e check-out (1–5), respostas e participação semanal.
-              </CardDescription>
-            </div>
-            <div className="flex flex-wrap items-end gap-2">
-              <div>
-                <Label className="text-xs">Período</Label>
-                <Select value={String(weeks)} onValueChange={(v) => setWeeks(Number(v))}>
-                  <SelectTrigger className="h-9 w-36"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="4">4 semanas</SelectItem>
-                    <SelectItem value="8">8 semanas</SelectItem>
-                    <SelectItem value="12">12 semanas</SelectItem>
-                    <SelectItem value="26">26 semanas</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label className="text-xs">Tipo</Label>
-                <Select value={kind} onValueChange={(v) => setKind(v as any)}>
-                  <SelectTrigger className="h-9 w-36"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="both">Check-in e out</SelectItem>
-                    <SelectItem value="checkin">Check-in</SelectItem>
-                    <SelectItem value="checkout">Check-out</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label className="text-xs">Time</Label>
-                <Select value={team} onValueChange={setTeam}>
-                  <SelectTrigger className="h-9 w-44"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos os times</SelectItem>
-                    {teams.map((t) => (
-                      <SelectItem key={t} value={t}>{t}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <Button variant="outline" size="sm" className="h-9" onClick={exportCsv} disabled={!filtered.length}>
-                <Download className="h-4 w-4 mr-1" /> CSV
-              </Button>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {isLoading ? (
-            <p className="text-sm text-muted-foreground">Carregando bem-estar do time...</p>
-          ) : isError ? (
-            <div className="space-y-2">
-              <p className="text-sm text-destructive">
-                Não foi possível carregar: {(error as any)?.message ?? "erro desconhecido"}
-              </p>
-              <Button size="sm" variant="outline" onClick={() => refetch()} disabled={isFetching}>
-                {isFetching ? "Tentando..." : "Tentar novamente"}
-              </Button>
-            </div>
-          ) : !filtered.length ? (
-            <p className="text-sm text-muted-foreground">Ainda não há respostas de check-in no período selecionado.</p>
-          ) : (
-            <>
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                <div className="rounded-lg border p-3">
-                  <p className="text-xs text-muted-foreground">Média check-in</p>
-                  <p className="text-2xl font-semibold tabular-nums">{fmt(curIn.avg)}</p>
-                  <Delta current={curIn.avg} previous={prevIn.avg} />
-                </div>
-                <div className="rounded-lg border p-3">
-                  <p className="text-xs text-muted-foreground">Média check-out</p>
-                  <p className="text-2xl font-semibold tabular-nums">{fmt(curOut.avg)}</p>
-                  <Delta current={curOut.avg} previous={prevOut.avg} />
-                </div>
-                <div className="rounded-lg border p-3">
-                  <p className="text-xs text-muted-foreground">Respostas na semana</p>
-                  <p className="text-2xl font-semibold tabular-nums">{curIn.responses + curOut.responses}</p>
-                </div>
-                <div className="rounded-lg border p-3">
-                  <p className="text-xs text-muted-foreground">Participação</p>
-                  <p className="text-2xl font-semibold tabular-nums">
-                    {curIn.rate != null ? `${curIn.rate.toFixed(0)}%` : "—"}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {curIn.respondents} de {curIn.recipients} pessoas
-                  </p>
-                </div>
-              </div>
-
-              <div className="h-72">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={chartData} margin={{ top: 8, right: 12, bottom: 0, left: -16 }}>
-                    <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-                    <XAxis dataKey="week" fontSize={12} />
-                    <YAxis domain={[1, 5]} ticks={[1, 2, 3, 4, 5]} fontSize={12} />
-                    <Tooltip />
-                    <Legend />
-                    {teams.map((t, i) => (
-                      <Line
-                        key={t}
-                        type="monotone"
-                        dataKey={t}
-                        stroke={COLORS[i % COLORS.length]}
-                        strokeWidth={2}
-                        dot={{ r: 2 }}
-                        connectNulls
-                      />
-                    ))}
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-
-              <div>
-                <p className="text-sm font-medium mb-2">
-                  Semana de {lastWeek ? format(parseISO(lastWeek), "dd 'de' MMMM", { locale: ptBR }) : "—"}
-                </p>
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Time</TableHead>
-                        <TableHead className="text-right">Check-in</TableHead>
-                        <TableHead className="text-right">Check-out</TableHead>
-                        <TableHead className="text-right">Respostas</TableHead>
-                        <TableHead className="text-right">Respondentes</TableHead>
-                        <TableHead className="text-right">Receberam</TableHead>
-                        <TableHead className="text-right">Participação</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {tableRows.map((r) => {
-                        const responses = (r.in?.response_count ?? 0) + (r.out?.response_count ?? 0);
-                        const respondents = Math.max(r.in?.respondent_count ?? 0, r.out?.respondent_count ?? 0);
-                        const recipients = Math.max(r.in?.recipients_count ?? 0, r.out?.recipients_count ?? 0);
-                        return (
-                          <TableRow key={r.team}>
-                            <TableCell className="font-medium">{r.team}</TableCell>
-                            <TableCell className="text-right tabular-nums">
-                              {r.in && r.in.avg_value == null && r.in.response_count > 0
-                                ? <span className="text-xs text-muted-foreground">dados insuficientes</span>
-                                : fmt(r.in?.avg_value ?? null)}
-                            </TableCell>
-                            <TableCell className="text-right tabular-nums">
-                              {r.out && r.out.avg_value == null && r.out.response_count > 0
-                                ? <span className="text-xs text-muted-foreground">dados insuficientes</span>
-                                : fmt(r.out?.avg_value ?? null)}
-                            </TableCell>
-                            <TableCell className="text-right tabular-nums">{responses}</TableCell>
-                            <TableCell className="text-right tabular-nums">{respondents}</TableCell>
-                            <TableCell className="text-right tabular-nums">{recipients}</TableCell>
-                            <TableCell className="text-right tabular-nums">
-                              {recipients ? `${((respondents / recipients) * 100).toFixed(0)}%` : "—"}
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
-                </div>
-                <p className="text-xs text-muted-foreground mt-2">
-                  Para preservar o anonimato, semanas com menos de 3 respondentes em um time não exibem média.
-                </p>
-              </div>
-            </>
-          )}
-        </CardContent>
-      </Card>
+  return <section className="space-y-6" aria-label="Bem-estar por time">
+    <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+      <div>
+        <h2 className="flex items-center gap-2 text-base font-semibold"><HeartPulse className="h-4 w-4 text-primary" /> Bem-estar por time</h2>
+        {data && <p className="text-sm text-muted-foreground">Período: {dateLabel(data.period_start)} a {dateLabel(data.period_end)} · São Paulo</p>}
+      </div>
+      <div className="flex flex-wrap items-end gap-2">
+        <div><Label htmlFor="wellbeing-period" className="text-xs">Período</Label><Select value={String(weeks)} onValueChange={v => setWeeks(Number(v))}><SelectTrigger id="wellbeing-period" className="h-9 w-36"><SelectValue /></SelectTrigger><SelectContent>{[4, 8, 12, 26].map(w => <SelectItem key={w} value={String(w)}>{w} semanas</SelectItem>)}</SelectContent></Select></div>
+        <div><Label htmlFor="wellbeing-kind" className="text-xs">Tipo</Label><Select value={kind} onValueChange={v => setKind(v as WellbeingSelection)}><SelectTrigger id="wellbeing-kind" className="h-9 w-44"><SelectValue /></SelectTrigger><SelectContent>{Object.entries(labels).map(([k, label]) => <SelectItem key={k} value={k}>{label}</SelectItem>)}</SelectContent></Select></div>
+        <div><Label htmlFor="wellbeing-team" className="text-xs">Time</Label><Select value={team} onValueChange={setTeam}><SelectTrigger id="wellbeing-team" className="h-9 w-56 max-w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Todos os times</SelectItem>{Array.from(new Set([...teams, ...(team === "all" ? [] : [team])])).map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent></Select></div>
+        <Button variant="outline" size="sm" className="h-9" onClick={exportCsv} disabled={!data || isFetching || isError}><Download className="mr-1 h-4 w-4" /> CSV</Button>
+      </div>
     </div>
-  );
+    {isLoading ? <p className="text-sm text-muted-foreground">Carregando bem-estar do time...</p> : isError ? <div className="space-y-2"><p className="text-sm text-destructive">Não foi possível carregar: {error instanceof Error ? error.message : "erro desconhecido"}</p><Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>Tentar novamente</Button></div> : <>
+      <p className="text-xs text-muted-foreground">Visão agregada de todos os perfis. Relatórios de pulses com acesso parcial podem omitir respostas de gerentes e diretores.</p>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {kinds.map(k => <div key={k} className="border-l-2 border-primary pl-4" data-testid={`summary-${k}`}><p className="text-sm text-muted-foreground">Média {labels[k].toLowerCase()}</p><p className="text-2xl font-semibold tabular-nums">{average(summary(k))}</p><p className="text-xs text-muted-foreground">{summary(k)?.response_count ?? 0} notas no período</p></div>)}
+        <div className="border-l-2 border-border pl-4"><p className="text-sm text-muted-foreground">Notas no período</p><p className="text-2xl font-semibold tabular-nums">{total?.response_count ?? 0}</p><p className="text-xs text-muted-foreground">{total?.respondent_count ?? 0} pessoas distintas</p></div>
+        <div className="border-l-2 border-border pl-4"><p className="text-sm text-muted-foreground">Participação nos envios</p><p className="text-2xl font-semibold tabular-nums">{rate(total)}</p><p className="text-xs text-muted-foreground">{total?.responded_deliveries ?? 0} de {total?.recipients_count ?? 0} envios respondidos</p></div>
+      </div>
+      {!total?.response_count && <p className="text-sm text-muted-foreground">Sem notas no período selecionado.</p>}
+      <div className="space-y-3"><h3 className="text-sm font-medium">Evolução semanal · {labels[kind]}</h3><div className="h-80 min-w-0"><ResponsiveContainer width="100%" height="100%"><LineChart data={chartData} margin={{ top: 8, right: 12, bottom: 0, left: -16 }}><CartesianGrid strokeDasharray="3 3" opacity={0.3} /><XAxis dataKey="week" fontSize={11} /><YAxis domain={[1, 5]} ticks={[1, 2, 3, 4, 5]} fontSize={12} /><Tooltip /><Legend />{series.map((s, i) => <Line key={s.key} name={s.name} dataKey={s.key} stroke={COLORS[i % COLORS.length]} strokeWidth={s.key === "overall" ? 3 : 2} dot={{ r: 3 }} connectNulls={false} />)}</LineChart></ResponsiveContainer></div></div>
+      <div><h3 className="mb-2 text-sm font-medium">Resumo por time · período selecionado</h3><div className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>Time</TableHead>{kinds.map(k => <TableHead key={k} className="text-right">{labels[k]}</TableHead>)}<TableHead className="text-right">Notas</TableHead><TableHead className="text-right">Pessoas distintas</TableHead><TableHead className="text-right">Envios respondidos</TableHead><TableHead className="text-right">Participação</TableHead></TableRow></TableHeader><TableBody>{visibleTeams.map(t => {
+        const values = rows.filter(r => r.level === "period" && r.scope === "team" && r.sub_time === t);
+        const selected = values.find(r => r.kind === kind);
+        return <TableRow key={t}><TableCell className="font-medium">{t}</TableCell>{kinds.map(k => <TableCell key={k} className="text-right tabular-nums">{average(values.find(r => r.kind === k))}</TableCell>)}<TableCell className="text-right">{selected?.response_count ?? 0}</TableCell><TableCell className="text-right">{selected?.respondent_count ?? 0}</TableCell><TableCell className="text-right">{selected?.responded_deliveries ?? 0} / {selected?.recipients_count ?? 0}</TableCell><TableCell className="text-right">{rate(selected)}</TableCell></TableRow>;
+      })}</TableBody></Table></div></div>
+      <details className="text-sm"><summary className="cursor-pointer font-medium">Detalhamento semanal</summary><div className="mt-2 max-h-80 overflow-auto"><Table><TableHeader><TableRow><TableHead>Semana</TableHead><TableHead>Time</TableHead><TableHead>Média</TableHead><TableHead>Notas</TableHead><TableHead>Situação</TableHead></TableRow></TableHeader><TableBody>{weekly.map((r, i) => <TableRow key={i}><TableCell>{r.week_start ? dateLabel(r.week_start) : "—"}</TableCell><TableCell>{r.sub_time ?? "Geral"}</TableCell><TableCell>{average(r)}</TableCell><TableCell>{r.response_count}</TableCell><TableCell>{statuses[r.status]}</TableCell></TableRow>)}</TableBody></Table></div></details>
+      <p className="text-xs text-muted-foreground">Médias protegidas para grupos com menos de 3 pessoas e combinações que permitiriam identificá-las. Participação considera cada pessoa por envio; notas de disparos sem destinatários permanecem nas médias.</p>
+    </>}
+  </section>;
 }
