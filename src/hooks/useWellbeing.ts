@@ -15,8 +15,8 @@ export interface WellbeingRow {
   respondent_count: number;
   recipients_count: number;
   responded_deliveries: number;
-  status: "empty" | "protected" | "available";
-  protection_reason?: "insufficient_participants" | "complementary_suppression" | null;
+  status: "empty" | "available";
+  protection_reason?: null;
 }
 
 export interface WellbeingReport {
@@ -31,7 +31,7 @@ export function useWellbeingTeamWeekly(opts?: { weeks?: number; subTime?: string
   const weeks = opts?.weeks ?? 12;
   const subTime = opts?.subTime ?? null;
   return useQuery({
-    queryKey: ["wellbeing_report", weeks, subTime],
+    queryKey: ["wellbeing_report", "unrestricted-averages", weeks, subTime],
     queryFn: async (): Promise<WellbeingReport> => {
       const { data, error } = await supabase.rpc("get_wellbeing_report", {
         p_weeks: weeks,

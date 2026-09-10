@@ -1,5 +1,9 @@
 # Correção de Bem-estar
 
+## Médias sem supressão no relatório de Bem-estar
+- [ ] Remover proteção de todas as médias do relatório, preservando escopo de acesso e contagem semanal única.
+- [ ] Atualizar apresentação e CSV; validar cálculos e recortes em ambiente isolado antes de aplicar.
+
 ## Respostas repetidas nos pulses
 - [x] Implementar ciclo semanal canônico e última resposta transacional; testes SQL e 10 testes Deno passaram, incluindo comentários, pares e eventos fora de ordem.
 - [x] Integrar e implantar Slack, disparos e lembretes; concorrência validada com 16 resoluções, 16 respostas e 8 disputas de envio.

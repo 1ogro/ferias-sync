@@ -1,4 +1,5 @@
 -- Run only against the isolated fixture database, after installing get_wellbeing_report.
+-- Current requirement: all aggregates with notes are visible, including small groups.
 -- No production data changes: all fixture updates roll back.
 BEGIN;
 SET test.uid='00000000-0000-0000-0000-000000000001';
@@ -22,11 +23,12 @@ DO $$ DECLARE j jsonb; filtered jsonb; other jsonb; r jsonb; w int;
 BEGIN
  j:=get_wellbeing_report(4);
  ASSERT EXISTS(SELECT 1 FROM jsonb_array_elements(j->'rows') x WHERE x->>'sub_time'='A' AND x->>'level'='week' AND x->>'kind'='checkin' AND x->>'status'='available'), 'healthy week recovered';
- ASSERT NOT EXISTS(SELECT 1 FROM jsonb_array_elements(j->'rows') x WHERE x->>'sub_time'='B' AND x->>'avg_value' IS NOT NULL), 'repeated person never counts as three';
+ ASSERT EXISTS(SELECT 1 FROM jsonb_array_elements(j->'rows') x WHERE x->>'sub_time'='B' AND x->>'avg_value'='4.00' AND (x->>'respondent_count')::int=1), 'one-person aggregate is visible without inflating participant count';
  ASSERT EXISTS(SELECT 1 FROM jsonb_array_elements(j->'rows') x WHERE x->>'sub_time'='C' AND x->>'kind'='both' AND x->>'status'='available'), 'combined team safe';
- ASSERT NOT EXISTS(SELECT 1 FROM jsonb_array_elements(j->'rows') x WHERE x->>'sub_time'='C' AND x->>'kind'<>'both' AND x->>'avg_value' IS NOT NULL), 'mixed kind subtraction blocked';
- ASSERT NOT EXISTS(SELECT 1 FROM jsonb_array_elements(j->'rows') x WHERE x->>'sub_time'='A' AND x->>'level'='period' AND x->>'avg_value' IS NOT NULL), 'period cannot reveal sparse prior week';
- ASSERT NOT EXISTS(SELECT 1 FROM jsonb_array_elements(j->'rows') x WHERE x->>'scope'='total' AND x->>'avg_value' IS NOT NULL), 'small residual cannot be isolated via total';
+ ASSERT EXISTS(SELECT 1 FROM jsonb_array_elements(j->'rows') x WHERE x->>'sub_time'='C' AND x->>'kind'='checkout' AND x->>'avg_value' IS NOT NULL), 'small checkout is visible';
+ ASSERT EXISTS(SELECT 1 FROM jsonb_array_elements(j->'rows') x WHERE x->>'sub_time'='A' AND x->>'level'='period' AND (x->>'avg_value')::numeric=2.80), 'period average includes sparse weeks';
+ ASSERT NOT EXISTS(SELECT 1 FROM jsonb_array_elements(j->'rows') x WHERE (x->>'response_count')::int>0 AND (x->>'avg_value' IS NULL OR x->>'status'<>'available')), 'every nonempty aggregate is visible';
+  ASSERT NOT EXISTS(SELECT 1 FROM jsonb_array_elements(j->'rows') x WHERE (x->>'response_count')::int=0 AND (x->>'avg_value' IS NOT NULL OR x->>'status'<>'empty')), 'no notes stays empty, not zero';
  ASSERT EXISTS(SELECT 1 FROM jsonb_array_elements(j->'rows') x WHERE x->>'status'='empty'), 'empty cells kept';
  ASSERT NOT EXISTS(SELECT 1 FROM jsonb_array_elements(j->'rows') x WHERE (x->>'status'='protected')<>(x->>'protection_reason' IS NOT NULL)), 'reason always present only for protected cells';
  ASSERT (SELECT sum((x->>'response_count')::int) FROM jsonb_array_elements(j->'rows') x WHERE x->>'level'='period' AND x->>'scope'='team' AND x->>'kind'='both')=(SELECT count(*) FROM pulse_responses), 'notes unchanged';
@@ -45,8 +47,8 @@ SELECT s.id,s.id,p,4,now()-interval '1 hour' FROM pulse_surveys s CROSS JOIN unn
 DO $$ DECLARE j jsonb; BEGIN
  j:=get_wellbeing_report(4);
  ASSERT EXISTS(SELECT 1 FROM jsonb_array_elements(j->'rows') x WHERE x->>'scope'='total' AND x->>'kind'='both' AND x->>'level'='week' AND x->>'status'='available'),'global combined recoverable';
- ASSERT NOT EXISTS(SELECT 1 FROM jsonb_array_elements(j->'rows') x WHERE x->>'scope'='total' AND x->>'kind'<>'both' AND x->>'avg_value' IS NOT NULL),'cross-team cross-kind reconstruction blocked';
- ASSERT NOT EXISTS(SELECT 1 FROM jsonb_array_elements(j->'rows') x WHERE x->>'sub_time' IN ('B','E','F') AND x->>'avg_value' IS NOT NULL),'small teams still private';
+ ASSERT EXISTS(SELECT 1 FROM jsonb_array_elements(j->'rows') x WHERE x->>'scope'='total' AND x->>'kind'='checkout' AND x->>'avg_value' IS NOT NULL),'checkout totals visible';
+ ASSERT NOT EXISTS(SELECT 1 FROM jsonb_array_elements(j->'rows') x WHERE (x->>'response_count')::int>0 AND x->>'avg_value' IS NULL),'small teams visible';
 END $$;
 SET test.uid='';
 DO $$ BEGIN PERFORM get_wellbeing_report(4); RAISE EXCEPTION 'anonymous allowed'; EXCEPTION WHEN raise_exception THEN IF SQLERRM<>'Not authenticated' THEN RAISE; END IF; END $$;
