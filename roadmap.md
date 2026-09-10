@@ -1,5 +1,10 @@
 # Correção de Bem-estar
 
+## Gráficos por time e anonimato
+- [ ] Substituir bloqueio global por proteção semanal determinística e testar diferenças entre filtros/períodos.
+- [ ] Aplicar regra validada sem alterar respostas nem permissões.
+- [ ] Explicar resultados protegidos no gráfico, tabela, cartões e CSV; testar interface.
+
 - [x] Implementar e testar agregações por período, semana e time com anonimato (PostgreSQL isolado, dados sintéticos).
 - [x] Corrigir o recebimento de respostas e testar falhas de mapeamento (8 testes Deno; função implantada).
 - [x] Validar e aplicar correção auditada dos 12 vínculos e integridade no banco (12 auditorias, zero inconsistências).

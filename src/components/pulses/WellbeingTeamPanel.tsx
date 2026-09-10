@@ -12,6 +12,9 @@ import { useWellbeingTeamWeekly, WellbeingRow, WellbeingSelection } from "@/hook
 const COLORS = ["hsl(var(--primary))", "hsl(var(--status-approved))", "hsl(var(--status-pending))", "hsl(var(--destructive))", "hsl(var(--muted-foreground))"];
 const labels = { checkin: "Check-in", checkout: "Check-out", both: "Check-in e check-out" };
 const statuses = { empty: "Sem notas", protected: "Média protegida", available: "Disponível" };
+const protectionText = (row?: WellbeingRow) => row?.status !== "protected" ? "" :
+  row.protection_reason === "insufficient_participants" ? "Participação insuficiente: menos de 3 pessoas distintas." :
+  "Proteção de anonimato por combinação de resultados.";
 const dateLabel = (iso: string) => format(parseDateSafely(iso), "dd/MM/yyyy");
 const average = (row?: WellbeingRow) => row?.avg_value == null
   ? row?.status === "protected" ? "Protegida" : "—"
@@ -32,6 +35,11 @@ export function WellbeingTeamPanel() {
   const summary = (type: WellbeingSelection) => rows.find(r => r.level === "period" && r.kind === type && (team === "all" ? r.scope === "total" : r.sub_time === team));
   const total = summary(kind);
   const weekly = rows.filter(r => r.level === "week" && r.kind === kind);
+  const hasChartPoints = weekly.some(r => r.avg_value != null);
+  const hasTeamPoints = weekly.some(r => r.scope === "team" && r.avg_value != null);
+  const protectedWeeks = weekly.filter(r => r.status === "protected");
+  const insufficientWeeks = protectedWeeks.some(r => r.protection_reason === "insufficient_participants");
+  const complementaryWeeks = protectedWeeks.some(r => r.protection_reason !== "insufficient_participants");
   const series = [{ key: "overall", name: team === "all" ? "Geral" : team, scope: team === "all" ? "total" : "team", team: team === "all" ? null : team },
     ...(team === "all" ? visibleTeams.map((t, i) => ({ key: `team${i}`, name: t, scope: "team", team: t })) : [])];
   const chartData = useMemo(() => {
@@ -48,8 +56,8 @@ export function WellbeingTeamPanel() {
   const exportCsv = () => {
     if (!data) return;
     const exportRows = rows.filter(r => kind === "both" || r.kind === kind);
-    const header = ["nivel", "inicio_periodo", "fim_periodo", "semana", "escopo", "time", "tipo", "media", "notas", "pessoas_distintas", "envios", "envios_respondidos", "participacao_%", "situacao"];
-    const csv = [header, ...exportRows.map(r => [r.level === "period" ? "Resumo do período" : "Semanal", data.period_start, data.period_end, r.week_start, r.scope === "total" ? "Geral" : "Time", r.sub_time ?? "Todos os times", labels[r.kind], r.avg_value, r.response_count, r.respondent_count, r.recipients_count, r.responded_deliveries, r.recipients_count ? (100 * r.responded_deliveries / r.recipients_count).toFixed(2) : "", statuses[r.status]])].map(line => line.map(csvCell).join(";")).join("\n");
+    const header = ["nivel", "inicio_periodo", "fim_periodo", "semana", "escopo", "time", "tipo", "media", "notas", "pessoas_distintas", "envios", "envios_respondidos", "participacao_%", "situacao", "motivo_protecao"];
+    const csv = [header, ...exportRows.map(r => [r.level === "period" ? "Resumo do período" : "Semanal", data.period_start, data.period_end, r.week_start, r.scope === "total" ? "Geral" : "Time", r.sub_time ?? "Todos os times", labels[r.kind], r.avg_value, r.response_count, r.respondent_count, r.recipients_count, r.responded_deliveries, r.recipients_count ? (100 * r.responded_deliveries / r.recipients_count).toFixed(2) : "", statuses[r.status], protectionText(r)])].map(line => line.map(csvCell).join(";")).join("\n");
     const url = URL.createObjectURL(new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" }));
     const link = document.createElement("a");
     link.href = url; link.download = `bem-estar-${data.period_start}-${data.period_end}.csv`; link.click(); URL.revokeObjectURL(url);
@@ -71,18 +79,26 @@ export function WellbeingTeamPanel() {
     {isLoading ? <p className="text-sm text-muted-foreground">Carregando bem-estar do time...</p> : isError ? <div className="space-y-2"><p className="text-sm text-destructive">Não foi possível carregar: {error instanceof Error ? error.message : "erro desconhecido"}</p><Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>Tentar novamente</Button></div> : <>
       <p className="text-xs text-muted-foreground">Visão agregada de todos os perfis. Relatórios de pulses com acesso parcial podem omitir respostas de gerentes e diretores.</p>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {kinds.map(k => <div key={k} className="border-l-2 border-primary pl-4" data-testid={`summary-${k}`}><p className="text-sm text-muted-foreground">Média {labels[k].toLowerCase()}</p><p className="text-2xl font-semibold tabular-nums">{average(summary(k))}</p><p className="text-xs text-muted-foreground">{summary(k)?.response_count ?? 0} notas no período</p></div>)}
+        {kinds.map(k => <div key={k} className="border-l-2 border-primary pl-4" data-testid={`summary-${k}`}><p className="text-sm text-muted-foreground">Média {labels[k].toLowerCase()}</p><p className="text-2xl font-semibold tabular-nums">{average(summary(k))}</p><p className="text-xs text-muted-foreground">{summary(k)?.response_count ?? 0} notas no período</p>{summary(k)?.status === "protected" && <p className="mt-1 text-xs text-muted-foreground">{protectionText(summary(k))}</p>}</div>)}
         <div className="border-l-2 border-border pl-4"><p className="text-sm text-muted-foreground">Notas no período</p><p className="text-2xl font-semibold tabular-nums">{total?.response_count ?? 0}</p><p className="text-xs text-muted-foreground">{total?.respondent_count ?? 0} pessoas distintas</p></div>
         <div className="border-l-2 border-border pl-4"><p className="text-sm text-muted-foreground">Participação nos envios</p><p className="text-2xl font-semibold tabular-nums">{rate(total)}</p><p className="text-xs text-muted-foreground">{total?.responded_deliveries ?? 0} de {total?.recipients_count ?? 0} envios respondidos</p></div>
       </div>
       {!total?.response_count && <p className="text-sm text-muted-foreground">Sem notas no período selecionado.</p>}
-      <div className="space-y-3"><h3 className="text-sm font-medium">Evolução semanal · {labels[kind]}</h3><div className="h-80 min-w-0"><ResponsiveContainer width="100%" height="100%"><LineChart data={chartData} margin={{ top: 8, right: 12, bottom: 0, left: -16 }}><CartesianGrid strokeDasharray="3 3" opacity={0.3} /><XAxis dataKey="week" fontSize={11} /><YAxis domain={[1, 5]} ticks={[1, 2, 3, 4, 5]} fontSize={12} /><Tooltip /><Legend />{series.map((s, i) => <Line key={s.key} name={s.name} dataKey={s.key} stroke={COLORS[i % COLORS.length]} strokeWidth={s.key === "overall" ? 3 : 2} dot={{ r: 3 }} connectNulls={false} />)}</LineChart></ResponsiveContainer></div></div>
+      <div className="space-y-3" aria-label="Evolução semanal"><h3 className="text-sm font-medium">Evolução semanal · {labels[kind]}</h3>
+        {hasChartPoints ? <div className="h-80 min-w-0"><ResponsiveContainer width="100%" height="100%"><LineChart data={chartData} margin={{ top: 8, right: 12, bottom: 0, left: -16 }}><CartesianGrid strokeDasharray="3 3" opacity={0.3} /><XAxis dataKey="week" fontSize={11} /><YAxis domain={[1, 5]} ticks={[1, 2, 3, 4, 5]} fontSize={12} /><Tooltip /><Legend />{series.map((s, i) => chartData.some(point => point[s.key] != null) ? <Line key={s.key} name={s.name} dataKey={s.key} stroke={COLORS[i % COLORS.length]} strokeWidth={s.key === "overall" ? 3 : 2} dot={{ r: 3 }} connectNulls={false} /> : null)}</LineChart></ResponsiveContainer></div> :
+          <p className="py-8 text-sm text-muted-foreground" role="status">{protectedWeeks.length ? "Nenhuma média semanal pode ser exibida com segurança neste recorte." : "Sem respostas no período selecionado."}</p>}
+        {hasChartPoints && !hasTeamPoints && team === "all" && protectedWeeks.length > 0 && <p className="text-sm text-muted-foreground">Apenas a média geral está disponível; as médias dos times estão protegidas.</p>}
+        {protectedWeeks.length > 0 && <div className="space-y-1 text-xs text-muted-foreground">
+          {insufficientWeeks && <p>Participação insuficiente: algumas médias têm menos de 3 pessoas distintas.</p>}
+          {complementaryWeeks && <p>Proteção de anonimato por combinação de resultados: algumas médias ficam ocultas para evitar a identificação de respostas.</p>}
+        </div>}
+      </div>
       <div><h3 className="mb-2 text-sm font-medium">Resumo por time · período selecionado</h3><div className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>Time</TableHead>{kinds.map(k => <TableHead key={k} className="text-right">{labels[k]}</TableHead>)}<TableHead className="text-right">Notas</TableHead><TableHead className="text-right">Pessoas distintas</TableHead><TableHead className="text-right">Envios respondidos</TableHead><TableHead className="text-right">Participação</TableHead></TableRow></TableHeader><TableBody>{visibleTeams.map(t => {
         const values = rows.filter(r => r.level === "period" && r.scope === "team" && r.sub_time === t);
         const selected = values.find(r => r.kind === kind);
-        return <TableRow key={t}><TableCell className="font-medium">{t}</TableCell>{kinds.map(k => <TableCell key={k} className="text-right tabular-nums">{average(values.find(r => r.kind === k))}</TableCell>)}<TableCell className="text-right">{selected?.response_count ?? 0}</TableCell><TableCell className="text-right">{selected?.respondent_count ?? 0}</TableCell><TableCell className="text-right">{selected?.responded_deliveries ?? 0} / {selected?.recipients_count ?? 0}</TableCell><TableCell className="text-right">{rate(selected)}</TableCell></TableRow>;
+        return <TableRow key={t}><TableCell className="font-medium">{t}</TableCell>{kinds.map(k => { const value = values.find(r => r.kind === k); return <TableCell key={k} className="text-right tabular-nums">{average(value)}{value?.status === "protected" && <p className="ml-auto mt-1 max-w-48 text-xs text-muted-foreground">{protectionText(value)}</p>}</TableCell>; })}<TableCell className="text-right">{selected?.response_count ?? 0}</TableCell><TableCell className="text-right">{selected?.respondent_count ?? 0}</TableCell><TableCell className="text-right">{selected?.responded_deliveries ?? 0} / {selected?.recipients_count ?? 0}</TableCell><TableCell className="text-right">{rate(selected)}</TableCell></TableRow>;
       })}</TableBody></Table></div></div>
-      <details className="text-sm"><summary className="cursor-pointer font-medium">Detalhamento semanal</summary><div className="mt-2 max-h-80 overflow-auto"><Table><TableHeader><TableRow><TableHead>Semana</TableHead><TableHead>Time</TableHead><TableHead>Média</TableHead><TableHead>Notas</TableHead><TableHead>Situação</TableHead></TableRow></TableHeader><TableBody>{weekly.map((r, i) => <TableRow key={i}><TableCell>{r.week_start ? dateLabel(r.week_start) : "—"}</TableCell><TableCell>{r.sub_time ?? "Geral"}</TableCell><TableCell>{average(r)}</TableCell><TableCell>{r.response_count}</TableCell><TableCell>{statuses[r.status]}</TableCell></TableRow>)}</TableBody></Table></div></details>
+      <details className="text-sm"><summary className="cursor-pointer font-medium">Detalhamento semanal</summary><div className="mt-2 max-h-80 overflow-auto"><Table><TableHeader><TableRow><TableHead>Semana</TableHead><TableHead>Time</TableHead><TableHead>Média</TableHead><TableHead>Notas</TableHead><TableHead>Situação</TableHead></TableRow></TableHeader><TableBody>{weekly.map((r, i) => <TableRow key={i}><TableCell>{r.week_start ? dateLabel(r.week_start) : "—"}</TableCell><TableCell>{r.sub_time ?? "Geral"}</TableCell><TableCell>{average(r)}</TableCell><TableCell>{r.response_count}</TableCell><TableCell>{r.status === "protected" ? protectionText(r) : statuses[r.status]}</TableCell></TableRow>)}</TableBody></Table></div></details>
       <p className="text-xs text-muted-foreground">Médias protegidas para grupos com menos de 3 pessoas e combinações que permitiriam identificá-las. Participação considera cada pessoa por envio; notas de disparos sem destinatários permanecem nas médias.</p>
     </>}
   </section>;

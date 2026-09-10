@@ -16,6 +16,7 @@ export interface WellbeingRow {
   recipients_count: number;
   responded_deliveries: number;
   status: "empty" | "protected" | "available";
+  protection_reason?: "insufficient_participants" | "complementary_suppression" | null;
 }
 
 export interface WellbeingReport {
