@@ -1992,6 +1992,10 @@ export type Database = {
           without_contract: number
         }[]
       }
+      get_wellbeing_report: {
+        Args: { p_sub_time?: string; p_weeks?: number }
+        Returns: Json
+      }
       get_wellbeing_team_weekly: {
         Args: { p_sub_time?: string; p_weeks?: number }
         Returns: {
