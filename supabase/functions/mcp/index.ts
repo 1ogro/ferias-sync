@@ -197,8 +197,8 @@ import { defineTool as defineTool6 } from "npm:@lovable.dev/mcp-js@0.20.0";
 import { z as z5 } from "npm:zod@^3.25.76";
 var list_recent_kudos_default = defineTool6({
   name: "list_recent_kudos",
-  title: "Kudos recentes",
-  description: "Retorna os kudos (reconhecimentos) mais recentes do feed.",
+  title: "Biscoitos recentes",
+  description: "Retorna os biscoitos (reconhecimentos) mais recentes do feed.",
   inputSchema: {
     limit: z5.number().int().min(1).max(50).default(10)
   },
@@ -223,7 +223,7 @@ var mcp_default = defineMcp({
   name: "ferias-sync-mcp",
   title: "F\xE9rias Sync \u2014 Gest\xE3o de pessoas",
   version: "0.1.0",
-  instructions: "Ferramentas do F\xE9rias Sync para consultar dados do pr\xF3prio usu\xE1rio e do time: perfil, colegas, saldos e solicita\xE7\xF5es de f\xE9rias, aus\xEAncias futuras e kudos recentes. Todas as leituras respeitam as pol\xEDticas de acesso (RLS) do usu\xE1rio autenticado.",
+  instructions: "Ferramentas do F\xE9rias Sync para consultar dados do pr\xF3prio usu\xE1rio e do time: perfil, colegas, saldos e solicita\xE7\xF5es de f\xE9rias, aus\xEAncias futuras e biscoitos recentes. Todas as leituras respeitam as pol\xEDticas de acesso (RLS) do usu\xE1rio autenticado.",
   auth: auth.oauth.issuer({
     issuer: `https://${projectRef}.supabase.co/auth/v1`,
     acceptedAudiences: "authenticated"

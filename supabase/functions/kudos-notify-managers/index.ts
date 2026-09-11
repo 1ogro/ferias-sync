@@ -184,13 +184,13 @@ serve(async (req) => {
         .from("people").select("id, nome, email, ativo").in("id", Array.from(recipientIds));
       const active = (recipients || []).filter((r: any) => r.ativo && r.email);
 
-      const categoryLabel = CATEGORY_LABEL[sender.category] || "🎉 Kudo";
+      const categoryLabel = CATEGORY_LABEL[sender.category] || "🍪 Biscoito";
       const toNames = activeTo.map((p: any) => p.nome);
       const toLabel = joinPtBr(toNames.map((n: string) => `*${n}*`));
       const isMulti = activeTo.length > 1;
       const slackText = isMulti
-        ? `${categoryLabel}\n*${from?.nome || "Alguém"}* deu kudos para ${toLabel}\n> ${sender.message}`
-        : `${categoryLabel}\n*${from?.nome || "Alguém"}* deu kudos para *${toNames[0]}*\n> ${sender.message}`;
+        ? `${categoryLabel}\n*${from?.nome || "Alguém"}* deu um biscoito para ${toLabel}\n> ${sender.message}`
+        : `${categoryLabel}\n*${from?.nome || "Alguém"}* deu um biscoito para *${toNames[0]}*\n> ${sender.message}`;
 
       // Idempotency key — may be long if many kudos; hash when >200 chars.
       const rawKey = groupIds.join(",");
@@ -208,8 +208,8 @@ serve(async (req) => {
         if (dup) { results.push({ id: r.id, skipped: true }); continue; }
 
         const emailSubject = isMulti
-          ? `🎉 ${from?.nome || "Alguém"} deu kudos para ${activeTo.length} pessoas`
-          : `🎉 ${from?.nome || "Alguém"} deu um kudo para ${toNames[0]}`;
+          ? `🍪 ${from?.nome || "Alguém"} deu um biscoito para ${activeTo.length} pessoas`
+          : `🍪 ${from?.nome || "Alguém"} deu um biscoito para ${toNames[0]}`;
         const namesHtml = isMulti
           ? `<ul style="margin:8px 0 12px 20px;">${toNames.map((n: string) => `<li><strong>${n}</strong></li>`).join("")}</ul>`
           : `<p><strong>${toNames[0]}</strong></p>`;
@@ -217,7 +217,7 @@ serve(async (req) => {
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
             <h2 style="color:#16a34a;">${categoryLabel}</h2>
             <p>Olá <strong>${r.nome}</strong>,</p>
-            <p><strong>${from?.nome || "Alguém"}</strong> reconheceu ${isMulti ? "as seguintes pessoas" : "a pessoa abaixo"} com ${isMulti ? "kudos" : "um kudo"}:</p>
+            <p><strong>${from?.nome || "Alguém"}</strong> reconheceu ${isMulti ? "as seguintes pessoas" : "a pessoa abaixo"} com ${isMulti ? "biscoitos" : "um biscoito"}:</p>
             ${namesHtml}
             <blockquote style="border-left:3px solid #16a34a;padding:8px 12px;background:#f0fdf4;margin:12px 0;">${sender.message}</blockquote>
             <p style="color:#666;font-size:12px;margin-top:24px;">Este é um email automático, por favor não responda.</p>

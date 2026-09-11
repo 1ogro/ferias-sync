@@ -24,7 +24,7 @@ const CATEGORY_LABEL: Record<string, string> = {
 };
 
 async function postToChannel(channel: string, fromName: string, toName: string, category: string, message: string) {
-  const text = `${CATEGORY_LABEL[category] || "🎉"} *${fromName}* deu kudos para *${toName}*\n> ${message}`;
+  const text = `${CATEGORY_LABEL[category] || "🎉"} *${fromName}* deu um biscoito para *${toName}*\n> ${message}`;
   const res = await fetch("https://slack.com/api/chat.postMessage", {
     method: "POST",
     headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}`, "Content-Type": "application/json" },
@@ -174,7 +174,7 @@ serve(async (req) => {
       } else if (names.length > 1) {
         const label = CATEGORY_LABEL[category] || "🎉";
         const listed = names.map((n) => `*${n}*`).join(", ");
-        const text = `${label} *${from?.nome || "Alguém"}* deu kudos para ${listed}\n> ${trimmedMessage}`;
+        const text = `${label} *${from?.nome || "Alguém"}* deu um biscoito para ${listed}\n> ${trimmedMessage}`;
         await fetch("https://slack.com/api/chat.postMessage", {
           method: "POST",
           headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}`, "Content-Type": "application/json" },

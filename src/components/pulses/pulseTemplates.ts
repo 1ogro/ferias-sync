@@ -57,11 +57,11 @@ export const PULSE_TEMPLATES: PulseTemplate[] = [
   },
   {
     id: "kudos-weekly",
-    label: "Kudos da semana",
+    label: "Biscoito da semana",
     emoji: "🎉",
     description: "Lembrete semanal no Slack para reconhecer colegas. Todas as categorias liberadas.",
     values: {
-      title: "Kudos da semana",
+      title: "Biscoito da semana",
       description: "Lembrete semanal para reconhecer um colega.",
       anonymous: false,
       tone: "casual",

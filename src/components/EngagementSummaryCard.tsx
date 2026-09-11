@@ -140,7 +140,7 @@ export function EngagementSummaryCard() {
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center justify-between gap-2">
-              <div className="text-xs text-muted-foreground">Último kudos</div>
+              <div className="text-xs text-muted-foreground">Último biscoito</div>
               {lastKudo && (
                 <span className="text-[11px] text-muted-foreground">
                   {timeAgo(lastKudo.created_at)}
@@ -161,7 +161,7 @@ export function EngagementSummaryCard() {
                 </div>
               </>
             ) : (
-              <div className="text-sm text-muted-foreground">Nenhum kudos ainda</div>
+              <div className="text-sm text-muted-foreground">Nenhum biscoito ainda</div>
             )}
           </div>
         </div>

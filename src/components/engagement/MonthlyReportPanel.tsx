@@ -33,8 +33,8 @@ function toCsv(rows: MonthlyReportRow[]) {
   const header = [
     "Colaborador",
     "Sub-time",
-    "Kudos recebidos",
-    "Kudos enviados",
+    "Biscoitos recebidos",
+    "Biscoitos enviados",
     "Feedbacks de pares",
     "Feedbacks externos",
     "Total",
@@ -96,7 +96,7 @@ export function MonthlyReportPanel({ canSeeGlobal }: { canSeeGlobal?: boolean })
     const top = sorted.slice(0, 5).map((r) => `• ${r.nome}: ${r.total} registros`).join("\n");
     const text = [
       `*Relatório de engajamento — ${monthLabel(month)}* (${scopeLabel})`,
-      `Kudos recebidos: ${totals.kudosReceived} | Kudos enviados: ${totals.kudosGiven}`,
+      `Biscoitos recebidos: ${totals.kudosReceived} | Biscoitos enviados: ${totals.kudosGiven}`,
       `Feedbacks de pares: ${totals.peer} | Feedbacks externos: ${totals.external}`,
       `Pessoas com ao menos um registro: ${totals.withActivity}/${rows.length}`,
       top ? `\nDestaques:\n${top}` : "",
@@ -172,8 +172,8 @@ export function MonthlyReportPanel({ canSeeGlobal }: { canSeeGlobal?: boolean })
         <>
           <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
             {[
-              { label: "Kudos recebidos", value: totals.kudosReceived },
-              { label: "Kudos enviados", value: totals.kudosGiven },
+              { label: "Biscoitos recebidos", value: totals.kudosReceived },
+              { label: "Biscoitos enviados", value: totals.kudosGiven },
               { label: "Feedbacks de pares", value: totals.peer },
               { label: "Feedbacks externos", value: totals.external },
               { label: "Pessoas com registro", value: `${totals.withActivity}/${rows.length}` },
@@ -227,8 +227,8 @@ export function MonthlyReportPanel({ canSeeGlobal }: { canSeeGlobal?: boolean })
                     <TableRow>
                       <TableHead>Colaborador</TableHead>
                       <TableHead>Sub-time</TableHead>
-                      <TableHead className="text-right">Kudos rec.</TableHead>
-                      <TableHead className="text-right">Kudos env.</TableHead>
+                      <TableHead className="text-right">Biscoitos rec.</TableHead>
+                      <TableHead className="text-right">Biscoitos env.</TableHead>
                       <TableHead className="text-right">Pares</TableHead>
                       <TableHead className="text-right">Externos</TableHead>
                       <TableHead className="text-right">Total</TableHead>

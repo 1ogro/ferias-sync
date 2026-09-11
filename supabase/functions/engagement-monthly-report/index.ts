@@ -97,7 +97,7 @@ function resolvePeriod(forced?: string | null): { start: Date; end: Date; label:
 
 function buildReportBlocks(title: string, period: string, stats: any): any[] {
   const top = (stats.topKudos || []).slice(0, 5)
-    .map((k: any, i: number) => `${i + 1}. *${k.nome}* — ${k.count} kudos`).join("\n") || "_Nenhum kudo neste período._";
+    .map((k: any, i: number) => `${i + 1}. *${k.nome}* — ${k.count} biscoito(s)`).join("\n") || "_Nenhum biscoito neste período._";
   const ranking = (stats.ranking || []).slice(0, 5)
     .map((r: any, i: number) => `${i + 1}. *${r.nome}* — ${r.points} pts`).join("\n") || "_Sem pontuações registradas._";
 
@@ -110,11 +110,11 @@ function buildReportBlocks(title: string, period: string, stats: any): any[] {
       fields: [
         { type: "mrkdwn", text: `*Pulses respondidos:*\n${stats.pulseResponses}` },
         { type: "mrkdwn", text: `*Taxa de resposta:*\n${stats.responseRate}%` },
-        { type: "mrkdwn", text: `*Kudos trocados:*\n${stats.kudosCount}` },
+        { type: "mrkdwn", text: `*Biscoitos trocados:*\n${stats.kudosCount}` },
         { type: "mrkdwn", text: `*Pessoas ativas:*\n${stats.activePeople}` },
       ],
     },
-    { type: "section", text: { type: "mrkdwn", text: `*🏆 Top kudos recebidos*\n${top}` } },
+    { type: "section", text: { type: "mrkdwn", text: `*🏆 Quem mais recebeu biscoito*\n${top}` } },
     { type: "section", text: { type: "mrkdwn", text: `*⭐ Top pontuações*\n${ranking}` } },
   ];
 }
