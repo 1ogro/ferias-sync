@@ -82,6 +82,20 @@ export function TeamSummaryCard({ canSeeGlobal }: { canSeeGlobal?: boolean }) {
                 </Select>
               </div>
             )}
+            {inactiveTeams.length > 0 && (
+              <div>
+                <Label className="text-xs">Time inativo</Label>
+                <Select value={includeTeam} onValueChange={setIncludeTeam}>
+                  <SelectTrigger className="h-9 w-44"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Não mostrar</SelectItem>
+                    {inactiveTeams.map((t) => (
+                      <SelectItem key={t} value={t}>{t} (inativo)</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
         </div>
       </CardHeader>
