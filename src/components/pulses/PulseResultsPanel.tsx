@@ -22,6 +22,7 @@ import { EyeOff } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { useTeams } from "@/hooks/useTeams";
 
 interface Props {
   survey: PulseSurvey;
@@ -48,6 +49,11 @@ export function PulseResultsPanel({ survey }: Props) {
 
   const canFilterTeams = !!person?.is_admin || person?.papel === "DIRETOR" || person?.papel === "GERENTE";
   const { data: teams = [] } = usePulseSurveyTeams(canFilterTeams ? survey.id : undefined);
+  const { data: allTeams = [] } = useTeams(true);
+  const inactiveTeams = useMemo(
+    () => allTeams.filter((t) => !t.ativo).map((t) => t.nome),
+    [allTeams]
+  );
 
   const trend = usePulseWeeklyTrend(survey.id, {
     weeks,
@@ -255,7 +261,7 @@ export function PulseResultsPanel({ survey }: Props) {
                 </Select>
               </div>
 
-              {canFilterTeams && teams.length > 1 && (
+              {canFilterTeams && teams.length + inactiveTeams.length > 1 && (
                 <div className="space-y-1">
                   <Label className="text-xs">Time</Label>
                   <Select value={subTime} onValueChange={setSubTime}>
@@ -267,6 +273,11 @@ export function PulseResultsPanel({ survey }: Props) {
                       {teams.map((t) => (
                         <SelectItem key={t.sub_time} value={t.sub_time}>
                           {t.sub_time}
+                        </SelectItem>
+                      ))}
+                      {inactiveTeams.map((t) => (
+                        <SelectItem key={t} value={t}>
+                          {t} (inativo)
                         </SelectItem>
                       ))}
                     </SelectContent>

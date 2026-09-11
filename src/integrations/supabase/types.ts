@@ -1929,18 +1929,31 @@ export type Database = {
           total: number
         }[]
       }
-      get_engagement_team_summary: {
-        Args: { p_month: string; p_scope?: string }
-        Returns: {
-          avg_per_person: number
-          external_feedbacks: number
-          kudos: number
-          peer_feedbacks: number
-          people_count: number
-          sub_time: string
-          total: number
-        }[]
-      }
+      get_engagement_team_summary:
+        | {
+            Args: { p_month: string; p_scope?: string }
+            Returns: {
+              avg_per_person: number
+              external_feedbacks: number
+              kudos: number
+              peer_feedbacks: number
+              people_count: number
+              sub_time: string
+              total: number
+            }[]
+          }
+        | {
+            Args: { p_include_team?: string; p_month: string; p_scope?: string }
+            Returns: {
+              avg_per_person: number
+              external_feedbacks: number
+              kudos: number
+              peer_feedbacks: number
+              people_count: number
+              sub_time: string
+              total: number
+            }[]
+          }
       get_feedback_collection_pending: {
         Args: { p_overdue_days?: number }
         Returns: {
@@ -2113,6 +2126,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_active_team: { Args: { _nome: string }; Returns: boolean }
       is_admin_or_director: { Args: never; Returns: boolean }
       is_current_user_admin: { Args: never; Returns: boolean }
       is_final_approver_for: { Args: { _request_id: string }; Returns: boolean }
