@@ -8,6 +8,7 @@ import { Download, HeartPulse } from "lucide-react";
 import { format } from "date-fns";
 import { parseDateSafely } from "@/lib/dateUtils";
 import { useWellbeingTeamWeekly, WellbeingRow, WellbeingSelection } from "@/hooks/useWellbeing";
+import { useTeams } from "@/hooks/useTeams";
 
 const COLORS = ["hsl(var(--primary))", "hsl(var(--status-approved))", "hsl(var(--status-pending))", "hsl(var(--destructive))", "hsl(var(--muted-foreground))"];
 const labels = { checkin: "Check-in", checkout: "Check-out", both: "Check-in e check-out" };
@@ -25,6 +26,8 @@ export function WellbeingTeamPanel() {
   const [team, setTeam] = useState("all");
   const [kind, setKind] = useState<WellbeingSelection>("both");
   const { data, isLoading, isError, error, refetch, isFetching } = useWellbeingTeamWeekly({ weeks, subTime: team === "all" ? null : team });
+  const { data: allTeams = [] } = useTeams(true);
+  const inactiveTeams = useMemo(() => allTeams.filter(t => !t.ativo).map(t => t.nome), [allTeams]);
   const rows = data?.rows ?? [];
   const teams = data?.teams ?? [];
   const visibleTeams = team === "all" ? teams : [team];
@@ -65,7 +68,7 @@ export function WellbeingTeamPanel() {
       <div className="flex flex-wrap items-end gap-2">
         <div><Label htmlFor="wellbeing-period" className="text-xs">Período</Label><Select value={String(weeks)} onValueChange={v => setWeeks(Number(v))}><SelectTrigger id="wellbeing-period" className="h-9 w-36"><SelectValue /></SelectTrigger><SelectContent>{[4, 8, 12, 26].map(w => <SelectItem key={w} value={String(w)}>{w} semanas</SelectItem>)}</SelectContent></Select></div>
         <div><Label htmlFor="wellbeing-kind" className="text-xs">Tipo</Label><Select value={kind} onValueChange={v => setKind(v as WellbeingSelection)}><SelectTrigger id="wellbeing-kind" className="h-9 w-52"><SelectValue /></SelectTrigger><SelectContent>{Object.entries(labels).map(([k, label]) => <SelectItem key={k} value={k}>{label}</SelectItem>)}</SelectContent></Select></div>
-        <div><Label htmlFor="wellbeing-team" className="text-xs">Time</Label><Select value={team} onValueChange={setTeam}><SelectTrigger id="wellbeing-team" className="h-9 w-56 max-w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Todos os times</SelectItem>{Array.from(new Set([...teams, ...(team === "all" ? [] : [team])])).map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent></Select></div>
+        <div><Label htmlFor="wellbeing-team" className="text-xs">Time</Label><Select value={team} onValueChange={setTeam}><SelectTrigger id="wellbeing-team" className="h-9 w-56 max-w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Todos os times</SelectItem>{Array.from(new Set([...teams, ...(team === "all" ? [] : [team])])).filter(t => !inactiveTeams.includes(t)).map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}{inactiveTeams.map(t => <SelectItem key={t} value={t}>{t} (inativo)</SelectItem>)}</SelectContent></Select></div>
         <Button variant="outline" size="sm" className="h-9" onClick={exportCsv} disabled={!data || isFetching || isError}><Download className="mr-1 h-4 w-4" /> CSV</Button>
       </div>
     </div>

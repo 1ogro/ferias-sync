@@ -71,13 +71,14 @@ export interface TeamSummaryRow {
   avg_per_person: number | null;
 }
 
-export function useTeamSummary(month: string, scope: ReportScope) {
+export function useTeamSummary(month: string, scope: ReportScope, includeTeam?: string | null) {
   return useQuery({
-    queryKey: ["engagement_team_summary", month, scope],
+    queryKey: ["engagement_team_summary", month, scope, includeTeam ?? null],
     queryFn: async () => {
       const { data, error } = await (supabase as any).rpc("get_engagement_team_summary", {
         p_month: monthToDate(month),
         p_scope: scope,
+        p_include_team: includeTeam ?? null,
       });
       if (error) throw error;
       return ((data || []) as any[]).map((r) => ({
