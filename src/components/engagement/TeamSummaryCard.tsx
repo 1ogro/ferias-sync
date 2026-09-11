@@ -9,6 +9,7 @@ import { Users2 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useTeamSummary, ReportScope } from "@/hooks/useEngagementReport";
+import { useTeams } from "@/hooks/useTeams";
 
 function currentMonth() {
   const d = new Date();
@@ -23,7 +24,14 @@ function monthLabel(month: string) {
 export function TeamSummaryCard({ canSeeGlobal }: { canSeeGlobal?: boolean }) {
   const [month, setMonth] = useState(currentMonth());
   const [scope, setScope] = useState<ReportScope>(canSeeGlobal ? "global" : "team");
-  const { data: rows = [], isLoading, isError, error, refetch, isFetching } = useTeamSummary(month, scope);
+  const [includeTeam, setIncludeTeam] = useState("none");
+  const { data: allTeams = [] } = useTeams(true);
+  const inactiveTeams = useMemo(() => allTeams.filter((t) => !t.ativo).map((t) => t.nome), [allTeams]);
+  const { data: rows = [], isLoading, isError, error, refetch, isFetching } = useTeamSummary(
+    month,
+    scope,
+    includeTeam === "none" ? null : includeTeam
+  );
 
   const totals = useMemo(() => {
     const t = rows.reduce(
