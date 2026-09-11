@@ -748,7 +748,7 @@ serve(async (req) => {
           pendingFrom, pendingTo,
           senderName, senderEmail,
           toName: toSlackName, toEmail: toSlackEmail,
-          origin: "pulse de kudos",
+          origin: "pulse de biscoito",
         }));
       }
 
