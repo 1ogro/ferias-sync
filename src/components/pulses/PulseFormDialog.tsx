@@ -196,7 +196,7 @@ export function PulseFormDialog({ open, onOpenChange, survey, initialValues }: P
       toast({ title: "Preencha todas as perguntas", variant: "destructive" }); return;
     }
     if (kind === "kudos" && kudosCategories.length === 0) {
-      toast({ title: "Selecione ao menos uma categoria de kudos", variant: "destructive" }); return;
+      toast({ title: "Selecione ao menos uma categoria de biscoito", variant: "destructive" }); return;
     }
     if (targetScope === "teams" && targetTeamIds.length === 0) {
       toast({ title: "Selecione ao menos um time", variant: "destructive" }); return;
@@ -361,7 +361,7 @@ export function PulseFormDialog({ open, onOpenChange, survey, initialValues }: P
                 <SelectContent>
                   <SelectItem value="self">Autoavaliação</SelectItem>
                   <SelectItem value="peer">Avaliação entre pares</SelectItem>
-                  <SelectItem value="kudos">Kudos (reconhecimento)</SelectItem>
+                  <SelectItem value="kudos">Biscoito (reconhecimento)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -508,7 +508,7 @@ export function PulseFormDialog({ open, onOpenChange, survey, initialValues }: P
                   onChange={(e) => setKudosChannel(e.target.value)}
                   placeholder="#kudos"
                 />
-                <p className="text-xs text-muted-foreground">Se preenchido, cada kudo enviado a partir desta enquete também é postado nesse canal.</p>
+                <p className="text-xs text-muted-foreground">Se preenchido, cada biscoito enviado a partir desta enquete também é postado nesse canal.</p>
               </div>
               <div className="space-y-2">
                 <Label>Texto do prompt no Slack</Label>
@@ -519,7 +519,7 @@ export function PulseFormDialog({ open, onOpenChange, survey, initialValues }: P
                   placeholder={
                     tone === "formal" ? "Reconheça um colega que se destacou nesta semana." :
                     tone === "casual" ? "Bora reconhecer quem brilhou essa semana? 🌟" :
-                    "Quem do time merece um kudo hoje?"
+                    "Quem do time merece um biscoito hoje?"
                   }
                 />
               </div>

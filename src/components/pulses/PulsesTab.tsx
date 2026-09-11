@@ -72,7 +72,7 @@ export function PulsesTab() {
               <Heart className="h-5 w-5 text-primary" />
             </div>
             <div>
-              <h3 className="font-semibold">Feed de kudos</h3>
+              <h3 className="font-semibold">Feed de biscoitos</h3>
               <p className="text-sm text-muted-foreground">Acompanhe reconhecimentos e o ranking do time.</p>
             </div>
           </div>
@@ -146,7 +146,7 @@ export function PulsesTab() {
                       <Badge variant={s.active ? "default" : "secondary"}>{s.active ? "Ativa" : "Inativa"}</Badge>
                       <Badge variant="outline">{s.frequency}</Badge>
                       <Badge variant="outline">
-                        {(s as any).kind === "kudos" ? "🎉 Kudos" : (s as any).kind === "peer" ? "👥 Pares" : "👤 Auto"}
+                        {(s as any).kind === "kudos" ? "🍪 Biscoitos" : (s as any).kind === "peer" ? "👥 Pares" : "👤 Auto"}
                       </Badge>
                       {s.anonymous && (s as any).kind !== "kudos" && <Badge variant="outline">🕶️</Badge>}
                     </div>

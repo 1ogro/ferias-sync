@@ -438,7 +438,7 @@ const Admin = () => {
     if (c.pulse_surveys) parts.push(`${c.pulse_surveys} pesquisa(s) criada(s)`);
     if (c.medical_leaves) parts.push(`${c.medical_leaves} licença(s) médica(s)`);
     if (c.special_approvals) parts.push(`${c.special_approvals} aprovação(ões) especial(is)`);
-    if (c.kudos) parts.push(`${c.kudos} kudo(s)`);
+    if (c.kudos) parts.push(`${c.kudos} biscoito(s)`);
     if (c.engagement_points) parts.push(`${c.engagement_points} ponto(s) de engajamento`);
     return parts.length ? `\n\nSerão removidos junto: ${parts.join(', ')}.` : '';
   };

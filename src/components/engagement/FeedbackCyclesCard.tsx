@@ -193,7 +193,7 @@ export function FeedbackCyclesCard({
                 <TableHeader>
                   <TableRow>
                     <TableHead>Ciclo</TableHead>
-                    <TableHead className="text-right">Kudos</TableHead>
+                    <TableHead className="text-right">Biscoitos</TableHead>
                     <TableHead className="text-right">Pares</TableHead>
                     <TableHead className="text-right">Externos</TableHead>
                     <TableHead className="text-right">Total</TableHead>

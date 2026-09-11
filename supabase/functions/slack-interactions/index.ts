@@ -680,10 +680,10 @@ serve(async (req) => {
       }
 
       if (senderPersonId && toPersonId && senderPersonId === toPersonId) {
-        errors["kudo_to_block"] = "Não dá para mandar kudos pra si mesmo 😉";
+        errors["kudo_to_block"] = "Não dá para mandar biscoito pra si mesmo 😉";
       }
       if (toSlackUserId && toSlackUserId === slackUserId) {
-        errors["kudo_to_block"] = "Não dá para mandar kudos pra si mesmo 😉";
+        errors["kudo_to_block"] = "Não dá para mandar biscoito pra si mesmo 😉";
       }
 
       if (Object.keys(errors).length) {
@@ -755,7 +755,7 @@ serve(async (req) => {
       // Card
       const toLabel = (toPersonNome || toSlackName || "Colega") + (pendingTo ? " _(cadastro pendente)_" : "");
       const fromLabel = senderDisplay + (pendingFrom ? " _(cadastro pendente)_" : "");
-      const cardText = `${CATEGORY_LABEL[category] || "🎉"} *${fromLabel}* deu kudos para *${toLabel}*\n> ${message}`;
+      const cardText = `${CATEGORY_LABEL[category] || "🎉"} *${fromLabel}* deu um biscoito para *${toLabel}*\n> ${message}`;
 
       const postToChannel = async (channel: string, label: string) => {
         const r = await fetch("https://slack.com/api/chat.postMessage", {
@@ -785,7 +785,7 @@ serve(async (req) => {
           if (open.ok && open.channel?.id) {
             const catLabel = CATEGORY_LABEL[category] || "🎉";
             const txt =
-              `🎉 *Você ganhou um kudos!*\n${catLabel}\nDe: *${senderDisplay}*\n> ${message}\n\n` +
+              `🍪 *Você ganhou um biscoito!*\n${catLabel}\nDe: *${senderDisplay}*\n> ${message}\n\n` +
               `_Seu cadastro no app ainda está pendente. Assim que for aprovado, os pontos entram no painel de Engajamento._`;
             await fetch("https://slack.com/api/chat.postMessage", {
               method: "POST",
@@ -1512,7 +1512,7 @@ serve(async (req) => {
               multiline: true,
               min_length: 3,
               max_length: 500,
-              placeholder: { type: "plain_text", text: "Diga por que esse colega merece um kudos 🎉" },
+              placeholder: { type: "plain_text", text: "Diga por que esse colega merece um biscoito 🍪" },
             },
           },
         ];
@@ -1537,7 +1537,7 @@ serve(async (req) => {
         blocks.push({
           type: "context",
           elements: [
-            { type: "mrkdwn", text: "Alguns colegas podem ainda não ter conta no app. O kudos será registrado e pontuado assim que o cadastro for aprovado." },
+            { type: "mrkdwn", text: "Alguns colegas podem ainda não ter conta no app. O biscoito será registrado e pontuado assim que o cadastro for aprovado." },
           ],
         });
 
@@ -1550,7 +1550,7 @@ serve(async (req) => {
               type: "modal",
               callback_id: `kudos_submit:${surveyId}`,
               private_metadata: privateMetadata,
-              title: { type: "plain_text", text: "🎉 Dar kudos" },
+              title: { type: "plain_text", text: "🍪 Dar um biscoito" },
               submit: { type: "plain_text", text: "Enviar" },
               close: { type: "plain_text", text: "Cancelar" },
               blocks,

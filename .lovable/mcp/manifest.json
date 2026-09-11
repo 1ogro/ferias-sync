@@ -151,8 +151,8 @@
       },
       {
         "name": "list_recent_kudos",
-        "title": "Kudos recentes",
-        "description": "Retorna os kudos (reconhecimentos) mais recentes do feed.",
+        "title": "Biscoitos recentes",
+        "description": "Retorna os biscoitos (reconhecimentos) mais recentes do feed.",
         "annotations": {
           "readOnlyHint": true,
           "idempotentHint": true,

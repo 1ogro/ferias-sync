@@ -229,7 +229,7 @@ function buildKudosBlocks(survey: any) {
   const defaultPrompt =
     tone === "formal" ? "Reconheça um colega que se destacou nesta semana."
     : tone === "casual" ? "Bora reconhecer quem brilhou essa semana? 🌟"
-    : "Quem do time merece um kudo hoje?";
+    : "Quem do time merece um biscoito hoje?";
   const text = survey.prompt_text?.trim() || defaultPrompt;
   return [
     { type: "header", text: { type: "plain_text", text: tpl.header(survey.title) } },
@@ -239,7 +239,7 @@ function buildKudosBlocks(survey: any) {
       elements: [
         {
           type: "button",
-          text: { type: "plain_text", text: "🎉 Dar kudos" },
+          text: { type: "plain_text", text: "🍪 Dar um biscoito" },
           action_id: `give_kudos_open:${survey.id}`,
           value: survey.id,
           style: "primary",
@@ -506,7 +506,7 @@ async function dispatchSurvey(
         body: JSON.stringify({
           channel: im.channel,
           text: isKudos
-            ? `Kudos: ${survey.title}`
+            ? `Biscoito: ${survey.title}`
             : (d.subject ? `Nova avaliação: ${survey.title} (avaliando ${d.subject.nome})` : `Nova enquete: ${survey.title}`),
           blocks,
           metadata: d.subject

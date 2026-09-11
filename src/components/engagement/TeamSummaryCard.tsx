@@ -98,7 +98,7 @@ export function TeamSummaryCard({ canSeeGlobal }: { canSeeGlobal?: boolean }) {
                 <TableRow>
                   <TableHead>Time</TableHead>
                   <TableHead className="text-right">Pessoas</TableHead>
-                  <TableHead className="text-right">Kudos</TableHead>
+                  <TableHead className="text-right">Biscoitos</TableHead>
                   <TableHead className="text-right">Pares</TableHead>
                   <TableHead className="text-right">Externos</TableHead>
                   <TableHead className="text-right">Total</TableHead>

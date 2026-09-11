@@ -15,7 +15,7 @@ export default defineMcp({
   title: "Férias Sync — Gestão de pessoas",
   version: "0.1.0",
   instructions:
-    "Ferramentas do Férias Sync para consultar dados do próprio usuário e do time: perfil, colegas, saldos e solicitações de férias, ausências futuras e kudos recentes. Todas as leituras respeitam as políticas de acesso (RLS) do usuário autenticado.",
+    "Ferramentas do Férias Sync para consultar dados do próprio usuário e do time: perfil, colegas, saldos e solicitações de férias, ausências futuras e biscoitos recentes. Todas as leituras respeitam as políticas de acesso (RLS) do usuário autenticado.",
   auth: auth.oauth.issuer({
     issuer: `https://${projectRef}.supabase.co/auth/v1`,
     acceptedAudiences: "authenticated",

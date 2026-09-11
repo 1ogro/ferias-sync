@@ -40,8 +40,8 @@ const CATEGORY_META: Record<KudosCategory, { label: string; emoji: string; class
 
 const REASON_LABEL: Record<string, string> = {
   pulse_response: "Pulse respondido",
-  kudo_received: "Kudo recebido",
-  kudo_given: "Kudo enviado",
+  kudo_received: "Biscoito recebido",
+  kudo_given: "Biscoito enviado",
   streak: "Sequência semanal",
   peer_review: "Peer review",
 };
@@ -188,19 +188,19 @@ function GiveKudosDialog({ personId, fromName, papel }: { personId?: string; fro
       const dedupedCount = typeof res?.deduped_count === "number" ? res.deduped_count : 0;
       if (count === 0 && dedupedCount > 0) {
         toast({
-          title: "Este kudos já foi enviado há instantes 👍",
+          title: "Este biscoito já foi enviado há instantes 👍",
           description: "Evitamos duplicar o reconhecimento — o anterior já foi registrado.",
         });
       } else {
         toast({
-          title: count === 1 ? "Kudos enviado! 🎉" : `Kudos enviados para ${count} colegas 🎉`,
+          title: count === 1 ? "Biscoito enviado! 🍪" : `Biscoitos enviados para ${count} colegas 🍪`,
           description: fromName ? `De ${fromName}` : undefined,
         });
       }
       setOpen(false);
       setToIds([]); setMessage(""); setShare(false); setCategory("teamwork");
     } catch (e: any) {
-      toast({ title: "Falha ao enviar kudos", description: e.message, variant: "destructive" });
+      toast({ title: "Falha ao enviar biscoito", description: e.message, variant: "destructive" });
     }
   };
 
@@ -213,7 +213,7 @@ function GiveKudosDialog({ personId, fromName, papel }: { personId?: string; fro
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button className="gap-2"><Heart className="h-4 w-4" /> Dar um kudos</Button>
+        <Button className="gap-2"><Heart className="h-4 w-4" /> Dar um biscoito</Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
@@ -305,7 +305,7 @@ function GiveKudosDialog({ personId, fromName, papel }: { personId?: string; fro
             <Checkbox id="kudo-share" checked={share} onCheckedChange={(v) => setShare(v === true)} />
             <div className="grid gap-1 leading-none">
               <Label htmlFor="kudo-share" className="cursor-pointer">Postar em {SHARE_CHANNEL}</Label>
-              <p className="text-xs text-muted-foreground">Compartilha o kudos no canal do Slack. Se desmarcado, fica só no app.</p>
+              <p className="text-xs text-muted-foreground">Compartilha o biscoito no canal do Slack. Se desmarcado, fica só no app.</p>
             </div>
           </div>
         </div>
@@ -361,7 +361,7 @@ function KudosFeed() {
   return (
     <Card>
       <CardHeader className="pb-3">
-        <CardTitle className="text-base flex items-center gap-2"><Heart className="h-4 w-4 text-rose-500" /> Feed de kudos</CardTitle>
+        <CardTitle className="text-base flex items-center gap-2"><Heart className="h-4 w-4 text-rose-500" /> Feed de biscoitos</CardTitle>
         <CardDescription>Atualiza em tempo real</CardDescription>
       </CardHeader>
       <CardContent>
@@ -390,7 +390,7 @@ function KudosFeed() {
               })}
             </ul>
           ) : (
-            <p className="text-sm text-muted-foreground">Ainda não há kudos. Seja o primeiro!</p>
+            <p className="text-sm text-muted-foreground">Ainda não há biscoitos. Seja o primeiro!</p>
           )}
         </ScrollArea>
       </CardContent>

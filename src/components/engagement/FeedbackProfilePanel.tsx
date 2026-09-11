@@ -25,7 +25,7 @@ import {
 } from "@/hooks/useFeedbacks";
 
 const KIND_META: Record<FeedbackTimelineItem["kind"], { label: string; className: string }> = {
-  kudo: { label: "Kudo", className: "bg-rose-500/10 text-rose-700 dark:text-rose-300" },
+  kudo: { label: "Biscoito", className: "bg-rose-500/10 text-rose-700 dark:text-rose-300" },
   peer: { label: "Pares / Pulse", className: "bg-blue-500/10 text-blue-700 dark:text-blue-300" },
   external: { label: "Externo", className: "bg-amber-500/10 text-amber-700 dark:text-amber-300" },
 };
@@ -146,7 +146,7 @@ export function FeedbackProfilePanel({ authorId }: { authorId?: string }) {
                 <MessagesSquare className="h-4 w-4 text-primary" /> Feedbacks por perfil
               </CardTitle>
               <CardDescription>
-                Kudos, feedbacks de pares e registros de stakeholders externos das pessoas do seu escopo.
+                Biscoitos, feedbacks de pares e registros de stakeholders externos das pessoas do seu escopo.
               </CardDescription>
             </div>
             <ExternalFeedbackDialog authorId={authorId} defaultPersonId={personId || undefined} />
@@ -298,7 +298,7 @@ export function FeedbackProfilePanel({ authorId }: { authorId?: string }) {
               <Tabs value={kind} onValueChange={(v) => setKind(v as any)}>
                 <TabsList>
                   <TabsTrigger value="all">Todos</TabsTrigger>
-                  <TabsTrigger value="kudo">Kudos</TabsTrigger>
+                  <TabsTrigger value="kudo">Biscoitos</TabsTrigger>
                   <TabsTrigger value="peer">Pares</TabsTrigger>
                   <TabsTrigger value="external">Externos</TabsTrigger>
                 </TabsList>
