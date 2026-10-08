@@ -162,6 +162,34 @@ serve(async (req) => {
       }
     }
 
+    // ---------- Biscoitos recebidos (vinculados na aprovação) ----------
+    const CATEGORY_LABEL: Record<string, string> = {
+      teamwork: "🤝 Trabalho em equipe",
+      innovation: "💡 Inovação",
+      delivery: "🚀 Entrega",
+      leadership: "🏆 Liderança",
+      customer: "❤️ Foco no cliente",
+    };
+    const { data: receivedKudos } = await admin
+      .from("kudos")
+      .select("id, message, category, from_person_id, from_slack_name, created_at")
+      .eq("to_person_id", person.id)
+      .order("created_at", { ascending: false })
+      .limit(10);
+    const kudoList = receivedKudos || [];
+    const senderIds = Array.from(new Set(kudoList.map((k: any) => k.from_person_id).filter(Boolean)));
+    const senderNames = new Map<string, string>();
+    if (senderIds.length) {
+      const { data: senders } = await admin.from("people").select("id, nome").in("id", senderIds);
+      for (const s of senders || []) senderNames.set(s.id, s.nome);
+    }
+    const awards = kudoList.map((k: any) => ({
+      from: senderNames.get(k.from_person_id) || k.from_slack_name || "Um colega",
+      category: CATEGORY_LABEL[k.category] || "🍪",
+      message: k.message as string,
+    }));
+    const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
     // ---------- Slack DM ----------
     let slackId: string | null = person.slack_user_id || null;
     if (!slackId && person.email) {
@@ -169,7 +197,19 @@ serve(async (req) => {
     }
     if (slackId && actionLink) {
       const completeUrl = actionLink;
+      const awardBlocks = awards.length
+        ? [{
+            type: "section",
+            text: {
+              type: "mrkdwn",
+              text: `🍪 *Você foi premiado(a) com ${awards.length === 1 ? "um biscoito" : `${awards.length} biscoitos`}!*\n\n` +
+                awards.map((a) => `${a.category} — de *${a.from}*\n> ${a.message}`).join("\n\n") +
+                `\n\n+${awards.length * 10} pontos já creditados no seu painel.`,
+            },
+          }]
+        : [];
       const blocks = [
+        ...awardBlocks,
         {
           type: "section",
           text: {
@@ -215,6 +255,11 @@ serve(async (req) => {
             <h2 style="color: #111;">🎉 Seu cadastro foi aprovado!</h2>
             <p>Olá <strong>${person.nome}</strong>,</p>
             <p>Seu cadastro no <strong>Férias UXTD</strong> foi aprovado. Os biscoitos e pontos que você já recebeu estão no seu painel.</p>
+            ${awards.length ? `<div style="margin:16px 0;padding:16px;background:#fff7ed;border-left:4px solid #f97316;border-radius:6px;">
+              <strong>🍪 Você foi premiado(a) com ${awards.length === 1 ? "um biscoito" : `${awards.length} biscoitos`}!</strong>
+              ${awards.map((a) => `<p style="margin:10px 0 0;">${esc(a.category)} — de <strong>${esc(a.from)}</strong><br/><em>“${esc(a.message)}”</em></p>`).join("")}
+              <p style="margin:10px 0 0;font-size:13px;">+${awards.length * 10} pontos já creditados.</p>
+            </div>` : ""}
             <p>Para liberar o acesso, complete seu perfil (data de nascimento, contrato e time):</p>
             <p style="margin: 24px 0;">
               <a href="${url}" style="background:#0f172a;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none;display:inline-block;">
@@ -225,7 +270,7 @@ serve(async (req) => {
             ${slackWarning}
           </div>
         `;
-        const er = await sendEmail(person.email, "🎉 Bem-vindo(a) ao Férias UXTD — complete seu perfil", html);
+        const er = await sendEmail(person.email, awards.length ? "🍪 Você ganhou um biscoito! Complete seu perfil no Férias UXTD" : "🎉 Bem-vindo(a) ao Férias UXTD — complete seu perfil", html);
         results.email = er;
       } catch (e: any) {
         results.email = { ok: false, error: e?.message || "exception" };
@@ -239,7 +284,7 @@ serve(async (req) => {
       entidade_id: person_id,
       acao: "NOTIFY_APPROVED",
       actor_id: person_id,
-      payload: { results, slack_used: !!slackId },
+      payload: { results, slack_used: !!slackId, awards_notified: awards.length },
     });
 
     return new Response(JSON.stringify({ success: true, results }), {
