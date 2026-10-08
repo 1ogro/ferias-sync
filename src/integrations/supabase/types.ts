@@ -708,6 +708,96 @@ export type Database = {
           },
         ]
       }
+      offboarding_requests: {
+        Row: {
+          admin_at: string | null
+          admin_id: string | null
+          admin_notes: string | null
+          created_at: string
+          director_at: string | null
+          director_id: string | null
+          director_notes: string | null
+          id: string
+          last_day: string | null
+          new_manager_id: string | null
+          person_id: string
+          reason: string
+          requested_by: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          admin_at?: string | null
+          admin_id?: string | null
+          admin_notes?: string | null
+          created_at?: string
+          director_at?: string | null
+          director_id?: string | null
+          director_notes?: string | null
+          id?: string
+          last_day?: string | null
+          new_manager_id?: string | null
+          person_id: string
+          reason: string
+          requested_by: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          admin_at?: string | null
+          admin_id?: string | null
+          admin_notes?: string | null
+          created_at?: string
+          director_at?: string | null
+          director_id?: string | null
+          director_notes?: string | null
+          id?: string
+          last_day?: string | null
+          new_manager_id?: string | null
+          person_id?: string
+          reason?: string
+          requested_by?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "offboarding_requests_admin_id_fkey"
+            columns: ["admin_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "offboarding_requests_director_id_fkey"
+            columns: ["director_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "offboarding_requests_new_manager_id_fkey"
+            columns: ["new_manager_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "offboarding_requests_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "offboarding_requests_requested_by_fkey"
+            columns: ["requested_by"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       payment_day_change_requests: {
         Row: {
           created_at: string
@@ -1774,6 +1864,7 @@ export type Database = {
       }
       can_review_data_change: { Args: { _person_id: string }; Returns: boolean }
       cancel_data_change: { Args: { p_request_id: string }; Returns: Json }
+      cancel_offboarding: { Args: { p_request_id: string }; Returns: Json }
       cancel_payment_day_change: {
         Args: { p_request_id: string }
         Returns: Json
@@ -2013,6 +2104,7 @@ export type Database = {
       get_people_in_my_feedback_scope: {
         Args: never
         Returns: {
+          ativo: boolean
           cargo: string
           id: string
           nome: string
@@ -2187,6 +2279,15 @@ export type Database = {
         }
         Returns: Json
       }
+      request_offboarding: {
+        Args: {
+          p_last_day?: string
+          p_new_manager_id?: string
+          p_person_id: string
+          p_reason: string
+        }
+        Returns: Json
+      }
       request_payment_day_change: {
         Args: { p_justification?: string; p_requested_day: number }
         Returns: Json
@@ -2196,6 +2297,10 @@ export type Database = {
         Returns: Json
       }
       review_data_change: {
+        Args: { p_approve: boolean; p_notes?: string; p_request_id: string }
+        Returns: Json
+      }
+      review_offboarding: {
         Args: { p_approve: boolean; p_notes?: string; p_request_id: string }
         Returns: Json
       }
