@@ -10,6 +10,9 @@ import { BarChart3, Copy, Download, AlertTriangle } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useToast } from "@/hooks/use-toast";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { BiscoitoList, useBiscoitos } from "./BiscoitoList";
 import {
   useMonthlyReport,
   useMonthlyContributors,
@@ -79,6 +82,28 @@ export function MonthlyReportPanel({ canSeeGlobal }: { canSeeGlobal?: boolean })
 
   const withoutFeedback = useMemo(() => rows.filter((r) => r.total === 0), [rows]);
   const sorted = useMemo(() => [...rows].sort((a, b) => b.total - a.total || a.nome.localeCompare(b.nome)), [rows]);
+
+  const [view, setView] = useState<"person" | "team">("person");
+  const [selected, setSelected] = useState<{ title: string; ids: string[] } | null>(null);
+  const teams = useMemo(() => {
+    const m = new Map<string, { name: string; ids: string[]; kr: number; kg: number; peer: number; ext: number; total: number }>();
+    rows.forEach((r) => {
+      const name = r.sub_time || "Sem time";
+      const t = m.get(name) ?? { name, ids: [], kr: 0, kg: 0, peer: 0, ext: 0, total: 0 };
+      t.ids.push(r.person_id); t.kr += r.kudos_received; t.kg += r.kudos_given;
+      t.peer += r.peer_feedbacks; t.ext += r.external_feedbacks; t.total += r.total;
+      m.set(name, t);
+    });
+    return [...m.values()].sort((a, b) => b.total - a.total || a.name.localeCompare(b.name));
+  }, [rows]);
+  const range = useMemo(() => {
+    const [y, mo] = month.split("-").map(Number);
+    return { start: new Date(y, mo - 1, 1).toISOString(), end: new Date(y, mo, 1).toISOString() };
+  }, [month]);
+  const detail = useBiscoitos({ personIds: selected?.ids ?? [], direction: "both", ...range, enabled: !!selected });
+  const selSet = useMemo(() => new Set(selected?.ids ?? []), [selected]);
+  const detailReceived = (detail.data ?? []).filter((k) => k.to_person_id && selSet.has(k.to_person_id));
+  const detailGiven = (detail.data ?? []).filter((k) => k.from_person_id && selSet.has(k.from_person_id));
 
   const scopeLabel = scope === "global" ? "Toda a organização" : "Meu time";
 
@@ -216,9 +241,51 @@ export function MonthlyReportPanel({ canSeeGlobal }: { canSeeGlobal?: boolean })
 
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm">Detalhe por colaborador</CardTitle>
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <CardTitle className="text-sm">
+                  {view === "person" ? "Detalhe por colaborador" : "Detalhe por time"}
+                  <span className="text-xs font-normal text-muted-foreground ml-2">Clique numa linha para ver os biscoitos</span>
+                </CardTitle>
+                <Tabs value={view} onValueChange={(v) => setView(v as "person" | "team")}>
+                  <TabsList>
+                    <TabsTrigger value="person">Por pessoa</TabsTrigger>
+                    <TabsTrigger value="team">Por time</TabsTrigger>
+                  </TabsList>
+                </Tabs>
+              </div>
             </CardHeader>
             <CardContent className="overflow-x-auto">
+              {view === "team" ? (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Time</TableHead>
+                      <TableHead className="text-right">Pessoas</TableHead>
+                      <TableHead className="text-right">Biscoitos rec.</TableHead>
+                      <TableHead className="text-right">Biscoitos env.</TableHead>
+                      <TableHead className="text-right">Pares</TableHead>
+                      <TableHead className="text-right">Externos</TableHead>
+                      <TableHead className="text-right">Total</TableHead>
+                      <TableHead className="text-right">Média/pessoa</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {teams.map((t) => (
+                      <TableRow key={t.name} className="cursor-pointer" onClick={() => setSelected({ title: t.name, ids: t.ids })}>
+                        <TableCell className="font-medium">{t.name}</TableCell>
+                        <TableCell className="text-right">{t.ids.length}</TableCell>
+                        <TableCell className="text-right">{t.kr}</TableCell>
+                        <TableCell className="text-right">{t.kg}</TableCell>
+                        <TableCell className="text-right">{t.peer}</TableCell>
+                        <TableCell className="text-right">{t.ext}</TableCell>
+                        <TableCell className="text-right font-semibold">{t.total}</TableCell>
+                        <TableCell className="text-right">{(t.total / Math.max(1, t.ids.length)).toFixed(1)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              ) : null}
+              {view === "person" && (<>
               {sorted.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Nenhum colaborador no escopo selecionado.</p>
               ) : (
@@ -237,7 +304,7 @@ export function MonthlyReportPanel({ canSeeGlobal }: { canSeeGlobal?: boolean })
                   </TableHeader>
                   <TableBody>
                     {sorted.map((r) => (
-                      <TableRow key={r.person_id}>
+                      <TableRow key={r.person_id} className="cursor-pointer" onClick={() => setSelected({ title: r.nome, ids: [r.person_id] })}>
                         <TableCell className="font-medium">{r.nome}</TableCell>
                         <TableCell className="text-muted-foreground">{r.sub_time ?? "—"}</TableCell>
                         <TableCell className="text-right">{r.kudos_received}</TableCell>
@@ -253,10 +320,32 @@ export function MonthlyReportPanel({ canSeeGlobal }: { canSeeGlobal?: boolean })
                   </TableBody>
                 </Table>
               )}
+              </>)}
             </CardContent>
           </Card>
         </>
       )}
+
+      <Sheet open={!!selected} onOpenChange={(o) => !o && setSelected(null)}>
+        <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>🍪 Biscoitos · {selected?.title}</SheetTitle>
+            <SheetDescription>{monthLabel(month)}</SheetDescription>
+          </SheetHeader>
+          <Tabs defaultValue="received" className="mt-4">
+            <TabsList>
+              <TabsTrigger value="received">Recebidos ({detailReceived.length})</TabsTrigger>
+              <TabsTrigger value="given">Enviados ({detailGiven.length})</TabsTrigger>
+            </TabsList>
+            <TabsContent value="received">
+              <BiscoitoList rows={detailReceived} isLoading={detail.isLoading} empty="Nenhum biscoito recebido no mês." />
+            </TabsContent>
+            <TabsContent value="given">
+              <BiscoitoList rows={detailGiven} isLoading={detail.isLoading} empty="Nenhum biscoito enviado no mês." />
+            </TabsContent>
+          </Tabs>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
