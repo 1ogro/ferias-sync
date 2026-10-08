@@ -21,6 +21,7 @@ import { useKudosFeed, useLeaderboard, useMyPoints, useSendKudo, useActivePeople
 import { FeedbackProfilePanel } from "@/components/engagement/FeedbackProfilePanel";
 import { MonthlyReportPanel } from "@/components/engagement/MonthlyReportPanel";
 import { TeamSummaryCard } from "@/components/engagement/TeamSummaryCard";
+import { MyBiscoitosTabs } from "@/components/engagement/MyBiscoitosTabs";
 import { WellbeingTeamPanel } from "@/components/pulses/WellbeingTeamPanel";
 
 import { EngagementSummaryCard } from "@/components/EngagementSummaryCard";
@@ -356,15 +357,16 @@ function RecipientDmBadge({ status, error }: { status: string | null; error: str
 }
 
 
-function KudosFeed() {
+function KudosFeed({ personId }: { personId?: string }) {
   const { data: kudos = [] } = useKudosFeed(50);
   return (
     <Card>
       <CardHeader className="pb-3">
-        <CardTitle className="text-base flex items-center gap-2"><Heart className="h-4 w-4 text-rose-500" /> Feed de biscoitos</CardTitle>
-        <CardDescription>Atualiza em tempo real</CardDescription>
+        <CardTitle className="text-base flex items-center gap-2"><Heart className="h-4 w-4 text-rose-500" /> Meus biscoitos</CardTitle>
+        <CardDescription>Histórico do que você recebeu e enviou, e o mural da empresa</CardDescription>
       </CardHeader>
       <CardContent>
+        <MyBiscoitosTabs personId={personId} mural={
         <ScrollArea className="h-[480px] pr-3">
           {kudos.length ? (
             <ul className="space-y-3">
@@ -393,6 +395,7 @@ function KudosFeed() {
             <p className="text-sm text-muted-foreground">Ainda não há biscoitos. Seja o primeiro!</p>
           )}
         </ScrollArea>
+        } />
       </CardContent>
     </Card>
   );
@@ -514,7 +517,7 @@ export default function Engagement() {
           )}
         </div>
         <div className="space-y-6 lg:col-span-1">
-          <KudosFeed />
+          <KudosFeed personId={person?.id} />
         </div>
       </div>
     </>
