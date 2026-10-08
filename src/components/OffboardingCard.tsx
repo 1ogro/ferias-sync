@@ -39,9 +39,9 @@ export function OffboardingCard() {
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
 
-  const isAdmin = !!(person as any)?.is_admin || person?.papel === "ADMIN";
+  const isAdmin = !!person?.is_admin;
   const isDirector = person?.papel === "DIRETOR" || isAdmin;
-  const isLeader = ["GESTOR", "GERENTE", "DIRETOR", "ADMIN"].includes(person?.papel || "") || isAdmin;
+  const isLeader = ["GESTOR", "GERENTE", "DIRETOR"].includes(person?.papel || "") || isAdmin;
 
   const load = async () => {
     const [{ data: r }, { data: p }] = await Promise.all([
