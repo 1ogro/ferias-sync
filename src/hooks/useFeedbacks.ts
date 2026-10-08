@@ -9,6 +9,7 @@ export interface ScopePerson {
   nome: string;
   sub_time: string | null;
   cargo: string | null;
+  ativo?: boolean;
 }
 
 export interface FeedbackAttachment {

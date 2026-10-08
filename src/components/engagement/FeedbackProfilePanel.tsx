@@ -162,7 +162,7 @@ export function FeedbackProfilePanel({ authorId }: { authorId?: string }) {
               <SelectContent>
                 {people.map((p) => (
                   <SelectItem key={p.id} value={p.id}>
-                    {p.nome}{p.cargo ? ` · ${p.cargo}` : ""}
+                    {p.nome}{p.cargo ? ` · ${p.cargo}` : ""}{p.ativo === false ? " · Desligado" : ""}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -294,7 +294,7 @@ export function FeedbackProfilePanel({ authorId }: { authorId?: string }) {
         <Card>
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between gap-3 flex-wrap">
-              <CardTitle className="text-base">{selectedPerson?.nome ?? "Colaborador"}</CardTitle>
+              <CardTitle className="text-base">{selectedPerson?.nome ?? "Colaborador"}{selectedPerson?.ativo === false && <Badge variant="secondary" className="ml-2">Desligado</Badge>}</CardTitle>
               <Tabs value={kind} onValueChange={(v) => setKind(v as any)}>
                 <TabsList>
                   <TabsTrigger value="all">Todos</TabsTrigger>
