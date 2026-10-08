@@ -59,6 +59,7 @@ import { Header } from "@/components/Header";
 import { NewCollaboratorForm } from "@/components/NewCollaboratorForm";
 import { PendingCollaboratorsList } from "@/components/PendingCollaboratorsList";
 import { ReassignManagerDialog, DeletionImpact } from "@/components/ReassignManagerDialog";
+import { OffboardingCard } from "@/components/OffboardingCard";
 import { 
   Plus, 
   Search, 
@@ -828,6 +829,7 @@ const Admin = () => {
       </div>
 
       {(isDirector || person?.papel === "GERENTE") && <TeamsManagerCard />}
+      <OffboardingCard />
 
       {/* Search and Filters */}
       <Card>

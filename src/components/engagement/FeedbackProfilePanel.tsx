@@ -162,7 +162,7 @@ export function FeedbackProfilePanel({ authorId }: { authorId?: string }) {
               <SelectContent>
                 {people.map((p) => (
                   <SelectItem key={p.id} value={p.id}>
-                    {p.nome}{p.cargo ? ` · ${p.cargo}` : ""}
+                    {p.nome}{p.cargo ? ` · ${p.cargo}` : ""}{p.ativo === false ? " · Desligado" : ""}
                   </SelectItem>
                 ))}
               </SelectContent>
