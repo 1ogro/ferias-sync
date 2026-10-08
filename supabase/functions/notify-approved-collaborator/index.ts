@@ -255,6 +255,11 @@ serve(async (req) => {
             <h2 style="color: #111;">🎉 Seu cadastro foi aprovado!</h2>
             <p>Olá <strong>${person.nome}</strong>,</p>
             <p>Seu cadastro no <strong>Férias UXTD</strong> foi aprovado. Os biscoitos e pontos que você já recebeu estão no seu painel.</p>
+            ${awards.length ? `<div style="margin:16px 0;padding:16px;background:#fff7ed;border-left:4px solid #f97316;border-radius:6px;">
+              <strong>🍪 Você foi premiado(a) com ${awards.length === 1 ? "um biscoito" : `${awards.length} biscoitos`}!</strong>
+              ${awards.map((a) => `<p style="margin:10px 0 0;">${esc(a.category)} — de <strong>${esc(a.from)}</strong><br/><em>“${esc(a.message)}”</em></p>`).join("")}
+              <p style="margin:10px 0 0;font-size:13px;">+${awards.length * 10} pontos já creditados.</p>
+            </div>` : ""}
             <p>Para liberar o acesso, complete seu perfil (data de nascimento, contrato e time):</p>
             <p style="margin: 24px 0;">
               <a href="${url}" style="background:#0f172a;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none;display:inline-block;">
@@ -265,7 +270,7 @@ serve(async (req) => {
             ${slackWarning}
           </div>
         `;
-        const er = await sendEmail(person.email, "🎉 Bem-vindo(a) ao Férias UXTD — complete seu perfil", html);
+        const er = await sendEmail(person.email, awards.length ? "🍪 Você ganhou um biscoito! Complete seu perfil no Férias UXTD" : "🎉 Bem-vindo(a) ao Férias UXTD — complete seu perfil", html);
         results.email = er;
       } catch (e: any) {
         results.email = { ok: false, error: e?.message || "exception" };
@@ -279,7 +284,7 @@ serve(async (req) => {
       entidade_id: person_id,
       acao: "NOTIFY_APPROVED",
       actor_id: person_id,
-      payload: { results, slack_used: !!slackId },
+      payload: { results, slack_used: !!slackId, awards_notified: awards.length },
     });
 
     return new Response(JSON.stringify({ success: true, results }), {
