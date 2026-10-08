@@ -162,6 +162,34 @@ serve(async (req) => {
       }
     }
 
+    // ---------- Biscoitos recebidos (vinculados na aprovação) ----------
+    const CATEGORY_LABEL: Record<string, string> = {
+      teamwork: "🤝 Trabalho em equipe",
+      innovation: "💡 Inovação",
+      delivery: "🚀 Entrega",
+      leadership: "🏆 Liderança",
+      customer: "❤️ Foco no cliente",
+    };
+    const { data: receivedKudos } = await admin
+      .from("kudos")
+      .select("id, message, category, from_person_id, from_slack_name, created_at")
+      .eq("to_person_id", person.id)
+      .order("created_at", { ascending: false })
+      .limit(10);
+    const kudoList = receivedKudos || [];
+    const senderIds = Array.from(new Set(kudoList.map((k: any) => k.from_person_id).filter(Boolean)));
+    const senderNames = new Map<string, string>();
+    if (senderIds.length) {
+      const { data: senders } = await admin.from("people").select("id, nome").in("id", senderIds);
+      for (const s of senders || []) senderNames.set(s.id, s.nome);
+    }
+    const awards = kudoList.map((k: any) => ({
+      from: senderNames.get(k.from_person_id) || k.from_slack_name || "Um colega",
+      category: CATEGORY_LABEL[k.category] || "🍪",
+      message: k.message as string,
+    }));
+    const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
     // ---------- Slack DM ----------
     let slackId: string | null = person.slack_user_id || null;
     if (!slackId && person.email) {
@@ -169,7 +197,19 @@ serve(async (req) => {
     }
     if (slackId && actionLink) {
       const completeUrl = actionLink;
+      const awardBlocks = awards.length
+        ? [{
+            type: "section",
+            text: {
+              type: "mrkdwn",
+              text: `🍪 *Você foi premiado(a) com ${awards.length === 1 ? "um biscoito" : `${awards.length} biscoitos`}!*\n\n` +
+                awards.map((a) => `${a.category} — de *${a.from}*\n> ${a.message}`).join("\n\n") +
+                `\n\n+${awards.length * 10} pontos já creditados no seu painel.`,
+            },
+          }]
+        : [];
       const blocks = [
+        ...awardBlocks,
         {
           type: "section",
           text: {
