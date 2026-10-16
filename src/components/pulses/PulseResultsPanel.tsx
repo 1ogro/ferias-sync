@@ -15,6 +15,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Download, FileSpreadsheet } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { PeerReviewPairsSection } from "./PeerReviewPairsSection";
+import { EvaluationMatrixPanel } from "./EvaluationMatrixPanel";
 import { PulseTrendPanel } from "./PulseTrendPanel";
 import { useAuth } from "@/hooks/useAuth";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -399,6 +400,7 @@ export function PulseResultsPanel({ survey }: Props) {
             </Table>
           </div>
         </div>
+        {survey.kind === "peer" && (survey as any).evaluation_format && <EvaluationMatrixPanel survey={survey} />}
         {survey.kind === "peer" && <PeerReviewPairsSection survey={survey} />}
       </CardContent>
     </Card>
