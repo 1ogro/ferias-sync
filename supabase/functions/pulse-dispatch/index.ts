@@ -5,6 +5,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { resolveSlackId } from "../_shared/notify-helpers.ts";
+import { evaluationLevel, passesContractFilter } from "./evaluation.ts";
 
 const SLACK_BOT_TOKEN = Deno.env.get("SLACK_BOT_TOKEN")!;
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -16,20 +17,6 @@ const corsHeaders = {
 };
 
 const PEOPLE_COLS = "id, nome, email, email_pessoal, slack_user_id, sub_time, papel, modelo_contrato, gestor_id";
-
-export function evaluationLevel(papel?: string | null): "colaborador" | "gestor" | "diretor" {
-  if (papel === "DIRETOR") return "diretor";
-  if (papel === "GESTOR" || papel === "GERENTE") return "gestor";
-  return "colaborador";
-}
-
-/** Contract filter applies only to the operational staff (colaborador level). */
-export function passesContractFilter(p: { papel?: string | null; modelo_contrato?: string | null }, filter: string): boolean {
-  if (!filter || filter === "all") return true;
-  if (evaluationLevel(p.papel) !== "colaborador") return true;
-  const isPJ = (p.modelo_contrato || "CLT") === "PJ";
-  return filter === "pj" ? isPJ : !isPJ;
-}
 
 type Tone = "formal" | "neutral" | "casual";
 const TONE: Record<Tone, { header: (t: string) => string; anon: string; peer: (n: string) => string; thanks: string }> = {
