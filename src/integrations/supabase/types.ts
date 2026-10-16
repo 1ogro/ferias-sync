@@ -862,6 +862,7 @@ export type Database = {
         Row: {
           completed_at: string | null
           created_at: string
+          dimension: string | null
           id: string
           reminders_sent_count: number
           reviewer_id: string
@@ -875,6 +876,7 @@ export type Database = {
         Insert: {
           completed_at?: string | null
           created_at?: string
+          dimension?: string | null
           id?: string
           reminders_sent_count?: number
           reviewer_id: string
@@ -888,6 +890,7 @@ export type Database = {
         Update: {
           completed_at?: string | null
           created_at?: string
+          dimension?: string | null
           id?: string
           reminders_sent_count?: number
           reviewer_id?: string
@@ -1139,6 +1142,7 @@ export type Database = {
       pulse_questions: {
         Row: {
           created_at: string
+          criteria_level: string | null
           id: string
           position: number
           question_text: string
@@ -1148,6 +1152,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          criteria_level?: string | null
           id?: string
           position?: number
           question_text: string
@@ -1157,6 +1162,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          criteria_level?: string | null
           id?: string
           position?: number
           question_text?: string
@@ -1375,9 +1381,11 @@ export type Database = {
         Row: {
           active: boolean
           anonymous: boolean
+          contract_filter: string
           created_at: string
           created_by: string
           description: string | null
+          evaluation_format: string | null
           frequency: string
           id: string
           kind: Database["public"]["Enums"]["pulse_kind"]
@@ -1411,9 +1419,11 @@ export type Database = {
         Insert: {
           active?: boolean
           anonymous?: boolean
+          contract_filter?: string
           created_at?: string
           created_by: string
           description?: string | null
+          evaluation_format?: string | null
           frequency?: string
           id?: string
           kind?: Database["public"]["Enums"]["pulse_kind"]
@@ -1447,9 +1457,11 @@ export type Database = {
         Update: {
           active?: boolean
           anonymous?: boolean
+          contract_filter?: string
           created_at?: string
           created_by?: string
           description?: string | null
+          evaluation_format?: string | null
           frequency?: string
           id?: string
           kind?: Database["public"]["Enums"]["pulse_kind"]
@@ -1863,6 +1875,10 @@ export type Database = {
         Returns: boolean
       }
       can_review_data_change: { Args: { _person_id: string }; Returns: boolean }
+      can_view_evaluation: {
+        Args: { _subject_id: string; _survey_id: string }
+        Returns: boolean
+      }
       cancel_data_change: { Args: { p_request_id: string }; Returns: Json }
       cancel_offboarding: { Args: { p_request_id: string }; Returns: Json }
       cancel_payment_day_change: {
@@ -1962,6 +1978,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      evaluation_level: { Args: { _papel: string }; Returns: string }
       finish_weekly_pulse_dispatch: {
         Args: { p_run_id: string; p_token: string }
         Returns: undefined
@@ -2045,6 +2062,34 @@ export type Database = {
               total: number
             }[]
           }
+      get_evaluation_comments: {
+        Args: { p_run_id?: string; p_subject_id: string; p_survey_id: string }
+        Returns: {
+          author_label: string
+          dimension: string
+          question_text: string
+          submitted_at: string
+          text_value: string
+        }[]
+      }
+      get_evaluation_matrix: {
+        Args: { p_run_id?: string; p_survey_id: string }
+        Returns: {
+          avg_score: number
+          dimension: string
+          modelo_contrato: string
+          n_scores: number
+          pairs_done: number
+          pairs_total: number
+          papel: string
+          question_id: string
+          question_position: number
+          question_text: string
+          sub_time: string
+          subject_id: string
+          subject_nome: string
+        }[]
+      }
       get_feedback_collection_pending: {
         Args: { p_overdue_days?: number }
         Returns: {
