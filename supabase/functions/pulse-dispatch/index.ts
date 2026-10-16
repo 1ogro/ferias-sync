@@ -15,6 +15,22 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const PEOPLE_COLS = "id, nome, email, email_pessoal, slack_user_id, sub_time, papel, modelo_contrato, gestor_id";
+
+export function evaluationLevel(papel?: string | null): "colaborador" | "gestor" | "diretor" {
+  if (papel === "DIRETOR") return "diretor";
+  if (papel === "GESTOR" || papel === "GERENTE") return "gestor";
+  return "colaborador";
+}
+
+/** Contract filter applies only to the operational staff (colaborador level). */
+export function passesContractFilter(p: { papel?: string | null; modelo_contrato?: string | null }, filter: string): boolean {
+  if (!filter || filter === "all") return true;
+  if (evaluationLevel(p.papel) !== "colaborador") return true;
+  const isPJ = (p.modelo_contrato || "CLT") === "PJ";
+  return filter === "pj" ? isPJ : !isPJ;
+}
+
 type Tone = "formal" | "neutral" | "casual";
 const TONE: Record<Tone, { header: (t: string) => string; anon: string; peer: (n: string) => string; thanks: string }> = {
   formal: {
@@ -134,7 +150,10 @@ function shouldDeferUntil(prefs: {
   return next.toISOString();
 }
 
-function buildBlocks(survey: any, questions: any[], runId: string, opts: { subjectName?: string; pairId?: string } = {}) {
+function buildBlocks(survey: any, allQuestions: any[], runId: string, opts: { subjectName?: string; pairId?: string; dimension?: string; level?: string } = {}) {
+  const questions = opts.level
+    ? allQuestions.filter((q) => !q.criteria_level || q.criteria_level === opts.level)
+    : allQuestions;
   const tone = (survey.tone || "neutral") as Tone;
   const tpl = TONE[tone] || TONE.neutral;
   const blocks: any[] = [
@@ -143,10 +162,17 @@ function buildBlocks(survey: any, questions: any[], runId: string, opts: { subje
   if (survey.description) {
     blocks.push({ type: "section", text: { type: "mrkdwn", text: survey.description } });
   }
-  if (opts.subjectName) {
+  if (opts.dimension === "self") {
+    blocks.push({ type: "section", text: { type: "mrkdwn", text: "🪞 Esta é a sua *autoavaliação* deste ciclo." } });
+  } else if (opts.dimension === "manager" && opts.subjectName) {
+    blocks.push({ type: "section", text: { type: "mrkdwn", text: `🧭 Avaliação do(a) liderado(a) *${opts.subjectName}*.` } });
+  } else if (opts.subjectName) {
     blocks.push({ type: "section", text: { type: "mrkdwn", text: tpl.peer(opts.subjectName) } });
   }
-  if (survey.anonymous || (survey.kind === "peer" && survey.peer_anonymous)) {
+  const showAnon = opts.dimension
+    ? opts.dimension === "peer" && survey.peer_anonymous
+    : (survey.anonymous || (survey.kind === "peer" && survey.peer_anonymous));
+  if (showAnon) {
     blocks.push({
       type: "context",
       elements: [{ type: "mrkdwn", text: tpl.anon }],
@@ -154,10 +180,10 @@ function buildBlocks(survey: any, questions: any[], runId: string, opts: { subje
   }
   blocks.push({ type: "divider" });
 
-  for (const q of questions) {
+  for (const [qi, q] of questions.entries()) {
     blocks.push({
       type: "section",
-      text: { type: "mrkdwn", text: `*${q.position + 1}. ${q.question_text}*${q.required ? " *_(obrigatória)_*" : ""}` },
+      text: { type: "mrkdwn", text: `*${qi + 1}. ${q.question_text}*${q.required ? " *_(obrigatória)_*" : ""}` },
     });
     // Action IDs for peer: append pairId as 5th/4th segment so respondents can be linked to the subject.
     const suffix = opts.pairId ? `:${opts.pairId}` : "";
@@ -274,7 +300,7 @@ async function dispatchSurvey(
   if (survey.target_scope === "all") {
     const { data } = await supabase
       .from("people")
-      .select("id, nome, email, email_pessoal, slack_user_id, sub_time")
+      .select(PEOPLE_COLS)
       .eq("ativo", true);
     recipients = data || [];
   } else if (survey.target_scope === "teams") {
@@ -284,7 +310,7 @@ async function dispatchSurvey(
     if (teamIds.length) {
       const { data } = await supabase
         .from("people")
-        .select("id, nome, email, email_pessoal, slack_user_id, sub_time")
+        .select(PEOPLE_COLS)
         .in("sub_time", teamIds)
         .eq("ativo", true);
       recipients = data || [];
@@ -293,14 +319,14 @@ async function dispatchSurvey(
     // legacy fallback
     const { data } = await supabase
       .from("people")
-      .select("id, nome, email, email_pessoal, slack_user_id, sub_time")
+      .select(PEOPLE_COLS)
       .eq("sub_time", survey.target_team_id)
       .eq("ativo", true);
     recipients = data || [];
   } else if (survey.target_scope === "custom" && survey.target_person_ids?.length) {
     const { data } = await supabase
       .from("people")
-      .select("id, nome, email, email_pessoal, slack_user_id, sub_time")
+      .select(PEOPLE_COLS)
       .in("id", survey.target_person_ids)
       .eq("ativo", true);
     recipients = data || [];
@@ -381,11 +407,60 @@ async function dispatchSurvey(
   }
 
   // Peer pairing (Map<reviewerId, {pairId, subject}[]>)
-  const pairsByReviewer = new Map<string, { pairId: string; subject: { id: string; nome: string } }[]>();
+  const pairsByReviewer = new Map<string, { pairId: string; subject: any; dimension?: string }[]>();
   const peopleById = new Map(recipients.map((p) => [p.id, p]));
   let pairsCreated = 0;
+  const evalFormat: string | null = survey.kind === "peer" ? (survey.evaluation_format ?? null) : null;
 
-  if (survey.kind === "peer" && !opts.resendRunId) {
+  if (evalFormat && !opts.resendRunId) {
+    // Automated 90/180/270 evaluation: pairs derived from the org chart.
+    const { data: everyone } = await supabase.from("people").select(PEOPLE_COLS).eq("ativo", true);
+    const all = new Map<string, any>((everyone || []).map((p: any) => [p.id, p]));
+    const subjects = recipients.filter((p) => passesContractFilter(p, survey.contract_filter || "all"));
+    const pairs: { reviewer: string; subject: string; dimension: string }[] = [];
+    for (const s of subjects) {
+      if (evalFormat !== "90") pairs.push({ reviewer: s.id, subject: s.id, dimension: "self" });
+      if (s.gestor_id && s.gestor_id !== s.id && all.has(s.gestor_id)) {
+        pairs.push({ reviewer: s.gestor_id, subject: s.id, dimension: "manager" });
+      }
+    }
+    if (evalFormat === "270") {
+      const groups = new Map<string, any[]>();
+      for (const s of subjects) {
+        if (!s.sub_time) continue;
+        if (!groups.has(s.sub_time)) groups.set(s.sub_time, []);
+        groups.get(s.sub_time)!.push(s);
+      }
+      const gen = runPeerStrategy === "random" ? generateRandomPairs : generateRoundRobinPairs;
+      for (const g of groups.values()) {
+        for (const p of gen(g, runPeerK!)) {
+          // never duplicate the manager pair as a peer pair
+          if (all.get(p.subject)?.gestor_id === p.reviewer) continue;
+          pairs.push({ reviewer: p.reviewer, subject: p.subject, dimension: "peer" });
+        }
+      }
+    }
+    // DM recipients are the reviewers (managers may sit outside the target audience).
+    const reviewerIds = [...new Set(pairs.map((p) => p.reviewer))];
+    recipients = reviewerIds.map((id) => all.get(id)).filter(Boolean);
+    for (const p of all.values()) peopleById.set(p.id, p);
+    await supabase.from("pulse_runs").update({ recipients_count: recipients.length }).eq("id", run.id);
+    if (pairs.length) {
+      const { data: inserted, error: pairErr } = await supabase
+        .from("peer_review_pairs")
+        .insert(pairs.map((p) => ({ survey_id: survey.id, run_id: run.id, reviewer_id: p.reviewer, subject_id: p.subject, dimension: p.dimension })))
+        .select("id, reviewer_id, subject_id, dimension");
+      if (pairErr) console.error("[evaluation pairs insert] error:", pairErr);
+      for (const row of inserted || []) {
+        const subj = all.get(row.subject_id);
+        if (!subj) continue;
+        const list = pairsByReviewer.get(row.reviewer_id) || [];
+        list.push({ pairId: row.id, subject: subj, dimension: row.dimension });
+        pairsByReviewer.set(row.reviewer_id, list);
+      }
+      pairsCreated = (inserted || []).length;
+    }
+  } else if (survey.kind === "peer" && !opts.resendRunId) {
     const strategy: string = runPeerStrategy!;
     const K = runPeerK!;
     let pairs: { reviewer: string; subject: string }[] = [];
@@ -487,11 +562,11 @@ async function dispatchSurvey(
       diag.status = "no_subject_assigned"; diagnostics.push(diag); continue;
     }
 
-    const deliveries: { pairId?: string; subject?: { id: string; nome: string } }[] =
+    const deliveries: { pairId?: string; subject?: any; dimension?: string }[] =
       isKudos
         ? [{}]
         : survey.kind === "peer"
-          ? reviewerPairs.map((rp) => ({ pairId: rp.pairId, subject: rp.subject }))
+          ? reviewerPairs.map((rp) => ({ pairId: rp.pairId, subject: rp.subject, dimension: rp.dimension }))
           : [{}];
 
     let anyOk = false;
@@ -499,7 +574,10 @@ async function dispatchSurvey(
     for (const d of deliveries) {
       const blocks = isKudos
         ? buildKudosBlocks(survey)
-        : buildBlocks(survey, questions, run.id, { subjectName: d.subject?.nome, pairId: d.pairId });
+        : buildBlocks(survey, questions, run.id, {
+            subjectName: d.subject?.nome, pairId: d.pairId, dimension: d.dimension,
+            level: evalFormat && d.subject ? evaluationLevel(d.subject.papel) : undefined,
+          });
       const res = await fetch("https://slack.com/api/chat.postMessage", {
         method: "POST",
         headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}`, "Content-Type": "application/json" },
@@ -507,7 +585,7 @@ async function dispatchSurvey(
           channel: im.channel,
           text: isKudos
             ? `Biscoito: ${survey.title}`
-            : (d.subject ? `Nova avaliação: ${survey.title} (avaliando ${d.subject.nome})` : `Nova enquete: ${survey.title}`),
+            : (d.dimension === "self" ? `Sua autoavaliação: ${survey.title}` : d.subject ? `Nova avaliação: ${survey.title} (avaliando ${d.subject.nome})` : `Nova enquete: ${survey.title}`),
           blocks,
           metadata: d.subject
             ? { event_type: "pulse_peer", event_payload: { subject_id: d.subject.id, pair_id: d.pairId } }
