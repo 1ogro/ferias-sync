@@ -23,3 +23,7 @@
 - [ ] Verificação autenticada ponta a ponta com dados reais: bloqueada por Supabase externo sem sessão de teste gerenciável. Rota pública validada; redireciona para /auth. Não solicitar credenciais pessoais.
 
 Avisos preexistentes do banco sobre funções e proteção de senhas permanecem fora do escopo; novas funções negam execução anônima e validam autorização internamente.
+## Avaliações 90º/180º/270º
+- [x] Formatos com pares automáticos pelo organograma, critérios por nível e filtro CLT/PJ só para o operacional (4 testes passaram).
+- [x] Matriz consolidada (Auto, Gestor, Pares, GAP, coleta), detalhe por critério e comentários, CSV.
+- [ ] Teste com disparo real no Slack: aguarda o primeiro ciclo piloto.
