@@ -1,7 +1,8 @@
 import type { CreateSurveyInput } from "@/hooks/usePulses";
+import { buildEvaluationQuestions } from "./evaluationCriteria";
 
 export interface PulseTemplate {
-  id: "self-weekly" | "peer-monthly" | "kudos-weekly";
+  id: "self-weekly" | "peer-monthly" | "kudos-weekly" | "eval-90" | "eval-180" | "eval-270";
   label: string;
   emoji: string;
   description: string;
@@ -76,6 +77,81 @@ export const PULSE_TEMPLATES: PulseTemplate[] = [
       target_team_ids: null,
       target_person_ids: null,
       questions: [],
+    },
+  },
+  {
+    id: "eval-90",
+    label: "Avaliação 90º",
+    emoji: "🧭",
+    description: "Gestor direto avalia cada liderado com os critérios do nível de cargo.",
+    values: {
+      title: "Avaliação 90º — ciclo",
+      description: "Avalie de 1 (precisa desenvolver) a 5 (referência) cada critério.",
+      anonymous: false,
+      tone: "formal",
+      kind: "peer",
+      peer_anonymous: true,
+      peer_pairing_strategy: "round_robin",
+      peer_reviews_per_reviewer: 2,
+      evaluation_format: "90",
+      contract_filter: "all",
+      frequency: "once",
+      target_scope: "all",
+      target_team_id: null,
+      target_team_ids: null,
+      target_person_ids: null,
+      response_deadline_hours: 168,
+      questions: buildEvaluationQuestions(),
+    },
+  },
+  {
+    id: "eval-180",
+    label: "Avaliação 180º",
+    emoji: "🪞",
+    description: "Autoavaliação + avaliação do gestor direto, com comparativo de alinhamento.",
+    values: {
+      title: "Avaliação 180º — ciclo",
+      description: "Avalie de 1 (precisa desenvolver) a 5 (referência) cada critério.",
+      anonymous: false,
+      tone: "formal",
+      kind: "peer",
+      peer_anonymous: true,
+      peer_pairing_strategy: "round_robin",
+      peer_reviews_per_reviewer: 2,
+      evaluation_format: "180",
+      contract_filter: "all",
+      frequency: "once",
+      target_scope: "all",
+      target_team_id: null,
+      target_team_ids: null,
+      target_person_ids: null,
+      response_deadline_hours: 168,
+      questions: buildEvaluationQuestions(),
+    },
+  },
+  {
+    id: "eval-270",
+    label: "Avaliação 270º",
+    emoji: "🔺",
+    description: "Autoavaliação + gestor direto + colegas do time (pares anônimos).",
+    values: {
+      title: "Avaliação 270º — ciclo",
+      description: "Avalie de 1 (precisa desenvolver) a 5 (referência) cada critério.",
+      anonymous: false,
+      tone: "formal",
+      kind: "peer",
+      peer_anonymous: true,
+      peer_pairing_strategy: "round_robin",
+      peer_reviews_per_reviewer: 2,
+      evaluation_format: "270",
+      contract_filter: "all",
+      frequency: "once",
+      target_scope: "all",
+      target_team_id: null,
+      target_team_ids: null,
+      target_person_ids: null,
+      response_deadline_hours: 168,
+      questions: buildEvaluationQuestions(),
     },
   },
 ];

@@ -11,7 +11,12 @@ export interface PulseQuestion {
   question_text: string;
   question_type: PulseQuestionType;
   required: boolean;
+  /** Avaliações 90/180/270: nível de cargo a que o critério se aplica (null = todos). */
+  criteria_level?: "colaborador" | "gestor" | "diretor" | null;
 }
+
+export type EvaluationFormat = "90" | "180" | "270";
+export type ContractFilter = "all" | "clt" | "pj";
 
 export interface PulseSurvey {
   id: string;
@@ -33,6 +38,8 @@ export interface PulseSurvey {
   peer_pairing_strategy?: "round_robin" | "random" | "fixed";
   peer_fixed_pairs?: { reviewer_id: string; subject_id: string }[] | null;
   peer_reviews_per_reviewer?: number;
+  evaluation_format?: EvaluationFormat | null;
+  contract_filter?: ContractFilter;
   kudos_categories?: string[] | null;
   kudos_channel?: string | null;
   prompt_text?: string | null;
@@ -60,6 +67,8 @@ export interface CreateSurveyInput {
   peer_pairing_strategy?: "round_robin" | "random" | "fixed";
   peer_fixed_pairs?: { reviewer_id: string; subject_id: string }[] | null;
   peer_reviews_per_reviewer?: number;
+  evaluation_format?: EvaluationFormat | null;
+  contract_filter?: ContractFilter;
   kudos_categories?: string[] | null;
   kudos_channel?: string | null;
   prompt_text?: string | null;
@@ -253,6 +262,8 @@ export function useCreatePulseSurvey() {
           peer_pairing_strategy: kind === "peer" ? (survey.peer_pairing_strategy ?? "round_robin") : "round_robin",
           peer_fixed_pairs: kind === "peer" ? (survey.peer_fixed_pairs ?? null) : null,
           peer_reviews_per_reviewer: kind === "peer" ? Math.min(5, Math.max(1, survey.peer_reviews_per_reviewer ?? 1)) : 1,
+          evaluation_format: kind === "peer" ? (survey.evaluation_format ?? null) : null,
+          contract_filter: kind === "peer" && survey.evaluation_format ? (survey.contract_filter ?? "all") : "all",
           kudos_categories: kind === "kudos" ? (survey.kudos_categories ?? null) : null,
           kudos_channel: kind === "kudos" ? (survey.kudos_channel ?? null) : null,
           prompt_text: kind === "kudos" ? (survey.prompt_text ?? null) : null,
@@ -284,6 +295,7 @@ export function useCreatePulseSurvey() {
             question_text: q.question_text,
             question_type: q.question_type,
             required: q.required,
+            criteria_level: (q as any).criteria_level ?? null,
           }))
         );
         if (qErr) throw qErr;
@@ -316,6 +328,8 @@ export interface UpdateSurveyInput {
   peer_pairing_strategy?: "round_robin" | "random" | "fixed";
   peer_fixed_pairs?: { reviewer_id: string; subject_id: string }[] | null;
   peer_reviews_per_reviewer?: number;
+  evaluation_format?: EvaluationFormat | null;
+  contract_filter?: ContractFilter;
   kudos_categories?: string[] | null;
   kudos_channel?: string | null;
   prompt_text?: string | null;
@@ -354,6 +368,8 @@ export function useUpdatePulseSurvey() {
           peer_pairing_strategy: kind === "peer" ? (fields.peer_pairing_strategy ?? "round_robin") : "round_robin",
           peer_fixed_pairs: kind === "peer" ? (fields.peer_fixed_pairs ?? null) : null,
           peer_reviews_per_reviewer: kind === "peer" ? Math.min(5, Math.max(1, fields.peer_reviews_per_reviewer ?? 1)) : 1,
+          evaluation_format: kind === "peer" ? (fields.evaluation_format ?? null) : null,
+          contract_filter: kind === "peer" && fields.evaluation_format ? (fields.contract_filter ?? "all") : "all",
           kudos_categories: kind === "kudos" ? (fields.kudos_categories ?? null) : null,
           kudos_channel: kind === "kudos" ? (fields.kudos_channel ?? null) : null,
           prompt_text: kind === "kudos" ? (fields.prompt_text ?? null) : null,
@@ -386,6 +402,7 @@ export function useUpdatePulseSurvey() {
               question_text: q.question_text,
               question_type: q.question_type,
               required: q.required,
+              criteria_level: (q as any).criteria_level ?? null,
             }))
           );
           if (insErr) throw insErr;
@@ -444,6 +461,8 @@ export function useDuplicatePulseSurvey() {
           peer_pairing_strategy: (orig as any).peer_pairing_strategy ?? "round_robin",
           peer_fixed_pairs: (orig as any).peer_fixed_pairs ?? null,
           peer_reviews_per_reviewer: (orig as any).peer_reviews_per_reviewer ?? 1,
+          evaluation_format: (orig as any).evaluation_format ?? null,
+          contract_filter: (orig as any).contract_filter ?? "all",
           kudos_categories: (orig as any).kudos_categories ?? null,
           kudos_channel: (orig as any).kudos_channel ?? null,
           prompt_text: (orig as any).prompt_text ?? null,
@@ -470,6 +489,7 @@ export function useDuplicatePulseSurvey() {
             question_text: q.question_text,
             question_type: q.question_type,
             required: q.required,
+            criteria_level: (q as any).criteria_level ?? null,
           }))
         );
         if (e4) throw e4;
@@ -502,4 +522,49 @@ export async function downloadPulseExport(surveyId: string, format: "csv" | "xls
   link.download = `pulse_${surveyId}.${format}`;
   link.click();
   URL.revokeObjectURL(link.href);
+}
+
+
+export interface EvaluationMatrixRow {
+  subject_id: string;
+  subject_nome: string;
+  sub_time: string | null;
+  papel: string | null;
+  modelo_contrato: string | null;
+  question_id: string | null;
+  question_text: string | null;
+  question_position: number | null;
+  dimension: "self" | "manager" | "peer";
+  avg_score: number | null;
+  n_scores: number;
+  pairs_total: number;
+  pairs_done: number;
+}
+
+export function useEvaluationMatrix(surveyId?: string, runId?: string | null) {
+  return useQuery({
+    queryKey: ["evaluation_matrix", surveyId, runId ?? null],
+    enabled: !!surveyId,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).rpc("get_evaluation_matrix", {
+        p_survey_id: surveyId, p_run_id: runId ?? null,
+      });
+      if (error) throw error;
+      return ((data || []) as any[]).map((r) => ({ ...r, avg_score: r.avg_score == null ? null : Number(r.avg_score) })) as EvaluationMatrixRow[];
+    },
+  });
+}
+
+export function useEvaluationComments(surveyId?: string, subjectId?: string | null, runId?: string | null) {
+  return useQuery({
+    queryKey: ["evaluation_comments", surveyId, subjectId, runId ?? null],
+    enabled: !!surveyId && !!subjectId,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).rpc("get_evaluation_comments", {
+        p_survey_id: surveyId, p_subject_id: subjectId, p_run_id: runId ?? null,
+      });
+      if (error) throw error;
+      return (data || []) as { dimension: string; author_label: string; question_text: string; text_value: string; submitted_at: string }[];
+    },
+  });
 }

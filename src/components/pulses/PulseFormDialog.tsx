@@ -20,6 +20,7 @@ import {
   CreateSurveyInput,
 } from "@/hooks/usePulses";
 import { useAuth } from "@/hooks/useAuth";
+import { CRITERIA_LEVEL_LABEL, EVALUATION_FORMAT_LABEL } from "./evaluationCriteria";
 
 interface Props {
   open: boolean;
@@ -55,6 +56,9 @@ export function PulseFormDialog({ open, onOpenChange, survey, initialValues }: P
   const [peerPairingStrategy, setPeerPairingStrategy] = useState<"round_robin" | "random" | "fixed">("round_robin");
   const [peerFixedPairs, setPeerFixedPairs] = useState<{ reviewer_id: string; subject_id: string }[]>([]);
   const [peerReviewsPerReviewer, setPeerReviewsPerReviewer] = useState<number>(1);
+  const [evaluationFormat, setEvaluationFormat] = useState<"none" | "90" | "180" | "270">("none");
+  const [contractFilter, setContractFilter] = useState<"all" | "clt" | "pj">("all");
+  const isEvaluation = kind === "peer" && evaluationFormat !== "none";
   const [kudosCategories, setKudosCategories] = useState<string[]>([
     "teamwork", "innovation", "delivery", "leadership", "customer",
   ]);
@@ -114,6 +118,8 @@ export function PulseFormDialog({ open, onOpenChange, survey, initialValues }: P
       setPeerPairingStrategy(((survey as any).peer_pairing_strategy as any) ?? "round_robin");
       setPeerFixedPairs(((survey as any).peer_fixed_pairs as any) ?? []);
       setPeerReviewsPerReviewer((survey as any).peer_reviews_per_reviewer ?? 1);
+      setEvaluationFormat(((survey as any).evaluation_format as any) ?? "none");
+      setContractFilter(((survey as any).contract_filter as any) ?? "all");
       setKudosCategories(((survey as any).kudos_categories as string[] | null) ?? [
         "teamwork", "innovation", "delivery", "leadership", "customer",
       ]);
@@ -145,6 +151,11 @@ export function PulseFormDialog({ open, onOpenChange, survey, initialValues }: P
         if (initialValues.tone) setTone(initialValues.tone);
         if (initialValues.kind) setKind(initialValues.kind);
         if (initialValues.peer_anonymous !== undefined) setPeerAnonymous(initialValues.peer_anonymous);
+        if (initialValues.evaluation_format) setEvaluationFormat(initialValues.evaluation_format);
+        if (initialValues.contract_filter) setContractFilter(initialValues.contract_filter);
+        if (initialValues.peer_pairing_strategy) setPeerPairingStrategy(initialValues.peer_pairing_strategy as any);
+        if (initialValues.peer_reviews_per_reviewer) setPeerReviewsPerReviewer(initialValues.peer_reviews_per_reviewer);
+        if (initialValues.response_deadline_hours) setResponseDeadlineHours(initialValues.response_deadline_hours);
         if (initialValues.kudos_categories) setKudosCategories(initialValues.kudos_categories as string[]);
         if (initialValues.kudos_channel !== undefined) setKudosChannel(initialValues.kudos_channel || "");
         if (initialValues.prompt_text !== undefined) setPromptText(initialValues.prompt_text || "");
@@ -175,6 +186,7 @@ export function PulseFormDialog({ open, onOpenChange, survey, initialValues }: P
     setTitle(""); setDescription(""); setAnonymous(true);
     setTone("neutral"); setKind("self"); setPeerAnonymous(true);
     setPeerPairingStrategy("round_robin"); setPeerFixedPairs([]); setPeerReviewsPerReviewer(1);
+    setEvaluationFormat("none"); setContractFilter("all");
     setKudosCategories(["teamwork", "innovation", "delivery", "leadership", "customer"]);
     setKudosChannel(""); setPromptText("");
     setFrequency("once");
@@ -204,7 +216,7 @@ export function PulseFormDialog({ open, onOpenChange, survey, initialValues }: P
     if (targetScope === "custom" && targetPersonIds.length === 0) {
       toast({ title: "Selecione ao menos uma pessoa", variant: "destructive" }); return;
     }
-    if (kind === "peer" && peerPairingStrategy === "fixed") {
+    if (kind === "peer" && !isEvaluation && peerPairingStrategy === "fixed") {
       const validPairs = peerFixedPairs.filter((p) => p.reviewer_id && p.subject_id && p.reviewer_id !== p.subject_id);
       if (validPairs.length === 0) {
         toast({ title: "Defina ao menos um par (avaliador → avaliado)", variant: "destructive" }); return;
@@ -220,9 +232,12 @@ export function PulseFormDialog({ open, onOpenChange, survey, initialValues }: P
         kudos_channel: kind === "kudos" ? (kudosChannel.trim() || null) : null,
         prompt_text: kind === "kudos" ? (promptText.trim() || null) : null,
       };
+      const effectiveStrategy = isEvaluation && peerPairingStrategy === "fixed" ? "round_robin" : peerPairingStrategy;
       const peerFields = {
-        peer_pairing_strategy: kind === "peer" ? peerPairingStrategy : "round_robin",
-        peer_fixed_pairs: kind === "peer" && peerPairingStrategy === "fixed"
+        evaluation_format: isEvaluation ? evaluationFormat : null,
+        contract_filter: isEvaluation ? contractFilter : "all",
+        peer_pairing_strategy: kind === "peer" ? effectiveStrategy : "round_robin",
+        peer_fixed_pairs: kind === "peer" && !isEvaluation && peerPairingStrategy === "fixed"
           ? peerFixedPairs.filter((p) => p.reviewer_id && p.subject_id && p.reviewer_id !== p.subject_id)
           : null,
         peer_reviews_per_reviewer: kind === "peer" ? Math.min(5, Math.max(1, peerReviewsPerReviewer || 1)) : 1,
@@ -369,6 +384,41 @@ export function PulseFormDialog({ open, onOpenChange, survey, initialValues }: P
 
           {kind === "peer" && (
             <div className="space-y-3 rounded border p-3 bg-muted/30">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label>Formato da avaliação</Label>
+                  <Select value={evaluationFormat} onValueChange={(v) => setEvaluationFormat(v as any)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Entre pares (livre)</SelectItem>
+                      {Object.entries(EVALUATION_FORMAT_LABEL).map(([k, l]) => (
+                        <SelectItem key={k} value={k}>{l}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {isEvaluation && (
+                  <div className="space-y-2">
+                    <Label>Regime do quadro operacional</Label>
+                    <Select value={contractFilter} onValueChange={(v) => setContractFilter(v as any)}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todos (híbrido)</SelectItem>
+                        <SelectItem value="clt">Apenas CLT</SelectItem>
+                        <SelectItem value="pj">Apenas PJ</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              </div>
+              {isEvaluation && (
+                <p className="text-xs text-muted-foreground">
+                  Os pares são montados pelo organograma: {evaluationFormat !== "90" && "cada pessoa faz a autoavaliação, "}
+                  o gestor direto avalia cada liderado{evaluationFormat === "270" && " e colegas do mesmo time avaliam uns aos outros"}.
+                  O regime vale só para colaboradores; gestores e diretores seguem participando.
+                  Cada pessoa é avaliada pelos critérios do seu nível de cargo.
+                </p>
+              )}
               <div className="flex items-center justify-between">
                 <div>
                   <Label>Revisor anônimo</Label>
@@ -377,14 +427,15 @@ export function PulseFormDialog({ open, onOpenChange, survey, initialValues }: P
                 <Switch checked={peerAnonymous} onCheckedChange={setPeerAnonymous} />
               </div>
 
+              {(!isEvaluation || evaluationFormat === "270") && (<>
               <div className="space-y-2">
-                <Label>Estratégia de pareamento</Label>
+                <Label>{isEvaluation ? "Sorteio dos pares" : "Estratégia de pareamento"}</Label>
                 <Select value={peerPairingStrategy} onValueChange={(v) => setPeerPairingStrategy(v as any)}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="round_robin">Round-robin (por time)</SelectItem>
                     <SelectItem value="random">Aleatório (por time)</SelectItem>
-                    <SelectItem value="fixed">Pareamento fixo (manual)</SelectItem>
+                    {!isEvaluation && <SelectItem value="fixed">Pareamento fixo (manual)</SelectItem>}
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">
@@ -410,7 +461,7 @@ export function PulseFormDialog({ open, onOpenChange, survey, initialValues }: P
                 </div>
               )}
 
-              {peerPairingStrategy === "fixed" && (
+              {!isEvaluation && peerPairingStrategy === "fixed" && (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <Label className="text-sm">Pares fixos</Label>
@@ -467,6 +518,7 @@ export function PulseFormDialog({ open, onOpenChange, survey, initialValues }: P
                   ))}
                 </div>
               )}
+              </>)}
             </div>
           )}
 
@@ -733,6 +785,21 @@ export function PulseFormDialog({ open, onOpenChange, survey, initialValues }: P
                       />
                       Obrigatória
                     </label>
+                    {isEvaluation && (
+                      <Select
+                        value={q.criteria_level ?? "all"}
+                        onValueChange={(v) => updateQuestion(i, { criteria_level: v === "all" ? null : (v as any) })}
+                        disabled={hasResponses}
+                      >
+                        <SelectTrigger className="w-36 h-8"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Todos os níveis</SelectItem>
+                          {Object.entries(CRITERIA_LEVEL_LABEL).map(([k, l]) => (
+                            <SelectItem key={k} value={k}>{l}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
                     {!hasResponses && questions.length > 1 && (
                       <Button type="button" variant="ghost" size="icon" onClick={() => removeQuestion(i)} className="ml-auto">
                         <Trash2 className="w-4 h-4" />
