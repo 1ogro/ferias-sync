@@ -136,7 +136,12 @@ export function PulsesTab() {
             <Card
               key={s.id}
               className={`cursor-pointer hover:border-primary ${selected?.id === s.id ? "border-primary" : ""}`}
-              onClick={() => setSelected(s)}
+              onClick={() => {
+                setSelected(s);
+                setTimeout(() => {
+                  document.getElementById("pulse-results")?.scrollIntoView({ behavior: "smooth", block: "start" });
+                }, 50);
+              }}
             >
               <CardHeader>
                 <div className="flex items-start justify-between gap-2">
@@ -221,7 +226,11 @@ export function PulsesTab() {
         </div>
       )}
 
-      {selected && <PulseResultsPanel survey={selected} />}
+      {selected && (
+        <div id="pulse-results" className="scroll-mt-20">
+          <PulseResultsPanel survey={selected} />
+        </div>
+      )}
 
       <PulseFormDialog
         open={open}
