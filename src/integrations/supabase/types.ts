@@ -1040,6 +1040,7 @@ export type Database = {
           ativo: boolean | null
           cargo: string | null
           created_at: string | null
+          data_admissao: string | null
           data_contrato: string | null
           data_nascimento: string | null
           dia_pagamento: number | null
@@ -1063,6 +1064,7 @@ export type Database = {
           ativo?: boolean | null
           cargo?: string | null
           created_at?: string | null
+          data_admissao?: string | null
           data_contrato?: string | null
           data_nascimento?: string | null
           dia_pagamento?: number | null
@@ -1086,6 +1088,7 @@ export type Database = {
           ativo?: boolean | null
           cargo?: string | null
           created_at?: string | null
+          data_admissao?: string | null
           data_contrato?: string | null
           data_nascimento?: string | null
           dia_pagamento?: number | null
