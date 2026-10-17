@@ -64,26 +64,18 @@ serve(async (req) => {
     const { data: questions } = await admin
       .from("pulse_questions").select("*").eq("survey_id", surveyId).order("position");
 
-    const { data: responses } = await admin
-      .from("pulse_responses")
-      .select("id, run_id, question_id, respondent_id, scale_value, text_value, submitted_at, pulse_runs!inner(survey_id, dispatched_at)")
-      .eq("pulse_runs.survey_id", surveyId);
-
-    // Map respondent_id → name OR anonymous label
-    let respLabel: (id: string) => string;
-    if (survey.anonymous) {
-      const map = new Map<string, string>();
-      let n = 1;
-      respLabel = (id: string) => {
-        if (!map.has(id)) map.set(id, `R${n++}`);
-        return map.get(id)!;
-      };
-    } else {
-      const ids = [...new Set((responses || []).map((r: any) => r.respondent_id))];
-      const { data: people } = await admin.from("people").select("id, nome").in("id", ids);
-      const peopleMap = new Map((people || []).map((p: any) => [p.id, p.nome]));
-      respLabel = (id: string) => peopleMap.get(id) || id;
+    // Mesmas regras da tela: nomes só para pessoas do escopo do gestor.
+    const { data: safeRows, error: rErr } = await userClient.rpc("get_pulse_responses_safe", { p_survey_id: surveyId });
+    if (rErr) {
+      return new Response(JSON.stringify({ error: rErr.message }), {
+        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
+    const responses = ((safeRows || []) as any[]).map((r) => ({
+      ...r, respondent_id: r.respondent_id || r.anonymous_label,
+    }));
+    const labels = new Map(((safeRows || []) as any[]).map((r) => [r.respondent_id || r.anonymous_label, r.respondent_name || r.anonymous_label || "—"]));
+    const respLabel = (id: string) => labels.get(id) || "—";
     const qMap = new Map((questions || []).map((q: any) => [q.id, q]));
 
     // Uma linha por pessoa por disparo: nota (sentimento) + depoimento agregados.
