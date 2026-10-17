@@ -2204,6 +2204,7 @@ export type Database = {
           respondent_name: string
           run_id: string
           scale_value: number
+          sub_time: string
           submitted_at: string
           survey_id: string
           text_value: string

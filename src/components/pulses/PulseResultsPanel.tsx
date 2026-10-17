@@ -48,7 +48,7 @@ export function PulseResultsPanel({ survey }: Props) {
   const [questionId, setQuestionId] = useState<string>("all");
   const [onlyComments, setOnlyComments] = useState(false);
 
-  const canFilterTeams = !!person?.is_admin || person?.papel === "DIRETOR" || person?.papel === "GERENTE";
+  const canFilterTeams = !!person?.is_admin || ["DIRETOR", "GERENTE", "GESTOR"].includes(person?.papel || "");
   const { data: teams = [] } = usePulseSurveyTeams(canFilterTeams ? survey.id : undefined);
   const { data: allTeams = [] } = useTeams(true);
   const inactiveTeams = useMemo(
@@ -67,10 +67,11 @@ export function PulseResultsPanel({ survey }: Props) {
     const cutoff = Date.now() - weeks * 7 * 24 * 60 * 60 * 1000;
     return (allResponses as any[]).filter((r) => {
       if (questionId !== "all" && r.question_id !== questionId) return false;
+      if (subTime !== "all" && (r.sub_time || "Sem time") !== subTime) return false;
       if (r.submitted_at && new Date(r.submitted_at).getTime() < cutoff) return false;
       return true;
     });
-  }, [allResponses, questionId, weeks]);
+  }, [allResponses, questionId, weeks, subTime]);
 
   // Uma linha por pessoa por disparo: nota (sentimento) + depoimento juntos.
   const groupedResponses = useMemo(() => {
@@ -82,9 +83,7 @@ export function PulseResultsPanel({ survey }: Props) {
 
     const map = new Map<string, any>();
     for (const r of responses as any[]) {
-      const who = survey.anonymous
-        ? r.anonymous_label || r.respondent_id || "—"
-        : r.respondent_name || r.respondent_id || "—";
+      const who = r.respondent_name || r.anonymous_label || "—";
       const key = `${r.run_id || ""}|${r.respondent_id || r.anonymous_label || who}`;
       let g = map.get(key);
       if (!g) {
