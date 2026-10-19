@@ -50,6 +50,7 @@ export const ProfileModal = ({ open, onOpenChange }: ProfileModalProps) => {
   const [unlinkingIdentity, setUnlinkingIdentity] = useState<string | null>(null);
   const [showDataChange, setShowDataChange] = useState(false);
   const [requestContractDate, setRequestContractDate] = useState("");
+  const [requestAdmissionDate, setRequestAdmissionDate] = useState("");
   const [requestContractModel, setRequestContractModel] = useState("");
   const [requestSubTime, setRequestSubTime] = useState("");
   const [dataChangeJustification, setDataChangeJustification] = useState("");
@@ -67,6 +68,14 @@ export const ProfileModal = ({ open, onOpenChange }: ProfileModalProps) => {
         return;
       }
       changes.data_contrato = formatDateToYYYYMMDD(parsed);
+    }
+    if (requestAdmissionDate) {
+      const parsedA = parseBRStringToDate(requestAdmissionDate);
+      if (!parsedA) {
+        toast({ title: "Data inválida", description: "Use o formato DD/MM/AAAA.", variant: "destructive" });
+        return;
+      }
+      changes.data_admissao = formatDateToYYYYMMDD(parsedA);
     }
     if (requestContractModel) changes.modelo_contrato = requestContractModel;
     if (requestSubTime && requestSubTime !== (person as any).subTime) changes.sub_time = requestSubTime;
@@ -506,8 +515,13 @@ export const ProfileModal = ({ open, onOpenChange }: ProfileModalProps) => {
             <Label className="text-sm font-medium">Dados contratuais</Label>
             <div className="flex items-center gap-2 flex-wrap">
               <Badge variant="secondary" className="text-sm">
+                {(person as any)?.data_admissao
+                  ? `Admissão: ${formatDateToBRString(parseDateSafely((person as any).data_admissao))}`
+                  : 'Admissão: não definida'}
+              </Badge>
+              <Badge variant="secondary" className="text-sm">
                 {person?.data_contrato
-                  ? `Contrato: ${formatDateToBRString(parseDateSafely(person.data_contrato))}`
+                  ? `Aditivo vigente: ${formatDateToBRString(parseDateSafely(person.data_contrato))}`
                   : 'Contrato: não definido'}
               </Badge>
               <Badge variant="secondary" className="text-sm">
@@ -538,7 +552,17 @@ export const ProfileModal = ({ open, onOpenChange }: ProfileModalProps) => {
             ) : (
               <div className="space-y-2 p-3 rounded-md border bg-muted/50">
                 <div className="space-y-1">
-                  <Label className="text-xs">Nova data de contrato</Label>
+                  <Label className="text-xs">Nova data de admissão</Label>
+                  <Input
+                    placeholder="DD/MM/AAAA"
+                    value={requestAdmissionDate}
+                    onChange={(e) => setRequestAdmissionDate(applyDateMask(e.target.value))}
+                    maxLength={10}
+                    className="h-8"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Nova data do contrato / aditivo vigente</Label>
                   <Input
                     placeholder="DD/MM/AAAA"
                     value={requestContractDate}
@@ -591,7 +615,7 @@ export const ProfileModal = ({ open, onOpenChange }: ProfileModalProps) => {
                     type="button"
                     size="sm"
                     className="h-8"
-                    disabled={requestingDataChange || (!requestContractDate && !requestContractModel)}
+                    disabled={requestingDataChange || (!requestContractDate && !requestAdmissionDate && !requestContractModel)}
                     onClick={handleRequestDataChange}
                   >
                     <Send className="h-3 w-3 mr-1" />
