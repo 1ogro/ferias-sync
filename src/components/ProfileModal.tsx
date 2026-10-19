@@ -522,7 +522,7 @@ export const ProfileModal = ({ open, onOpenChange }: ProfileModalProps) => {
               <Badge variant="secondary" className="text-sm">
                 {person?.data_contrato
                   ? `Aditivo vigente: ${formatDateToBRString(parseDateSafely(person.data_contrato))}`
-                  : 'Contrato: não definido'}
+                  : 'Aditivo vigente: não definido'}
               </Badge>
               <Badge variant="secondary" className="text-sm">
                 {person?.modelo_contrato || 'Modelo não definido'}

@@ -62,7 +62,8 @@ export interface Person {
   gestorId?: string;
   gestor?: Person;
   data_nascimento?: string; // Data de nascimento para cálculo de day-off
-  data_contrato?: string; // Data de contrato para cálculo de férias
+  data_contrato?: string; // Data do contrato / aditivo vigente (reajuste anual)
+  data_admissao?: string; // Data de admissão fixa (base das férias)
   modelo_contrato?: ModeloContrato; // Modelo de contrato: PJ ou CLT
   maternity_extension_days?: number; // Extension days beyond 120 for maternity leave
   dia_pagamento?: number; // Dia do mês para pagamento PJ (10, 20 ou 30)
