@@ -100,6 +100,7 @@ interface FormData {
   ativo: boolean;
   gestorId: string;
   data_contrato: string;
+  data_admissao: string;
   modelo_contrato: string;
   dia_pagamento: string;
 }
@@ -153,6 +154,7 @@ const Admin = () => {
      ativo: true,
      gestorId: '',
      data_contrato: '',
+     data_admissao: '',
      modelo_contrato: '',
      dia_pagamento: ''
    });
@@ -340,6 +342,7 @@ const Admin = () => {
         ativo: formData.ativo,
         gestor_id: formData.gestorId || null,
         data_contrato: formData.data_contrato || null,
+        data_admissao: formData.data_admissao || null,
         modelo_contrato: formData.modelo_contrato || null,
         dia_pagamento: formData.dia_pagamento ? parseInt(formData.dia_pagamento) : null
       };
@@ -424,6 +427,7 @@ const Admin = () => {
        ativo: personToEdit.ativo,
        gestorId: personToEdit.gestorId || '',
        data_contrato: personToEdit.data_contrato || '',
+       data_admissao: (personToEdit as any).data_admissao || personToEdit.data_contrato || '',
        modelo_contrato: personToEdit.modelo_contrato || '',
        dia_pagamento: personToEdit.dia_pagamento?.toString() || ''
      });
@@ -612,6 +616,7 @@ const Admin = () => {
       ativo: true,
       gestorId: '',
       data_contrato: '',
+      data_admissao: '',
       modelo_contrato: '',
       dia_pagamento: ''
     });
@@ -1273,7 +1278,19 @@ const Admin = () => {
               </div>
 
               <div>
-                <Label htmlFor="data_contrato">Data de Contrato</Label>
+                <Label htmlFor="data_admissao">Data de Admissão</Label>
+                <Input
+                  id="data_admissao"
+                  type="date"
+                  value={formData.data_admissao}
+                  onChange={(e) => setFormData({ ...formData, data_admissao: e.target.value })}
+                  disabled={!person?.is_admin}
+                />
+                <p className="text-xs text-muted-foreground mt-1">Fixa — baliza as férias.</p>
+              </div>
+
+              <div>
+                <Label htmlFor="data_contrato">Data do Contrato / Aditivo vigente</Label>
                 <Input
                   id="data_contrato"
                   type="date"

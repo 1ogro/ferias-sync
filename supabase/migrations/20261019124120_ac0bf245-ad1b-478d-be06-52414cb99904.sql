@@ -1,0 +1,1 @@
+REVOKE EXECUTE ON FUNCTION public.apply_admissao_on_data_change() FROM PUBLIC, anon, authenticated;

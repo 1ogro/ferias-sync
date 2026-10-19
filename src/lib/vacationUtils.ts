@@ -230,7 +230,8 @@ export async function getVacationBalance(
       .eq('id', personId)
       .single();
     
-    if (!personData?.data_contrato) {
+    const admissao = (personData as any)?.data_admissao || personData?.data_contrato;
+    if (!admissao) {
       return null;
     }
     
@@ -240,7 +241,7 @@ export async function getVacationBalance(
       .eq('requester_id', personId);
     
     const requests = requestsData?.map(mapRequestFromDB) || [];
-    const balance = calculateVacationBalance(personData.data_contrato, requests, year);
+    const balance = calculateVacationBalance(admissao, requests, year);
     balance.person_id = personId;
     balance.is_manual = false;
     
@@ -268,15 +269,16 @@ export async function saveManualVacationBalance(
     // Get contract anniversary for this person
     const { data: personData } = await supabase
       .from('people')
-      .select('data_contrato')
+      .select('data_contrato, data_admissao')
       .eq('id', personId)
       .single();
 
     let contractAnniversary: Date;
     
-    if (personData?.data_contrato) {
-      // Use actual contract date
-      contractAnniversary = new Date(year, parseDateSafely(personData.data_contrato).getMonth(), parseDateSafely(personData.data_contrato).getDate());
+    const admissaoDate = (personData as any)?.data_admissao || personData?.data_contrato;
+    if (admissaoDate) {
+      // Use admission date (vacation basis)
+      contractAnniversary = new Date(year, parseDateSafely(admissaoDate).getMonth(), parseDateSafely(admissaoDate).getDate());
     } else {
       // Use default date (January 1st of the year) for users without contract date
       contractAnniversary = new Date(year, 0, 1);
@@ -428,7 +430,7 @@ export async function getAllVacationBalances(
     // Get all active people
     const { data: peopleData } = await supabase
       .from('people')
-      .select('id, nome, email, cargo, sub_time, data_contrato, modelo_contrato')
+      .select('id, nome, email, cargo, sub_time, data_contrato, data_admissao, modelo_contrato')
       .eq('ativo', true)
       .order('nome');
 
@@ -664,14 +666,15 @@ export async function migrateManualBalances(
         // Get contract anniversary for this person
         const { data: personData } = await supabase
           .from('people')
-          .select('data_contrato')
+          .select('data_contrato, data_admissao')
           .eq('id', balance.person_id)
           .single();
 
         let contractAnniversary: Date;
         
-        if (personData?.data_contrato) {
-          const contractDate = parseDateSafely(personData.data_contrato);
+        const admissaoDate = (personData as any)?.data_admissao || personData?.data_contrato;
+        if (admissaoDate) {
+          const contractDate = parseDateSafely(admissaoDate);
           contractAnniversary = new Date(targetYear, contractDate.getMonth(), contractDate.getDate());
         } else {
           contractAnniversary = new Date(targetYear, 0, 1);

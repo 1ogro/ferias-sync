@@ -343,6 +343,7 @@ const VacationManagement = () => {
           gestorId: p.gestor_id,
           data_nascimento: p.data_nascimento,
           data_contrato: p.data_contrato,
+          data_admissao: (p as any).data_admissao,
           modelo_contrato: p.modelo_contrato as any
         }));
         setAllPeople(mappedPeople);
