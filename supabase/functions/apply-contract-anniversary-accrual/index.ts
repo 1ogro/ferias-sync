@@ -43,11 +43,12 @@ serve(async (req) => {
     // 1. Pessoas ativas com data_contrato cujo (mês, dia) == hoje
     const { data: people, error: peopleErr } = await supabase
       .from("people")
-      .select("id, nome, data_contrato")
+      .select("id, nome, data_contrato, data_admissao")
       .eq("ativo", true)
       .not("data_contrato", "is", null);
     if (peopleErr) throw peopleErr;
 
+    for (const p of (people || []) as any[]) p.data_contrato = p.data_admissao || p.data_contrato;
     const anniversaries = (people || []).filter((p: any) => {
       const [y, m, d] = p.data_contrato.split("-").map(Number);
       return m === todayMonth && d === todayDay && y < currentYear;

@@ -100,7 +100,8 @@ const Inbox = () => {
   };
 
   const DATA_CHANGE_LABELS: Record<string, string> = {
-    data_contrato: 'Data de contrato',
+    data_contrato: 'Data do contrato / aditivo vigente',
+    data_admissao: 'Data de admissão',
     modelo_contrato: 'Modelo de contrato',
     data_nascimento: 'Data de nascimento',
     cargo: 'Cargo',

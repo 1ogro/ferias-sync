@@ -23,6 +23,7 @@ interface CollaboratorSummary {
   sub_time: string | null;
   modelo_contrato: string | null;
   data_contrato: string | null;
+  data_admissao: string | null;
   data_nascimento: string | null;
   dia_pagamento: number | null;
 }
@@ -86,7 +87,7 @@ export function CollaboratorSummaryTable({ highlightId, teamIds }: CollaboratorS
     setLoading(true);
     const { data: people, error } = await supabase
       .from("people")
-      .select("id, nome, email, cargo, sub_time, modelo_contrato, data_contrato, data_nascimento, dia_pagamento")
+      .select("id, nome, email, cargo, sub_time, modelo_contrato, data_contrato, data_admissao, data_nascimento, dia_pagamento")
       .eq("ativo", true)
       .order("nome");
 
@@ -140,6 +141,10 @@ export function CollaboratorSummaryTable({ highlightId, teamIds }: CollaboratorS
         switch (sortColumn) {
           case "nome": aVal = a.nome.toLowerCase(); bVal = b.nome.toLowerCase(); break;
           case "modelo_contrato": aVal = a.modelo_contrato || ""; bVal = b.modelo_contrato || ""; break;
+          case "data_admissao":
+            aVal = a.data_admissao ? parseDateSafely(a.data_admissao).getTime() : 0;
+            bVal = b.data_admissao ? parseDateSafely(b.data_admissao).getTime() : 0;
+            break;
           case "data_contrato":
             aVal = a.data_contrato ? parseDateSafely(a.data_contrato).getTime() : 0;
             bVal = b.data_contrato ? parseDateSafely(b.data_contrato).getTime() : 0;
@@ -172,13 +177,14 @@ export function CollaboratorSummaryTable({ highlightId, teamIds }: CollaboratorS
   }, [data, searchTerm, filterTime, filterContract, filterPayment, sortColumn, sortDirection]);
 
   const exportCSV = () => {
-    const headers = ["Nome", "Modelo Contrato", "Data Contrato", "Aniversário Contrato", "Data Nascimento", "Próximo Aniversário", "Dia Pagamento", "Time"];
+    const headers = ["Nome", "Modelo Contrato", "Admissão", "Aditivo Vigente", "Próximo Reajuste", "Data Nascimento", "Próximo Aniversário", "Dia Pagamento", "Time"];
     const rows = filtered.map(p => {
       const anivContrato = getNextAnniversary(p.data_contrato);
       const anivPessoal = getNextAnniversary(p.data_nascimento);
       return [
         p.nome,
         CONTRACT_LABELS[p.modelo_contrato || "CLT"] || p.modelo_contrato || "-",
+        p.data_admissao ? formatDateSafe(p.data_admissao, "dd/MM/yyyy") : "-",
         p.data_contrato ? formatDateSafe(p.data_contrato, "dd/MM/yyyy") : "-",
         anivContrato ? format(anivContrato, "dd/MM/yyyy") : "-",
         p.data_nascimento ? formatDateSafe(p.data_nascimento, "dd/MM/yyyy") : "-",
@@ -276,8 +282,9 @@ export function CollaboratorSummaryTable({ highlightId, teamIds }: CollaboratorS
                   {[
                     { key: "nome", label: "Nome" },
                     { key: "modelo_contrato", label: "Modelo Contrato" },
-                    { key: "data_contrato", label: "Data Contrato" },
-                    { key: "aniv_contrato", label: "Aniv. Contrato" },
+                    { key: "data_admissao", label: "Admissão" },
+                    { key: "data_contrato", label: "Aditivo Vigente" },
+                    { key: "aniv_contrato", label: "Próx. Reajuste" },
                     { key: "data_nascimento", label: "Nascimento" },
                     { key: "aniv_pessoal", label: "Próx. Aniversário" },
                     { key: "dia_pagamento", label: "Dia Pgto" },
@@ -298,7 +305,7 @@ export function CollaboratorSummaryTable({ highlightId, teamIds }: CollaboratorS
               <TableBody>
                 {filtered.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                       Nenhum colaborador encontrado
                     </TableCell>
                   </TableRow>
@@ -333,6 +340,11 @@ export function CollaboratorSummaryTable({ highlightId, teamIds }: CollaboratorS
                           <Badge variant="outline">
                             {CONTRACT_LABELS[person.modelo_contrato || "CLT"] || person.modelo_contrato || "CLT"}
                           </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {person.data_admissao
+                            ? formatDateSafe(person.data_admissao, "dd/MM/yyyy")
+                            : <span className="text-muted-foreground">-</span>}
                         </TableCell>
                         <TableCell>
                           {person.data_contrato

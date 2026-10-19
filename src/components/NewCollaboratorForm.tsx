@@ -24,6 +24,7 @@ interface FormData {
   local: string;
   sub_time: string;
   data_contrato: string;
+  data_admissao: string;
   data_nascimento: string;
   modelo_contrato: ModeloContrato;
   dia_pagamento: string;
@@ -61,6 +62,7 @@ export function NewCollaboratorForm({ isDirector = false, onSuccess, onCancel }:
     local: "",
     sub_time: "",
     data_contrato: "",
+    data_admissao: "",
     data_nascimento: "",
     modelo_contrato: ModeloContrato.CLT,
     dia_pagamento: "",
@@ -145,7 +147,8 @@ export function NewCollaboratorForm({ isDirector = false, onSuccess, onCancel }:
         sub_time: formData.sub_time.trim(),
         papel: papelValue,
         gestor_id: gestorId,
-        data_contrato: formData.data_contrato || null,
+        data_contrato: formData.data_contrato || formData.data_admissao || null,
+        data_admissao: formData.data_admissao || formData.data_contrato || null,
         data_nascimento: formData.data_nascimento || null,
         modelo_contrato: formData.modelo_contrato,
         dia_pagamento: formData.modelo_contrato === ModeloContrato.PJ && formData.dia_pagamento ? parseInt(formData.dia_pagamento) : null,
@@ -382,7 +385,19 @@ export function NewCollaboratorForm({ isDirector = false, onSuccess, onCancel }:
       )}
 
       <div className="space-y-2">
-        <Label htmlFor="data_contrato">Data de Contrato</Label>
+        <Label htmlFor="data_admissao">Data de Admissão</Label>
+        <Input
+          id="data_admissao"
+          type="date"
+          value={formData.data_admissao}
+          onChange={(e) => setFormData({ ...formData, data_admissao: e.target.value })}
+          disabled={loading}
+        />
+        <p className="text-xs text-muted-foreground">Fixa. Baliza o cálculo e o vencimento das férias.</p>
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="data_contrato">Data do Contrato / Aditivo vigente</Label>
         <Input
           id="data_contrato"
           type="date"
@@ -390,6 +405,7 @@ export function NewCollaboratorForm({ isDirector = false, onSuccess, onCancel }:
           onChange={(e) => setFormData({ ...formData, data_contrato: e.target.value })}
           disabled={loading}
         />
+        <p className="text-xs text-muted-foreground">Data de assinatura do aditivo em vigor; marca a abertura do próximo reajuste anual. Se vazio, usa a admissão.</p>
       </div>
 
       <div className="space-y-2">
