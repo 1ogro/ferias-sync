@@ -98,17 +98,25 @@ export function PulseResultsPanel({ survey }: Props) {
       }
     }
 
-    let rows = [...map.values()].map((g) => ({
-      key: g.key,
-      who: g.who,
-      date: g.date,
-      nota: g.scales.join(" · "),
-      depoimento: g.texts.join(" · "),
-    }));
+    const runDate = new Map<string, string>(
+      (runs as any[]).map((r) => [r.id, r.dispatched_at])
+    );
+    let rows = [...map.values()].map((g) => {
+      const runId = g.key.split("|")[0];
+      const ref = runDate.get(runId);
+      return {
+        key: g.key,
+        who: g.who,
+        date: g.date,
+        ref: ref ? new Date(ref).toLocaleDateString("pt-BR") : "—",
+        nota: g.scales.join(" · "),
+        depoimento: g.texts.join(" · "),
+      };
+    });
     if (onlyComments) rows = rows.filter((r) => !!r.depoimento);
     rows.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     return rows;
-  }, [responses, questions, scaleQuestions, survey.anonymous, onlyComments]);
+  }, [responses, questions, scaleQuestions, survey.anonymous, onlyComments, runs]);
 
   const filtersActive = questionId !== "all" || onlyComments || subTime !== "all" || weeks !== 12;
 
@@ -371,7 +379,8 @@ export function PulseResultsPanel({ survey }: Props) {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Data</TableHead>
+                  <TableHead>Respondido em</TableHead>
+                  <TableHead>Ciclo (disparo)</TableHead>
                   <TableHead>Respondente</TableHead>
                   <TableHead>Nota</TableHead>
                   <TableHead>Depoimento</TableHead>
@@ -383,6 +392,7 @@ export function PulseResultsPanel({ survey }: Props) {
                     <TableCell className="text-xs whitespace-nowrap">
                       {new Date(r.date).toLocaleString("pt-BR")}
                     </TableCell>
+                    <TableCell className="text-xs whitespace-nowrap">{r.ref}</TableCell>
                     <TableCell className="text-xs">{r.who}</TableCell>
                     <TableCell className="text-xs whitespace-nowrap">{r.nota || "—"}</TableCell>
                     <TableCell className="text-xs">{r.depoimento || "—"}</TableCell>
@@ -390,7 +400,7 @@ export function PulseResultsPanel({ survey }: Props) {
                 ))}
                 {groupedResponses.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={4} className="text-center text-muted-foreground py-6">
+                    <TableCell colSpan={5} className="text-center text-muted-foreground py-6">
                       Nenhuma resposta ainda
                     </TableCell>
                   </TableRow>
