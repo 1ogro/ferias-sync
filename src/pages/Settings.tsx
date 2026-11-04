@@ -16,6 +16,7 @@ import { useNotificationPreferences } from "@/hooks/useNotificationPreferences";
 import { IntegrationCard } from "@/components/integrations/IntegrationCard";
 import { IntegrationsWizard } from "@/components/integrations/IntegrationsWizard";
 import { FeedbackReminderSettings } from "@/components/admin/FeedbackReminderSettings";
+import { VacationRulesSettings } from "@/components/admin/VacationRulesSettings";
 import { FeedbackReminderOptOutDialog } from "@/components/settings/FeedbackReminderOptOutDialog";
 
 import { Monitor, Bell, Table, RotateCcw, Save, Plug, Mail, Figma, Stethoscope, Settings as SettingsIcon, TestTube } from "lucide-react";
@@ -360,7 +361,8 @@ const Settings = () => {
               </Card>
 
               {isDirectorOrAdmin && (
-                <div className="mt-6">
+                <div className="mt-6 space-y-6">
+                  <VacationRulesSettings />
                   <FeedbackReminderSettings />
                 </div>
               )}
