@@ -1,3 +1,4 @@
+import { useVacationMinDays, isBelowVacationMinimum } from "@/hooks/useVacationMinDays";
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -44,6 +45,7 @@ const EditRequest = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSavingDraft, setIsSavingDraft] = useState(false);
   const [isDirector, setIsDirector] = useState(false);
+  const vacationMinDays = useVacationMinDays();
   const [dayOffAlreadyUsed, setDayOffAlreadyUsed] = useState(false);
   const [vacationConflicts, setVacationConflicts] = useState<VacationConflict[]>([]);
   const [ownOverlaps, setOwnOverlaps] = useState<OverlappingRequest[]>([]);
@@ -534,7 +536,9 @@ const EditRequest = () => {
   }
 
   const dayOffValidation = getDayOffValidation();
+  const belowMin = formData.tipo === TipoAusencia.FERIAS && isBelowVacationMinimum(calculateDays(), vacationMinDays);
   const isFormValid = formData.tipo && formData.inicio && formData.fim && formData.justificativa &&
+    (!belowMin || isDirector) &&
     (isDirector || (
       (formData.tipo !== TipoAusencia.DAYOFF || dayOffValidation.isValid) &&
       (formData.tipo === TipoAusencia.DAYOFF || vacationValidation.valid)
@@ -755,6 +759,16 @@ const EditRequest = () => {
                     <CheckCircle className="w-4 h-4" />
                     <AlertDescription>
                       <strong>Duração:</strong> {calculateDays()} dia{calculateDays() > 1 ? 's' : ''}
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                {belowMin && (
+                  <Alert variant={isDirector ? "default" : "destructive"}>
+                    <AlertTriangle className="w-4 h-4" />
+                    <AlertDescription>
+                      O período mínimo de férias é de {vacationMinDays} dias. Você selecionou {calculateDays()} dia(s).
+                      {isDirector && " Como liderança, você pode salvar como exceção administrativa."}
                     </AlertDescription>
                   </Alert>
                 )}

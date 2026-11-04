@@ -21,6 +21,7 @@ import { useNavigate } from "react-router-dom";
 import { validateVacationRequest, VacationConflict } from "@/lib/vacationUtils";
 import { findOverlappingOwnRequests, supersedeRequests, OverlappingRequest } from "@/lib/requestOverlap";
 import { OverlappingRequestsDialog } from "@/components/OverlappingRequestsDialog";
+import { useVacationMinDays, isBelowVacationMinimum } from "@/hooks/useVacationMinDays";
 
 interface FormData {
   tipo: TipoAusencia | "";
@@ -38,6 +39,7 @@ export const NewRequestForm = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
   const { person, hasRole } = useAuth();
+  const vacationMinDays = useVacationMinDays();
   
   useEffect(() => {
     const checkDirector = async () => {
@@ -611,7 +613,9 @@ export const NewRequestForm = () => {
   const canBypassPortalRH = isDirector || person?.papel === 'GESTOR';
   const portalRHValid = !needsPortalRH || formData.portal_rh_solicitado || canBypassPortalRH;
   
+  const belowMin = formData.tipo === TipoAusencia.FERIAS && isBelowVacationMinimum(calculateDays(), vacationMinDays);
   const isFormValid = formData.tipo && formData.inicio && formData.fim && formData.justificativa &&
+    (!belowMin || isDirector) &&
     (isDirector || (
       (formData.tipo !== TipoAusencia.DAYOFF || dayOffValidation.isValid) && 
       (formData.tipo === TipoAusencia.DAYOFF || vacationValidation.valid)
@@ -959,6 +963,16 @@ export const NewRequestForm = () => {
                 <CheckCircle className="w-4 h-4" />
                 <AlertDescription>
                   <strong>Duração:</strong> {calculateDays()} dia{calculateDays() > 1 ? 's' : ''}
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {belowMin && (
+              <Alert variant={isDirector ? "default" : "destructive"}>
+                <AlertTriangle className="w-4 h-4" />
+                <AlertDescription>
+                  O período mínimo de férias é de {vacationMinDays} dias. Você selecionou {calculateDays()} dia(s).
+                  {isDirector && " Como liderança, você pode enviar como exceção administrativa."}
                 </AlertDescription>
               </Alert>
             )}
