@@ -1,4 +1,5 @@
 import { useVacationMinDays, isBelowVacationMinimum } from "@/hooks/useVacationMinDays";
+import { useVacationRuleViolations } from "@/hooks/useVacationRules";
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -51,6 +52,9 @@ const EditRequest = () => {
   const [ownOverlaps, setOwnOverlaps] = useState<OverlappingRequest[]>([]);
   const [overlapDialogOpen, setOverlapDialogOpen] = useState(false);
   const [requesterId, setRequesterId] = useState<string | null>(null);
+  const ruleViolations = useVacationRuleViolations(
+    formData.tipo === TipoAusencia.FERIAS, requesterId || person?.id, formData.inicio, formData.fim, id,
+  );
   const [vacationValidation, setVacationValidation] = useState<{
     valid: boolean;
     message: string;
@@ -539,6 +543,7 @@ const EditRequest = () => {
   const belowMin = formData.tipo === TipoAusencia.FERIAS && isBelowVacationMinimum(calculateDays(), vacationMinDays);
   const isFormValid = formData.tipo && formData.inicio && formData.fim && formData.justificativa &&
     (!belowMin || isDirector) &&
+    (ruleViolations.length === 0 || isDirector) &&
     (isDirector || (
       (formData.tipo !== TipoAusencia.DAYOFF || dayOffValidation.isValid) &&
       (formData.tipo === TipoAusencia.DAYOFF || vacationValidation.valid)
@@ -762,6 +767,16 @@ const EditRequest = () => {
                     </AlertDescription>
                   </Alert>
                 )}
+
+                {ruleViolations.map((msg) => (
+                  <Alert key={msg} variant={isDirector ? "default" : "destructive"}>
+                    <AlertTriangle className="w-4 h-4" />
+                    <AlertDescription>
+                      {msg}
+                      {isDirector && " Como liderança, você pode salvar como exceção administrativa."}
+                    </AlertDescription>
+                  </Alert>
+                ))}
 
                 {belowMin && (
                   <Alert variant={isDirector ? "default" : "destructive"}>

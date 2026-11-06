@@ -17,6 +17,7 @@ import { Edit, CalendarDays, RotateCcw, AlertTriangle, CheckCircle, MoreVertical
 import { formatDateSafe } from "@/lib/dateUtils";
 import { ModeloContrato, MODELO_CONTRATO_LABELS } from "@/lib/types";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { vacationExpiry } from "@/hooks/useVacationRules";
 
 interface VacationData {
   id?: string;
@@ -54,6 +55,7 @@ export function VacationTableRow({
   onViewDetails,
 }: VacationTableRowProps) {
   const isMobile = useIsMobile();
+  const expiry = vacationExpiry((item.person as any).data_admissao || item.person.data_contrato, item.balance_days);
   const isPJWithAccumulatedVacations = item.person.modelo_contrato === 'PJ' && item.balance_days > 30;
 
   const getBalanceColor = (balance: number, hasContract: boolean) => {
@@ -121,6 +123,12 @@ export function VacationTableRow({
           {getBalanceIcon(item.balance_days, !!item.person.data_contrato)}
           <span className="ml-1.5 font-semibold">{item.balance_days}</span>
         </Badge>
+        {expiry && (
+          <Badge variant={expiry.level === "critical" ? "destructive" : "outline"}
+            className={`mt-1 block w-fit mx-auto text-[10px]`}>
+            {expiry.level === "critical" ? "Crítico" : "Atenção"}: vence em {expiry.daysLeft}d ({expiry.date.toLocaleDateString("pt-BR")})
+          </Badge>
+        )}
       </TableCell>
       <TableCell className="text-center">
         <span className="font-medium">{item.accrued_days}</span>
