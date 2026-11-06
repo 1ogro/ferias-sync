@@ -1,0 +1,2 @@
+INSERT INTO public.leadership_report_links(token, scope, manager_person_id, recipient_name, channel, expires_at)
+VALUES ('agenttest0000000000000000000000000000000000000001','team','pessoa_013','TESTE agente - Pedro Belsito','slack', now()+interval '1 day');
