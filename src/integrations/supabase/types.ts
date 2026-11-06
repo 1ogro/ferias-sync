@@ -199,6 +199,47 @@ export type Database = {
           },
         ]
       }
+      external_directors: {
+        Row: {
+          area: string | null
+          ativo: boolean
+          created_at: string
+          created_by: string | null
+          id: string
+          nome: string
+          updated_at: string
+          whatsapp: string
+        }
+        Insert: {
+          area?: string | null
+          ativo?: boolean
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          nome: string
+          updated_at?: string
+          whatsapp: string
+        }
+        Update: {
+          area?: string | null
+          ativo?: boolean
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          nome?: string
+          updated_at?: string
+          whatsapp?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "external_directors_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       external_feedback_attachments: {
         Row: {
           created_at: string
@@ -571,6 +612,92 @@ export type Database = {
           {
             foreignKeyName: "kudos_to_person_id_fkey"
             columns: ["to_person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      leadership_report_links: {
+        Row: {
+          access_count: number
+          channel: string
+          created_at: string
+          created_by: string | null
+          expires_at: string
+          external_director_id: string | null
+          first_accessed_at: string | null
+          id: string
+          last_accessed_at: string | null
+          manager_person_id: string | null
+          recipient_name: string
+          recipient_person_id: string | null
+          recipient_phone: string | null
+          revoked_at: string | null
+          scope: string
+          token: string
+        }
+        Insert: {
+          access_count?: number
+          channel?: string
+          created_at?: string
+          created_by?: string | null
+          expires_at: string
+          external_director_id?: string | null
+          first_accessed_at?: string | null
+          id?: string
+          last_accessed_at?: string | null
+          manager_person_id?: string | null
+          recipient_name: string
+          recipient_person_id?: string | null
+          recipient_phone?: string | null
+          revoked_at?: string | null
+          scope?: string
+          token?: string
+        }
+        Update: {
+          access_count?: number
+          channel?: string
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string
+          external_director_id?: string | null
+          first_accessed_at?: string | null
+          id?: string
+          last_accessed_at?: string | null
+          manager_person_id?: string | null
+          recipient_name?: string
+          recipient_person_id?: string | null
+          recipient_phone?: string | null
+          revoked_at?: string | null
+          scope?: string
+          token?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "leadership_report_links_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leadership_report_links_external_director_id_fkey"
+            columns: ["external_director_id"]
+            isOneToOne: false
+            referencedRelation: "external_directors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leadership_report_links_manager_person_id_fkey"
+            columns: ["manager_person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leadership_report_links_recipient_person_id_fkey"
+            columns: ["recipient_person_id"]
             isOneToOne: false
             referencedRelation: "people"
             referencedColumns: ["id"]
@@ -1965,6 +2092,23 @@ export type Database = {
             }
             Returns: Json
           }
+      create_leadership_report_link: {
+        Args: {
+          p_channel?: string
+          p_days?: number
+          p_external_director_id?: string
+          p_manager_person_id?: string
+          p_recipient_name: string
+          p_recipient_person_id?: string
+          p_recipient_phone?: string
+          p_scope: string
+        }
+        Returns: {
+          expires_at: string
+          id: string
+          token: string
+        }[]
+      }
       current_person_id: { Args: never; Returns: string }
       deactivate_person: {
         Args: {
@@ -2176,6 +2320,10 @@ export type Database = {
           to_slack_name: string
           to_slack_user_id: string
         }[]
+      }
+      get_leadership_report: {
+        Args: { p_month?: string; p_token: string }
+        Returns: Json
       }
       get_manager_deletion_impact: {
         Args: { p_person_id: string }

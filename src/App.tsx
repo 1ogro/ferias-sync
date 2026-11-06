@@ -37,6 +37,7 @@ const FigmaDiagnostic = lazy(() => import("./pages/FigmaDiagnostic"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const MagicLinkCallback = lazy(() => import("./pages/MagicLinkCallback"));
 const NotFound = lazy(() => import("./pages/NotFound"));
+const LeadershipReport = lazy(() => import("./pages/LeadershipReport"));
 const Onboarding = lazy(() => import("./pages/Onboarding"));
 const OAuthConsent = lazy(() => import("./pages/OAuthConsent"));
 
@@ -107,6 +108,7 @@ const App = () => (
                 <MagicLinkCallback />
               </Suspense>
             } />
+            <Route path="/relatorio-lideranca" element={<LeadershipReport />} />
             <Route path="/setup-profile" element={<SetupProfile />} />
             <Route path="/setup-contract" element={<ContractDateSetup />} />
             <Route path="/complete-profile" element={

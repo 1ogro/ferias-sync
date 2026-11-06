@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Header } from "@/components/Header";
 import { useAuth } from "@/hooks/useAuth";
+import LeadershipShareCard from "@/components/engagement/LeadershipShareCard";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -552,7 +553,10 @@ export default function Engagement() {
               <FeedbackProfilePanel authorId={person?.id} />
             </TabsContent>
             <TabsContent value="report" className="mt-0">
-              <MonthlyReportPanel canSeeGlobal={isManagementLevel(person)} />
+              <div className="space-y-6">
+                {isDirectorOrAdminFn(person) && <LeadershipShareCard />}
+                <MonthlyReportPanel canSeeGlobal={isManagementLevel(person)} />
+              </div>
             </TabsContent>
             <TabsContent value="wellbeing" className="mt-0">
               <WellbeingTeamPanel />
