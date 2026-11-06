@@ -501,7 +501,7 @@ export default function Engagement() {
         </div>
         <div className="space-y-6 lg:col-span-1">
           <LeaderboardCard />
-          {(person?.papel === "DIRETOR" || person?.papel === "GERENTE") && (
+          {(person?.papel === "DIRETOR" || person?.papel === "GERENTE" || person?.papel === "GESTOR" || person?.is_admin) && (
             <>
               <LeaderboardCard
                 period="quarter"
