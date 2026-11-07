@@ -1,0 +1,1 @@
+UPDATE public.leadership_report_links SET revoked_at = now() WHERE token = 'agenttest0000000000000000000000000000000000000001';
