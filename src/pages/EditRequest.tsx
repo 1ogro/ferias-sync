@@ -1,3 +1,5 @@
+import { CltBenefitsFields, useDecimoUsedThisYear } from "@/components/CltBenefitsFields";
+import { cltBenefitsError, isCltModel } from "@/lib/cltBenefits";
 import { useVacationMinDays, isBelowVacationMinimum } from "@/hooks/useVacationMinDays";
 import { useVacationRuleViolations } from "@/hooks/useVacationRules";
 import { useState, useEffect } from "react";
@@ -27,6 +29,8 @@ interface FormData {
   inicio: string;
   fim: string;
   justificativa: string;
+  dias_abono: number;
+  solicita_13: boolean;
 }
 
 const EditRequest = () => {
@@ -39,7 +43,9 @@ const EditRequest = () => {
     tipo: "",
     inicio: "",
     fim: "",
-    justificativa: ""
+    justificativa: "",
+    dias_abono: 0,
+    solicita_13: false
   });
   const [originalStatus, setOriginalStatus] = useState<Status | null>(null);
   const [conflicts, setConflicts] = useState<string[]>([]);
@@ -52,9 +58,11 @@ const EditRequest = () => {
   const [ownOverlaps, setOwnOverlaps] = useState<OverlappingRequest[]>([]);
   const [overlapDialogOpen, setOverlapDialogOpen] = useState(false);
   const [requesterId, setRequesterId] = useState<string | null>(null);
+  const [requesterModel, setRequesterModel] = useState<string | null>(null);
   const ruleViolations = useVacationRuleViolations(
     formData.tipo === TipoAusencia.FERIAS, requesterId || person?.id, formData.inicio, formData.fim, id,
   );
+  const decimoUsedThisYear = useDecimoUsedThisYear(requesterId, formData.inicio, id);
   const [vacationValidation, setVacationValidation] = useState<{
     valid: boolean;
     message: string;
@@ -121,8 +129,11 @@ const EditRequest = () => {
           tipo: requestData.tipo as TipoAusencia,
           inicio: requestData.inicio || "",
           fim: requestData.fim || "",
-          justificativa: requestData.justificativa || ""
+          justificativa: requestData.justificativa || "",
+          dias_abono: requestData.dias_abono || 0,
+          solicita_13: !!(requestData as any).solicita_13
         });
+        setRequesterModel(requestData.requester?.modelo_contrato ?? null);
         setOriginalStatus(requestData.status as Status);
         setIsDirector(isDirectorOrAdmin);
         setRequesterId(requestData.requester_id);
@@ -371,6 +382,8 @@ const EditRequest = () => {
           inicio: formData.inicio,
           fim: formData.fim,
           justificativa: formData.justificativa,
+          dias_abono: formData.tipo === TipoAusencia.FERIAS && isCltModel(requesterModel) ? formData.dias_abono : 0,
+          solicita_13: formData.tipo === TipoAusencia.FERIAS && isCltModel(requesterModel) ? formData.solicita_13 : false,
           conflito_flag: conflicts.length > 0 || vacationConflicts.length > 0,
           conflito_refs: [...conflicts, ...vacationConflicts.map(c => c.message)].join('; '),
           is_contract_exception: isDirector && (conflicts.length > 0 || vacationConflicts.length > 0),
@@ -490,6 +503,8 @@ const EditRequest = () => {
           inicio: formData.inicio || null,
           fim: formData.fim || null,
           justificativa: formData.justificativa || '',
+          dias_abono: formData.tipo === TipoAusencia.FERIAS && isCltModel(requesterModel) ? formData.dias_abono : 0,
+          solicita_13: formData.tipo === TipoAusencia.FERIAS && isCltModel(requesterModel) ? formData.solicita_13 : false,
           conflito_flag: false,
           conflito_refs: null,
           status: 'RASCUNHO'
@@ -541,7 +556,11 @@ const EditRequest = () => {
 
   const dayOffValidation = getDayOffValidation();
   const belowMin = formData.tipo === TipoAusencia.FERIAS && isBelowVacationMinimum(calculateDays(), vacationMinDays);
-  const isFormValid = formData.tipo && formData.inicio && formData.fim && formData.justificativa &&
+  const cltError = formData.tipo === TipoAusencia.FERIAS ? cltBenefitsError({
+    model: requesterModel, diasAbono: formData.dias_abono, solicita13: formData.solicita_13,
+    inicio: formData.inicio, fim: formData.fim, decimoUsedThisYear,
+  }) : null;
+  const isFormValid = !cltError && formData.tipo && formData.inicio && formData.fim && formData.justificativa &&
     (!belowMin || isDirector) &&
     (ruleViolations.length === 0 || isDirector) &&
     (isDirector || (
@@ -694,6 +713,18 @@ const EditRequest = () => {
                       <strong>Erro na solicitação de férias:</strong> {vacationValidation.message}
                     </AlertDescription>
                   </Alert>
+                )}
+
+                {formData.tipo === TipoAusencia.FERIAS && (
+                  <CltBenefitsFields
+                    model={requesterModel} inicio={formData.inicio}
+                    diasAbono={formData.dias_abono} solicita13={formData.solicita_13}
+                    decimoUsedThisYear={decimoUsedThisYear}
+                    onChange={(v) => setFormData((prev) => ({ ...prev, ...v }))}
+                  />
+                )}
+                {cltError && (
+                  <Alert variant="destructive"><AlertTriangle className="w-4 h-4" /><AlertDescription>{cltError}</AlertDescription></Alert>
                 )}
 
                 {/* Conflict Alerts */}

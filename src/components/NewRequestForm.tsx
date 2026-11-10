@@ -1,3 +1,5 @@
+import { CltBenefitsFields, useDecimoUsedThisYear } from "@/components/CltBenefitsFields";
+import { cltBenefitsError } from "@/lib/cltBenefits";
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -34,6 +36,7 @@ interface FormData {
   is_contract_exception?: boolean;
   contract_exception_justification?: string;
   portal_rh_solicitado: boolean;
+  solicita_13: boolean;
 }
 
 export const NewRequestForm = () => {
@@ -58,11 +61,13 @@ export const NewRequestForm = () => {
     data_prevista_parto: "",
     is_contract_exception: false,
     contract_exception_justification: "",
-    portal_rh_solicitado: false
+    portal_rh_solicitado: false,
+    solicita_13: false
   });
   const ruleViolations = useVacationRuleViolations(
     formData.tipo === TipoAusencia.FERIAS, person?.id, formData.inicio, formData.fim,
   );
+  const decimoUsedThisYear = useDecimoUsedThisYear(person?.id, formData.inicio);
   const [conflicts, setConflicts] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSavingDraft, setIsSavingDraft] = useState(false);
@@ -279,6 +284,7 @@ export const NewRequestForm = () => {
       // Reset abono when changing from vacation to other types
       if (field === "tipo" && value !== TipoAusencia.FERIAS) {
         newData.dias_abono = 0;
+        newData.solicita_13 = false;
         newData.portal_rh_solicitado = false; // Reset portal RH flag
       }
       
@@ -396,6 +402,7 @@ export const NewRequestForm = () => {
           is_contract_exception: formData.is_contract_exception || false,
           contract_exception_justification: formData.contract_exception_justification || null,
           portal_rh_solicitado: formData.portal_rh_solicitado,
+          solicita_13: formData.solicita_13,
           status: initialStatus,
         })
         .select()
@@ -573,7 +580,8 @@ export const NewRequestForm = () => {
           conflito_flag: false,
           conflito_refs: null,
           status: 'RASCUNHO',
-          dias_abono: formData.dias_abono
+          dias_abono: formData.dias_abono,
+          solicita_13: formData.solicita_13
         })
         .select()
         .single();
@@ -609,6 +617,10 @@ export const NewRequestForm = () => {
   };
 
   const dayOffValidation = getDayOffValidation();
+  const cltError = formData.tipo === TipoAusencia.FERIAS ? cltBenefitsError({
+    model: person?.modelo_contrato, diasAbono: formData.dias_abono, solicita13: formData.solicita_13,
+    inicio: formData.inicio, fim: formData.fim, decimoUsedThisYear,
+  }) : null;
   const hasAbono = formData.tipo === TipoAusencia.FERIAS && formData.dias_abono > 0;
   const isMaternityLeave = formData.tipo === TipoAusencia.LICENCA_MATERNIDADE;
   
@@ -627,7 +639,7 @@ export const NewRequestForm = () => {
     )) &&
     (!isMaternityLeave || maternityValidation?.valid) &&
     (!hasAbono || (formData.dias_abono && formData.dias_abono > 0)) &&
-    portalRHValid;
+    portalRHValid && !cltError;
 
   console.log('[DayOff Debug] Form validation state:', {
     tipo: formData.tipo,
@@ -860,6 +872,18 @@ export const NewRequestForm = () => {
                   Férias mínimas exigidas por lei: 10 dias corridos.
                 </p>
               </div>
+            )}
+
+            {formData.tipo === TipoAusencia.FERIAS && (
+              <CltBenefitsFields
+                model={person?.modelo_contrato} inicio={formData.inicio}
+                diasAbono={formData.dias_abono} solicita13={formData.solicita_13}
+                decimoUsedThisYear={decimoUsedThisYear} showAbono={false}
+                onChange={(v) => setFormData((prev) => ({ ...prev, ...v }))}
+              />
+            )}
+            {cltError && (
+              <Alert variant="destructive"><AlertTriangle className="w-4 h-4" /><AlertDescription>{cltError}</AlertDescription></Alert>
             )}
 
             {/* Portal RH Section - Only for CLT vacation requests */}

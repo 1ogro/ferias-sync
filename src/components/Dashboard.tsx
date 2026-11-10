@@ -260,6 +260,8 @@ export const Dashboard = () => {
         justificativa: item.justificativa,
         status: item.status as Status,
         diasAbono: item.dias_abono,
+        dias_abono: item.dias_abono,
+        solicita_13: item.solicita_13,
         createdAt: new Date(item.created_at),
         updatedAt: new Date(item.updated_at),
         conflitoFlag: item.conflito_flag,

@@ -74,6 +74,12 @@ export const RequestCard = ({
                   Abono {request.dias_abono} dia{request.dias_abono > 1 ? 's' : ''}
                 </Badge>
               )}
+              {request.tipo === TipoAusencia.FERIAS && request.solicita_13 && (
+                <Badge variant="outline" className="flex items-center gap-1">
+                  <DollarSign className="w-3 h-3" />
+                  1ª parcela 13º
+                </Badge>
+              )}
               {request.tipo === TipoAusencia.LICENCA_MATERNIDADE && (
                 <Badge variant="outline" className="bg-pink-50 text-pink-700 border-pink-200 flex items-center gap-1">
                   <Baby className="w-3 h-3" />

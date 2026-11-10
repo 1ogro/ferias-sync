@@ -1681,6 +1681,7 @@ export type Database = {
           original_created_at: string | null
           portal_rh_solicitado: boolean | null
           requester_id: string
+          solicita_13: boolean
           status: string
           tipo: string
           tipo_ferias: string | null
@@ -1704,6 +1705,7 @@ export type Database = {
           original_created_at?: string | null
           portal_rh_solicitado?: boolean | null
           requester_id: string
+          solicita_13?: boolean
           status?: string
           tipo: string
           tipo_ferias?: string | null
@@ -1727,6 +1729,7 @@ export type Database = {
           original_created_at?: string | null
           portal_rh_solicitado?: boolean | null
           requester_id?: string
+          solicita_13?: boolean
           status?: string
           tipo?: string
           tipo_ferias?: string | null

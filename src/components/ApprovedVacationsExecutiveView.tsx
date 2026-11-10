@@ -48,6 +48,8 @@ interface ApprovedVacation {
   approval_date: string;
   tipo: string;
   data_prevista_parto?: string;
+  dias_abono: number;
+  solicita_13: boolean;
 }
 
 interface FilterOptions {
@@ -103,6 +105,8 @@ export function ApprovedVacationsExecutiveView({ teamIds }: ApprovedVacationsExe
           status,
           created_at,
           data_prevista_parto,
+          dias_abono,
+          solicita_13,
           people!requests_requester_id_fkey (
             id,
             nome,
@@ -147,6 +151,8 @@ export function ApprovedVacationsExecutiveView({ teamIds }: ApprovedVacationsExe
           approver_name: finalApproval?.people?.nome || 'Sistema',
           approval_date: finalApproval?.created_at || vacation.created_at,
           tipo: vacation.tipo,
+          dias_abono: vacation.dias_abono || 0,
+          solicita_13: !!vacation.solicita_13,
           data_prevista_parto: vacation.data_prevista_parto
         };
       }) || [];
@@ -367,7 +373,7 @@ export function ApprovedVacationsExecutiveView({ teamIds }: ApprovedVacationsExe
 
   const exportToCSV = () => {
     const headers = [
-      'Tipo', 'Colaborador', 'Cargo', 'Time', 'Início', 'Fim', 'Dias', 'Status', 'Aprovador', 'Data Aprovação'
+      'Tipo', 'Colaborador', 'Cargo', 'Time', 'Início', 'Fim', 'Dias', 'Abono (dias)', '1ª parcela 13º', 'Status', 'Aprovador', 'Data Aprovação'
     ];
     
     const csvData = filteredVacations.map(vacation => [
@@ -380,6 +386,8 @@ export function ApprovedVacationsExecutiveView({ teamIds }: ApprovedVacationsExe
       format(parseDateSafely(vacation.start_date), 'dd/MM/yyyy'),
       format(parseDateSafely(vacation.end_date), 'dd/MM/yyyy'),
       vacation.vacation_days.toString(),
+      vacation.tipo === 'FERIAS' ? String(vacation.dias_abono) : '',
+      vacation.tipo === 'FERIAS' ? (vacation.solicita_13 ? 'Sim' : 'Não') : '',
       vacation.status,
       vacation.approver_name,
       format(new Date(vacation.approval_date), 'dd/MM/yyyy HH:mm')
@@ -701,7 +709,11 @@ export function ApprovedVacationsExecutiveView({ teamIds }: ApprovedVacationsExe
                         {format(parseDateSafely(vacation.start_date), 'dd/MM/yyyy')} -{' '}
                         {format(parseDateSafely(vacation.end_date), 'dd/MM/yyyy')}
                       </TableCell>
-                      <TableCell>{vacation.vacation_days} dias</TableCell>
+                      <TableCell>
+                        <div>{vacation.vacation_days} dias</div>
+                        {vacation.dias_abono > 0 && <Badge variant="outline" className="text-xs mt-1">Abono {vacation.dias_abono}d</Badge>}
+                        {vacation.solicita_13 && <Badge variant="outline" className="text-xs mt-1 ml-1">1ª parcela 13º</Badge>}
+                      </TableCell>
                       <TableCell>
                         <div className="flex flex-col gap-1">
                           <Badge variant={vacation.status === 'REALIZADO' ? 'default' : 'secondary'}>

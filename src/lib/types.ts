@@ -92,6 +92,7 @@ export interface Request {
   is_contract_exception?: boolean; // If maternity leave has extension beyond 120 days
   contract_exception_justification?: string; // Justification for extension
   portal_rh_solicitado?: boolean; // If CLT vacation was requested in Portal RH
+  solicita_13?: boolean; // CLT: adiantamento da 1ª parcela do 13º
 }
 
 export const STATUS_LABELS = {
