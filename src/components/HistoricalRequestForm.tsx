@@ -15,7 +15,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { validateMaternityLeave, calculateMaternityEndDate, calculateExpectedDeliveryDate } from "@/lib/maternityLeaveUtils";
 import { MaternityLeaveValidation } from "@/lib/types";
-import { parseDateSafely } from "@/lib/dateUtils";
+import { parseDateSafely, formatDateToYYYYMMDD } from "@/lib/dateUtils";
 import { findOverlappingOwnRequests, supersedeRequests, type OverlappingRequest } from "@/lib/requestOverlap";
 import { OverlappingRequestsDialog } from "@/components/OverlappingRequestsDialog";
 import { isManagementLevel, isDirectorOrAdmin } from "@/lib/utils";
@@ -120,7 +120,7 @@ export const HistoricalRequestForm = ({ onSuccess }: HistoricalRequestFormProps)
             setEndDate(endDate);
             setFormData(prev => ({
               ...prev,
-              fim: endDate.toISOString().split('T')[0]
+              fim: formatDateToYYYYMMDD(endDate)
             }));
 
             // Calcular data prevista do parto se não foi informada
@@ -129,7 +129,7 @@ export const HistoricalRequestForm = ({ onSuccess }: HistoricalRequestFormProps)
               setExpectedDeliveryDate(expectedDelivery);
               setFormData(prev => ({
                 ...prev,
-                data_prevista_parto: expectedDelivery.toISOString().split('T')[0]
+                data_prevista_parto: formatDateToYYYYMMDD(expectedDelivery)
               }));
             }
           }
@@ -171,15 +171,22 @@ export const HistoricalRequestForm = ({ onSuccess }: HistoricalRequestFormProps)
     if (formData.inicio && formData.fim) {
       const start = parseDateSafely(formData.inicio);
       const end = parseDateSafely(formData.fim);
-      const diffTime = Math.abs(end.getTime() - start.getTime());
+      const diffTime = end.getTime() - start.getTime();
+      if (diffTime < 0) return 0;
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
       return diffDays;
     }
     return 0;
   };
 
+  const datesInvalid = !!(formData.inicio && formData.fim && formData.fim < formData.inicio);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (datesInvalid) {
+      toast({ variant: 'destructive', title: 'Datas inválidas', description: 'A data de fim deve ser igual ou posterior à data de início.' });
+      return;
+    }
     if (!isManagementLevel(person)) {
       toast({
         variant: 'destructive',
@@ -406,7 +413,10 @@ export const HistoricalRequestForm = ({ onSuccess }: HistoricalRequestFormProps)
                     selected={startDate}
                     onSelect={(date) => {
                       setStartDate(date);
-                      setFormData({ ...formData, inicio: date ? date.toISOString().split('T')[0] : '' });
+                      const inicio = date ? formatDateToYYYYMMDD(date) : '';
+                      const resetFim = !!(inicio && formData.fim && formData.fim < inicio);
+                      if (resetFim) setEndDate(undefined);
+                      setFormData({ ...formData, inicio, ...(resetFim ? { fim: '' } : {}) });
                     }}
                     locale={ptBR}
                   />
@@ -433,9 +443,11 @@ export const HistoricalRequestForm = ({ onSuccess }: HistoricalRequestFormProps)
                   <Calendar
                     mode="single"
                     selected={endDate}
+                    defaultMonth={endDate ?? startDate}
+                    disabled={startDate ? { before: startDate } : undefined}
                     onSelect={(date) => {
                       setEndDate(date);
-                      setFormData({ ...formData, fim: date ? date.toISOString().split('T')[0] : '' });
+                      setFormData({ ...formData, fim: date ? formatDateToYYYYMMDD(date) : '' });
                     }}
                     locale={ptBR}
                   />
@@ -444,7 +456,10 @@ export const HistoricalRequestForm = ({ onSuccess }: HistoricalRequestFormProps)
             </div>
           </div>
 
-          {formData.inicio && formData.fim && (
+          {datesInvalid && (
+            <p className="text-sm text-destructive">A data de fim deve ser igual ou posterior à data de início.</p>
+          )}
+          {formData.inicio && formData.fim && !datesInvalid && (
             <div className="text-sm text-muted-foreground">
               Duração: {calculateDays()} dias
             </div>
@@ -474,7 +489,7 @@ export const HistoricalRequestForm = ({ onSuccess }: HistoricalRequestFormProps)
                       selected={expectedDeliveryDate}
                       onSelect={(date) => {
                         setExpectedDeliveryDate(date);
-                        setFormData({ ...formData, data_prevista_parto: date ? date.toISOString().split('T')[0] : '' });
+                        setFormData({ ...formData, data_prevista_parto: date ? formatDateToYYYYMMDD(date) : '' });
                       }}
                       locale={ptBR}
                       className="pointer-events-auto"
@@ -651,6 +666,7 @@ export const HistoricalRequestForm = ({ onSuccess }: HistoricalRequestFormProps)
               type="submit" 
               disabled={
                 isSubmitting || 
+                datesInvalid ||
                 !formData.requesterId || 
                 !formData.tipo || 
                 !formData.inicio || 
