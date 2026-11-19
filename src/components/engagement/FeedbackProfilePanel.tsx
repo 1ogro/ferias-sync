@@ -13,6 +13,7 @@ import { ptBR } from "date-fns/locale";
 import { useToast } from "@/hooks/use-toast";
 import { ExternalFeedbackDialog } from "./ExternalFeedbackDialog";
 import { FeedbackCyclesCard } from "./FeedbackCyclesCard";
+import { PersonWeeklyWellbeing } from "./PersonWeeklyWellbeing";
 import {
   useFeedbackScope,
   useFeedbackTimeline,
@@ -78,6 +79,7 @@ export function FeedbackProfilePanel({ authorId }: { authorId?: string }) {
   const { data: people = [], isLoading: loadingPeople } = useFeedbackScope();
   const [personId, setPersonId] = useState<string>("");
   const [period, setPeriod] = useState("90");
+  const [view, setView] = useState<"feedbacks" | "wellbeing">("feedbacks");
   const [kind, setKind] = useState<"all" | FeedbackTimelineItem["kind"]>("all");
 
   const since = useMemo(() => sinceIso(period), [period]);
@@ -291,6 +293,14 @@ export function FeedbackProfilePanel({ authorId }: { authorId?: string }) {
           </CardContent>
         </Card>
       ) : (
+        <>
+        <Tabs value={view} onValueChange={(v) => setView(v as any)}>
+          <TabsList>
+            <TabsTrigger value="feedbacks">Feedbacks / Ciclos</TabsTrigger>
+            <TabsTrigger value="wellbeing">Bem-estar semanal</TabsTrigger>
+          </TabsList>
+        </Tabs>
+        {view === "wellbeing" ? <PersonWeeklyWellbeing personId={personId} /> : (
         <Card>
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -387,6 +397,8 @@ export function FeedbackProfilePanel({ authorId }: { authorId?: string }) {
             </ScrollArea>
           </CardContent>
         </Card>
+        )}
+        </>
       )}
     </div>
   );

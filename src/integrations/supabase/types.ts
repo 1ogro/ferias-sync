@@ -2356,6 +2356,10 @@ export type Database = {
           visible_to_subject: boolean
         }[]
       }
+      get_person_weekly_wellbeing: {
+        Args: { p_person_id: string; p_weeks?: number }
+        Returns: Json
+      }
       get_pulse_checkin_averages: {
         Args: never
         Returns: {
