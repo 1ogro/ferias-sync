@@ -60,6 +60,8 @@ import { NewCollaboratorForm } from "@/components/NewCollaboratorForm";
 import { PendingCollaboratorsList } from "@/components/PendingCollaboratorsList";
 import { ReassignManagerDialog, DeletionImpact } from "@/components/ReassignManagerDialog";
 import { OffboardingCard } from "@/components/OffboardingCard";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { PendingApprovalsPanel, usePendingDataChangeCount } from "@/components/admin/PendingApprovalsPanel";
 import { 
   Plus, 
   Search, 
@@ -179,6 +181,7 @@ const Admin = () => {
 
   const isManager = person?.papel === Papel.GESTOR;
   const isDirector = person?.papel === Papel.DIRETOR || person?.is_admin;
+  const pendingApprovalsCount = usePendingDataChangeCount();
 
   // Statistics
   const stats = useMemo(() => {
@@ -787,6 +790,20 @@ const Admin = () => {
         </div>
       </div>
 
+      <Tabs defaultValue="people" className="space-y-6">
+      <TabsList className="flex-wrap h-auto">
+        <TabsTrigger value="people">Colaboradores</TabsTrigger>
+        <TabsTrigger value="approvals">
+          Aprovações pendentes
+          {pendingApprovalsCount > 0 && <Badge variant="destructive" className="ml-2 h-5 min-w-[20px] rounded-full px-1">{pendingApprovalsCount}</Badge>}
+        </TabsTrigger>
+        {(isDirector || person?.papel === "GERENTE") && <TabsTrigger value="teams">Times</TabsTrigger>}
+        <TabsTrigger value="offboarding">Desligamentos</TabsTrigger>
+      </TabsList>
+      <TabsContent value="approvals"><PendingApprovalsPanel /></TabsContent>
+      {(isDirector || person?.papel === "GERENTE") && <TabsContent value="teams"><TeamsManagerCard /></TabsContent>}
+      <TabsContent value="offboarding"><OffboardingCard /></TabsContent>
+      <TabsContent value="people" className="space-y-6">
       {/* Statistics Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
@@ -833,8 +850,6 @@ const Admin = () => {
         </Card>
       </div>
 
-      {(isDirector || person?.papel === "GERENTE") && <TeamsManagerCard />}
-      <OffboardingCard />
 
       {/* Search and Filters */}
       <Card>
@@ -1204,6 +1219,9 @@ const Admin = () => {
       </section>
 
 
+
+      </TabsContent>
+      </Tabs>
 
       {/* Create/Edit Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
