@@ -1064,6 +1064,7 @@ export type Database = {
           cargo: string | null
           created_at: string | null
           created_by: string | null
+          data_admissao: string | null
           data_contrato: string | null
           data_nascimento: string | null
           dia_pagamento: number | null
@@ -1090,6 +1091,7 @@ export type Database = {
           cargo?: string | null
           created_at?: string | null
           created_by?: string | null
+          data_admissao?: string | null
           data_contrato?: string | null
           data_nascimento?: string | null
           dia_pagamento?: number | null
@@ -1116,6 +1118,7 @@ export type Database = {
           cargo?: string | null
           created_at?: string | null
           created_by?: string | null
+          data_admissao?: string | null
           data_contrato?: string | null
           data_nascimento?: string | null
           dia_pagamento?: number | null
