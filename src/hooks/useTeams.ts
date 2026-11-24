@@ -5,13 +5,15 @@ export interface Team {
   id: string;
   nome: string;
   ativo: boolean;
+  overlap_alert_threshold?: number;
+  min_capacity_pct?: number;
 }
 
 export function useTeams(includeInactive = false) {
   return useQuery({
     queryKey: ["teams", includeInactive],
     queryFn: async (): Promise<Team[]> => {
-      let query = (supabase as any).from("teams").select("id, nome, ativo").order("nome");
+      let query = (supabase as any).from("teams").select("id, nome, ativo, overlap_alert_threshold, min_capacity_pct").order("nome");
       if (!includeInactive) query = query.eq("ativo", true);
       const { data, error } = await query;
       if (error) throw error;
@@ -63,6 +65,17 @@ export function useToggleTeamActive() {
   return useMutation({
     mutationFn: async ({ id, ativo }: { id: string; ativo: boolean }) => {
       const { error } = await (supabase as any).from("teams").update({ ativo }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["teams"] }),
+  });
+}
+
+export function useUpdateTeamCapacity() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, overlap_alert_threshold, min_capacity_pct }: { id: string; overlap_alert_threshold: number; min_capacity_pct: number }) => {
+      const { error } = await (supabase as any).from("teams").update({ overlap_alert_threshold, min_capacity_pct }).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["teams"] }),

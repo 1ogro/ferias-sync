@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Users2, Plus, Check, X, Pencil } from "lucide-react";
-import { useTeams, useCreateTeam, useRenameTeam, useToggleTeamActive } from "@/hooks/useTeams";
+import { useTeams, useCreateTeam, useRenameTeam, useToggleTeamActive, useUpdateTeamCapacity } from "@/hooks/useTeams";
 import { useToast } from "@/hooks/use-toast";
 
 export function TeamsManagerCard() {
@@ -13,6 +13,8 @@ export function TeamsManagerCard() {
   const createTeam = useCreateTeam();
   const renameTeam = useRenameTeam();
   const toggleTeam = useToggleTeamActive();
+  const updateCap = useUpdateTeamCapacity();
+  const [cap, setCap] = useState<Record<string, { o: string; m: string }>>({});
 
   const [newName, setNewName] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -34,7 +36,7 @@ export function TeamsManagerCard() {
           <Users2 className="h-4 w-4 text-primary" /> Times
         </CardTitle>
         <CardDescription>
-          Lista oficial usada nos cadastros. Times desativados não aparecem mais para escolha.
+          Lista oficial usada nos cadastros. Times desativados não aparecem mais para escolha. Em cada time, defina quantas pessoas ausentes ao mesmo tempo geram alerta e a capacidade mínima (%).
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -90,6 +92,30 @@ export function TeamsManagerCard() {
                   <>
                     <span className="flex-1 text-sm font-medium">{t.nome}</span>
                     {!t.ativo && <Badge variant="secondary">Inativo</Badge>}
+                    {(() => {
+                      const c = cap[t.id] ?? { o: String(t.overlap_alert_threshold ?? 2), m: String(t.min_capacity_pct ?? 70) };
+                      const dirty = c.o !== String(t.overlap_alert_threshold ?? 2) || c.m !== String(t.min_capacity_pct ?? 70);
+                      return (
+                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                          <label title="Alerta quando este número de pessoas estiver ausente ao mesmo tempo">Ausentes</label>
+                          <Input type="number" min={1} max={50} className="h-8 w-16" value={c.o}
+                            onChange={(e) => setCap((s) => ({ ...s, [t.id]: { ...c, o: e.target.value } }))} />
+                          <label title="Alerta quando a capacidade do time cair abaixo deste percentual">Mín. %</label>
+                          <Input type="number" min={0} max={100} className="h-8 w-16" value={c.m}
+                            onChange={(e) => setCap((s) => ({ ...s, [t.id]: { ...c, m: e.target.value } }))} />
+                          {dirty && (
+                            <Button size="icon" variant="outline" className="h-8 w-8" aria-label="Salvar capacidade"
+                              disabled={updateCap.isPending}
+                              onClick={() => run(async () => {
+                                await updateCap.mutateAsync({ id: t.id, overlap_alert_threshold: Number(c.o), min_capacity_pct: Number(c.m) });
+                                setCap((s) => { const n = { ...s }; delete n[t.id]; return n; });
+                              }, "Capacidade atualizada")}>
+                              <Check className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
+                      );
+                    })()}
                     <Button
                       size="icon"
                       variant="ghost"

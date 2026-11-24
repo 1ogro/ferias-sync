@@ -14,6 +14,7 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { formatDateSafe } from "@/lib/dateUtils";
 import { DeletionDialog } from "@/components/DeletionDialog";
+import { TeamCapacityAlertsPanel } from "@/components/TeamCapacityAlertsPanel";
 
 interface PlannedAbsence {
   id: string;
@@ -336,6 +337,7 @@ export const TeamCapacityDashboard = () => {
 
   return (
     <div className="space-y-6">
+      <TeamCapacityAlertsPanel />
       {/* Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         <Card>

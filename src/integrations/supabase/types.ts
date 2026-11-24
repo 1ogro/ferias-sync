@@ -1900,21 +1900,27 @@ export type Database = {
           ativo: boolean
           created_at: string
           id: string
+          min_capacity_pct: number
           nome: string
+          overlap_alert_threshold: number
           updated_at: string
         }
         Insert: {
           ativo?: boolean
           created_at?: string
           id?: string
+          min_capacity_pct?: number
           nome: string
+          overlap_alert_threshold?: number
           updated_at?: string
         }
         Update: {
           ativo?: boolean
           created_at?: string
           id?: string
+          min_capacity_pct?: number
           nome?: string
+          overlap_alert_threshold?: number
           updated_at?: string
         }
         Relationships: []
