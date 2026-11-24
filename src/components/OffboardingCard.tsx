@@ -21,13 +21,13 @@ type P = { id: string; nome: string; papel: string | null; gestor_id: string | n
 
 const STATUS: Record<string, string> = {
   PENDENTE_DIRETOR: "Aguardando diretoria",
-  PENDENTE_ADMIN: "Aguardando admin",
+  PENDENTE_ADMIN: "Aguardando diretoria",
   CONCLUIDO: "Concluído",
   REJEITADO: "Recusado",
   CANCELADO: "Cancelado",
 };
 
-export function OffboardingCard() {
+export function OffboardingCard({ onChange }: { onChange?: (pending: number) => void } = {}) {
   const { person } = useAuth();
   const { toast } = useToast();
   const [rows, setRows] = useState<Row[]>([]);
@@ -51,6 +51,7 @@ export function OffboardingCard() {
       supabase.from("people").select("id, nome, papel, gestor_id, sub_time").eq("ativo", true).order("nome"),
     ]);
     setRows((r || []) as Row[]);
+    onChange?.(((r || []) as Row[]).filter((x) => x.status.startsWith("PENDENTE")).length);
     setPeople((p || []) as P[]);
   };
   useEffect(() => { if (person) load(); }, [person?.id]);
@@ -82,12 +83,12 @@ export function OffboardingCard() {
     const ok = await call("new", "request_offboarding", {
       p_person_id: target, p_reason: reason, p_last_day: lastDay || null,
       p_new_manager_id: newManager === "none" ? null : newManager,
-    }, "Desligamento solicitado");
+    }, isDirector ? "Desligamento efetivado" : "Desligamento enviado para a diretoria");
     if (ok) { setTarget(""); setReason(""); setLastDay(""); setNewManager("none"); }
   };
 
   const canReview = (r: Row) =>
-    (r.status === "PENDENTE_DIRETOR" && isDirector) || (r.status === "PENDENTE_ADMIN" && isAdmin);
+    r.status.startsWith("PENDENTE") && isDirector;
   const open = rows.filter((r) => r.status.startsWith("PENDENTE"));
   const done = rows.filter((r) => !r.status.startsWith("PENDENTE")).slice(0, 15);
 
@@ -95,7 +96,7 @@ export function OffboardingCard() {
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2"><UserMinus className="h-5 w-5" /> Desligamentos</CardTitle>
-        <CardDescription>Gestor solicita → diretoria aprova → admin confirma. O histórico da pessoa é preservado.</CardDescription>
+        <CardDescription>Gestor solicita → diretoria avalia e confirma. Pedidos feitos pela diretoria são efetivados na hora. O histórico da pessoa é preservado.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
         <div className="grid gap-3 md:grid-cols-2">
@@ -125,7 +126,7 @@ export function OffboardingCard() {
             <Textarea value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Descreva o motivo do desligamento" />
           </div>
           <div className="md:col-span-2">
-            <Button onClick={submit} disabled={!target || reason.trim().length < 5 || busy === "new"}>Solicitar desligamento</Button>
+            <Button onClick={submit} disabled={!target || reason.trim().length < 5 || busy === "new"}>{isDirector ? "Efetivar desligamento" : "Solicitar desligamento"}</Button>
           </div>
         </div>
 
@@ -150,8 +151,8 @@ export function OffboardingCard() {
                   <div className="flex gap-2">
                     <Button size="sm" disabled={busy === r.id}
                       onClick={() => call(r.id, "review_offboarding", { p_request_id: r.id, p_approve: true, p_notes: notes[r.id] || null },
-                        r.status === "PENDENTE_ADMIN" ? "Desligamento concluído" : "Aprovado e enviado ao admin")}>
-                      {r.status === "PENDENTE_ADMIN" ? "Confirmar desligamento" : "Aprovar"}
+                        "Desligamento confirmado")}>
+                      Confirmar desligamento
                     </Button>
                     <Button size="sm" variant="outline" disabled={busy === r.id}
                       onClick={() => call(r.id, "review_offboarding", { p_request_id: r.id, p_approve: false, p_notes: notes[r.id] || null }, "Solicitação recusada")}>

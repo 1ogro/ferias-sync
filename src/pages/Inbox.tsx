@@ -17,6 +17,7 @@ import { Inbox as InboxIcon, CheckCircle, XCircle, MessageCircle, Trash2, UserPl
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { OffboardingCard } from "@/components/OffboardingCard";
 
 const Inbox = () => {
   const { person } = useAuth();
@@ -27,7 +28,7 @@ const Inbox = () => {
   const [pendingPeopleLoading, setPendingPeopleLoading] = useState(true);
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [currentUserPerson, setCurrentUserPerson] = useState<any>(null);
-  const [selectedTab, setSelectedTab] = useState<"requests" | "registrations" | "payment_days" | "data_changes">("requests");
+  const [selectedTab, setSelectedTab] = useState<"requests" | "registrations" | "payment_days" | "data_changes" | "offboarding">("requests");
   const [selectedPending, setSelectedPending] = useState<PendingPerson | null>(null);
   const [approveDialogOpen, setApproveDialogOpen] = useState(false);
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
@@ -55,6 +56,7 @@ const Inbox = () => {
     created_at: string;
   }>>([]);
   const [dataChangeNotes, setDataChangeNotes] = useState<Record<string, string>>({});
+  const [offboardingPending, setOffboardingPending] = useState(0);
   const [processingDataChangeId, setProcessingDataChangeId] = useState<string | null>(null);
 
   const fetchDataChangeRequests = async () => {
@@ -708,7 +710,7 @@ const Inbox = () => {
   const isDirectorOrAdmin = isManagementLevel(person);
   const showTabs =
     (isDirectorOrAdmin && (pendingPeople.length > 0 || paymentDayRequests.length > 0)) ||
-    dataChangeRequests.length > 0;
+    dataChangeRequests.length > 0 || isLeadership(person);
 
 
 
@@ -770,10 +772,23 @@ const Inbox = () => {
                 <Badge variant="secondary" className="ml-2">{dataChangeRequests.length}</Badge>
               </Button>
             )}
+            <Button
+              variant={selectedTab === "offboarding" ? "default" : "ghost"}
+              onClick={() => setSelectedTab("offboarding")}
+              className="flex-1"
+            >
+              Desligamentos
+              {offboardingPending > 0 && <Badge variant="secondary" className="ml-2">{offboardingPending}</Badge>}
+            </Button>
           </div>
         )}
 
 
+
+        {selectedTab === "offboarding" && <OffboardingCard onChange={setOffboardingPending} />}
+        {isLeadership(person) && selectedTab !== "offboarding" && (
+          <div className="hidden"><OffboardingCard onChange={setOffboardingPending} /></div>
+        )}
 
         {/* Requests tab */}
         {selectedTab === "requests" && (

@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Switch } from "@/components/ui/switch";
@@ -78,6 +78,7 @@ export function FeedbackProfilePanel({ authorId }: { authorId?: string }) {
   const { toast } = useToast();
   const { data: people = [], isLoading: loadingPeople } = useFeedbackScope();
   const [personId, setPersonId] = useState<string>("");
+  const [showInactive, setShowInactive] = useState(false);
   const [period, setPeriod] = useState("90");
   const [view, setView] = useState<"feedbacks" | "wellbeing">("feedbacks");
   const [kind, setKind] = useState<"all" | FeedbackTimelineItem["kind"]>("all");
@@ -134,7 +135,7 @@ export function FeedbackProfilePanel({ authorId }: { authorId?: string }) {
   const myPending = useMemo(() => {
     if (!authorId) return [];
     const done = new Set(coverage.filter((c) => c.author_id === authorId).map((c) => c.person_id));
-    return people.filter((p) => !done.has(p.id));
+    return people.filter((p) => p.ativo !== false && !done.has(p.id));
   }, [coverage, people, authorId]);
 
 
@@ -151,7 +152,11 @@ export function FeedbackProfilePanel({ authorId }: { authorId?: string }) {
                 Biscoitos, feedbacks de pares e registros de stakeholders externos das pessoas do seu escopo.
               </CardDescription>
             </div>
-            <ExternalFeedbackDialog authorId={authorId} defaultPersonId={personId || undefined} />
+            {selectedPerson?.ativo === false ? (
+              <span className="text-xs text-muted-foreground">Colaborador desligado: somente histórico</span>
+            ) : (
+              <ExternalFeedbackDialog authorId={authorId} defaultPersonId={personId || undefined} />
+            )}
           </div>
         </CardHeader>
         <CardContent className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -162,13 +167,27 @@ export function FeedbackProfilePanel({ authorId }: { authorId?: string }) {
                 <SelectValue placeholder={loadingPeople ? "Carregando..." : "Selecione um colaborador"} />
               </SelectTrigger>
               <SelectContent>
-                {people.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    {p.nome}{p.cargo ? ` · ${p.cargo}` : ""}{p.ativo === false ? " · Desligado" : ""}
-                  </SelectItem>
-                ))}
+                <SelectGroup>
+                  <SelectLabel>Ativos</SelectLabel>
+                  {people.filter((p) => p.ativo !== false).map((p) => (
+                    <SelectItem key={p.id} value={p.id}>{p.nome}{p.cargo ? ` · ${p.cargo}` : ""}</SelectItem>
+                  ))}
+                </SelectGroup>
+                {showInactive && people.some((p) => p.ativo === false) && (
+                  <SelectGroup>
+                    <SelectLabel>Histórico / Desligados</SelectLabel>
+                    {people.filter((p) => p.ativo === false).map((p) => (
+                      <SelectItem key={p.id} value={p.id}>{p.nome} · Desligado</SelectItem>
+                    ))}
+                  </SelectGroup>
+                )}
               </SelectContent>
             </Select>
+            <div className="flex items-center gap-2 mt-2">
+              <Switch id="show-inactive" checked={showInactive} onCheckedChange={(v) => { setShowInactive(v); if (!v && selectedPerson?.ativo === false) setPersonId(""); }} />
+              <Label htmlFor="show-inactive" className="text-xs">Mostrar desligados</Label>
+              {selectedPerson?.ativo === false && <Badge variant="destructive" className="text-xs">Desligado</Badge>}
+            </div>
           </div>
           <div>
             <Label className="text-xs">Período</Label>
