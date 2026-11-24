@@ -74,6 +74,7 @@ export function PendingCollaboratorsList({ onCountChange }: PendingCollaborators
         gestor_id: item.gestor_id,
         gestor: item.gestor,
         data_contrato: item.data_contrato,
+        data_admissao: item.data_admissao,
         data_nascimento: item.data_nascimento,
         modelo_contrato: item.modelo_contrato,
         status: item.status,

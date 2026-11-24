@@ -186,6 +186,7 @@ export interface PendingPerson {
   gestor_id: string;
   gestor?: Person;
   data_contrato?: string;
+  data_admissao?: string;
   data_nascimento?: string;
   modelo_contrato?: ModeloContrato;
   dia_pagamento?: number;

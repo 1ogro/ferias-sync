@@ -41,6 +41,7 @@ export function ApprovePendingCollaboratorDialog({
     sub_time: pending.sub_time || "",
     gestor_id: pending.gestor_id,
     data_contrato: pending.data_contrato || "",
+    data_admissao: pending.data_admissao || "",
     data_nascimento: pending.data_nascimento || "",
     modelo_contrato: pending.modelo_contrato || ModeloContrato.CLT,
     dia_pagamento: pending.dia_pagamento?.toString() || "",
@@ -128,6 +129,11 @@ export function ApprovePendingCollaboratorDialog({
         }).catch((err) => console.warn('Slack notification failed:', err));
 
         // Notifica o novo colaborador (DM Slack + email com link p/ completar perfil)
+        if (result.person_id && (formData.data_admissao || formData.data_contrato)) {
+          await supabase.from("people")
+            .update({ data_admissao: formData.data_admissao || formData.data_contrato })
+            .eq("id", result.person_id);
+        }
         if (result.person_id) {
           supabase.functions.invoke('notify-approved-collaborator', {
             body: { person_id: result.person_id },
@@ -316,6 +322,17 @@ export function ApprovePendingCollaboratorDialog({
                   </Select>
                 </div>
               )}
+
+              <div className="space-y-2">
+                <Label htmlFor="data_admissao">Data de Admissão <span className="text-muted-foreground font-normal">(base das férias)</span></Label>
+                <Input
+                  id="data_admissao"
+                  type="date"
+                  value={formData.data_admissao}
+                  onChange={(e) => setFormData({ ...formData, data_admissao: e.target.value })}
+                  disabled={loading}
+                />
+              </div>
 
               <div className="space-y-2">
                 <Label htmlFor="data_contrato">Data de Contrato <span className="text-muted-foreground font-normal">(opcional)</span></Label>
