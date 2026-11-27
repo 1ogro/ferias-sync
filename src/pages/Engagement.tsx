@@ -139,7 +139,7 @@ function GiveKudosDialog({ personId, fromName, papel }: { personId?: string; fro
   const [message, setMessage] = useState("");
   const [pickerOpen, setPickerOpen] = useState(false);
 
-  const [share, setShare] = useState(false);
+  const [share, setShare] = useState(true);
   const SHARE_CHANNEL = "#time";
   const { data: people = [] } = useActivePeople();
   const { mutateAsync, isPending } = useSendKudo();
@@ -200,7 +200,7 @@ function GiveKudosDialog({ personId, fromName, papel }: { personId?: string; fro
         });
       }
       setOpen(false);
-      setToIds([]); setMessage(""); setShare(false); setCategory("teamwork");
+      setToIds([]); setMessage(""); setShare(true); setCategory("teamwork");
     } catch (e: any) {
       toast({ title: "Falha ao enviar biscoito", description: e.message, variant: "destructive" });
     }
@@ -217,7 +217,7 @@ function GiveKudosDialog({ personId, fromName, papel }: { personId?: string; fro
       <DialogTrigger asChild>
         <Button className="gap-2"><Heart className="h-4 w-4" /> Dar um biscoito</Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent className="max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Reconhecer um colega</DialogTitle>
           <DialogDescription>Diga algo positivo. Dá pontos pra quem recebe e também pra você.</DialogDescription>

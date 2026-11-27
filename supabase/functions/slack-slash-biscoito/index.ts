@@ -326,6 +326,10 @@ async function openModal(opts: {
           element: {
             type: "checkboxes",
             action_id: "kudo_share_check",
+            initial_options: [{
+              text: { type: "plain_text", text: `Postar em ${SHARE_CHANNEL}` },
+              value: "share",
+            }],
             options: [{
               text: { type: "plain_text", text: `Postar em ${SHARE_CHANNEL}` },
               value: "share",

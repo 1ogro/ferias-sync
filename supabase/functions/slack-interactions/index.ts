@@ -1543,7 +1543,7 @@ serve(async (req) => {
           value: o.value,
         }));
 
-        const kudosChannel = survey?.kudos_channel?.trim() || null;
+        const kudosChannel = survey?.kudos_channel?.trim() || "#time";
         const privateMetadata = JSON.stringify({
           kudos_channel: kudosChannel,
           origin_channel_id: originChannelId,
@@ -1602,6 +1602,10 @@ serve(async (req) => {
             element: {
               type: "checkboxes",
               action_id: "kudo_share_check",
+              initial_options: [{
+                text: { type: "plain_text", text: `Postar em ${kudosChannel}` },
+                value: "share",
+              }],
               options: [{
                 text: { type: "plain_text", text: `Postar em ${kudosChannel}` },
                 value: "share",
